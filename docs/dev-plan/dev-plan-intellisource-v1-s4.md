@@ -6,12 +6,14 @@
 <!-- volume: sprint | split-from: dev-plan-intellisource-v1 -->
 
 [NAV]
+
 - §3 任务卡详细 → T-027..T-036 (Sprint 4: 任务编排与分发)
 [/NAV]
 
 ## 3. 任务卡详细
 
 ### T-027: Celery任务定义与任务链构建
+
 - **目标**: 定义 Celery 任务（采集/处理/分发），实现任务链构建器将多个阶段串联为原子任务链
 - **模块**: M-006
 - **接口**: 无（内部基础设施）
@@ -36,6 +38,7 @@
   - arch#§5.3（重试策略）
 
 ### T-028: 任务状态机与调度管理
+
 - **目标**: 实现统一任务状态机（pending->running->success/failed + pause/resume/timeout）和定时调度管理
 - **模块**: M-006
 - **接口**: API-008, API-009 的业务逻辑层
@@ -57,6 +60,7 @@
   - arch-intellisource-v1-api#API-009
 
 ### T-029: 幂等保护与分布式锁
+
 - **目标**: 实现基于内容指纹、推送记录和 Redis 分布式锁的幂等保护机制，防止重复处理和推送
 - **模块**: M-006
 - **接口**: 无
@@ -78,6 +82,7 @@
 - **实现提示**: Redis SET NX EX 实现分布式锁；内容指纹唯一约束由数据库层保证
 
 ### T-030: 工作流引擎
+
 - **目标**: 实现用户自定义工作流引擎，支持灵活组合采集-处理-分发步骤
 - **模块**: M-006
 - **接口**: API-010, API-011 的业务逻辑层
@@ -98,28 +103,36 @@
   - arch-intellisource-v1-api#API-010
   - arch-intellisource-v1-api#API-011
 
-### T-031: 分发器基类与订阅规则匹配
-- **目标**: 定义分发器统一接口（BaseDistributor）、实现订阅规则匹配引擎和推送去重/历史记录
+### T-031: 分发器基类与订阅规则匹配（含高级关键词/权重评分）
+
+- **目标**: 定义分发器统一接口（BaseDistributor）、实现支持高级关键词语法的订阅规则匹配引擎、内容权重评分器和推送去重/历史记录
 - **模块**: M-007
 - **接口**: 无（内部框架）
 - **复杂度**: M
 - **tdd_acceptance**:
   - [ ] AC-043 映射: SubscriptionMatcher 基于关键词/标签匹配推送内容到对应订阅
+  - [ ] AC-043a: SubscriptionMatcher 结合 ContentScorer 权重评分进行推送排序和阈值过滤
   - [ ] AC-T031-1: BaseDistributor 定义 distribute(content, subscription) -> PushRecord 统一接口
   - [ ] AC-T031-2: SubscriptionMatcher.match(content) 返回匹配的 Subscription 列表
   - [ ] AC-T031-3: 匹配规则支持 keywords（OR 逻辑）、tags（OR 逻辑）、sentiment 过滤
-  - [ ] AC-T031-4: DeliveryTracker 记录推送历史并检查去重
+  - [ ] AC-T031-4: 关键词高级语法：普通词（包含即匹配）、`+`前缀必选词（必须包含）、`!`前缀排除词（排除匹配）、`/pattern/`正则匹配
+  - [ ] AC-T031-5: ContentScorer.score(content, subscription) 综合计算权重分（源可信度 × 时间衰减 × 关键词匹配度），推送时按权重降序排列
+  - [ ] AC-T031-6: Subscription.match_rules.min_score 阈值过滤，权重低于阈值的内容不推送（默认 0 表示不过滤）
+  - [ ] AC-T031-7: DeliveryTracker 记录推送历史并检查去重
 - **deliverables** (交付物):
   - [ ] `src/intellisource/distributor/base.py` -- 分发器抽象基类
-  - [ ] `src/intellisource/distributor/matcher.py` -- 订阅规则匹配引擎
+  - [ ] `src/intellisource/distributor/matcher.py` -- 订阅规则匹配引擎（含高级关键词语法解析）
+  - [ ] `src/intellisource/distributor/scorer.py` -- 内容权重评分器
   - [ ] `src/intellisource/distributor/__init__.py` -- 模块导出
-  - [ ] `tests/unit/distributor/test_matcher.py` -- 匹配器测试
+  - [ ] `tests/unit/distributor/test_matcher.py` -- 匹配器测试（含高级关键词语法）
+  - [ ] `tests/unit/distributor/test_scorer.py` -- 权重评分测试
 - **context_load**:
   - arch#§2.M-007
   - arch-intellisource-v1-data#§4.E-009
   - arch-intellisource-v1-data#§4.E-010
 
 ### T-032: 微信公众号分发渠道
+
 - **目标**: 实现微信公众号推送（模板消息/图文消息），包含 Access Token 管理和推送结果追踪
 - **模块**: M-007
 - **接口**: 无（由 M-006 任务链触发）
@@ -140,6 +153,7 @@
 - **实现提示**: 微信公众号 API 使用 httpx；测试使用 Mock 服务模拟微信接口响应
 
 ### T-033: 企业微信分发渠道
+
 - **目标**: 实现企业微信应用消息推送，包含 Access Token 管理和消息格式化
 - **模块**: M-007
 - **接口**: 无
@@ -159,6 +173,7 @@
   - arch#§5.3（重试策略）
 
 ### T-034: 邮件分发渠道
+
 - **目标**: 实现 HTML 格式邮件推送，支持 SMTP 配置和邮件模板
 - **模块**: M-007
 - **接口**: 无
@@ -178,6 +193,7 @@
 - **实现提示**: 使用 Python 标准库 email + aiosmtplib 实现异步 SMTP 发送
 
 ### T-035: 推送频率控制与免打扰
+
 - **目标**: 实现推送频率控制（realtime/hourly/daily/weekly）和免打扰时段功能
 - **模块**: M-007
 - **接口**: 无
@@ -196,6 +212,7 @@
   - arch-intellisource-v1-data#§4.E-009（frequency, quiet_hours 字段）
 
 ### T-036: 推送内容LLM优化
+
 - **目标**: 实现推送前的 LLM 内容重排序和引导语生成处理器
 - **模块**: M-004
 - **接口**: 无

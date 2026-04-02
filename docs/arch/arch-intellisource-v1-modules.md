@@ -6,12 +6,14 @@
 <!-- volume: modules | split-from: arch-intellisource-v1 -->
 
 [NAV]
+
 - §2 模块划分 → M-001..M-011
 [/NAV]
 
 ## 2. 模块划分
 
 ### M-001: 配置管理模块 (config)
+
 - **职责**: 管理信息源的声明式配置，提供配置的 CRUD、校验、热加载和版本管理能力
 - **映射功能**: F-001（信息源声明式配置）
 - **对外接口**: API-001, API-002, API-003, API-004, API-005
@@ -25,27 +27,31 @@
   - 配置项包含 `embedding_dimension`（默认 1536），切换 embedding 模型时需调整此值并执行数据库迁移
 
 ### M-002: 采集引擎模块 (collector)
+
 - **职责**: 提供插件化的采集架构，从多种信息源类型采集内容，统一输出标准化数据模型
 - **映射功能**: F-002（插件化采集引擎）, F-003（采集频率自适应与资源隔离）
 - **对外接口**: 无直接对外 API（由 M-006 任务编排调度）
 - **依赖模块**: M-001（获取信源配置）, M-009（存储采集结果）, M-010（日志/指标上报）
 - **内部关键组件**:
-  - `BaseCollector` — 采集器抽象基类，定义统一接口（AC-005）
-  - `CollectorRegistry` — 采集器注册中心，支持插件化注册新采集器
+  - `BaseCollector` — 采集器抽象基类，定义统一接口（AC-005），内置 HTTP 条件请求支持（ETag/If-Modified-Since），子类可复用以减少未变化源的计算开销
+  - `CollectorRegistry` — 采集器注册中心，支持自动发现注册和手动注册两种模式
+  - `SourceAutoDiscovery` — 数据源自发现加载器，启动时扫描 `collector/sources/` 目录，自动发现并注册实现了 `BaseCollector` 接口的子包（借鉴 RSSHub namespace 路由发现模式）。新增数据源只需在 `sources/` 下创建子包并实现标准接口，无需修改注册代码
   - `RSSCollector` — RSS/Atom 采集适配器（AC-006）
   - `APICollector` — 通用 API 采集适配器（AC-006）
   - `WebCollector` — 网页爬虫采集适配器（AC-006）
-  - `AdaptiveScheduler` — 频率自适应调度器，根据历史更新频率动态调整采集间隔（AC-009）
+  - `AdaptiveScheduler` — 频率自适应调度器（AC-009），算法：最小间隔保护（默认 120s）→ 空转指数退避（连续无新内容时 interval × backoff_factor，默认 1.5）→ 新内容恢复（interval × recovery_factor，默认 0.5）→ 基于 E-001 `avg_update_interval` 历史学习动态调整基准间隔
   - `RateLimiter` — 请求速率限制器，基于 Redis 令牌桶算法，按信源独立配置（AC-011）
   - `ProxyManager` — HTTP 代理管理器，按信源配置独立代理（AC-010）
 
 ### M-003: 处理管道模块 (pipeline)
+
 - **职责**: 提供可编排的内容处理管道框架，支持处理器的动态组合、条件分支和上下文传递
 - **映射功能**: F-004（可编排处理管道）
 - **对外接口**: 无直接对外 API（由 M-006 任务编排调度）
 - **依赖模块**: M-009（读写处理结果）, M-010（日志/指标上报）
 - **内部关键组件**:
-  - `PipelineEngine` — 管道执行引擎，按配置编排处理器顺序（AC-013）
+  - `PipelineEngine` — 管道执行引擎，支持中间件链模式（借鉴 RSSHub/Hono 中间件管道），每个处理器可实现前处理-调用下一个-后处理的洋葱模型，同时兼容传统线性编排（AC-013）
+  - `MiddlewareChain` — 中间件链执行器，支持 `process(ctx, next)` 洋葱模型，处理器可在调用 next 前后执行前处理/后处理逻辑，支持在 Workflow (E-012) 的 steps JSONB 中声明中间件组合
   - `BaseProcessor` — 处理器抽象基类，定义统一接口（AC-015）
   - `PipelineContext` — 管道上下文对象，支持处理器间数据传递（AC-016）
   - `ConditionEvaluator` — 条件评估器，支持条件跳过和分支（AC-014）
@@ -53,6 +59,7 @@
   - 内置处理器: `HTMLParser`, `ContentDedup`（指纹去重）, `KeywordTagger`, `FormatConverter`
 
 ### M-004: LLM 智能处理模块 (llm.processors)
+
 - **职责**: 基于 LLM 实现结构化提取、语义去重、聚类、摘要、打标和情感分析等高级内容处理
 - **映射功能**: F-005（结构化提取/语义去重/聚类）, F-006（摘要/打标/分析）, F-010（推送内容优化）
 - **对外接口**: 无直接对外 API（作为 M-003 管道处理器运行）
@@ -70,6 +77,7 @@
   - 每个 LLM 处理器均实现降级逻辑（AC-021, AC-027, AC-049），降级映射见 arch#§5.3
 
 ### M-005: LLM 服务治理模块 (llm.gateway)
+
 - **职责**: 提供统一的 LLM 调用接口，管理多模型提供商，实现重试、熔断、降级和成本监控
 - **映射功能**: F-007（LLM 服务治理）
 - **对外接口**: API-017（LLM 用量统计）
@@ -80,9 +88,12 @@
   - `FallbackManager` — 降级管理器，LLM 失败时自动切换（AC-030，<500ms）
   - `PriorityQueue` — 优先级队列，隔离用户交互请求和后台处理请求（AC-032）
   - `CostTracker` — 成本追踪器，记录 Token 消耗/延迟/IO 长度，支持聚合统计（AC-033）
+  - `ModelRegistry` — 模型能力注册表，通过 YAML 配置声明每个模型的能力维度（context_window、supports_json_mode、supports_function_calling、cost_per_1k_tokens、best_for 等），支持热加载更新（借鉴 OpenCode Provider 抽象模式）
+  - `SmartRouter` — 智能路由器，根据 LLM 任务类型（extraction/summarization/embedding 等）+ 模型能力 + 成本约束自动选择最优模型；无匹配模型时降级到默认模型并记录 WARNING 日志
   - `SchemaEnforcer` — JSON Mode / Function Calling 输出格式强制器（AC-031）
 
 ### M-006: 任务编排模块 (scheduler)
+
 - **职责**: 编排采集-处理-存储-分发的原子任务链，提供定时调度、并发执行和任务状态管理
 - **映射功能**: F-008（任务编排与调度）
 - **对外接口**: API-006, API-007, API-008, API-009, API-010, API-011, API-026, API-027, API-028, API-029
@@ -96,6 +107,7 @@
   - `IdempotencyGuard` — 幂等保护器，基于内容指纹 + 推送记录 + Redis 分布式锁（AC-037）
 
 ### M-007: 分发渠道模块 (distributor)
+
 - **职责**: 将处理后的内容通过多渠道（微信公众号/企业微信/邮件）推送给订阅用户
 - **映射功能**: F-009（多渠道分发）
 - **对外接口**: API-020（微信回调）, API-021（企业微信回调）, API-022（订阅列表）, API-023（创建订阅）, API-024（更新订阅）, API-025（删除订阅）
@@ -105,12 +117,14 @@
   - `WeChatDistributor` — 微信公众号推送实现（AC-040）
   - `WeWorkDistributor` — 企业微信推送实现（AC-041）
   - `EmailDistributor` — 邮件推送实现，HTML 格式（AC-042）
-  - `SubscriptionMatcher` — 订阅规则匹配引擎，基于关键词/学科标签匹配（AC-043）
+  - `SubscriptionMatcher` — 订阅规则匹配引擎，支持高级关键词语法（`+`必选词、`!`排除词、`/pattern/`正则匹配）及学科标签匹配（AC-043），结合 ContentScorer 的权重评分进行推送排序和阈值过滤（AC-043a）
+  - `ContentScorer` — 内容权重评分器，综合计算内容权重分（源可信度 × 时间衰减 × 关键词匹配度），用于推送排序和 min_score 阈值过滤
   - `DeliveryTracker` — 推送去重与历史记录（AC-044, AC-045）
   - `FrequencyController` — 推送频率控制与免打扰时段（AC-046）
   - `WebhookHandler` — 微信/企业微信消息回调处理（接收用户消息指令）
 
 ### M-008: 即时检索模块 (search)
+
 - **职责**: 处理用户通过消息渠道发送的即时检索指令，理解意图并返回相关摘要
 - **映射功能**: F-011（消息指令式即时检索）
 - **对外接口**: API-012（混合检索）, API-013（即时问答）
@@ -122,6 +136,7 @@
   - `ChatSessionManager` — 多轮对话管理器，保持最近 5 轮上下文（AC-053）
 
 ### M-009: 存储与检索模块 (storage)
+
 - **职责**: 管理结构化数据和向量数据的持久化存储，提供统一的数据访问层和混合检索能力
 - **映射功能**: F-012（存储与混合检索）
 - **对外接口**: API-014（内容列表）, API-015（内容详情）, API-016（聚类列表）
@@ -136,6 +151,7 @@
   - `HybridIndex` — 混合索引，结合 PostgreSQL 全文检索 + pgvector 向量检索（AC-056）
 
 ### M-010: 可观测性模块 (observability)
+
 - **职责**: 提供结构化日志、指标监控和分布式链路追踪基础设施
 - **映射功能**: F-013（可观测性）
 - **对外接口**: API-018（健康检查）, API-019（系统指标）
@@ -148,6 +164,7 @@
   - `AlertManager` — 告警管理器，关键指标异常时触发告警（AC-060）
 
 ### M-011: API 与 CLI 模块 (api + cli)
+
 - **职责**: 提供 RESTful API 和命令行工具，作为系统的统一外部接口层
 - **映射功能**: F-014（RESTful API 与 CLI）
 - **对外接口**: 所有 API-001 至 API-029（路由层）
