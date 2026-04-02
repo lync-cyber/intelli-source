@@ -6,12 +6,14 @@
 <!-- volume: api | split-from: arch-intellisource-v1 -->
 
 [NAV]
-- §3 接口契约 → API-001..API-029
+
+- §3 接口契约 → API-001..API-030, MCP Server
 [/NAV]
 
 ## 3. 接口契约
 
 > 通用约定:
+>
 > - 基础路径: `/api/v1`
 > - 认证: 所有接口（除 Webhook 回调和健康检查外）需在请求头携带 `X-API-Key`
 > - Webhook 回调接口使用平台签名验证
@@ -19,6 +21,7 @@
 > - 错误响应统一格式见 arch#§5.3
 
 ### API-001: 获取信源列表
+
 ```yaml
 path: /api/v1/sources
 method: GET
@@ -43,6 +46,7 @@ response:
 ```
 
 ### API-002: 创建信源
+
 ```yaml
 path: /api/v1/sources
 method: POST
@@ -78,6 +82,7 @@ response:
 ```
 
 ### API-003: 更新信源（部分更新）
+
 ```yaml
 path: /api/v1/sources/{id}
 method: PATCH
@@ -108,6 +113,7 @@ response:
 ```
 
 ### API-004: 删除信源
+
 ```yaml
 path: /api/v1/sources/{id}
 method: DELETE
@@ -124,6 +130,7 @@ response:
 ```
 
 ### API-005: 重载配置
+
 ```yaml
 path: /api/v1/sources/reload
 method: POST
@@ -145,6 +152,7 @@ response:
 ```
 
 ### API-006: 获取任务列表
+
 ```yaml
 path: /api/v1/tasks
 method: GET
@@ -169,6 +177,7 @@ response:
 ```
 
 ### API-007: 触发采集任务
+
 ```yaml
 path: /api/v1/tasks/collect
 method: POST
@@ -192,6 +201,7 @@ response:
 ```
 
 ### API-008: 查询任务状态
+
 ```yaml
 path: /api/v1/tasks/{id}
 method: GET
@@ -218,6 +228,7 @@ response:
 ```
 
 ### API-009: 暂停/恢复任务
+
 ```yaml
 path: /api/v1/tasks/{id}
 method: PATCH
@@ -242,6 +253,7 @@ response:
 ```
 
 ### API-010: 创建工作流
+
 ```yaml
 path: /api/v1/workflows
 method: POST
@@ -275,6 +287,7 @@ response:
 ```
 
 ### API-011: 执行工作流
+
 ```yaml
 path: /api/v1/workflows/{id}/run
 method: POST
@@ -298,6 +311,7 @@ response:
 ```
 
 ### API-012: 混合检索
+
 ```yaml
 path: /api/v1/search
 method: POST
@@ -334,6 +348,7 @@ response:
 ```
 
 ### API-013: 即时问答
+
 ```yaml
 path: /api/v1/search/chat
 method: POST
@@ -364,6 +379,7 @@ response:
 ```
 
 ### API-014: 获取内容列表
+
 ```yaml
 path: /api/v1/contents
 method: GET
@@ -400,6 +416,7 @@ response:
 ```
 
 ### API-015: 获取内容详情
+
 ```yaml
 path: /api/v1/contents/{id}
 method: GET
@@ -433,6 +450,7 @@ response:
 ```
 
 ### API-016: 获取聚类列表
+
 ```yaml
 path: /api/v1/clusters
 method: GET
@@ -466,6 +484,7 @@ response:
 ```
 
 ### API-017: LLM 用量统计
+
 ```yaml
 path: /api/v1/llm/stats
 method: GET
@@ -509,6 +528,7 @@ response:
 ```
 
 ### API-018: 系统健康检查
+
 ```yaml
 path: /api/v1/health
 method: GET
@@ -537,6 +557,7 @@ response:
 ```
 
 ### API-019: 系统指标
+
 ```yaml
 path: /api/v1/metrics
 method: GET
@@ -553,6 +574,7 @@ response:
 ```
 
 ### API-020: 微信消息回调
+
 ```yaml
 path: /api/v1/webhooks/wechat
 method: POST
@@ -576,6 +598,7 @@ response:
 ```
 
 ### API-021: 企业微信消息回调
+
 ```yaml
 path: /api/v1/webhooks/wework
 method: POST
@@ -598,6 +621,7 @@ response:
 ```
 
 ### API-022: 获取订阅规则列表
+
 ```yaml
 path: /api/v1/subscriptions
 method: GET
@@ -631,6 +655,7 @@ response:
 ```
 
 ### API-023: 创建订阅规则
+
 ```yaml
 path: /api/v1/subscriptions
 method: POST
@@ -674,6 +699,7 @@ response:
 ```
 
 ### API-024: 更新订阅规则
+
 ```yaml
 path: /api/v1/subscriptions/{id}
 method: PATCH
@@ -700,6 +726,7 @@ response:
 ```
 
 ### API-025: 删除订阅规则
+
 ```yaml
 path: /api/v1/subscriptions/{id}
 method: DELETE
@@ -717,6 +744,7 @@ response:
 ```
 
 ### API-026: 获取工作流列表
+
 ```yaml
 path: /api/v1/workflows
 method: GET
@@ -750,6 +778,7 @@ response:
 ```
 
 ### API-027: 获取工作流详情
+
 ```yaml
 path: /api/v1/workflows/{id}
 method: GET
@@ -778,6 +807,7 @@ response:
 ```
 
 ### API-028: 更新工作流
+
 ```yaml
 path: /api/v1/workflows/{id}
 method: PATCH
@@ -802,6 +832,7 @@ response:
 ```
 
 ### API-029: 删除工作流
+
 ```yaml
 path: /api/v1/workflows/{id}
 method: DELETE
@@ -818,11 +849,45 @@ response:
   404: { schema: "ErrorResponse", desc: "工作流不存在" }
 ```
 
+### API-030: 调用原子操作
+
+```yaml
+path: /api/v1/tools/{tool_name}
+method: POST
+module: M-003
+desc: "统一原子操作调用端点。从 ToolRegistry 自动生成，每个原子操作的输入/输出 Schema 由 ToolSpec 定义。支持的 tool_name 包括: collect, parse, fingerprint, dedup_by_fingerprint, find_similar, store_processed, store_embedding, search_fulltext, search_vector, search_hybrid, cluster_create, cluster_assign, tag_content, set_sentiment, match_subscriptions, push, get_push_history"
+request:
+  headers:
+    X-API-Key: { type: string, required: true, desc: "API 认证密钥" }
+  path_params:
+    tool_name: { type: string, required: true, desc: "原子操作名称" }
+  body:
+    描述: "请求体为该原子操作的 ToolSpec.parameters 定义的 JSON 对象，由 ToolRegistry 动态校验"
+response:
+  200:
+    schema: "ToolResult"
+    body:
+      描述: "返回体为该原子操作的 ToolSpec.returns 定义的 JSON 对象"
+  400: { schema: "ErrorResponse", desc: "参数校验失败（不符合 ToolSpec.parameters Schema）" }
+  401: { schema: "ErrorResponse", desc: "认证失败" }
+  404: { schema: "ErrorResponse", desc: "原子操作不存在（tool_name 未注册）" }
+  500: { schema: "ErrorResponse", desc: "操作执行失败" }
+```
+
+**MCP Server 端点说明**:
+
+- MCP Server 从同一套 M-003 ToolRegistry 自动生成工具定义，暴露与 API-030 完全相同的原子操作集
+- 传输方式: stdio（本地进程间通信）或 SSE（远程 HTTP）
+- 外部 AI Agent（如 Claude Desktop）通过 MCP 协议发现工具列表、调用工具、接收结果
+- MCP 工具的 input_schema 与 API-030 的 request body Schema 一致
+- 认证: MCP 通过传输层认证（如 SSE 模式下的 Bearer Token），共享 API Key 体系
+
 ---
 
 ### 通用响应类型定义
 
 #### ErrorResponse
+
 ```yaml
 error:
   code: { type: string, desc: "错误码，格式 IS-{MOD}-{NNN}" }
@@ -832,6 +897,7 @@ error:
 ```
 
 #### Source
+
 ```yaml
 id: { type: string, desc: "信源 ID (UUID)" }
 name: { type: string, desc: "信源名称" }
@@ -854,6 +920,7 @@ updated_at: { type: datetime, desc: "更新时间" }
 ```
 
 #### TaskBrief
+
 ```yaml
 id: { type: string, desc: "任务 ID" }
 type: { type: string, desc: "任务类型" }

@@ -6,211 +6,240 @@
 <!-- volume: sprint | split-from: dev-plan-intellisource-v1 -->
 
 [NAV]
-- §3 任务卡详细 → T-027..T-036 (Sprint 4: 任务编排与分发)
+
+- §3 任务卡详细 → T-037..T-046 (Sprint 4: API/CLI/MCP与集成)
 [/NAV]
 
 ## 3. 任务卡详细
 
-### T-027: Celery任务定义与任务链构建
-- **目标**: 定义 Celery 任务（采集/处理/分发），实现任务链构建器将多个阶段串联为原子任务链
-- **模块**: M-006
-- **接口**: 无（内部基础设施）
-- **复杂度**: L
-- **tdd_acceptance**:
-  - [ ] AC-034 映射: 采集->处理->存储->分发串联为原子任务链，单步失败可独立重试
-  - [ ] AC-035 映射: 定时任务与手动触发任务通过独立队列并行处理
-  - [ ] AC-T027-1: TaskChainBuilder.build(source_ids, pipeline_config, distribute_config) 返回 Celery chain
-  - [ ] AC-T027-2: 单步失败时记录错误到 CollectTask.error_message，不中断后续步骤（可配置）
-  - [ ] AC-T027-3: 任务链执行状态持久化到 TaskChain 表（E-008）
-  - [ ] AC-T027-4: 支持 low/normal/high 三级优先级队列
-- **deliverables** (交付物):
-  - [ ] `src/intellisource/scheduler/tasks.py` -- Celery 任务定义
-  - [ ] `src/intellisource/scheduler/chains.py` -- 任务链构建器
-  - [ ] `src/intellisource/scheduler/__init__.py` -- 模块导出
-  - [ ] `tests/unit/scheduler/test_tasks.py` -- 任务定义测试
-  - [ ] `tests/unit/scheduler/test_chains.py` -- 任务链测试
-- **context_load**:
-  - arch#§2.M-006
-  - arch-intellisource-v1-data#§4.E-002
-  - arch-intellisource-v1-data#§4.E-008
-  - arch#§5.3（重试策略）
+### T-037: Webhook回调处理(微信/企业微信)
 
-### T-028: 任务状态机与调度管理
-- **目标**: 实现统一任务状态机（pending->running->success/failed + pause/resume/timeout）和定时调度管理
-- **模块**: M-006
-- **接口**: API-008, API-009 的业务逻辑层
-- **复杂度**: M
-- **tdd_acceptance**:
-  - [ ] AC-038 映射: 状态机支持 pending/running/success/failed/paused/cancelled 状态转换
-  - [ ] AC-039 映射: 支持 Celery Beat 定时调度、手动触发、消息触发三种模式
-  - [ ] AC-T028-1: pause 操作暂停正在执行的任务链（revoke pending subtasks）
-  - [ ] AC-T028-2: resume 操作从暂停点恢复执行
-  - [ ] AC-T028-3: 任务超时（可配置）自动标记为 failed
-  - [ ] AC-T028-4: SchedulerManager 管理 Celery Beat 定时任务的注册和取消
-- **deliverables** (交付物):
-  - [ ] `src/intellisource/scheduler/state_machine.py` -- 任务状态机
-  - [ ] `tests/unit/scheduler/test_state_machine.py` -- 状态机测试
-- **context_load**:
-  - arch#§2.M-006
-  - arch-intellisource-v1-data#§4.E-002（status 字段）
-  - arch-intellisource-v1-api#API-008
-  - arch-intellisource-v1-api#API-009
-
-### T-029: 幂等保护与分布式锁
-- **目标**: 实现基于内容指纹、推送记录和 Redis 分布式锁的幂等保护机制，防止重复处理和推送
-- **模块**: M-006
-- **接口**: 无
-- **复杂度**: M
-- **tdd_acceptance**:
-  - [ ] AC-036 映射: 多工作节点并发执行任务时不产生重复处理
-  - [ ] AC-037 映射: 幂等设计覆盖文档指纹去重 + 推送记录 + 分布式锁三层
-  - [ ] AC-T029-1: IdempotencyGuard.acquire(source_id) 获取分布式锁，防止同一信源并发采集
-  - [ ] AC-T029-2: 锁超时自动释放（默认 5 分钟），防止死锁
-  - [ ] AC-T029-3: 内容指纹去重在入库前检查 RawContent.fingerprint 唯一约束
-  - [ ] AC-T029-4: 推送去重通过 PushRecord 的 (subscription_id, content_id, channel) 唯一约束
-- **deliverables** (交付物):
-  - [ ] `src/intellisource/scheduler/idempotency.py` -- 幂等保护器
-  - [ ] `tests/unit/scheduler/test_idempotency.py` -- 幂等测试
-- **context_load**:
-  - arch#§2.M-006
-  - arch#§5.1（并发控制）
-  - arch-intellisource-v1-data#§4.E-010（去重约束）
-- **实现提示**: Redis SET NX EX 实现分布式锁；内容指纹唯一约束由数据库层保证
-
-### T-030: 工作流引擎
-- **目标**: 实现用户自定义工作流引擎，支持灵活组合采集-处理-分发步骤
-- **模块**: M-006
-- **接口**: API-010, API-011 的业务逻辑层
-- **复杂度**: M
-- **tdd_acceptance**:
-  - [ ] AC-063 映射: 工作流支持自定义步骤组合（collect/process/distribute 的灵活编排）
-  - [ ] AC-T030-1: WorkflowEngine.create(name, steps, schedule) 创建工作流定义并持久化
-  - [ ] AC-T030-2: WorkflowEngine.run(workflow_id, override_params) 实例化工作流为 TaskChain 执行
-  - [ ] AC-T030-3: 每个步骤支持 on_failure 策略（retry/skip/abort）
-  - [ ] AC-T030-4: 支持 Cron 表达式定时执行（注册到 Celery Beat）
-  - [ ] AC-T030-5: 工作流 CRUD 操作与 Workflow 表（E-012）正确交互
-- **deliverables** (交付物):
-  - [ ] `src/intellisource/scheduler/workflow.py` -- 工作流引擎
-  - [ ] `tests/unit/scheduler/test_workflow.py` -- 工作流测试
-- **context_load**:
-  - arch#§2.M-006
-  - arch-intellisource-v1-data#§4.E-012
-  - arch-intellisource-v1-api#API-010
-  - arch-intellisource-v1-api#API-011
-
-### T-031: 分发器基类与订阅规则匹配
-- **目标**: 定义分发器统一接口（BaseDistributor）、实现订阅规则匹配引擎和推送去重/历史记录
+- **目标**: 实现微信和企业微信的消息回调处理，包括签名验证、消息解析和指令路由到 Agent
 - **模块**: M-007
-- **接口**: 无（内部框架）
+- **接口**: API-020, API-021
 - **复杂度**: M
 - **tdd_acceptance**:
-  - [ ] AC-043 映射: SubscriptionMatcher 基于关键词/标签匹配推送内容到对应订阅
-  - [ ] AC-T031-1: BaseDistributor 定义 distribute(content, subscription) -> PushRecord 统一接口
-  - [ ] AC-T031-2: SubscriptionMatcher.match(content) 返回匹配的 Subscription 列表
-  - [ ] AC-T031-3: 匹配规则支持 keywords（OR 逻辑）、tags（OR 逻辑）、sentiment 过滤
-  - [ ] AC-T031-4: DeliveryTracker 记录推送历史并检查去重
+  - [ ] AC-T037-1: WebhookHandler 验证微信签名（sha1(sort(token, timestamp, nonce))）
+  - [ ] AC-T037-2: WebhookHandler 验证企业微信消息签名
+  - [ ] AC-T037-3: 解析 XML 消息体提取用户消息内容
+  - [ ] AC-T037-4: 文本消息通过 M-006 TriggerManager 触发 Agent 执行 user_search Playbook
+  - [ ] AC-T037-5: 签名验证失败返回 403
+  - [ ] AC-T037-6: 消息处理异步执行，5s 内先返回空响应（微信要求）
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/distributor/base.py` -- 分发器抽象基类
-  - [ ] `src/intellisource/distributor/matcher.py` -- 订阅规则匹配引擎
-  - [ ] `src/intellisource/distributor/__init__.py` -- 模块导出
-  - [ ] `tests/unit/distributor/test_matcher.py` -- 匹配器测试
+  - [ ] `src/intellisource/distributor/webhooks.py` -- Webhook 回调处理
+  - [ ] `tests/unit/distributor/test_webhooks.py` -- 回调处理测试
 - **context_load**:
   - arch#§2.M-007
-  - arch-intellisource-v1-data#§4.E-009
-  - arch-intellisource-v1-data#§4.E-010
+  - arch-intellisource-v1-api#API-020
+  - arch-intellisource-v1-api#API-021
+  - arch#§5.2（Webhook 签名验证）
 
-### T-032: 微信公众号分发渠道
-- **目标**: 实现微信公众号推送（模板消息/图文消息），包含 Access Token 管理和推送结果追踪
-- **模块**: M-007
-- **接口**: 无（由 M-006 任务链触发）
+### T-038: API路由层 -- 信源管理
+
+- **目标**: 实现信源管理的 FastAPI 路由（CRUD + 配置重载）
+- **模块**: M-011
+- **接口**: API-001, API-002, API-003, API-004, API-005
 - **复杂度**: M
 - **tdd_acceptance**:
-  - [ ] AC-040 映射: WeChatDistributor 支持通过微信公众号发送模板消息和图文消息
-  - [ ] AC-044 映射: 同一内容对同一用户同一渠道不重复推送
-  - [ ] AC-045 映射: 推送失败自动重试（3次，固定间隔5s），记录推送历史
-  - [ ] AC-T032-1: Access Token 缓存到 Redis，过期前自动刷新
-  - [ ] AC-T032-2: 推送内容格式化为微信支持的消息格式
-  - [ ] AC-T032-3: 推送结果（成功/失败/错误码）记录到 PushRecord
+  - [ ] AC-061 映射: API 支持信源的创建/查询/更新/删除操作
+  - [ ] AC-065 映射: FastAPI 自动生成 OpenAPI 文档
+  - [ ] AC-T038-1: GET /api/v1/sources 支持分页和过滤（type/tag/status）
+  - [ ] AC-T038-2: POST /api/v1/sources 创建信源，409 冲突正确处理
+  - [ ] AC-T038-3: PATCH /api/v1/sources/{id} 部分更新
+  - [ ] AC-T038-4: DELETE /api/v1/sources/{id} 删除信源
+  - [ ] AC-T038-5: POST /api/v1/sources/reload 配置重载（白名单校验）
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/distributor/channels/wechat.py` -- 微信公众号分发
-  - [ ] `tests/unit/distributor/test_wechat.py` -- 微信推送测试（Mock 微信 API）
+  - [ ] `src/intellisource/api/routers/sources.py` -- 信源路由
+  - [ ] `tests/unit/api/test_sources.py` -- 信源 API 测试
 - **context_load**:
-  - arch#§2.M-007
-  - arch#§5.3（重试策略 -- 推送失败）
-- **实现提示**: 微信公众号 API 使用 httpx；测试使用 Mock 服务模拟微信接口响应
+  - arch#§2.M-011
+  - arch-intellisource-v1-api#API-001~API-005
 
-### T-033: 企业微信分发渠道
-- **目标**: 实现企业微信应用消息推送，包含 Access Token 管理和消息格式化
-- **模块**: M-007
-- **接口**: 无
+### T-039: API路由层 -- 任务与工作流
+
+- **目标**: 实现任务管理和工作流管理的 FastAPI 路由
+- **模块**: M-011
+- **接口**: API-006~API-011, API-026~API-029
 - **复杂度**: M
 - **tdd_acceptance**:
-  - [ ] AC-041 映射: WeWorkDistributor 支持通过企业微信发送应用消息
-  - [ ] AC-044 映射: 同一内容不重复推送
-  - [ ] AC-045 映射: 推送失败自动重试
-  - [ ] AC-T033-1: 企业微信 Access Token 缓存与刷新
-  - [ ] AC-T033-2: 支持文本/Markdown/图文卡片消息格式
-  - [ ] AC-T033-3: 推送结果追踪
+  - [ ] AC-062 映射: API 支持手动触发采集任务和查询任务状态
+  - [ ] AC-063 映射: API 支持定义和执行自定义工作流
+  - [ ] AC-065 映射: 自动生成 OpenAPI 文档
+  - [ ] AC-T039-1: GET /api/v1/tasks 任务列表（分页+过滤）
+  - [ ] AC-T039-2: POST /api/v1/tasks/collect 触发采集（返回 202）
+  - [ ] AC-T039-3: 工作流 CRUD（GET/POST/PATCH/DELETE /api/v1/workflows）
+  - [ ] AC-T039-4: POST /api/v1/workflows/{id}/run 执行工作流（返回 202）
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/distributor/channels/wework.py` -- 企业微信分发
-  - [ ] `tests/unit/distributor/test_wework.py` -- 企业微信推送测试
+  - [ ] `src/intellisource/api/routers/tasks.py` -- 任务路由
+  - [ ] `src/intellisource/api/routers/workflows.py` -- 工作流路由
+  - [ ] `tests/unit/api/test_tasks.py` -- 任务 API 测试
+  - [ ] `tests/unit/api/test_workflows.py` -- 工作流 API 测试
 - **context_load**:
-  - arch#§2.M-007
-  - arch#§5.3（重试策略）
+  - arch#§2.M-011
+  - arch-intellisource-v1-api#API-006~API-011
 
-### T-034: 邮件分发渠道
-- **目标**: 实现 HTML 格式邮件推送，支持 SMTP 配置和邮件模板
-- **模块**: M-007
+### T-040: API路由层 -- 内容/检索/订阅/LLM/系统
+
+- **目标**: 实现内容查询、检索、订阅管理、LLM 统计和系统端点的 FastAPI 路由
+- **模块**: M-011
+- **接口**: API-012~API-019, API-022~API-025
+- **复杂度**: M
+- **tdd_acceptance**:
+  - [ ] AC-061 映射: 内容列表/详情/聚类 API 正确路由
+  - [ ] AC-065 映射: 自动生成 OpenAPI 文档
+  - [ ] AC-T040-1: GET /api/v1/contents 内容列表（分页+过滤）
+  - [ ] AC-T040-2: POST /api/v1/search 混合检索（调用 search_hybrid 原子操作）
+  - [ ] AC-T040-3: POST /api/v1/search/chat 即时问答（触发 Agent user_search）
+  - [ ] AC-T040-4: 订阅规则 CRUD（/api/v1/subscriptions）
+  - [ ] AC-T040-5: GET /api/v1/llm/stats LLM 用量统计
+  - [ ] AC-T040-6: GET /api/v1/health 和 GET /api/v1/metrics 系统端点
+- **deliverables** (交付物):
+  - [ ] `src/intellisource/api/routers/contents.py` -- 内容路由
+  - [ ] `src/intellisource/api/routers/search.py` -- 检索路由
+  - [ ] `src/intellisource/api/routers/subscriptions.py` -- 订阅路由
+  - [ ] `src/intellisource/api/routers/llm.py` -- LLM 统计路由
+  - [ ] `src/intellisource/api/routers/system.py` -- 系统路由
+  - [ ] `tests/unit/api/test_contents.py` -- 内容 API 测试
+  - [ ] `tests/unit/api/test_search.py` -- 检索 API 测试
+  - [ ] `tests/unit/api/test_subscriptions.py` -- 订阅 API 测试
+- **context_load**:
+  - arch#§2.M-011
+  - arch-intellisource-v1-api#API-012~API-025
+
+### T-041: 原子操作API端点(自动生成)
+
+- **目标**: 从 ToolRegistry 自动为每个原子操作生成 POST /api/v1/tools/{tool_name} 端点
+- **模块**: M-011, M-003
+- **接口**: API-030
+- **复杂度**: M
+- **tdd_acceptance**:
+  - [ ] AC-066 映射: 所有注册的原子操作通过 /api/v1/tools/{tool_name} 可调用
+  - [ ] AC-T041-1: ToolsRouter 遍历 ToolRegistry，为每个 ToolSpec 自动生成 POST 端点
+  - [ ] AC-T041-2: 请求体自动按 ToolSpec.parameters JSON Schema 校验
+  - [ ] AC-T041-3: 响应体符合 ToolSpec.returns 定义
+  - [ ] AC-T041-4: 未注册的 tool_name 返回 404
+  - [ ] AC-T041-5: 自动生成的端点出现在 OpenAPI 文档中
+- **deliverables** (交付物):
+  - [ ] `src/intellisource/api/routers/tools.py` -- 原子操作 API 端点
+  - [ ] `tests/unit/api/test_tools.py` -- 原子操作 API 测试
+- **context_load**:
+  - arch#§2.M-011
+  - arch#§2.M-003
+  - arch-intellisource-v1-api#API-030
+
+### T-042: MCP Server
+
+- **目标**: 实现 MCP Server，从 ToolRegistry 自动生成 MCP Tool 定义，支持 stdio 和 SSE 传输
+- **模块**: M-012
+- **接口**: MCP 协议端点
+- **复杂度**: M
+- **tdd_acceptance**:
+  - [ ] AC-066 映射: 所有原子操作通过 MCP 协议可调用
+  - [ ] AC-067 映射: MCP Tool 定义从 ToolSpec 自动生成，无需手动维护
+  - [ ] AC-068 映射: 外部 Agent 可通过 MCP 完成完整采集-处理-存储-分发流程
+  - [ ] AC-070 映射: MCP 调用共享认证和可观测性基础设施
+  - [ ] AC-T042-1: MCPServer 启动时从 ToolRegistry 加载所有工具
+  - [ ] AC-T042-2: ToolSpec.name → MCP tool name, ToolSpec.parameters → MCP input_schema 映射正确
+  - [ ] AC-T042-3: 支持 stdio 传输模式（本地进程间通信）
+  - [ ] AC-T042-4: 支持 SSE 传输模式（远程 HTTP）
+  - [ ] AC-T042-5: MCP 调用结果包含 trace_id 用于链路追踪
+- **deliverables** (交付物):
+  - [ ] `src/intellisource/mcp/server.py` -- MCP Server 实现
+  - [ ] `src/intellisource/mcp/__init__.py` -- 模块导出
+  - [ ] `tests/unit/mcp/test_server.py` -- MCP Server 测试
+- **context_load**:
+  - arch#§2.M-012
+  - arch-intellisource-v1-api#API-030（MCP Server 端点说明）
+- **实现提示**: 使用 mcp Python SDK；工具注册使用 @server.tool 装饰器；测试可使用 mcp SDK 的 test client
+
+### T-043: 认证中间件与请求追踪
+
+- **目标**: 实现 API Key 认证中间件、请求日志中间件和请求链路追踪中间件
+- **模块**: M-011
+- **接口**: 全部需认证的 API
+- **复杂度**: M
+- **tdd_acceptance**:
+  - [ ] AC-T043-1: AuthMiddleware 校验 X-API-Key 请求头，无效时返回 401
+  - [ ] AC-T043-2: API Key 通过环境变量配置（IS_API_KEY）
+  - [ ] AC-T043-3: 健康检查和 Webhook 端点豁免认证
+  - [ ] AC-T043-4: RequestLogger 记录每个请求的 method/path/status_code/duration_ms
+  - [ ] AC-T043-5: TracingMiddleware 为每个请求注入 trace_id 到日志上下文和响应头
+  - [ ] AC-T043-6: 原子操作端点 /api/v1/tools/* 共享同一认证机制
+- **deliverables** (交付物):
+  - [ ] `src/intellisource/api/deps.py` -- FastAPI 依赖注入（认证）
+  - [ ] `src/intellisource/api/middleware.py` -- 中间件（日志/追踪）
+  - [ ] `tests/unit/api/test_middleware.py` -- 中间件测试
+- **context_load**:
+  - arch#§2.M-011
+  - arch#§5.2（认证机制）
+
+### T-044: CLI工具
+
+- **目标**: 实现基于 typer 的 CLI 工具，封装常用 API 操作
+- **模块**: M-011
+- **接口**: 无（CLI 通过 HTTP 调用 API）
+- **复杂度**: M
+- **tdd_acceptance**:
+  - [ ] AC-064 映射: CLI 工具封装常用 API 操作
+  - [ ] AC-T044-1: `intellisource source list/add/update/delete` 信源管理命令
+  - [ ] AC-T044-2: `intellisource task trigger/status` 任务操作命令
+  - [ ] AC-T044-3: `intellisource workflow list/create/run` 工作流命令
+  - [ ] AC-T044-4: `intellisource search <query>` 检索命令
+  - [ ] AC-T044-5: `intellisource tool <tool_name> <params_json>` 原子操作直接调用命令
+  - [ ] AC-T044-6: CLI 输出格式化为表格（默认）或 JSON（--json 参数）
+  - [ ] AC-T044-7: API 地址和 Key 通过环境变量或 --api-url/--api-key 参数配置
+- **deliverables** (交付物):
+  - [ ] `src/intellisource/cli/main.py` -- typer CLI 入口
+  - [ ] `tests/unit/cli/test_main.py` -- CLI 测试
+- **context_load**:
+  - arch#§2.M-011
+  - arch#§6（cli/ 目录结构）
+
+### T-045: FastAPI应用入口与Docker部署
+
+- **目标**: 组装 FastAPI 应用入口（注册路由/中间件/生命周期），编写 Dockerfile 和 docker-compose.yml
+- **模块**: M-011
+- **接口**: 全部 API + MCP
+- **复杂度**: M
+- **tdd_acceptance**:
+  - [ ] AC-065 映射: /docs 自动提供 OpenAPI/Swagger 文档
+  - [ ] AC-T045-1: main.py 注册所有路由组（含 tools 路由）和中间件
+  - [ ] AC-T045-2: 应用启动时初始化数据库连接池、Redis 连接、Celery app、ToolRegistry
+  - [ ] AC-T045-3: 应用关闭时正确释放所有资源
+  - [ ] AC-T045-4: Dockerfile 构建成功且镜像大小合理（多阶段构建）
+  - [ ] AC-T045-5: docker-compose.yml 包含 app/celery-worker/celery-beat/postgres(zhparser)/redis/mcp-server 服务
+  - [ ] AC-T045-6: `docker compose up` 一键启动全部服务
+  - [ ] AC-T045-7: MCP Server 作为独立进程运行（stdio 模式）或作为 FastAPI 子路由（SSE 模式）
+- **deliverables** (交付物):
+  - [ ] `src/intellisource/main.py` -- FastAPI 应用入口（完整版）
+  - [ ] `docker/Dockerfile` -- Docker 镜像构建
+  - [ ] `docker/docker-compose.yml` -- Docker Compose 编排
+  - [ ] `config/settings.example.toml` -- 系统配置示例
+  - [ ] `tests/integration/test_app_startup.py` -- 应用启动集成测试
+- **context_load**:
+  - arch#§6
+  - arch#§1.4（技术栈）
+  - prd#§3.3（兼容性 -- Docker 部署）
+- **实现提示**: PostgreSQL 使用包含 zhparser 扩展的镜像；Celery worker 和 beat 作为独立容器；MCP Server 可通过环境变量选择传输模式
+
+### T-046: Alembic数据库迁移
+
+- **目标**: 配置 Alembic 迁移框架，基于 ORM 模型（含 E-013）生成初始迁移脚本
+- **模块**: M-009
 - **接口**: 无
 - **复杂度**: S
 - **tdd_acceptance**:
-  - [ ] AC-042 映射: EmailDistributor 通过 SMTP 发送 HTML 格式邮件
-  - [ ] AC-044 映射: 同一内容不重复推送
-  - [ ] AC-045 映射: 推送失败自动重试
-  - [ ] AC-T034-1: SMTP 配置通过环境变量读取（IS_SMTP_HOST/PORT/USER/PASSWORD）
-  - [ ] AC-T034-2: 邮件内容使用 HTML 模板格式化（标题/摘要/来源链接）
-  - [ ] AC-T034-3: 支持 TLS/SSL 加密连接
+  - [ ] AC-054 映射: 数据库表结构与 ORM 模型一致
+  - [ ] AC-T046-1: `alembic upgrade head` 从空库创建全部表和索引
+  - [ ] AC-T046-2: `alembic downgrade base` 回退所有迁移
+  - [ ] AC-T046-3: 迁移脚本包含 pgvector 扩展创建
+  - [ ] AC-T046-4: 迁移脚本包含 zhparser 扩展创建
+  - [ ] AC-T046-5: E-007 LLMCallLog 分区表正确创建
+  - [ ] AC-T046-6: E-013 AgentExecutionLog 表正确创建
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/distributor/channels/email.py` -- 邮件分发
-  - [ ] `tests/unit/distributor/test_email.py` -- 邮件推送测试
+  - [ ] `alembic/env.py` -- Alembic 环境配置
+  - [ ] `alembic/versions/{initial}.py` -- 初始迁移脚本（完整版）
+  - [ ] `tests/integration/test_migration.py` -- 迁移测试
 - **context_load**:
-  - arch#§2.M-007
-- **实现提示**: 使用 Python 标准库 email + aiosmtplib 实现异步 SMTP 发送
-
-### T-035: 推送频率控制与免打扰
-- **目标**: 实现推送频率控制（realtime/hourly/daily/weekly）和免打扰时段功能
-- **模块**: M-007
-- **接口**: 无
-- **复杂度**: S
-- **tdd_acceptance**:
-  - [ ] AC-046 映射: 支持推送频率控制和免打扰时段配置
-  - [ ] AC-T035-1: FrequencyController 按订阅配置的频率批量/延迟推送
-  - [ ] AC-T035-2: hourly/daily/weekly 模式下内容聚合后统一推送
-  - [ ] AC-T035-3: 免打扰时段内的推送延迟到时段结束后发送
-  - [ ] AC-T035-4: realtime 模式下内容立即推送（不受频率控制）
-- **deliverables** (交付物):
-  - [ ] `src/intellisource/distributor/frequency.py` -- 频率控制器
-  - [ ] `tests/unit/distributor/test_frequency.py` -- 频率控制测试
-- **context_load**:
-  - arch#§2.M-007
-  - arch-intellisource-v1-data#§4.E-009（frequency, quiet_hours 字段）
-
-### T-036: 推送内容LLM优化
-- **目标**: 实现推送前的 LLM 内容重排序和引导语生成处理器
-- **模块**: M-004
-- **接口**: 无
-- **复杂度**: M
-- **tdd_acceptance**:
-  - [ ] AC-047 映射: PushOptimizer 调用 LLM 对推送内容按相关性/重要性重排序
-  - [ ] AC-048 映射: 为推送内容生成简短引导语/摘要
-  - [ ] AC-049 映射: LLM 处理失败时降级为默认排序和无引导语格式
-  - [ ] AC-T036-1: PushOptimizer 实现 BaseProcessor 接口
-  - [ ] AC-T036-2: 降级逻辑使用默认时间排序 + 无引导语
-  - [ ] AC-T036-3: 优化结果不修改原始内容，仅影响推送呈现
-- **deliverables** (交付物):
-  - [ ] `src/intellisource/llm/processors/optimizer.py` -- 推送优化处理器
-  - [ ] `tests/unit/llm/test_optimizer.py` -- 优化器测试
-- **context_load**:
-  - arch#§2.M-004
-  - arch#§5.3（降级策略）
-  - prd#§2.F-010
+  - arch-intellisource-v1-data#§4（全部实体含 E-013）
+  - arch#§1.4（pgvector, zhparser）

@@ -6,12 +6,14 @@
 <!-- volume: data | split-from: arch-intellisource-v1 -->
 
 [NAV]
-- §4 数据模型 → §4.1 实体关系(不含 ChatMessage 独立实体，对话消息内嵌于 E-011 context JSONB), E-001..E-012
+
+- §4 数据模型 → §4.1 实体关系(不含 ChatMessage 独立实体，对话消息内嵌于 E-011 context JSONB), E-001..E-013
 [/NAV]
 
 ## 4. 数据模型
 
 ### 4.1 实体关系
+
 ```mermaid
 erDiagram
     Source ||--o{ CollectTask : "触发"
@@ -34,10 +36,13 @@ erDiagram
 
     Workflow ||--o{ TaskChain : "实例化"
 
+    TaskChain ||--o| AgentExecutionLog : "执行记录"
+
     LLMCallLog }o--|| ProcessedContent : "处理关联"
 ```
 
 ### E-001: Source (信息源)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 信源唯一标识 |
@@ -63,6 +68,7 @@ erDiagram
 **索引**: `idx_source_status` (status), `idx_source_next_collect` (next_collect_at), `idx_source_tags` (tags, GIN)
 
 ### E-002: CollectTask (采集任务)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 任务唯一标识 |
@@ -81,6 +87,7 @@ erDiagram
 **索引**: `idx_collect_task_status` (status), `idx_collect_task_source` (source_id), `idx_collect_task_chain` (task_chain_id)
 
 ### E-003: RawContent (原始内容)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 原始内容唯一标识 |
@@ -99,6 +106,7 @@ erDiagram
 **索引**: `idx_raw_content_fingerprint` (fingerprint, UNIQUE), `idx_raw_content_source` (source_id), `idx_raw_content_published` (published_at)
 
 ### E-004: ProcessedContent (处理后内容)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 处理后内容唯一标识 |
@@ -123,6 +131,7 @@ erDiagram
 **索引**: `idx_processed_content_cluster` (cluster_id), `idx_processed_content_tags` (tags, GIN), `idx_processed_content_embedding` (embedding, HNSW/IVFFlat), `idx_processed_content_published` (published_at), `idx_processed_content_ts` (to_tsvector('chinese', title || ' ' || body_text), GIN) -- 全文检索
 
 ### E-005: ContentCluster (内容聚类)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 聚类唯一标识 |
@@ -137,6 +146,7 @@ erDiagram
 **索引**: `idx_cluster_tags` (tags, GIN), `idx_cluster_updated` (updated_at)
 
 ### E-006: Digest (综合简报)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 简报唯一标识 |
@@ -152,6 +162,7 @@ erDiagram
 **索引**: `idx_digest_cluster` (cluster_id)
 
 ### E-007: LLMCallLog (LLM 调用日志)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 日志唯一标识 |
@@ -173,6 +184,7 @@ erDiagram
 **分区策略**: 按 `created_at` 月份分区（Range Partition），超过 3 个月的分区可归档 [ASSUMPTION: 3 个月保留期为默认值，用户可调整]
 
 ### E-008: TaskChain (任务链)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 任务链唯一标识 |
@@ -190,6 +202,7 @@ erDiagram
 **索引**: `idx_task_chain_status` (status), `idx_task_chain_workflow` (workflow_id)
 
 ### E-009: Subscription (订阅规则)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 订阅唯一标识 |
@@ -207,6 +220,7 @@ erDiagram
 **索引**: `idx_subscription_channel` (channel), `idx_subscription_status` (status), `idx_subscription_rules` (match_rules, GIN)
 
 ### E-010: PushRecord (推送记录)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 推送记录唯一标识 |
@@ -223,6 +237,7 @@ erDiagram
 **索引**: `idx_push_record_subscription` (subscription_id), `idx_push_record_content` (content_id), `idx_push_record_dedup` (subscription_id, content_id, channel, UNIQUE) -- 去重约束
 
 ### E-011: ChatSession (对话会话)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 会话唯一标识 |
@@ -237,6 +252,7 @@ erDiagram
 **清理策略**: 超过 24 小时无活跃的会话自动清理 [ASSUMPTION: 24 小时超时为默认值]
 
 ### E-012: Workflow (工作流定义)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 工作流唯一标识 |
@@ -250,3 +266,25 @@ erDiagram
 | updated_at | TIMESTAMP WITH TZ | NOT NULL, DEFAULT NOW() | 更新时间 |
 
 **索引**: `idx_workflow_status` (status), `idx_workflow_schedule` (schedule_cron) WHERE schedule_cron IS NOT NULL
+
+### E-013: AgentExecutionLog (Agent 执行日志)
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| id | UUID | PK | 日志唯一标识 |
+| task_chain_id | UUID | FK → TaskChain.id, NOT NULL | 关联任务链 |
+| trigger_type | VARCHAR(20) | NOT NULL, CHECK IN ('scheduled', 'manual', 'message') | 触发方式 |
+| playbook_name | VARCHAR(50) | NULL | 匹配的 Playbook 名称（未匹配则为空） |
+| mode | VARCHAR(20) | NOT NULL, CHECK IN ('agent', 'playbook_fallback') | 执行模式: agent=LLM 编排, playbook_fallback=降级确定性执行 |
+| tool_calls | JSONB | NOT NULL, DEFAULT '[]' | 工具调用链: [{tool_name, parameters, result_summary, duration_ms, timestamp}] |
+| llm_calls_count | INTEGER | NOT NULL, DEFAULT 0 | LLM 调用次数 |
+| tools_called_count | INTEGER | NOT NULL, DEFAULT 0 | 原子操作调用次数 |
+| total_duration_ms | INTEGER | NULL | 总执行耗时（毫秒） |
+| status | VARCHAR(20) | NOT NULL, CHECK IN ('running', 'success', 'failed', 'degraded') | 执行状态，degraded 表示 Agent 降级到 Playbook 完成 |
+| error_message | TEXT | NULL | 错误信息 |
+| started_at | TIMESTAMP WITH TZ | NOT NULL, DEFAULT NOW() | 开始时间 |
+| finished_at | TIMESTAMP WITH TZ | NULL | 完成时间 |
+
+**索引**: `idx_agent_log_chain` (task_chain_id), `idx_agent_log_started` (started_at), `idx_agent_log_mode` (mode)
+
+**用途**: 记录内置 Agent 每次执行的完整工具调用链，用于执行回溯、性能分析和降级事件监控（prd#§2 F-007 AC-033）
