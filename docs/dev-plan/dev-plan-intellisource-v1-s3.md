@@ -111,8 +111,15 @@
 - **复杂度**: L
 - **tdd_acceptance**:
   - [ ] AC-018 映射: BuiltinAgent 以 ReAct 模式运行，通过 function calling 调用原子操作
+  - [ ] AC-014 映射: Agent 编排层根据内容类型/标签决定跳过特定原子操作
   - [ ] AC-020 映射: Agent 利用 LLM 进行语义判断（去重、聚类归属、摘要生成等）
   - [ ] AC-021 映射: LLM 不可用时自动降级到 PlaybookRunner
+  - [ ] AC-033 映射: Agent 每次执行记录完整的工具调用链到 E-013 AgentExecutionLog
+  - [ ] AC-050 映射: user_search 场景下 Agent 调用 LLM 理解检索意图
+  - [ ] AC-052 映射: Agent 对检索结果生成摘要后异步回调返回给用户
+  - [ ] AC-047 映射: Agent 在分发前可调用 LLM 对推送内容重排序（P2，Agent Playbook 可选步骤）
+  - [ ] AC-048 映射: Agent 为推送内容生成引导语/摘要（P2，Agent Playbook 可选步骤）
+  - [ ] AC-049 映射: LLM 不可用时降级为默认排序+无引导语（P2，Playbook 天然满足）
   - [ ] AC-T028-1: Agent System Prompt 包含可用工具列表（从 ToolRegistry 自动生成）和 Playbook 模板
   - [ ] AC-T028-2: Agent 优先匹配 Playbook 模板减少 LLM 推理（AC-038）
   - [ ] AC-T028-3: Agent 执行步数上限（MAX_STEPS=20），超限返回 max_steps_exceeded

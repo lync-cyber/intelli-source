@@ -182,6 +182,7 @@
   - [ ] AC-013 映射: 全部操作注册到 ToolRegistry
   - [ ] AC-016 映射: 显式参数传递
   - [ ] AC-017 映射: dedup_by_fingerprint 支持批量调用模式
+  - [ ] AC-022 映射: fingerprint 原子操作为每条内容生成唯一指纹，全链路基于指纹幂等处理
   - [ ] AC-T018-1: fingerprint(text) → {fingerprint} (SHA-256)
   - [ ] AC-T018-2: dedup_by_fingerprint(text) → {is_duplicate, fingerprint, existing_content_id}
   - [ ] AC-T018-3: find_similar(embedding, threshold, limit) → {results: [{content_id, similarity, title}]}
@@ -203,6 +204,7 @@
 - **tdd_acceptance**:
   - [ ] AC-013 映射: 操作注册到 ToolRegistry
   - [ ] AC-016 映射: 所有字段由调用方显式传入
+  - [ ] AC-069 映射: embedding 向量由调用方（内置Agent或外部Agent）生成并通过 store_processed 传入
   - [ ] AC-T019-1: store_processed(raw_content_id, summary?, tags?, sentiment?, embedding?, structured_data?) → {processed_content_id}
   - [ ] AC-T019-2: store_embedding(content_id, embedding) → {updated} — 单独存入/更新向量
   - [ ] AC-T019-3: store_processed 为 upsert 语义（idempotent=true）

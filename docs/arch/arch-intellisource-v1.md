@@ -456,7 +456,7 @@ intellisource/
   <type>(<scope>): <description>
 
   type: feat | fix | refactor | test | docs | chore | ci
-  scope: collector | pipeline | llm | scheduler | distributor | search | storage | api | cli | config
+  scope: collector | tools | agent | llm | scheduler | distributor | search | storage | api | mcp | cli | config | observability
   ```
 
 - **PR 规范**: 每个 PR 关联一个任务 ID，通过 CI 检查后合并

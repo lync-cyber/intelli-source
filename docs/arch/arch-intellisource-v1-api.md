@@ -271,7 +271,7 @@ request:
       desc: "工作流步骤列表"
       items:
         step_type: { type: string, desc: "步骤类型: collect | process | distribute" }
-        config: { type: object, desc: "步骤配置（信源/管道/渠道参数）" }
+        config: { type: object, desc: "步骤配置（信源/原子操作/渠道参数）" }
         on_failure: { type: string, desc: "失败策略: retry | skip | abort，默认 retry" }
     schedule: { type: string, required: false, desc: "Cron 表达式，为空则仅手动触发" }
 response:
@@ -352,8 +352,8 @@ response:
 ```yaml
 path: /api/v1/search/chat
 method: POST
-module: M-008
-desc: "基于 LLM 的即时问答检索，支持多轮对话"
+module: M-004
+desc: "基于内置 Agent 的即时问答检索，Agent 调用 LLM 理解意图+检索+摘要，支持多轮对话"
 request:
   headers:
     X-API-Key: { type: string, required: true, desc: "API 认证密钥" }
