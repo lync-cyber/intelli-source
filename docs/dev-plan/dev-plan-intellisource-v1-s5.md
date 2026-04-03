@@ -214,9 +214,13 @@
   - [ ] AC-T045-4: `intellisource search <query>` 检索命令
   - [ ] AC-T045-5: CLI 输出格式化为表格（默认）或 JSON（--json 参数）
   - [ ] AC-T045-6: API 地址和 Key 通过环境变量或 --api-url/--api-key 参数配置
+  - [ ] AC-T045-7: `intellisource cleanup sessions` 清理过期对话会话（arch#§5.4）
+  - [ ] AC-T045-8: `intellisource reindex embeddings` 批量重新生成内容向量（arch#§5.4）
 - **deliverables** (交付物):
   - [ ] `src/intellisource/cli/main.py` -- typer CLI 入口
+  - [ ] `src/intellisource/cli/maintenance.py` -- 数据运维命令（cleanup/reindex）
   - [ ] `tests/unit/cli/test_main.py` -- CLI 测试
+  - [ ] `tests/unit/cli/test_maintenance.py` -- 运维命令测试
 - **context_load**:
   - arch#§2.M-011
   - arch#§6（cli/ 目录结构）

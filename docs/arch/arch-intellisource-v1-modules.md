@@ -23,7 +23,7 @@
   - `ConfigLoader` — 配置文件加载器，支持 YAML/JSON 格式解析
   - `ConfigValidator` — 配置校验器，格式校验失败时拒绝加载并输出错误信息（AC-003）
   - `ConfigWatcher` — 文件变更监听器（基于 watchfiles），实现热加载（AC-002）
-  - `ConfigVersionManager` — 配置版本管理，支持回退到历史版本（AC-004）；版本快照存储于 PostgreSQL（Source 表 config_version 字段记录版本号，历史快照以 JSONB 形式存入独立的 config_history 表，包含版本号、配置快照、变更时间），回退操作从历史记录恢复
+  - `ConfigVersionManager` — 配置版本管理，支持回退到历史版本（AC-004）；每次配置变更时将当前配置文件备份到预定义目录（`config/history/{timestamp}.yaml`），Source 表 config_version 字段记录当前版本号；回退操作从文件备份恢复，无需额外数据表
   - 配置项包含 `embedding_dimension`（默认 1536），切换 embedding 模型时需调整此值并执行数据库迁移
 
 ### M-002: 采集引擎模块 (collector)
@@ -58,7 +58,7 @@
 
 ### M-004: LLM 智能处理模块 (llm.processors)
 
-- **职责**: 基于 LLM 实现结构化提取、语义去重、聚类、摘要、打标和情感分析等高级内容处理
+- **职责**: 基于 LLM 实现结构化提取、语义去重、聚类、摘要和打标等高级内容处理
 - **映射功能**: F-005（结构化提取/语义去重/聚类）, F-006（摘要/打标）, F-010（推送内容优化）
 - **对外接口**: 无直接对外 API（作为 M-003 管道处理器运行）
 - **依赖模块**: M-003（注册为管道处理器）, M-005（LLM 调用网关）, M-009（向量检索/存储）

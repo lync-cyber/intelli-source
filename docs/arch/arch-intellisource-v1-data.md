@@ -165,7 +165,7 @@ erDiagram
 | id | UUID | PK | 日志唯一标识 |
 | model | VARCHAR(100) | NOT NULL | 模型名称 |
 | provider | VARCHAR(50) | NOT NULL | 提供商 |
-| call_type | VARCHAR(50) | NOT NULL | 调用类型: extract/dedup/cluster/summarize/tag/sentiment/search/optimize |
+| call_type | VARCHAR(50) | NOT NULL | 调用类型: extract/dedup/cluster/summarize/tag/search/optimize |
 | content_id | UUID | NULL | 关联内容 ID |
 | input_tokens | INTEGER | NOT NULL | 输入 Token 数 |
 | output_tokens | INTEGER | NOT NULL | 输出 Token 数 |
