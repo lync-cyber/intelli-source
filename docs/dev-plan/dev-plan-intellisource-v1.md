@@ -43,6 +43,7 @@
 | T-016 | 处理管道引擎与处理器基类 | M-003 | M | T-004 | AC-013, AC-015, AC-016 | todo |
 | T-017 | 管道条件分支与批处理模式 | M-003 | M | T-016 | AC-014, AC-017 | todo |
 | T-018 | 内置处理器(解析/去重/打标/格式化) | M-003 | M | T-016 | AC-015 | todo |
+| T-048 | 集成测试:采集→管道→存储 | M-002,M-003,M-009 | M | T-011, T-018, T-004 | AC-005, AC-007, AC-013 | todo |
 
 ### Sprint 3: LLM智能处理
 
@@ -71,6 +72,7 @@
 | T-034 | 邮件分发渠道 | M-007 | S | T-031 | AC-042, AC-044, AC-045 | todo |
 | T-035 | 推送频率控制与免打扰 | M-007 | S | T-031 | AC-046 | todo |
 | T-036 | 推送内容LLM优化 | M-004 | M | T-025, T-031 | AC-047, AC-048, AC-049 | todo |
+| T-049 | 集成测试:任务链编排与分发 | M-006,M-007,M-009 | M | T-029, T-034 | AC-034, AC-037, AC-044 | todo |
 
 ### Sprint 5: 检索/API/CLI与集成
 
@@ -86,6 +88,7 @@
 | T-044 | 认证中间件与请求追踪 | M-011 | M | T-006 | AC-061 | todo |
 | T-045 | CLI工具 | M-011 | M | T-041, T-042 | AC-064 | todo |
 | T-046 | FastAPI应用入口与Docker部署 | M-011 | M | T-044, T-043 | AC-065 | todo |
+| T-050 | E2E测试:核心场景端到端验证 | 全模块 | L | T-046, T-049 | AC-034, AC-043, AC-052 | todo |
 
 ## 2. 依赖图
 
@@ -157,7 +160,15 @@ graph LR
     T-042 --> T-045
     T-043 --> T-046
     T-044 --> T-046
+    T-011 --> T-048
+    T-018 --> T-048
+    T-004 --> T-048
+    T-029 --> T-049
+    T-034 --> T-049
+    T-046 --> T-050
+    T-049 --> T-050
     style T-001,T-002,T-003,T-004,T-019,T-020,T-022,T-025,T-031,T-043,T-046 fill:#f96,stroke:#333,stroke-width:2px
+    style T-048,T-049,T-050 fill:#6cf,stroke:#333,stroke-width:2px
 ```
 
 ## 3. 任务卡详细
@@ -165,10 +176,10 @@ graph LR
 > 任务卡详细见Sprint分卷:
 >
 > - Sprint 1: [dev-plan-intellisource-v1-s1](dev-plan-intellisource-v1-s1.md) (T-001 ~ T-009, T-047)
-> - Sprint 2: [dev-plan-intellisource-v1-s2](dev-plan-intellisource-v1-s2.md) (T-010 ~ T-018)
+> - Sprint 2: [dev-plan-intellisource-v1-s2](dev-plan-intellisource-v1-s2.md) (T-010 ~ T-018, T-048)
 > - Sprint 3: [dev-plan-intellisource-v1-s3](dev-plan-intellisource-v1-s3.md) (T-019 ~ T-026)
-> - Sprint 4: [dev-plan-intellisource-v1-s4](dev-plan-intellisource-v1-s4.md) (T-027 ~ T-036)
-> - Sprint 5: [dev-plan-intellisource-v1-s5](dev-plan-intellisource-v1-s5.md) (T-037 ~ T-046)
+> - Sprint 4: [dev-plan-intellisource-v1-s4](dev-plan-intellisource-v1-s4.md) (T-027 ~ T-036, T-049)
+> - Sprint 5: [dev-plan-intellisource-v1-s5](dev-plan-intellisource-v1-s5.md) (T-037 ~ T-046, T-050)
 
 ## 4. 关键路径
 

@@ -6,12 +6,14 @@
 <!-- volume: sprint | split-from: dev-plan-intellisource-v1 -->
 
 [NAV]
-- §3 任务卡详细 → T-027..T-036 (Sprint 4: 任务编排与分发)
+
+- §3 任务卡详细 → T-027..T-036, T-049 (Sprint 4: 任务编排与分发)
 [/NAV]
 
 ## 3. 任务卡详细
 
 ### T-027: Celery任务定义与任务链构建
+
 - **目标**: 定义 Celery 任务（采集/处理/分发），实现任务链构建器将多个阶段串联为原子任务链
 - **模块**: M-006
 - **接口**: 无（内部基础设施）
@@ -36,6 +38,7 @@
   - arch#§5.3（重试策略）
 
 ### T-028: 任务状态机与调度管理
+
 - **目标**: 实现统一任务状态机（pending->running->success/failed + pause/resume/timeout）和定时调度管理
 - **模块**: M-006
 - **接口**: API-008, API-009 的业务逻辑层
@@ -57,6 +60,7 @@
   - arch-intellisource-v1-api#API-009
 
 ### T-029: 幂等保护与分布式锁
+
 - **目标**: 实现基于内容指纹、推送记录和 Redis 分布式锁的幂等保护机制，防止重复处理和推送
 - **模块**: M-006
 - **接口**: 无
@@ -78,6 +82,7 @@
 - **实现提示**: Redis SET NX EX 实现分布式锁；内容指纹唯一约束由数据库层保证
 
 ### T-030: 工作流引擎
+
 - **目标**: 实现用户自定义工作流引擎，支持灵活组合采集-处理-分发步骤
 - **模块**: M-006
 - **接口**: API-010, API-011 的业务逻辑层
@@ -99,6 +104,7 @@
   - arch-intellisource-v1-api#API-011
 
 ### T-031: 分发器基类与订阅规则匹配
+
 - **目标**: 定义分发器统一接口（BaseDistributor）、实现订阅规则匹配引擎和推送去重/历史记录
 - **模块**: M-007
 - **接口**: 无（内部框架）
@@ -120,6 +126,7 @@
   - arch-intellisource-v1-data#§4.E-010
 
 ### T-032: 微信公众号分发渠道
+
 - **目标**: 实现微信公众号推送（模板消息/图文消息），包含 Access Token 管理和推送结果追踪
 - **模块**: M-007
 - **接口**: 无（由 M-006 任务链触发）
@@ -140,6 +147,7 @@
 - **实现提示**: 微信公众号 API 使用 httpx；测试使用 Mock 服务模拟微信接口响应
 
 ### T-033: 企业微信分发渠道
+
 - **目标**: 实现企业微信应用消息推送，包含 Access Token 管理和消息格式化
 - **模块**: M-007
 - **接口**: 无
@@ -159,6 +167,7 @@
   - arch#§5.3（重试策略）
 
 ### T-034: 邮件分发渠道
+
 - **目标**: 实现 HTML 格式邮件推送，支持 SMTP 配置和邮件模板
 - **模块**: M-007
 - **接口**: 无
@@ -178,6 +187,7 @@
 - **实现提示**: 使用 Python 标准库 email + aiosmtplib 实现异步 SMTP 发送
 
 ### T-035: 推送频率控制与免打扰
+
 - **目标**: 实现推送频率控制（realtime/hourly/daily/weekly）和免打扰时段功能
 - **模块**: M-007
 - **接口**: 无
@@ -196,6 +206,7 @@
   - arch-intellisource-v1-data#§4.E-009（frequency, quiet_hours 字段）
 
 ### T-036: 推送内容LLM优化
+
 - **目标**: 实现推送前的 LLM 内容重排序和引导语生成处理器
 - **模块**: M-004
 - **接口**: 无
@@ -214,3 +225,24 @@
   - arch#§2.M-004
   - arch#§5.3（降级策略）
   - prd#§2.F-010
+
+### T-049: 集成测试:任务链编排与分发
+
+- **目标**: 验证 Celery 任务链的原子执行、幂等保护和推送去重，使用 CELERY_TASK_ALWAYS_EAGER 模式在进程内执行
+- **模块**: M-006, M-007, M-009
+- **接口**: 无（内部集成）
+- **复杂度**: M
+- **tdd_acceptance**:
+  - [ ] AC-T049-1: TaskChainBuilder 构建采集→处理→分发任务链，eager 模式下顺序执行完成，TaskChain 状态最终为 success
+  - [ ] AC-T049-2: 任务链中间步骤失败时，TaskChain 状态为 failed，已完成步骤的数据保留，后续步骤不执行
+  - [ ] AC-T049-3: 相同内容指纹 + 相同订阅 + 相同渠道的推送不重复（PushRecord 唯一约束生效）
+  - [ ] AC-T049-4: Redis 分布式锁防止同一信源的并发采集（模拟两个任务争抢同一锁）
+  - [ ] AC-T049-5: 邮件分发渠道端到端验证（使用 aiosmtpd 本地 SMTP 服务器接收并断言邮件内容）
+- **deliverables** (交付物):
+  - [ ] `tests/integration/test_task_chain_flow.py` -- 任务链集成测试
+  - [ ] `tests/integration/test_push_dedup.py` -- 推送去重集成测试
+- **context_load**:
+  - arch#§2.M-006
+  - arch#§2.M-007
+  - arch#§5.3（重试策略、幂等保护）
+- **实现提示**: Celery 使用 `task_always_eager=True` + `task_eager_propagates=True` 在测试进程内同步执行；Redis 使用 fakeredis 或 testcontainers；邮件使用 aiosmtpd 启动本地 SMTP 接收服务器

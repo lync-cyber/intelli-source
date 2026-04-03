@@ -7,7 +7,7 @@
 
 [NAV]
 
-- §3 任务卡详细 → T-037..T-046 (Sprint 5: 检索/API/CLI与集成)
+- §3 任务卡详细 → T-037..T-046, T-050 (Sprint 5: 检索/API/CLI与集成)
 [/NAV]
 
 ## 3. 任务卡详细
@@ -246,3 +246,26 @@
   - arch#§1.4（技术栈）
   - prd#§3.3（兼容性 -- Docker 部署）
 - **实现提示**: PostgreSQL 使用包含 zhparser 扩展的镜像（如 abcfy2/zhparser）；Celery worker 和 beat 作为独立容器
+
+### T-050: E2E测试:核心场景端到端验证
+
+- **目标**: 基于 docker-compose 环境，验证系统核心真实场景的端到端工作流（API 触发→采集→LLM处理→推送→检索）
+- **模块**: 全模块
+- **接口**: API-002, API-007, API-012, API-013, API-023
+- **复杂度**: L
+- **tdd_acceptance**:
+  - [ ] AC-T050-1: 场景1「信源配置到内容推送」— POST /api/v1/sources 创建信源 → POST /api/v1/tasks/collect 触发采集 → 轮询任务状态直到 success → GET /api/v1/contents 验证内容已入库且有摘要/标签 → 验证 PushRecord 已生成
+  - [ ] AC-T050-2: 场景2「混合检索端到端」— 在已有内容基础上 → POST /api/v1/search 执行 hybrid 检索 → 验证返回结果包含正确的 score/snippet/source_name
+  - [ ] AC-T050-3: 场景3「即时问答端到端」— POST /api/v1/search/chat 发起问答 → 验证返回 answer 和 sources 引用 → 使用同一 session_id 发送后续问题 → 验证上下文保持
+  - [ ] AC-T050-4: 场景4「LLM 降级端到端」— 配置不可达的 LLM 端点 → 触发采集 → 验证内容仍正常入库（processed_by=fallback），摘要使用截断式摘要，标签使用关键词匹配
+  - [ ] AC-T050-5: 全部场景通过 API Key 认证，无 Key 请求返回 401
+- **deliverables** (交付物):
+  - [ ] `tests/e2e/test_source_to_push.py` -- 信源配置到推送场景
+  - [ ] `tests/e2e/test_search_e2e.py` -- 检索与问答场景
+  - [ ] `tests/e2e/test_fallback_e2e.py` -- LLM 降级场景
+  - [ ] `tests/e2e/conftest.py` -- E2E 测试 fixture（docker-compose 启动/停止、API client、测试数据清理）
+- **context_load**:
+  - arch#§5.3（降级策略、错误处理）
+  - arch-intellisource-v1-api（全部 API 契约）
+  - prd#§1.3（成功指标）
+- **实现提示**: 使用 docker-compose 启动完整服务栈（app + worker + beat + postgres + redis）；LLM 调用使用 litellm 的 mock provider 或低成本模型（如 gpt-3.5-turbo）；降级场景通过配置无效 API Key 触发熔断；标记 `@pytest.mark.e2e`，CI 中可选执行
