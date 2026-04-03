@@ -7,7 +7,7 @@
 
 [NAV]
 
-- §3 任务卡详细 → T-019..T-026 (Sprint 3: LLM智能处理)
+- §3 任务卡详细 → T-019..T-026, T-019a (Sprint 3: LLM智能处理)
 [/NAV]
 
 ## 3. 任务卡详细
@@ -35,6 +35,28 @@
   - arch#§2.M-005
   - arch#§1.4（litellm 选型）
 - **实现提示**: litellm.completion() 作为底层调用；使用 pydantic 校验 LLM 输出；测试使用 unittest.mock 模拟 litellm 响应
+
+### T-019a: LLM模型能力声明与智能路由
+
+- **目标**: 实现模型能力注册表（ModelRegistry）和智能路由器（SmartRouter），通过 YAML 配置声明每个模型的能力维度，根据 LLM 任务类型自动选择最优模型
+- **模块**: M-005
+- **接口**: 无（内部接口，被 LLMGateway 调用）
+- **复杂度**: M
+- **tdd_acceptance**:
+  - [ ] AC-T019a-1: ModelRegistry 从 `config/llm_models.yaml` 加载模型能力声明（context_window、supports_json_mode、supports_function_calling、cost_per_1k_tokens、best_for 列表），支持热加载更新
+  - [ ] AC-T019a-2: SmartRouter.select_model(task_type, constraints) 根据任务类型（extraction/summarization/embedding/sentiment/tagging）+ 模型能力 + 可选成本约束返回最优模型标识
+  - [ ] AC-T019a-3: 无匹配模型时降级到配置的 default_model 并记录 WARNING 日志
+  - [ ] AC-T019a-4: LLMGateway 集成 SmartRouter，调用时可传入 task_type 参数自动路由（也可手动指定 model 覆盖路由）
+- **deliverables** (交付物):
+  - [ ] `src/intellisource/llm/models.py` -- 模型能力注册表（ModelRegistry）
+  - [ ] `src/intellisource/llm/router.py` -- 智能路由器（SmartRouter）
+  - [ ] `config/llm_models.example.yaml` -- 模型能力配置示例
+  - [ ] `tests/unit/llm/test_models.py` -- 模型注册表测试
+  - [ ] `tests/unit/llm/test_router.py` -- 智能路由器测试
+- **context_load**:
+  - arch#§2.M-005（ModelRegistry、SmartRouter 组件定义）
+  - arch#§5.3（降级策略）
+- **实现提示**: YAML 配置示例应包含至少 3 个模型声明（如 gpt-4o、claude-sonnet、embedding-ada-002）；SmartRouter 优先匹配 best_for 列表，其次按 cost_per_1k_tokens 升序排列
 
 ### T-020: 熔断器与降级管理器
 
@@ -151,31 +173,27 @@
   - arch#§5.3（降级策略）
 - **实现提示**: 增量聚类策略：新内容到来时与现有聚类中心比较，超过阈值则归入，否则新建
 
-### T-025: 摘要/打标/情感分析处理器
+### T-025: 摘要/打标处理器
 
-- **目标**: 实现 LLM 驱动的综合简报生成、语义打标和情感分析处理器
+- **目标**: 实现 LLM 驱动的综合简报生成和语义打标处理器
 - **模块**: M-004
 - **接口**: 无
 - **复杂度**: M
 - **tdd_acceptance**:
   - [ ] AC-023 映射: DigestGenerator 对同聚类多篇文档生成综合简报（含时间线和要点）
   - [ ] AC-024 映射: SemanticTagger 基于语义为内容打标签，无法归类则进入"未分类"
-  - [ ] AC-025 映射: SentimentAnalyzer 输出 positive/neutral/negative 情感倾向
   - [ ] AC-027 映射: 所有处理器均支持降级到传统逻辑
   - [ ] AC-T025-1: DigestGenerator 输出包含 title/summary/timeline/key_points
   - [ ] AC-T025-2: 打标降级使用关键词匹配 + 预定义标签库
-  - [ ] AC-T025-3: 情感分析降级使用情感词典评分
-  - [ ] AC-T025-4: 摘要降级使用截断式摘要（取前 N 句）
+  - [ ] AC-T025-3: 摘要降级使用截断式摘要（取前 N 句）
 - **deliverables** (交付物):
   - [ ] `src/intellisource/llm/processors/summarizer.py` -- 摘要/简报生成处理器
   - [ ] `src/intellisource/llm/processors/tagger.py` -- 语义打标处理器
-  - [ ] `src/intellisource/llm/processors/sentiment.py` -- 情感分析处理器
   - [ ] `tests/unit/llm/test_summarizer.py` -- 摘要测试
   - [ ] `tests/unit/llm/test_tagger.py` -- 打标测试
-  - [ ] `tests/unit/llm/test_sentiment.py` -- 情感分析测试
 - **context_load**:
   - arch#§2.M-004
-  - arch-intellisource-v1-data#§4.E-004（tags, sentiment 字段）
+  - arch-intellisource-v1-data#§4.E-004（tags 字段）
   - arch-intellisource-v1-data#§4.E-006
   - arch#§5.3（降级策略）
 

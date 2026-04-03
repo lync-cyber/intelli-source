@@ -24,13 +24,14 @@
 
 ### 1.2 架构风格
 
-- **风格**: 模块化单体 (Modular Monolith) + 事件驱动异步处理
+- **风格**: 模块化单体 (Modular Monolith) + 事件驱动异步处理 + 双模式 Agent 调度
 - **选型理由**:
   1. **团队规模匹配**: 个人/小团队（<=10人）自部署场景，微服务的运维复杂度不合理（prd#§4）
   2. **部署简便**: 单进程 + Celery Worker 的部署模型适配 Docker Compose 一键部署需求（prd#§3.3）
   3. **内聚高耦合低**: 模块间通过明确的内部接口通信，未来可按模块拆分为独立服务
   4. **异步处理链**: 采集-处理-存储-分发天然适合事件驱动的任务链模式（prd#§2 F-008）
-- **调研依据**: 模块化单体是小团队项目的推荐起步架构，在保持开发效率的同时预留扩展空间。相比纯微服务，减少了服务间通信、分布式事务和独立部署的复杂度。
+  5. **统一 Agent 调度**: 定时任务和即时查询由统一的 Agent 调度层管理。定时任务采用严格模式（strict）按管道配置直接执行函数调用，零 LLM 开销、100% 确定性；即时查询采用灵活模式（flexible）由 LLM Agent Loop 自主编排工具调用，提供智能检索能力（prd#§2 F-008 AC-066/AC-067）
+- **调研依据**: 模块化单体是小团队项目的推荐起步架构，在保持开发效率的同时预留扩展空间。双模式 Agent 调度借鉴 OpenCode 等开源 AI 编程助手的 Agent Loop + 工具调用架构，通过管道配置文件（Pipeline Config）约束 LLM 行为边界，在确定性与灵活性之间取得平衡。
 
 ### 1.3 系统上下文图
 
@@ -112,7 +113,7 @@ C4Context
 | M-001 | 配置管理模块 | F-001 |
 | M-002 | 采集引擎模块 | F-002, F-003 |
 | M-003 | 处理管道模块 | F-004 |
-| M-004 | LLM 智能处理模块 | F-005, F-006, F-010 |
+| M-004 | LLM 智能处理模块 | F-005, F-006 |
 | M-005 | LLM 服务治理模块 | F-007 |
 | M-006 | 任务编排模块 | F-008 |
 | M-007 | 分发渠道模块 | F-009 |
@@ -140,8 +141,6 @@ C4Context
 | API-007 | 触发采集任务 | M-006 | POST | /api/v1/tasks/collect |
 | API-008 | 查询任务状态 | M-006 | GET | /api/v1/tasks/{id} |
 | API-009 | 暂停/恢复任务 | M-006 | PATCH | /api/v1/tasks/{id} |
-| API-010 | 创建工作流 | M-006 | POST | /api/v1/workflows |
-| API-011 | 执行工作流 | M-006 | POST | /api/v1/workflows/{id}/run |
 | API-012 | 混合检索 | M-008 | POST | /api/v1/search |
 | API-013 | 即时问答 | M-008 | POST | /api/v1/search/chat |
 | API-014 | 获取内容列表 | M-009 | GET | /api/v1/contents |
@@ -156,10 +155,6 @@ C4Context
 | API-023 | 创建订阅规则 | M-007 | POST | /api/v1/subscriptions |
 | API-024 | 更新订阅规则 | M-007 | PATCH | /api/v1/subscriptions/{id} |
 | API-025 | 删除订阅规则 | M-007 | DELETE | /api/v1/subscriptions/{id} |
-| API-026 | 获取工作流列表 | M-006 | GET | /api/v1/workflows |
-| API-027 | 获取工作流详情 | M-006 | GET | /api/v1/workflows/{id} |
-| API-028 | 更新工作流 | M-006 | PATCH | /api/v1/workflows/{id} |
-| API-029 | 删除工作流 | M-006 | DELETE | /api/v1/workflows/{id} |
 
 ## 4. 数据模型
 >
@@ -180,7 +175,6 @@ C4Context
 | E-009 | Subscription (订阅规则) | M-007 |
 | E-010 | PushRecord (推送记录) | M-007 |
 | E-011 | ChatSession (对话会话) | M-008 |
-| E-012 | Workflow (工作流定义) | M-006 |
 
 ## 5. 非功能架构
 
@@ -193,6 +187,8 @@ C4Context
 - LLM 调用结果缓存：相同内容指纹 + 相同处理类型的 LLM 调用结果缓存 24h，减少重复调用
 - 检索结果缓存：高频查询关键词缓存 5min（短 TTL，保证时效性）
 - 对话上下文压缩：多轮对话通过意图分离 + token 预算滑动窗口 + 异步摘要压缩控制上下文 token 消耗，参数见 settings.example.toml `[chat]` 段
+- 源级 HTTP 缓存：Collector 基类内置 HTTP 条件请求支持（ETag / If-Modified-Since），源内容未变化时跳过解析，减少计算开销；缓存头信息持久化到 E-001 的 `http_etag` 和 `http_last_modified` 字段
+- 源级 TTL 配置：每个源可在 E-001 `metadata` 中自定义 `cache_ttl`（秒），覆盖全局默认 TTL，适配不同源的更新频率差异
 
 **异步处理**:
 
@@ -252,6 +248,19 @@ C4Context
 
 ### 5.3 错误处理
 
+**错误分类框架**:
+
+所有模块异常继承 `IntelliSourceError` 基类，包含 `category: ErrorCategory` 枚举和 `recovery_hint: str` 字段。M-006 任务编排根据 `error.category` 自动选择恢复路径。
+
+| 分类 | 含义 | 恢复策略 |
+|------|------|---------|
+| RECOVERABLE_TRANSIENT | 网络超时、临时不可用 | 自动重试（指数退避） |
+| RECOVERABLE_DEGRADED | LLM 失败、非核心服务异常 | 降级到传统逻辑（见降级策略表） |
+| UNRECOVERABLE | 配置错误、数据格式无效 | 记录错误 + 告警，跳过当前项 |
+| EXTERNAL | 第三方服务宕机 | 触发熔断，批量跳过 |
+
+各模块预定义异常类：`CollectorError`、`PipelineError`、`LLMError`、`DistributorError`、`StorageError`，均继承 `IntelliSourceError` 并预设对应的 `category` 默认值。
+
 **错误码体系**:
 
 ```
@@ -305,7 +314,6 @@ C4Context
   | 聚类分析 | TF-IDF + 余弦相似度聚类 |
   | 摘要生成 | 截断式摘要（取前 N 句） |
   | 打标签 | 关键词匹配 + 预定义标签库 |
-  | 情感分析 | 情感词典评分 |
   | 内容重排序 | 默认时间排序 |
   | 引导语生成 | 无引导语 |
   | 上下文压缩 | 截断最旧轮次（保留最近 N 轮原文） |
@@ -323,19 +331,25 @@ intellisource/
 │       │   ├── models.py             # 配置数据模型 (Pydantic)
 │       │   ├── loader.py             # YAML/JSON 配置加载与热加载
 │       │   └── validator.py          # 配置校验逻辑
+│       ├── core/                      # 核心基础设施
+│       │   ├── __init__.py
+│       │   └── errors.py             # 错误分类框架 (IntelliSourceError)
 │       ├── collector/                 # M-002 采集引擎
 │       │   ├── __init__.py
 │       │   ├── base.py               # 采集器抽象基类
-│       │   ├── registry.py           # 采集器注册中心
+│       │   ├── registry.py           # 采集器注册中心（支持自动发现）
 │       │   ├── adapters/             # 内置采集适配器
 │       │   │   ├── rss.py
 │       │   │   ├── web.py
 │       │   │   └── api.py
+│       │   ├── sources/              # 数据源自发现目录
+│       │   │   └── __init__.py
 │       │   ├── rate_limiter.py       # 速率限制
 │       │   └── adaptive.py           # 频率自适应
 │       ├── pipeline/                  # M-003 处理管道
 │       │   ├── __init__.py
 │       │   ├── engine.py             # 管道执行引擎
+│       │   ├── middleware.py          # 中间件链执行器
 │       │   ├── base.py               # 处理器抽象基类
 │       │   ├── context.py            # 管道上下文
 │       │   └── processors/           # 内置处理器
@@ -343,12 +357,22 @@ intellisource/
 │       │       ├── dedup.py
 │       │       ├── tagger.py
 │       │       └── formatter.py
+│       ├── agent/                      # Agent 统一调度层
+│       │   ├── __init__.py
+│       │   ├── runner.py             # AgentRunner - 双模式执行引擎
+│       │   ├── tools.py              # Agent 工具定义与注册
+│       │   ├── pipeline.py           # 管道配置加载与校验
+│       │   ├── compaction.py         # 对话上下文 LLM 压缩
+│       │   └── prompts/              # Agent 系统提示词
+│       │       └── base.txt
 │       ├── llm/                       # M-004 + M-005 LLM 处理与治理
 │       │   ├── __init__.py
 │       │   ├── gateway.py            # LLM 统一网关
+│       │   ├── models.py             # 模型能力声明 (ModelRegistry)
+│       │   ├── router.py             # 智能路由器 (SmartRouter)
 │       │   ├── circuit_breaker.py    # 熔断器
 │       │   ├── fallback.py           # 降级逻辑
-│       │   ├── processors/           # LLM 处理器（管道插件）
+│       │   ├── processors/           # LLM 处理器（管道插件 + Agent 工具）
 │       │   │   ├── extractor.py      # 结构化提取
 │       │   │   ├── dedup.py          # 语义去重
 │       │   │   ├── cluster.py        # 聚类
@@ -358,30 +382,28 @@ intellisource/
 │       │   │   └── optimizer.py      # 推送优化
 │       │   ├── prompts/              # LLM prompt 模板
 │       │   │   └── context_compress.txt  # 上下文压缩 prompt
+│       │   │   └── tagger.py         # 打标
 │       │   └── schemas/              # LLM 输入输出 JSON Schema
 │       │       └── *.json
-│       ├── scheduler/                 # M-006 任务编排
+│       ├── scheduler/                 # M-006 任务调度（触发层）
 │       │   ├── __init__.py
-│       │   ├── tasks.py              # Celery 任务定义
-│       │   ├── chains.py             # 任务链编排
+│       │   ├── tasks.py              # Celery 任务定义（调用 AgentRunner）
 │       │   ├── state_machine.py      # 任务状态机
-│       │   └── workflow.py           # 工作流引擎
+│       │   └── idempotency.py        # 幂等保护与分布式锁
 │       ├── distributor/               # M-007 分发渠道
 │       │   ├── __init__.py
 │       │   ├── base.py               # 分发器抽象基类
 │       │   ├── matcher.py            # 订阅规则匹配
+│       │   ├── scorer.py             # 内容权重评分器
 │       │   ├── channels/             # 渠道实现
 │       │   │   ├── wechat.py
 │       │   │   ├── wework.py
 │       │   │   └── email.py
 │       │   └── webhooks.py           # 消息回调处理
-│       ├── search/                    # M-008 即时检索
+│       ├── search/                    # M-008 检索与对话
 │       │   ├── __init__.py
-│       │   ├── hybrid.py             # 混合检索引擎
-│       │   ├── intent.py             # 意图理解
-│       │   ├── chat.py               # 即时问答（SearchSummarizer）
-│       │   ├── session.py            # 对话会话管理（ChatSessionManager）
-│       │   └── context_compressor.py # 上下文压缩器（ContextCompressor）
+│       │   ├── hybrid.py             # 混合检索引擎（Agent 工具）
+│       │   └── session.py            # 对话会话管理（含 compaction）
 │       ├── storage/                   # M-009 存储与检索
 │       │   ├── __init__.py
 │       │   ├── database.py           # 数据库连接管理
@@ -406,7 +428,6 @@ intellisource/
 │       │   └── routers/              # 路由定义
 │       │       ├── sources.py
 │       │       ├── tasks.py
-│       │       ├── workflows.py
 │       │       ├── search.py
 │       │       ├── contents.py
 │       │       ├── subscriptions.py
@@ -421,7 +442,11 @@ intellisource/
 │   └── conftest.py
 ├── config/
 │   ├── sources.example.yaml          # 信源配置示例
-│   └── settings.example.toml         # 系统配置示例
+│   ├── settings.example.toml         # 系统配置示例
+│   └── pipelines/                    # 管道配置文件
+│       ├── scheduled-collect.yaml    # 定时采集管道（strict 模式）
+│       ├── manual-collect.yaml       # 手动触发管道（strict 模式）
+│       └── instant-search.yaml       # 即时检索管道（flexible 模式）
 ├── docker/
 │   ├── Dockerfile
 │   └── docker-compose.yml

@@ -6,12 +6,14 @@
 <!-- volume: api | split-from: arch-intellisource-v1 -->
 
 [NAV]
-- §3 接口契约 → API-001..API-029
+
+- §3 接口契约 → API-001..API-025（API-010/011/026-029 工作流相关已移除，由管道配置替代）
 [/NAV]
 
 ## 3. 接口契约
 
 > 通用约定:
+>
 > - 基础路径: `/api/v1`
 > - 认证: 所有接口（除 Webhook 回调和健康检查外）需在请求头携带 `X-API-Key`
 > - Webhook 回调接口使用平台签名验证
@@ -19,6 +21,7 @@
 > - 错误响应统一格式见 arch#§5.3
 
 ### API-001: 获取信源列表
+
 ```yaml
 path: /api/v1/sources
 method: GET
@@ -43,6 +46,7 @@ response:
 ```
 
 ### API-002: 创建信源
+
 ```yaml
 path: /api/v1/sources
 method: POST
@@ -78,6 +82,7 @@ response:
 ```
 
 ### API-003: 更新信源（部分更新）
+
 ```yaml
 path: /api/v1/sources/{id}
 method: PATCH
@@ -108,6 +113,7 @@ response:
 ```
 
 ### API-004: 删除信源
+
 ```yaml
 path: /api/v1/sources/{id}
 method: DELETE
@@ -124,6 +130,7 @@ response:
 ```
 
 ### API-005: 重载配置
+
 ```yaml
 path: /api/v1/sources/reload
 method: POST
@@ -145,6 +152,7 @@ response:
 ```
 
 ### API-006: 获取任务列表
+
 ```yaml
 path: /api/v1/tasks
 method: GET
@@ -169,6 +177,7 @@ response:
 ```
 
 ### API-007: 触发采集任务
+
 ```yaml
 path: /api/v1/tasks/collect
 method: POST
@@ -192,6 +201,7 @@ response:
 ```
 
 ### API-008: 查询任务状态
+
 ```yaml
 path: /api/v1/tasks/{id}
 method: GET
@@ -218,6 +228,7 @@ response:
 ```
 
 ### API-009: 暂停/恢复任务
+
 ```yaml
 path: /api/v1/tasks/{id}
 method: PATCH
@@ -241,63 +252,8 @@ response:
   404: { schema: "ErrorResponse", desc: "任务不存在" }
 ```
 
-### API-010: 创建工作流
-```yaml
-path: /api/v1/workflows
-method: POST
-module: M-006
-desc: "定义自定义工作流（采集-处理-分发的灵活组合）"
-request:
-  headers:
-    X-API-Key: { type: string, required: true, desc: "API 认证密钥" }
-  body:
-    name: { type: string, required: true, desc: "工作流名称" }
-    description: { type: string, required: false, desc: "工作流描述" }
-    steps:
-      type: "array[WorkflowStep]"
-      required: true
-      desc: "工作流步骤列表"
-      items:
-        step_type: { type: string, desc: "步骤类型: collect | process | distribute" }
-        config: { type: object, desc: "步骤配置（信源/管道/渠道参数）" }
-        on_failure: { type: string, desc: "失败策略: retry | skip | abort，默认 retry" }
-    schedule: { type: string, required: false, desc: "Cron 表达式，为空则仅手动触发" }
-response:
-  201:
-    schema: "Workflow"
-    body:
-      id: { type: string, desc: "工作流 ID" }
-      name: { type: string, desc: "工作流名称" }
-      steps_count: { type: integer, desc: "步骤数" }
-      created_at: { type: datetime, desc: "创建时间" }
-  400: { schema: "ErrorResponse", desc: "参数校验失败" }
-  401: { schema: "ErrorResponse", desc: "认证失败" }
-```
-
-### API-011: 执行工作流
-```yaml
-path: /api/v1/workflows/{id}/run
-method: POST
-module: M-006
-request:
-  headers:
-    X-API-Key: { type: string, required: true, desc: "API 认证密钥" }
-  path_params:
-    id: { type: string, required: true, desc: "工作流 ID" }
-  body:
-    override_params: { type: object, required: false, desc: "运行时参数覆盖" }
-response:
-  202:
-    schema: "TaskTriggerResponse"
-    body:
-      task_chain_id: { type: string, desc: "任务链 ID" }
-      workflow_id: { type: string, desc: "工作流 ID" }
-      message: { type: string, desc: "提示信息" }
-  401: { schema: "ErrorResponse", desc: "认证失败" }
-  404: { schema: "ErrorResponse", desc: "工作流不存在" }
-```
-
 ### API-012: 混合检索
+
 ```yaml
 path: /api/v1/search
 method: POST
@@ -334,6 +290,7 @@ response:
 ```
 
 ### API-013: 即时问答
+
 ```yaml
 path: /api/v1/search/chat
 method: POST
@@ -364,6 +321,7 @@ response:
 ```
 
 ### API-014: 获取内容列表
+
 ```yaml
 path: /api/v1/contents
 method: GET
@@ -400,6 +358,7 @@ response:
 ```
 
 ### API-015: 获取内容详情
+
 ```yaml
 path: /api/v1/contents/{id}
 method: GET
@@ -433,6 +392,7 @@ response:
 ```
 
 ### API-016: 获取聚类列表
+
 ```yaml
 path: /api/v1/clusters
 method: GET
@@ -466,6 +426,7 @@ response:
 ```
 
 ### API-017: LLM 用量统计
+
 ```yaml
 path: /api/v1/llm/stats
 method: GET
@@ -509,6 +470,7 @@ response:
 ```
 
 ### API-018: 系统健康检查
+
 ```yaml
 path: /api/v1/health
 method: GET
@@ -537,6 +499,7 @@ response:
 ```
 
 ### API-019: 系统指标
+
 ```yaml
 path: /api/v1/metrics
 method: GET
@@ -553,6 +516,7 @@ response:
 ```
 
 ### API-020: 微信消息回调
+
 ```yaml
 path: /api/v1/webhooks/wechat
 method: POST
@@ -576,6 +540,7 @@ response:
 ```
 
 ### API-021: 企业微信消息回调
+
 ```yaml
 path: /api/v1/webhooks/wework
 method: POST
@@ -598,6 +563,7 @@ response:
 ```
 
 ### API-022: 获取订阅规则列表
+
 ```yaml
 path: /api/v1/subscriptions
 method: GET
@@ -631,6 +597,7 @@ response:
 ```
 
 ### API-023: 创建订阅规则
+
 ```yaml
 path: /api/v1/subscriptions
 method: POST
@@ -674,6 +641,7 @@ response:
 ```
 
 ### API-024: 更新订阅规则
+
 ```yaml
 path: /api/v1/subscriptions/{id}
 method: PATCH
@@ -700,6 +668,7 @@ response:
 ```
 
 ### API-025: 删除订阅规则
+
 ```yaml
 path: /api/v1/subscriptions/{id}
 method: DELETE
@@ -716,113 +685,12 @@ response:
   404: { schema: "ErrorResponse", desc: "订阅规则不存在" }
 ```
 
-### API-026: 获取工作流列表
-```yaml
-path: /api/v1/workflows
-method: GET
-module: M-006
-desc: "获取工作流定义列表"
-request:
-  headers:
-    X-API-Key: { type: string, required: true, desc: "API 认证密钥" }
-  query:
-    cursor: { type: string, required: false, desc: "分页游标" }
-    limit: { type: integer, required: false, desc: "每页数量，默认 20，最大 100" }
-    status: { type: string, required: false, desc: "状态过滤: active | paused | archived" }
-response:
-  200:
-    schema: "WorkflowListResponse"
-    body:
-      items:
-        type: "array[WorkflowBrief]"
-        desc: "工作流列表"
-        item_fields:
-          id: { type: string, desc: "工作流 ID" }
-          name: { type: string, desc: "工作流名称" }
-          steps_count: { type: integer, desc: "步骤数" }
-          schedule_cron: { type: "string | null", desc: "定时表达式" }
-          status: { type: string, desc: "工作流状态" }
-          last_run_at: { type: "datetime | null", desc: "上次执行时间" }
-          created_at: { type: datetime, desc: "创建时间" }
-      next_cursor: { type: "string | null", desc: "下一页游标" }
-      has_more: { type: boolean, desc: "是否有更多数据" }
-  401: { schema: "ErrorResponse", desc: "认证失败" }
-```
-
-### API-027: 获取工作流详情
-```yaml
-path: /api/v1/workflows/{id}
-method: GET
-module: M-006
-desc: "获取工作流定义详情"
-request:
-  headers:
-    X-API-Key: { type: string, required: true, desc: "API 认证密钥" }
-  path_params:
-    id: { type: string, required: true, desc: "工作流 ID" }
-response:
-  200:
-    schema: "WorkflowDetail"
-    body:
-      id: { type: string, desc: "工作流 ID" }
-      name: { type: string, desc: "工作流名称" }
-      description: { type: "string | null", desc: "工作流描述" }
-      steps: { type: "array[WorkflowStep]", desc: "步骤定义列表" }
-      schedule_cron: { type: "string | null", desc: "定时表达式" }
-      status: { type: string, desc: "工作流状态" }
-      last_run_at: { type: "datetime | null", desc: "上次执行时间" }
-      created_at: { type: datetime, desc: "创建时间" }
-      updated_at: { type: datetime, desc: "更新时间" }
-  401: { schema: "ErrorResponse", desc: "认证失败" }
-  404: { schema: "ErrorResponse", desc: "工作流不存在" }
-```
-
-### API-028: 更新工作流
-```yaml
-path: /api/v1/workflows/{id}
-method: PATCH
-module: M-006
-desc: "部分更新工作流定义"
-request:
-  headers:
-    X-API-Key: { type: string, required: true, desc: "API 认证密钥" }
-  path_params:
-    id: { type: string, required: true, desc: "工作流 ID" }
-  body:
-    name: { type: string, required: false, desc: "工作流名称" }
-    description: { type: string, required: false, desc: "工作流描述" }
-    steps: { type: "array[WorkflowStep]", required: false, desc: "步骤定义列表" }
-    schedule: { type: "string | null", required: false, desc: "Cron 表达式，null 表示取消定时" }
-    status: { type: string, required: false, desc: "状态: active | paused | archived" }
-response:
-  200: { schema: "WorkflowDetail", desc: "更新后的工作流" }
-  400: { schema: "ErrorResponse", desc: "参数校验失败" }
-  401: { schema: "ErrorResponse", desc: "认证失败" }
-  404: { schema: "ErrorResponse", desc: "工作流不存在" }
-```
-
-### API-029: 删除工作流
-```yaml
-path: /api/v1/workflows/{id}
-method: DELETE
-module: M-006
-desc: "删除工作流定义（关联的已执行任务链记录保留）"
-request:
-  headers:
-    X-API-Key: { type: string, required: true, desc: "API 认证密钥" }
-  path_params:
-    id: { type: string, required: true, desc: "工作流 ID" }
-response:
-  204: { desc: "删除成功，无返回体" }
-  401: { schema: "ErrorResponse", desc: "认证失败" }
-  404: { schema: "ErrorResponse", desc: "工作流不存在" }
-```
-
 ---
 
 ### 通用响应类型定义
 
 #### ErrorResponse
+
 ```yaml
 error:
   code: { type: string, desc: "错误码，格式 IS-{MOD}-{NNN}" }
@@ -832,6 +700,7 @@ error:
 ```
 
 #### Source
+
 ```yaml
 id: { type: string, desc: "信源 ID (UUID)" }
 name: { type: string, desc: "信源名称" }
@@ -854,6 +723,7 @@ updated_at: { type: datetime, desc: "更新时间" }
 ```
 
 #### TaskBrief
+
 ```yaml
 id: { type: string, desc: "任务 ID" }
 type: { type: string, desc: "任务类型" }

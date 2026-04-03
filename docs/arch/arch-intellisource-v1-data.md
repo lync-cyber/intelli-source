@@ -21,7 +21,7 @@ erDiagram
     Source ||--o{ Subscription : "被订阅"
 
     CollectTask ||--o{ RawContent : "采集"
-    CollectTask }o--|| TaskChain : "属于"
+    CollectTask }o--o| TaskChain : "属于"
 
     RawContent ||--o| ProcessedContent : "处理后"
 
@@ -33,8 +33,6 @@ erDiagram
     Subscription ||--o{ PushRecord : "触发推送"
 
     TaskChain ||--o{ CollectTask : "包含"
-
-    Workflow ||--o{ TaskChain : "实例化"
 
     LLMCallLog }o--|| ProcessedContent : "处理关联"
 
@@ -67,6 +65,8 @@ erDiagram
 | next_collect_at | TIMESTAMP WITH TZ | NULL | 下次计划采集时间 |
 | error_count | INTEGER | NOT NULL, DEFAULT 0 | 连续错误计数（自适应用） |
 | avg_update_interval | INTEGER | NULL | 历史平均更新间隔（秒），自适应频率计算依据 |
+| http_etag | VARCHAR(255) | NULL | 上次响应的 ETag 值，用于 HTTP 条件请求 |
+| http_last_modified | VARCHAR(255) | NULL | 上次响应的 Last-Modified 值，用于 HTTP 条件请求 |
 | config_version | INTEGER | NOT NULL, DEFAULT 1 | 配置版本号 |
 | created_at | TIMESTAMP WITH TZ | NOT NULL, DEFAULT NOW() | 创建时间 |
 | updated_at | TIMESTAMP WITH TZ | NOT NULL, DEFAULT NOW() | 更新时间 |
@@ -121,7 +121,6 @@ erDiagram
 | body_text | TEXT | NOT NULL | 处理后正文 |
 | summary | TEXT | NULL | LLM 生成摘要 |
 | tags | JSONB | DEFAULT '[]' | 语义标签数组 |
-| sentiment | VARCHAR(10) | NULL, CHECK IN ('positive', 'neutral', 'negative') | 情感倾向 |
 | cluster_id | UUID | FK → ContentCluster.id, NULL | 所属聚类 |
 | fingerprint | VARCHAR(64) | NOT NULL | 内容指纹（继承自 RawContent） |
 | embedding | VECTOR(1536) | NULL | 内容向量表示（pgvector）[ASSUMPTION: v1 默认使用 1536 维度的 embedding 模型（如 OpenAI text-embedding-ada-002），维度值通过 M-001 配置管理模块的 embedding_dimension 配置项管理，切换 embedding 模型时需同步调整并执行 Alembic 迁移] |
@@ -194,9 +193,10 @@ erDiagram
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 任务链唯一标识 |
-| workflow_id | UUID | FK → Workflow.id, NULL | 关联工作流（手动触发则为空） |
+| pipeline_name | VARCHAR(100) | NOT NULL | 执行的管道配置名称（如 scheduled-collect, instant-search） |
 | status | VARCHAR(20) | NOT NULL, DEFAULT 'pending', CHECK IN ('pending', 'running', 'success', 'failed', 'paused', 'cancelled') | 任务链状态 |
 | trigger_type | VARCHAR(20) | NOT NULL, CHECK IN ('scheduled', 'manual', 'message') | 触发方式 |
+| execution_mode | VARCHAR(10) | NOT NULL, CHECK IN ('strict', 'flexible') | 执行模式 |
 | total_steps | INTEGER | NOT NULL | 总步骤数 |
 | completed_steps | INTEGER | NOT NULL, DEFAULT 0 | 已完成步骤数 |
 | current_step | VARCHAR(50) | NULL | 当前执行步骤 |
@@ -205,7 +205,7 @@ erDiagram
 | finished_at | TIMESTAMP WITH TZ | NULL | 完成时间 |
 | created_at | TIMESTAMP WITH TZ | NOT NULL, DEFAULT NOW() | 创建时间 |
 
-**索引**: `idx_task_chain_status` (status), `idx_task_chain_workflow` (workflow_id)
+**索引**: `idx_task_chain_status` (status), `idx_task_chain_pipeline` (pipeline_name)
 
 ### E-009: Subscription (订阅规则)
 
@@ -216,7 +216,7 @@ erDiagram
 | source_id | UUID | FK → Source.id, NULL | 关联信源（空则匹配全部） |
 | channel | VARCHAR(20) | NOT NULL, CHECK IN ('wechat', 'wework', 'email') | 推送渠道 |
 | channel_config | JSONB | NOT NULL | 渠道配置（OpenID/CorpID/邮箱等） |
-| match_rules | JSONB | NOT NULL | 匹配规则: {keywords: [], tags: [], sentiment: []} |
+| match_rules | JSONB | NOT NULL | 匹配规则: {keywords: [], tags: []} |
 | frequency | VARCHAR(20) | NOT NULL, DEFAULT 'realtime', CHECK IN ('realtime', 'hourly', 'daily', 'weekly') | 推送频率 |
 | quiet_hours | JSONB | NULL | 免打扰时段: {start: "22:00", end: "08:00"} |
 | status | VARCHAR(20) | NOT NULL, DEFAULT 'active', CHECK IN ('active', 'paused') | 订阅状态 |
@@ -249,7 +249,7 @@ erDiagram
 | id | UUID | PK | 会话唯一标识 |
 | channel | VARCHAR(20) | NOT NULL | 消息渠道 |
 | channel_user_id | VARCHAR(255) | NOT NULL | 渠道用户标识（OpenID 等） |
-| context | JSONB | NOT NULL, DEFAULT '{}' | 对话上下文（结构化格式），包含 summary（历史摘要）和 recent_turns（近期轮次）两部分，详见下方 Context Schema |
+| context | JSONB | NOT NULL, DEFAULT '{}' | 对话上下文，通过 LLM compaction 管理。结构: {messages: [{role: "user"\|"assistant", content: string, timestamp: datetime}], compacted_summary: string\|null, total_tokens_estimate: integer}。当 total_tokens_estimate 超过管道配置的 token 上限时，触发 LLM 压缩，将旧消息摘要到 compacted_summary 中 |
 | last_active_at | TIMESTAMP WITH TZ | NOT NULL, DEFAULT NOW() | 最后活跃时间 |
 | created_at | TIMESTAMP WITH TZ | NOT NULL, DEFAULT NOW() | 创建时间 |
 

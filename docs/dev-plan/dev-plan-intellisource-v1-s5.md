@@ -7,7 +7,7 @@
 
 [NAV]
 
-- §3 任务卡详细 → T-037..T-047 (Sprint 5: 检索/API/CLI与集成)
+- §3 任务卡详细 → T-037..T-046 (Sprint 5: 检索/Agent集成/API/CLI)
 [/NAV]
 
 ## 3. 任务卡详细
@@ -35,60 +35,42 @@
   - arch-intellisource-v1-api#API-012
   - arch-intellisource-v1-data#§4.E-004（embedding, 全文检索索引）
 
-### T-038: 意图理解与即时问答
+### T-038: 即时检索Agent集成与对话上下文压缩
 
-- **目标**: 实现 LLM 驱动的自然语言意图理解和基于检索的即时问答功能
-- **模块**: M-008
+- **目标**: 将即时检索功能与 AgentRunner flexible 模式集成，实现 LLM 自主编排搜索策略；实现对话上下文 LLM 压缩（compaction）机制
+- **模块**: M-006, M-008
 - **接口**: API-013 的业务逻辑层
 - **复杂度**: M
 - **tdd_acceptance**:
-  - [ ] AC-050 映射: IntentParser 调用 LLM 理解用户自然语言检索意图
-  - [ ] AC-052 映射: 检索结果经 LLM 摘要后返回，不阻塞消息通道
-  - [ ] AC-T038-1: IntentParser 输出结构化检索参数（keywords, tags, date_range, search_mode）
-  - [ ] AC-T038-2: SearchSummarizer 对检索结果生成简洁的回答摘要
-  - [ ] AC-T038-3: 回答中包含引用来源列表（content_id/title/url）
-  - [ ] AC-T038-4: 意图理解降级为关键词直接搜索
-  - [ ] AC-T038-5: SearchSummarizer 输出 schema 包含 intent_summary 字段（1-2 句意图摘要），搭便车于已有 LLM 调用
+  - [ ] AC-050 映射: AgentRunner flexible 模式下 LLM 自主理解用户意图并选择搜索策略
+  - [ ] AC-051 映射: Agent 可多次调用 search 工具，自主调整搜索参数
+  - [ ] AC-052 映射: 检索结果经 LLM 摘要后异步回调返回
+  - [ ] AC-053 映射: 对话上下文通过 LLM compaction 管理，超出 token 限制时自动压缩历史
+  - [ ] AC-T038-1: ChatSessionManager.get_or_create(channel, channel_user_id) 获取或创建会话
+  - [ ] AC-T038-2: 对话上下文存储在 ChatSession.context JSONB 字段（含 messages + compacted_summary）
+  - [ ] AC-T038-3: 当 total_tokens_estimate 超过管道配置的 token 上限时，调用 LLM 将旧消息压缩为 compacted_summary
+  - [ ] AC-T038-4: compacted_summary 作为系统提示词前缀注入后续 Agent Loop，保持对话连贯性
+  - [ ] AC-T038-5: 超过 24 小时无活跃的会话自动清理
+  - [ ] AC-T038-6: Agent 回答中包含引用来源列表（content_id/title/url）
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/search/intent.py` -- 意图理解器
-  - [ ] `src/intellisource/search/chat.py` -- 即时问答（SearchSummarizer，含 intent_summary 输出）
-  - [ ] `tests/unit/search/test_intent.py` -- 意图理解测试
-  - [ ] `tests/unit/search/test_chat.py` -- 问答测试
-- **context_load**:
-  - arch#§2.M-008
-  - arch-intellisource-v1-api#API-013
-
-### T-039: 多轮对话管理与上下文压缩
-
-- **目标**: 实现多轮对话会话管理器，基于 token 预算的上下文压缩，支持意图分离和异步摘要
-- **模块**: M-008
-- **接口**: API-013（session_id 支持）
-- **复杂度**: L
-- **tdd_acceptance**:
-  - [ ] AC-053 映射: 支持多轮对话上下文保持，基于可配置 token 预算（`chat.context_token_budget`）而非硬编码轮数
-  - [ ] AC-T039-1: ChatSessionManager.get_or_create(channel, channel_user_id) 获取或创建会话
-  - [ ] AC-T039-2: 对话上下文使用结构化 JSONB 格式存储（summary + recent_turns），assistant 消息分离 content（意图摘要）与 full_content（完整回答）
-  - [ ] AC-T039-3: get_context_for_llm() 按 token 预算从最近轮次向前填充，仅使用 assistant 的 content（意图摘要），超预算时截断最旧轮次
-  - [ ] AC-T039-4: 超过 `chat.session_timeout_hours` 无活跃的会话自动清理
-  - [ ] AC-T039-5: 新会话或 session_id 为空时创建新 ChatSession
-  - [ ] AC-T039-6: ContextCompressor.should_compress() 在轮次超过 `chat.compress_after_turns` 且旧轮次即将被淘汰时返回 true
-  - [ ] AC-T039-7: ContextCompressor.compress_older_turns() 使用 `chat.compress_model` 将旧轮次压缩为结构化摘要
-  - [ ] AC-T039-8: 压缩操作在响应用户后异步执行，不影响响应延迟
-  - [ ] AC-T039-9: 压缩调用记录到 LLMCallLog（call_type="context_compress"，priority=low）
-  - [ ] AC-T039-10: 读取到旧格式（[] 数组）的 context 时自动迁移为新格式
-- **deliverables** (交付物):
-  - [ ] `src/intellisource/search/session.py` -- 对话会话管理器（ChatSessionManager）
-  - [ ] `src/intellisource/search/context_compressor.py` -- 上下文压缩器（ContextCompressor）
-  - [ ] `src/intellisource/llm/prompts/context_compress.txt` -- 压缩 prompt 模板
+  - [ ] `src/intellisource/search/session.py` -- 对话会话管理器（含 compaction）
+  - [ ] `src/intellisource/agent/compaction.py` -- LLM 上下文压缩逻辑
   - [ ] `tests/unit/search/test_session.py` -- 会话管理测试
-  - [ ] `tests/unit/search/test_context_compressor.py` -- 压缩器测试
+  - [ ] `tests/unit/agent/test_compaction.py` -- 上下文压缩测试
 - **context_load**:
+  - arch#§2.M-006（AgentRunner flexible 模式）
   - arch#§2.M-008
   - arch-intellisource-v1-data#§4.E-011（含 Context Schema）
   - arch#§5.1（上下文压缩缓存策略、对话配置表）
 - **实现提示**: 意图分离搭便车于 T-038 SearchSummarizer 的 intent_summary 输出；压缩使用 LLMGateway.estimate_tokens()（T-019 AC-T019-5）进行 token 计数；异步压缩通过 asyncio.create_task 或 Celery 实现
 
 ### T-040: Webhook回调处理(微信/企业微信)
+
+  - arch-intellisource-v1-data#§4.E-011
+  - arch-intellisource-v1-api#API-013
+- **实现提示**: compaction 使用独立的 LLM 调用（简短提示词），输入为旧消息历史，输出为结构化摘要（目标、已发现、关键信息）；参考 OpenCode 的 compaction 模式
+
+### T-039: Webhook回调处理(微信/企业微信)
 
 - **目标**: 实现微信和企业微信的消息回调处理，包括签名验证、消息解析和指令路由
 - **模块**: M-007
@@ -138,27 +120,22 @@
 
 - **目标**: 实现任务管理和工作流管理的 FastAPI 路由
 - **模块**: M-011
-- **接口**: API-006, API-007, API-008, API-009, API-010, API-011, API-026, API-027, API-028, API-029
+- **接口**: API-006, API-007, API-008, API-009
 - **复杂度**: M
 - **tdd_acceptance**:
   - [ ] AC-062 映射: API 支持手动触发采集任务和查询任务状态
-  - [ ] AC-063 映射: API 支持定义和执行自定义工作流
   - [ ] AC-065 映射: 自动生成 OpenAPI 文档
-  - [ ] AC-T042-1: GET /api/v1/tasks 任务列表（分页+过滤）
-  - [ ] AC-T042-2: POST /api/v1/tasks/collect 触发采集（返回 202）
-  - [ ] AC-T042-3: 工作流 CRUD（GET/POST/PATCH/DELETE /api/v1/workflows）
-  - [ ] AC-T042-4: POST /api/v1/workflows/{id}/run 执行工作流（返回 202）
+  - [ ] AC-T041-1: GET /api/v1/tasks 任务列表（分页+过滤）
+  - [ ] AC-T041-2: POST /api/v1/tasks/collect 触发采集（返回 202，通过 AgentRunner strict 模式执行）
+  - [ ] AC-T041-3: GET /api/v1/tasks/{id} 查询任务状态（含 pipeline_name 和 execution_mode）
+  - [ ] AC-T041-4: PATCH /api/v1/tasks/{id} 暂停/恢复任务
 - **deliverables** (交付物):
   - [ ] `src/intellisource/api/routers/tasks.py` -- 任务路由
-  - [ ] `src/intellisource/api/routers/workflows.py` -- 工作流路由
   - [ ] `tests/unit/api/test_tasks.py` -- 任务 API 测试
-  - [ ] `tests/unit/api/test_workflows.py` -- 工作流 API 测试
 - **context_load**:
   - arch#§2.M-011
   - arch-intellisource-v1-api#API-006
   - arch-intellisource-v1-api#API-007
-  - arch-intellisource-v1-api#API-010
-  - arch-intellisource-v1-api#API-011
 
 ### T-043: API路由层 -- 内容/检索/订阅/LLM/系统
 
@@ -221,7 +198,7 @@
   - [ ] AC-064 映射: CLI 工具封装常用 API 操作
   - [ ] AC-T045-1: `intellisource source list/add/update/delete` 信源管理命令
   - [ ] AC-T045-2: `intellisource task trigger/status` 任务操作命令
-  - [ ] AC-T045-3: `intellisource workflow list/create/run` 工作流命令
+  - [ ] AC-T044-3: `intellisource pipeline list` 查看管道配置命令
   - [ ] AC-T045-4: `intellisource search <query>` 检索命令
   - [ ] AC-T045-5: CLI 输出格式化为表格（默认）或 JSON（--json 参数）
   - [ ] AC-T045-6: API 地址和 Key 通过环境变量或 --api-url/--api-key 参数配置

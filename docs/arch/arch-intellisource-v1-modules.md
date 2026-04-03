@@ -33,12 +33,13 @@
 - **对外接口**: 无直接对外 API（由 M-006 任务编排调度）
 - **依赖模块**: M-001（获取信源配置）, M-009（存储采集结果）, M-010（日志/指标上报）
 - **内部关键组件**:
-  - `BaseCollector` — 采集器抽象基类，定义统一接口（AC-005）
-  - `CollectorRegistry` — 采集器注册中心，支持插件化注册新采集器
+  - `BaseCollector` — 采集器抽象基类，定义统一接口（AC-005），内置 HTTP 条件请求支持（ETag/If-Modified-Since），子类可复用以减少未变化源的计算开销
+  - `CollectorRegistry` — 采集器注册中心，支持自动发现注册和手动注册两种模式
+  - `SourceAutoDiscovery` — 数据源自发现加载器，启动时扫描 `collector/sources/` 目录，自动发现并注册实现了 `BaseCollector` 接口的子包（借鉴 RSSHub namespace 路由发现模式）。新增数据源只需在 `sources/` 下创建子包并实现标准接口，无需修改注册代码
   - `RSSCollector` — RSS/Atom 采集适配器（AC-006）
   - `APICollector` — 通用 API 采集适配器（AC-006）
   - `WebCollector` — 网页爬虫采集适配器（AC-006）
-  - `AdaptiveScheduler` — 频率自适应调度器，根据历史更新频率动态调整采集间隔（AC-009）
+  - `AdaptiveScheduler` — 频率自适应调度器（AC-009），算法：最小间隔保护（默认 120s）→ 空转指数退避（连续无新内容时 interval × backoff_factor，默认 1.5）→ 新内容恢复（interval × recovery_factor，默认 0.5）→ 基于 E-001 `avg_update_interval` 历史学习动态调整基准间隔
   - `RateLimiter` — 请求速率限制器，基于 Redis 令牌桶算法，按信源独立配置（AC-011）
   - `ProxyManager` — HTTP 代理管理器，按信源配置独立代理（AC-010）
 
@@ -49,7 +50,8 @@
 - **对外接口**: 无直接对外 API（由 M-006 任务编排调度）
 - **依赖模块**: M-009（读写处理结果）, M-010（日志/指标上报）
 - **内部关键组件**:
-  - `PipelineEngine` — 管道执行引擎，按配置编排处理器顺序（AC-013）
+  - `PipelineEngine` — 管道执行引擎，支持中间件链模式（借鉴 RSSHub/Hono 中间件管道），每个处理器可实现前处理-调用下一个-后处理的洋葱模型，同时兼容传统线性编排（AC-013）
+  - `MiddlewareChain` — 中间件链执行器，支持 `process(ctx, next)` 洋葱模型，处理器可在调用 next 前后执行前处理/后处理逻辑，支持在 Workflow (E-012) 的 steps JSONB 中声明中间件组合
   - `BaseProcessor` — 处理器抽象基类，定义统一接口（AC-015）
   - `PipelineContext` — 管道上下文对象，支持处理器间数据传递（AC-016）
   - `ConditionEvaluator` — 条件评估器，支持条件跳过和分支（AC-014）
@@ -58,9 +60,9 @@
 
 ### M-004: LLM 智能处理模块 (llm.processors)
 
-- **职责**: 基于 LLM 实现结构化提取、语义去重、聚类、摘要、打标和情感分析等高级内容处理
-- **映射功能**: F-005（结构化提取/语义去重/聚类）, F-006（摘要/打标/分析）, F-010（推送内容优化）
-- **对外接口**: 无直接对外 API（作为 M-003 管道处理器运行）
+- **职责**: 基于 LLM 实现结构化提取、语义去重、聚类、摘要和打标等高级内容处理，同时作为 Agent 可调用的工具注册到 Agent 调度层
+- **映射功能**: F-005（结构化提取/语义去重/聚类）, F-006（摘要/打标）
+- **对外接口**: 无直接对外 API（作为 M-003 管道处理器运行，同时注册为 Agent 工具）
 - **依赖模块**: M-003（注册为管道处理器）, M-005（LLM 调用网关）, M-009（向量检索/存储）
 - **内部关键组件**:
   - `LLMExtractor` — LLM 结构化提取处理器，按 JSON Schema 提取数据（AC-018）
@@ -68,11 +70,9 @@
   - `ContentClusterer` — 内容聚类处理器，同主题多源内容分组（AC-020）
   - `DigestGenerator` — 综合简报生成器，多篇文档聚合摘要（AC-023）
   - `SemanticTagger` — 语义打标处理器（AC-024）
-  - `SentimentAnalyzer` — 情感分析处理器（AC-025）
   - `ContentFilter` — 敏感词过滤与合规检查（AC-026）
-  - `PushOptimizer` — 推送内容重排序与引导语生成（AC-047, AC-048）
   - `FingerprintGenerator` — 内容指纹生成器（AC-022）
-  - 每个 LLM 处理器均实现降级逻辑（AC-021, AC-027, AC-049），降级映射见 arch#§5.3
+  - 每个 LLM 处理器均实现降级逻辑（AC-021, AC-027），降级映射见 arch#§5.3
 
 ### M-005: LLM 服务治理模块 (llm.gateway)
 
@@ -86,20 +86,23 @@
   - `FallbackManager` — 降级管理器，LLM 失败时自动切换（AC-030，<500ms）
   - `PriorityQueue` — 优先级队列，隔离用户交互请求和后台处理请求（AC-032）
   - `CostTracker` — 成本追踪器，记录 Token 消耗/延迟/IO 长度，支持聚合统计（AC-033）
+  - `ModelRegistry` — 模型能力注册表，通过 YAML 配置声明每个模型的能力维度（context_window、supports_json_mode、supports_function_calling、cost_per_1k_tokens、best_for 等），支持热加载更新（借鉴 OpenCode Provider 抽象模式）
+  - `SmartRouter` — 智能路由器，根据 LLM 任务类型（extraction/summarization/embedding 等）+ 模型能力 + 成本约束自动选择最优模型；无匹配模型时降级到默认模型并记录 WARNING 日志
   - `SchemaEnforcer` — JSON Mode / Function Calling 输出格式强制器（AC-031）
 
-### M-006: 任务编排模块 (scheduler)
+### M-006: 任务编排与 Agent 调度模块 (scheduler + agent)
 
-- **职责**: 编排采集-处理-存储-分发的原子任务链，提供定时调度、并发执行和任务状态管理
-- **映射功能**: F-008（任务编排与调度）
-- **对外接口**: API-006, API-007, API-008, API-009, API-010, API-011, API-026, API-027, API-028, API-029
-- **依赖模块**: M-001（获取调度配置）, M-002（触发采集）, M-003（触发处理）, M-007（触发分发）, M-009（任务状态持久化）
+- **职责**: 统一管理定时任务和即时查询的调度与执行。Celery 负责触发层（定时/手动/消息触发），AgentRunner 负责执行层，通过管道配置文件（Pipeline Config）定义任务行为边界。双模式执行：定时任务采用 strict 模式按配置步骤直接调用函数（零 LLM 开销），即时查询采用 flexible 模式由 LLM Agent Loop 自主编排工具调用
+- **映射功能**: F-008（任务编排与调度）, F-011（即时检索的 Agent 调度部分）
+- **对外接口**: API-006, API-007, API-008, API-009
+- **依赖模块**: M-001（获取调度配置）, M-002（触发采集）, M-003（触发处理）, M-004（LLM 处理器作为 Agent 工具）, M-005（LLM 网关，flexible 模式使用）, M-007（触发分发）, M-008（检索工具）, M-009（任务状态持久化）
 - **内部关键组件**:
-  - `TaskChainBuilder` — 任务链构建器，串联采集→处理→存储→分发（AC-034）
-  - `CeleryTasks` — Celery 任务定义，封装各阶段执行逻辑
+  - `AgentRunner` — 双模式执行引擎（AC-066, AC-067）：strict 模式按管道配置顺序直接调用工具函数；flexible 模式运行 LLM Agent Loop，LLM 自主选择工具调用
+  - `PipelineConfig` — 管道配置加载器，解析 YAML 管道配置文件（tools_allowed/denied, steps, mode, max_steps）
+  - `AgentToolRegistry` — Agent 工具注册中心，将 M-002/M-003/M-004/M-007/M-008 的功能包装为 Agent 可调用的工具函数
+  - `CeleryTasks` — Celery 任务定义，触发 AgentRunner 执行对应管道
   - `TaskStateMachine` — 统一任务状态机：pending → running → success/failed，支持 pause/resume/timeout（AC-038）
   - `SchedulerManager` — 定时调度管理器，支持 Celery Beat 定时触发（AC-039）
-  - `WorkflowEngine` — 工作流引擎，支持自定义采集-处理-分发组合（AC-063）
   - `IdempotencyGuard` — 幂等保护器，基于内容指纹 + 推送记录 + Redis 分布式锁（AC-037）
 
 ### M-007: 分发渠道模块 (distributor)
@@ -107,29 +110,27 @@
 - **职责**: 将处理后的内容通过多渠道（微信公众号/企业微信/邮件）推送给订阅用户
 - **映射功能**: F-009（多渠道分发）
 - **对外接口**: API-020（微信回调）, API-021（企业微信回调）, API-022（订阅列表）, API-023（创建订阅）, API-024（更新订阅）, API-025（删除订阅）
-- **依赖模块**: M-004（获取处理后内容/推送优化）, M-009（推送记录持久化）, M-010（推送指标上报）
+- **依赖模块**: M-004（获取处理后内容）, M-009（推送记录持久化）, M-010（推送指标上报）
 - **内部关键组件**:
   - `BaseDistributor` — 分发器抽象基类，定义统一分发接口（预留扩展点）
   - `WeChatDistributor` — 微信公众号推送实现（AC-040）
   - `WeWorkDistributor` — 企业微信推送实现（AC-041）
   - `EmailDistributor` — 邮件推送实现，HTML 格式（AC-042）
-  - `SubscriptionMatcher` — 订阅规则匹配引擎，基于关键词/学科标签匹配（AC-043）
+  - `SubscriptionMatcher` — 订阅规则匹配引擎，支持高级关键词语法（`+`必选词、`!`排除词、`/pattern/`正则匹配）及学科标签匹配（AC-043），结合 ContentScorer 的权重评分进行推送排序和阈值过滤（AC-043a）
+  - `ContentScorer` — 内容权重评分器，综合计算内容权重分（源可信度 × 时间衰减 × 关键词匹配度），用于推送排序和 min_score 阈值过滤
   - `DeliveryTracker` — 推送去重与历史记录（AC-044, AC-045）
   - `FrequencyController` — 推送频率控制与免打扰时段（AC-046）
   - `WebhookHandler` — 微信/企业微信消息回调处理（接收用户消息指令）
 
-### M-008: 即时检索模块 (search)
+### M-008: 检索与对话模块 (search)
 
-- **职责**: 处理用户通过消息渠道发送的即时检索指令，理解意图并返回相关摘要
-- **映射功能**: F-011（消息指令式即时检索）
+- **职责**: 提供混合检索引擎和对话会话管理能力，作为 Agent 工具供 M-006 AgentRunner 调用。意图理解和结果摘要由 AgentRunner 的 flexible 模式中 LLM 自主完成，不再作为独立组件
+- **映射功能**: F-011（消息指令式即时检索）, F-012（混合检索部分）
 - **对外接口**: API-012（混合检索）, API-013（即时问答）
-- **依赖模块**: M-005（LLM 意图理解与摘要）, M-009（混合检索）, M-007（接收用户消息/回调返回结果）
+- **依赖模块**: M-009（向量/全文检索）, M-005（LLM 上下文压缩）
 - **内部关键组件**:
-  - `IntentParser` — 意图理解器，调用 LLM 解析自然语言检索指令（AC-050）
-  - `HybridSearchEngine` — 混合检索引擎，关键词 + 向量语义联合查询（AC-051）
-  - `SearchSummarizer` — 检索结果摘要器，LLM 生成结果摘要（含意图摘要）后异步回调（AC-052）
-  - `ChatSessionManager` — 多轮对话管理器，基于 token 预算保持上下文（AC-053），集成 ContextCompressor 实现渐进式压缩
-  - `ContextCompressor` — 上下文压缩器，实现意图分离、token 预算滑动窗口、异步摘要压缩三层策略（AC-053）
+  - `HybridSearchEngine` — 混合检索引擎，关键词 + 向量语义联合查询（AC-051），注册为 Agent 工具供 AgentRunner 调用
+  - `ChatSessionManager` — 对话会话管理器（AC-053），管理多轮对话上下文，通过 LLM compaction 压缩历史对话（超出 token 限制时自动摘要），替代固定轮次限制
 
 ### M-009: 存储与检索模块 (storage)
 
@@ -164,10 +165,10 @@
 
 - **职责**: 提供 RESTful API 和命令行工具，作为系统的统一外部接口层
 - **映射功能**: F-014（RESTful API 与 CLI）
-- **对外接口**: 所有 API-001 至 API-029（路由层）
+- **对外接口**: 所有 API-001 至 API-025（路由层，工作流相关 API 已移除）
 - **依赖模块**: M-001 至 M-010（路由到各业务模块）
 - **内部关键组件**:
-  - `APIRouter` — FastAPI 路由注册，按资源组织路由（AC-061, AC-062, AC-063）
+  - `APIRouter` — FastAPI 路由注册，按资源组织路由（AC-061, AC-062）
   - `AuthMiddleware` — API Key 认证中间件
   - `RequestLogger` — 请求日志中间件
   - `TracingMiddleware` — 请求链路追踪中间件
@@ -181,8 +182,8 @@
 ```mermaid
 graph TD
     M011[M-011 API/CLI] --> M001[M-001 配置管理]
-    M011 --> M006[M-006 任务编排]
-    M011 --> M008[M-008 即时检索]
+    M011 --> M006[M-006 任务编排+Agent]
+    M011 --> M008[M-008 检索与对话]
     M011 --> M009[M-009 存储检索]
     M011 --> M005[M-005 LLM治理]
     M011 --> M010[M-010 可观测性]
@@ -190,7 +191,10 @@ graph TD
     M006 --> M001
     M006 --> M002[M-002 采集引擎]
     M006 --> M003[M-003 处理管道]
+    M006 --> M004[M-004 LLM处理]
+    M006 --> M005
     M006 --> M007[M-007 分发渠道]
+    M006 --> M008
     M006 --> M009
 
     M002 --> M001
@@ -200,7 +204,7 @@ graph TD
     M003 --> M009
     M003 --> M010
 
-    M004[M-004 LLM处理] --> M003
+    M004 --> M003
     M004 --> M005
     M004 --> M009
 
@@ -213,9 +217,8 @@ graph TD
 
     M008 --> M005
     M008 --> M009
-    M008 --> M007
 
     M001 --> M009
 ```
 
-**说明**: 依赖关系为有向无环图（DAG），M-009（存储）和 M-010（可观测性）为底层基础设施模块，无外部依赖。
+**说明**: 依赖关系为有向无环图（DAG），M-009（存储）和 M-010（可观测性）为底层基础设施模块，无外部依赖。M-006 作为 Agent 调度中心，依赖范围最广（M-001~M-009），通过管道配置和 Agent 工具注册统一编排各模块。
