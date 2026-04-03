@@ -1,17 +1,19 @@
 # Development Plan 分卷 -- Sprint 3: IntelliSource
 <!-- required_sections: ["## 3. 任务卡详细"] -->
 <!-- volume_type: sprint -->
-<!-- id: dev-plan-intellisource-v1-s3 | author: tech-lead | status: draft -->
+<!-- id: dev-plan-intellisource-v1-s3 | author: tech-lead | status: approved -->
 <!-- deps: arch-intellisource-v1 | consumers: developer, qa-engineer -->
 <!-- volume: sprint | split-from: dev-plan-intellisource-v1 -->
 
 [NAV]
+
 - §3 任务卡详细 → T-019..T-026 (Sprint 3: LLM智能处理)
 [/NAV]
 
 ## 3. 任务卡详细
 
 ### T-019: LLM统一网关(litellm封装)
+
 - **目标**: 基于 litellm 封装统一的 LLM 调用接口（LLMGateway），屏蔽不同模型提供商差异，支持 JSON Mode/Function Calling 输出格式
 - **模块**: M-005
 - **接口**: 无（内部接口，被 M-004/M-008 调用）
@@ -34,12 +36,13 @@
 - **实现提示**: litellm.completion() 作为底层调用；使用 pydantic 校验 LLM 输出；测试使用 unittest.mock 模拟 litellm 响应
 
 ### T-020: 熔断器与降级管理器
+
 - **目标**: 实现 LLM 调用的熔断器（Circuit Breaker）和降级管理器（FallbackManager），确保 LLM 故障时主流程不中断
 - **模块**: M-005
 - **接口**: 无
 - **复杂度**: L
 - **tdd_acceptance**:
-  - [ ] AC-029 映射: 连续失败 5 次触发熔断（Open），60s 后半开（Half-Open）探测，成功则关闭
+  - [ ] AC-029 映射: 熔断器状态机按 arch#§5.3 熔断机制参数实现（Open/Half-Open/Closed 三态转换）
   - [ ] AC-030 映射: 降级切换时间 < 500ms（从检测故障到执行降级逻辑的耗时）
   - [ ] AC-T020-1: 熔断状态持久化到 Redis，多 Worker 共享状态
   - [ ] AC-T020-2: 熔断器支持按 model/provider 独立跟踪
@@ -57,6 +60,7 @@
 - **实现提示**: 熔断器状态机使用 Redis HASH 存储（failure_count, state, last_failure_at）；降级映射表见 arch#§5.3 降级策略表
 
 ### T-021: LLM优先级队列与成本追踪
+
 - **目标**: 实现 LLM 调用的优先级队列（隔离用户交互和后台处理请求）和成本追踪器（记录 Token 消耗/延迟）
 - **模块**: M-005
 - **接口**: API-017（LLM 用量统计的数据来源）
@@ -79,6 +83,7 @@
   - arch-intellisource-v1-api#API-017
 
 ### T-022: LLM结构化提取处理器
+
 - **目标**: 实现 LLM 结构化数据提取处理器（作为管道处理器），支持按 JSON Schema 从文本中提取结构化信息
 - **模块**: M-004
 - **接口**: 无（管道处理器，由 M-003 调度）
@@ -101,6 +106,7 @@
   - arch-intellisource-v1-data#§4.E-004（structured_data 字段）
 
 ### T-023: 语义去重处理器
+
 - **目标**: 实现基于向量检索 + LLM 判定的语义级去重处理器，识别语义相同但表述不同的内容
 - **模块**: M-004
 - **接口**: 无
@@ -123,6 +129,7 @@
 - **实现提示**: 向量检索调用 M-009 VectorStore；LLM 判定使用简短 prompt（给出两篇文章判断是否重复）；SimHash 降级可用 simhash 库
 
 ### T-024: 内容聚类处理器
+
 - **目标**: 实现同主题多源内容的自动聚类处理器，将相关内容归组并生成聚类主题
 - **模块**: M-004
 - **接口**: 无
@@ -143,34 +150,32 @@
   - arch#§5.3（降级策略）
 - **实现提示**: 增量聚类策略：新内容到来时与现有聚类中心比较，超过阈值则归入，否则新建
 
-### T-025: 摘要/打标/情感分析处理器
-- **目标**: 实现 LLM 驱动的综合简报生成、语义打标和情感分析处理器
+### T-025: 摘要/打标处理器
+
+- **目标**: 实现 LLM 驱动的综合简报生成和语义打标处理器
 - **模块**: M-004
 - **接口**: 无
 - **复杂度**: M
 - **tdd_acceptance**:
   - [ ] AC-023 映射: DigestGenerator 对同聚类多篇文档生成综合简报（含时间线和要点）
   - [ ] AC-024 映射: SemanticTagger 基于语义为内容打标签，无法归类则进入"未分类"
-  - [ ] AC-025 映射: SentimentAnalyzer 输出 positive/neutral/negative 情感倾向
   - [ ] AC-027 映射: 所有处理器均支持降级到传统逻辑
   - [ ] AC-T025-1: DigestGenerator 输出包含 title/summary/timeline/key_points
   - [ ] AC-T025-2: 打标降级使用关键词匹配 + 预定义标签库
-  - [ ] AC-T025-3: 情感分析降级使用情感词典评分
-  - [ ] AC-T025-4: 摘要降级使用截断式摘要（取前 N 句）
+  - [ ] AC-T025-3: 摘要降级使用截断式摘要（取前 N 句）
 - **deliverables** (交付物):
   - [ ] `src/intellisource/llm/processors/summarizer.py` -- 摘要/简报生成处理器
   - [ ] `src/intellisource/llm/processors/tagger.py` -- 语义打标处理器
-  - [ ] `src/intellisource/llm/processors/sentiment.py` -- 情感分析处理器
   - [ ] `tests/unit/llm/test_summarizer.py` -- 摘要测试
   - [ ] `tests/unit/llm/test_tagger.py` -- 打标测试
-  - [ ] `tests/unit/llm/test_sentiment.py` -- 情感分析测试
 - **context_load**:
   - arch#§2.M-004
-  - arch-intellisource-v1-data#§4.E-004（tags, sentiment 字段）
+  - arch-intellisource-v1-data#§4.E-004（tags 字段）
   - arch-intellisource-v1-data#§4.E-006
   - arch#§5.3（降级策略）
 
 ### T-026: 敏感词过滤与合规检查
+
 - **目标**: 实现内容敏感词过滤和合规检查处理器，在 LLM 调用前后双重检查
 - **模块**: M-004
 - **接口**: 无

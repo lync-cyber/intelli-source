@@ -1,17 +1,19 @@
 # Architecture 分卷 -- 接口契约: IntelliSource
 <!-- required_sections: ["## 3. 接口契约"] -->
 <!-- volume_type: api -->
-<!-- id: arch-intellisource-v1-api | author: architect | status: draft -->
+<!-- id: arch-intellisource-v1-api | author: architect | status: approved -->
 <!-- deps: prd-intellisource-v1 | consumers: tech-lead, developer, devops -->
 <!-- volume: api | split-from: arch-intellisource-v1 -->
 
 [NAV]
+
 - §3 接口契约 → API-001..API-029
 [/NAV]
 
 ## 3. 接口契约
 
 > 通用约定:
+>
 > - 基础路径: `/api/v1`
 > - 认证: 所有接口（除 Webhook 回调和健康检查外）需在请求头携带 `X-API-Key`
 > - Webhook 回调接口使用平台签名验证
@@ -19,6 +21,7 @@
 > - 错误响应统一格式见 arch#§5.3
 
 ### API-001: 获取信源列表
+
 ```yaml
 path: /api/v1/sources
 method: GET
@@ -43,6 +46,7 @@ response:
 ```
 
 ### API-002: 创建信源
+
 ```yaml
 path: /api/v1/sources
 method: POST
@@ -78,6 +82,7 @@ response:
 ```
 
 ### API-003: 更新信源（部分更新）
+
 ```yaml
 path: /api/v1/sources/{id}
 method: PATCH
@@ -108,6 +113,7 @@ response:
 ```
 
 ### API-004: 删除信源
+
 ```yaml
 path: /api/v1/sources/{id}
 method: DELETE
@@ -124,6 +130,7 @@ response:
 ```
 
 ### API-005: 重载配置
+
 ```yaml
 path: /api/v1/sources/reload
 method: POST
@@ -145,6 +152,7 @@ response:
 ```
 
 ### API-006: 获取任务列表
+
 ```yaml
 path: /api/v1/tasks
 method: GET
@@ -169,6 +177,7 @@ response:
 ```
 
 ### API-007: 触发采集任务
+
 ```yaml
 path: /api/v1/tasks/collect
 method: POST
@@ -192,6 +201,7 @@ response:
 ```
 
 ### API-008: 查询任务状态
+
 ```yaml
 path: /api/v1/tasks/{id}
 method: GET
@@ -218,6 +228,7 @@ response:
 ```
 
 ### API-009: 暂停/恢复任务
+
 ```yaml
 path: /api/v1/tasks/{id}
 method: PATCH
@@ -242,6 +253,7 @@ response:
 ```
 
 ### API-010: 创建工作流
+
 ```yaml
 path: /api/v1/workflows
 method: POST
@@ -275,6 +287,7 @@ response:
 ```
 
 ### API-011: 执行工作流
+
 ```yaml
 path: /api/v1/workflows/{id}/run
 method: POST
@@ -298,6 +311,7 @@ response:
 ```
 
 ### API-012: 混合检索
+
 ```yaml
 path: /api/v1/search
 method: POST
@@ -334,6 +348,7 @@ response:
 ```
 
 ### API-013: 即时问答
+
 ```yaml
 path: /api/v1/search/chat
 method: POST
@@ -364,6 +379,7 @@ response:
 ```
 
 ### API-014: 获取内容列表
+
 ```yaml
 path: /api/v1/contents
 method: GET
@@ -391,7 +407,6 @@ response:
           title: { type: string, desc: "标题" }
           summary: { type: string, desc: "摘要" }
           tags: { type: "array[string]", desc: "标签列表" }
-          sentiment: { type: string, desc: "情感倾向: positive | neutral | negative" }
           source_name: { type: string, desc: "来源名称" }
           published_at: { type: datetime, desc: "发布时间" }
       next_cursor: { type: "string | null", desc: "下一页游标" }
@@ -400,6 +415,7 @@ response:
 ```
 
 ### API-015: 获取内容详情
+
 ```yaml
 path: /api/v1/contents/{id}
 method: GET
@@ -419,7 +435,6 @@ response:
       body_text: { type: string, desc: "正文内容" }
       summary: { type: "string | null", desc: "LLM 生成摘要" }
       tags: { type: "array[string]", desc: "标签列表" }
-      sentiment: { type: "string | null", desc: "情感倾向" }
       fingerprint: { type: string, desc: "内容指纹" }
       source_url: { type: string, desc: "原始 URL" }
       source_name: { type: string, desc: "来源名称" }
@@ -433,6 +448,7 @@ response:
 ```
 
 ### API-016: 获取聚类列表
+
 ```yaml
 path: /api/v1/clusters
 method: GET
@@ -466,6 +482,7 @@ response:
 ```
 
 ### API-017: LLM 用量统计
+
 ```yaml
 path: /api/v1/llm/stats
 method: GET
@@ -509,6 +526,7 @@ response:
 ```
 
 ### API-018: 系统健康检查
+
 ```yaml
 path: /api/v1/health
 method: GET
@@ -537,6 +555,7 @@ response:
 ```
 
 ### API-019: 系统指标
+
 ```yaml
 path: /api/v1/metrics
 method: GET
@@ -553,6 +572,7 @@ response:
 ```
 
 ### API-020: 微信消息回调
+
 ```yaml
 path: /api/v1/webhooks/wechat
 method: POST
@@ -576,6 +596,7 @@ response:
 ```
 
 ### API-021: 企业微信消息回调
+
 ```yaml
 path: /api/v1/webhooks/wework
 method: POST
@@ -598,6 +619,7 @@ response:
 ```
 
 ### API-022: 获取订阅规则列表
+
 ```yaml
 path: /api/v1/subscriptions
 method: GET
@@ -631,6 +653,7 @@ response:
 ```
 
 ### API-023: 创建订阅规则
+
 ```yaml
 path: /api/v1/subscriptions
 method: POST
@@ -651,7 +674,6 @@ request:
       fields:
         keywords: { type: "array[string]", required: false, desc: "关键词列表" }
         tags: { type: "array[string]", required: false, desc: "标签列表" }
-        sentiment: { type: "array[string]", required: false, desc: "情感倾向过滤: positive | neutral | negative" }
     frequency: { type: string, required: false, desc: "推送频率: realtime | hourly | daily | weekly，默认 realtime" }
     quiet_hours:
       type: object
@@ -674,6 +696,7 @@ response:
 ```
 
 ### API-024: 更新订阅规则
+
 ```yaml
 path: /api/v1/subscriptions/{id}
 method: PATCH
@@ -700,6 +723,7 @@ response:
 ```
 
 ### API-025: 删除订阅规则
+
 ```yaml
 path: /api/v1/subscriptions/{id}
 method: DELETE
@@ -717,6 +741,7 @@ response:
 ```
 
 ### API-026: 获取工作流列表
+
 ```yaml
 path: /api/v1/workflows
 method: GET
@@ -750,6 +775,7 @@ response:
 ```
 
 ### API-027: 获取工作流详情
+
 ```yaml
 path: /api/v1/workflows/{id}
 method: GET
@@ -778,6 +804,7 @@ response:
 ```
 
 ### API-028: 更新工作流
+
 ```yaml
 path: /api/v1/workflows/{id}
 method: PATCH
@@ -802,6 +829,7 @@ response:
 ```
 
 ### API-029: 删除工作流
+
 ```yaml
 path: /api/v1/workflows/{id}
 method: DELETE
@@ -823,6 +851,7 @@ response:
 ### 通用响应类型定义
 
 #### ErrorResponse
+
 ```yaml
 error:
   code: { type: string, desc: "错误码，格式 IS-{MOD}-{NNN}" }
@@ -832,6 +861,7 @@ error:
 ```
 
 #### Source
+
 ```yaml
 id: { type: string, desc: "信源 ID (UUID)" }
 name: { type: string, desc: "信源名称" }
@@ -854,6 +884,7 @@ updated_at: { type: datetime, desc: "更新时间" }
 ```
 
 #### TaskBrief
+
 ```yaml
 id: { type: string, desc: "任务 ID" }
 type: { type: string, desc: "任务类型" }
