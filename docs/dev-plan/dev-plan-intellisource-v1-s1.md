@@ -160,8 +160,10 @@
   - [ ] AC-T007-2: 任一关键组件不可用时返回 503 + status=degraded/unhealthy
   - [ ] AC-T007-3: /api/v1/metrics 返回 Prometheus 文本格式指标
   - [ ] AC-T007-4: 指标端点需 API Key 认证
+  - [ ] AC-T007-5: AlertManager 告警触发 — 关键指标（数据库连接失败、Redis 不可用、Celery Worker 离线）超阈值时记录 CRITICAL 级别告警事件到结构化日志 [ASSUMPTION: v1 仅产出告警事件日志，告警通知规则（如 Prometheus Alertmanager 规则）由用户在外部监控系统中配置]
 - **deliverables** (交付物):
   - [ ] `src/intellisource/observability/health.py` -- 健康检查逻辑（HealthChecker）
+  - [ ] `src/intellisource/observability/alerts.py` -- 告警管理器（AlertManager），关键指标异常时触发告警事件
   - [ ] `tests/unit/observability/test_health.py` -- 健康检查测试
 - **context_load**:
   - arch#§2.M-010

@@ -116,7 +116,7 @@ erDiagram
 | sentiment | VARCHAR(10) | NULL, CHECK IN ('positive', 'neutral', 'negative') | 情感倾向 |
 | cluster_id | UUID | FK → ContentCluster.id, NULL | 所属聚类 |
 | fingerprint | VARCHAR(64) | NOT NULL | 内容指纹（继承自 RawContent） |
-| embedding | VECTOR(1536) | NULL | 内容向量表示（pgvector）[ASSUMPTION: v1 默认使用 1536 维度的 embedding 模型（如 OpenAI text-embedding-ada-002），维度值通过 M-001 配置管理模块的 embedding_dimension 配置项管理，切换 embedding 模型时需同步调整并执行 Alembic 迁移] |
+| embedding | VECTOR(1536) | NULL | 内容向量表示（pgvector）[ASSUMPTION: v1 默认使用 1536 维度的 embedding 模型（如 OpenAI text-embedding-ada-002），维度值通过 M-001 配置管理模块的 embedding_dimension 配置项管理，切换 embedding 模型时需同步调整并执行 Alembic 迁移。**维度变更影响说明**: 变更 embedding 维度需要 (1) 执行 Alembic 迁移修改 E-004.embedding 和 E-005.centroid 列类型, (2) 重建 HNSW/IVFFlat 向量索引, (3) 使用新模型重新生成所有已有内容的 embedding 向量。此操作为破坏性数据库迁移，不可仅通过配置变更完成] |
 | structured_data | JSONB | NULL | LLM 结构化提取结果 |
 | processing_status | VARCHAR(20) | NOT NULL, DEFAULT 'pending', CHECK IN ('pending', 'processing', 'completed', 'failed', 'fallback') | 处理状态 |
 | processed_by | VARCHAR(20) | NOT NULL, DEFAULT 'llm', CHECK IN ('llm', 'fallback', 'manual') | 处理方式 |
@@ -180,6 +180,8 @@ erDiagram
 **索引**: `idx_llm_log_model` (model), `idx_llm_log_created` (created_at), `idx_llm_log_type` (call_type)
 
 **分区策略**: 按 `created_at` 月份分区（Range Partition），超过 3 个月的分区可归档 [ASSUMPTION: 3 个月保留期为默认值，用户可调整]
+
+**归档数据查询行为**: 已归档分区不参与在线查询，API-017 LLM 用量统计结果仅包含在线分区数据范围。若 `date_from` 早于在线分区最早日期，响应中 `data_range_start` 字段返回实际可查询的最早日期，便于客户端感知数据边界 [ASSUMPTION]
 
 ### E-008: TaskChain (任务链)
 

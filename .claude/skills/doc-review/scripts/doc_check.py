@@ -271,7 +271,11 @@ class DocChecker:
                 self.fail(f"必填章节为空: {name}")
 
     def check_id_continuity(self):
-        """检查ID编号连续无跳号"""
+        """检查ID编号连续无跳号（仅主卷执行，分卷天然只含子集）"""
+        # 分卷文件只包含自身范围的编号子集，不应检查全局连续性
+        if self.volume_type not in ("main",):
+            return
+
         id_patterns = {
             "prd": [("F", r"F-(\d+)"), ("AC", r"AC-(\d+)")],
             "arch": [

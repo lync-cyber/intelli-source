@@ -7,7 +7,7 @@
 
 [NAV]
 
-- §3 接口契约 → API-001..API-029
+- §3 接口契约 → API-001..API-032
 [/NAV]
 
 ## 3. 接口契约
@@ -848,6 +848,68 @@ response:
   204: { desc: "删除成功，无返回体" }
   401: { schema: "ErrorResponse", desc: "认证失败" }
   404: { schema: "ErrorResponse", desc: "工作流不存在" }
+```
+
+### API-030: 删除单条内容
+
+```yaml
+path: /api/v1/contents/{id}
+method: DELETE
+module: M-009
+desc: "删除单条内容及其关联的向量索引（对应 prd#§2 F-014 AC-066）"
+request:
+  headers:
+    X-API-Key: { type: string, required: true, desc: "API 认证密钥" }
+  path_params:
+    id: { type: string, required: true, desc: "内容 ID (UUID)" }
+response:
+  204: { desc: "删除成功，无返回体" }
+  401: { schema: "ErrorResponse", desc: "认证失败" }
+  404: { schema: "ErrorResponse", desc: "内容不存在" }
+```
+
+### API-031: 批量删除内容
+
+```yaml
+path: /api/v1/contents/batch-delete
+method: POST
+module: M-009
+desc: "批量删除内容及其关联的向量索引（对应 prd#§2 F-014 AC-066）"
+request:
+  headers:
+    X-API-Key: { type: string, required: true, desc: "API 认证密钥" }
+  body:
+    ids: { type: "array[string]", required: true, desc: "待删除内容 ID 列表，最大 100 条" }
+response:
+  200:
+    body:
+      deleted_count: { type: integer, desc: "实际删除数量" }
+      not_found_ids: { type: "array[string]", desc: "未找到的 ID 列表" }
+  400: { schema: "ErrorResponse", desc: "参数校验失败（如 IDs 为空或超过 100 条）" }
+  401: { schema: "ErrorResponse", desc: "认证失败" }
+```
+
+### API-032: 存储统计查询
+
+```yaml
+path: /api/v1/storage/stats
+method: GET
+module: M-009
+desc: "查询存储统计信息：文档总数、向量索引大小、数据库存储用量（对应 prd#§2 F-014 AC-067）"
+request:
+  headers:
+    X-API-Key: { type: string, required: true, desc: "API 认证密钥" }
+response:
+  200:
+    body:
+      total_raw_contents: { type: integer, desc: "原始内容总数" }
+      total_processed_contents: { type: integer, desc: "处理后内容总数" }
+      total_vectors: { type: integer, desc: "向量索引条目数" }
+      database_size_bytes: { type: integer, desc: "数据库总存储用量（字节）" }
+      vector_index_size_bytes: { type: integer, desc: "向量索引存储用量（字节）" }
+      oldest_content_at: { type: "datetime | null", desc: "最早内容时间" }
+      newest_content_at: { type: "datetime | null", desc: "最新内容时间" }
+  401: { schema: "ErrorResponse", desc: "认证失败" }
 ```
 
 ---

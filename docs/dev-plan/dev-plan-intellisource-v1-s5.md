@@ -153,7 +153,7 @@
 
 - **目标**: 实现内容查询、检索、订阅管理、LLM 统计和系统端点的 FastAPI 路由
 - **模块**: M-011
-- **接口**: API-012, API-013, API-014, API-015, API-016, API-017, API-018, API-019, API-022, API-023, API-024, API-025
+- **接口**: API-012, API-013, API-014, API-015, API-016, API-017, API-018, API-019, API-022, API-023, API-024, API-025, API-030, API-031, API-032
 - **复杂度**: M
 - **tdd_acceptance**:
   - [ ] AC-061 映射: 内容列表/详情/聚类 API 正确路由
@@ -164,8 +164,11 @@
   - [ ] AC-T043-4: 订阅规则 CRUD（/api/v1/subscriptions）
   - [ ] AC-T043-5: GET /api/v1/llm/stats LLM 用量统计
   - [ ] AC-T043-6: GET /api/v1/health 和 GET /api/v1/metrics 系统端点
+  - [ ] AC-066 映射: DELETE /api/v1/contents/{id} 删除单条内容，DELETE /api/v1/contents/batch-delete 批量删除（API-030, API-031）
+  - [ ] AC-067 映射: GET /api/v1/storage/stats 返回存储统计信息（API-032）
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/api/routers/contents.py` -- 内容路由
+  - [ ] `src/intellisource/api/routers/contents.py` -- 内容路由（含删除/批量删除）
+  - [ ] `src/intellisource/api/routers/storage.py` -- 存储统计路由
   - [ ] `src/intellisource/api/routers/search.py` -- 检索路由
   - [ ] `src/intellisource/api/routers/subscriptions.py` -- 订阅路由
   - [ ] `src/intellisource/api/routers/llm.py` -- LLM 统计路由
@@ -178,6 +181,9 @@
   - arch-intellisource-v1-api#API-012
   - arch-intellisource-v1-api#API-014
   - arch-intellisource-v1-api#API-022
+  - arch-intellisource-v1-api#API-030
+  - arch-intellisource-v1-api#API-031
+  - arch-intellisource-v1-api#API-032
 
 ### T-044: 认证中间件与请求追踪
 
