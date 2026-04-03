@@ -5,6 +5,7 @@
 <!-- volume: main -->
 
 [NAV]
+
 - §1 架构概览 → §1.1 项目类型, §1.2 架构风格, §1.3 系统上下文图, §1.4 技术栈
 - §2 模块划分 → 详见分卷 arch-intellisource-v1-modules
 - §3 接口契约 → 详见分卷 arch-intellisource-v1-api
@@ -17,10 +18,12 @@
 ## 1. 架构概览
 
 ### 1.1 项目类型
+
 - **类型**: backend-only
 - **说明**: IntelliSource 为后端服务系统，通过 RESTful API + CLI 对外提供管理接口，通过消息渠道（微信/企业微信/邮件）进行内容分发。v1 不提供 Web 管理界面（prd#§4），orchestrator 据此跳过 UI 设计阶段。
 
 ### 1.2 架构风格
+
 - **风格**: 模块化单体 (Modular Monolith) + 事件驱动异步处理
 - **选型理由**:
   1. **团队规模匹配**: 个人/小团队（<=10人）自部署场景，微服务的运维复杂度不合理（prd#§4）
@@ -30,6 +33,7 @@
 - **调研依据**: 模块化单体是小团队项目的推荐起步架构，在保持开发效率的同时预留扩展空间。相比纯微服务，减少了服务间通信、分布式事务和独立部署的复杂度。
 
 ### 1.3 系统上下文图
+
 ```mermaid
 C4Context
     title IntelliSource - 系统上下文
@@ -61,6 +65,7 @@ C4Context
 ```
 
 ### 1.4 技术栈
+
 | 层次 | 技术 | 版本 | 选型理由 | 调研来源 |
 |------|------|------|----------|----------|
 | 编程语言 | Python | 3.11+ | 用户确认；生态丰富，LLM/数据处理库完备 | 用户选型 |
@@ -97,6 +102,7 @@ C4Context
 **推荐**: pgvector。理由：(1) 无额外基础设施，降低自部署复杂度；(2) <100 万文档规模性能充足；(3) 向量与结构化数据同库同事务，简化数据一致性管理。
 
 ## 2. 模块划分
+>
 > 详见分卷: [arch-intellisource-v1-modules](arch-intellisource-v1-modules.md)
 
 **模块交叉引用目录**:
@@ -118,6 +124,7 @@ C4Context
 **功能覆盖验证**: 全部 14 个功能点（F-001 至 F-014）均已映射到至少一个模块，无遗漏。
 
 ## 3. 接口契约
+>
 > 详见分卷: [arch-intellisource-v1-api](arch-intellisource-v1-api.md)
 
 **接口交叉引用目录**:
@@ -155,6 +162,7 @@ C4Context
 | API-029 | 删除工作流 | M-006 | DELETE | /api/v1/workflows/{id} |
 
 ## 4. 数据模型
+>
 > 详见分卷: [arch-intellisource-v1-data](arch-intellisource-v1-data.md)
 
 **实体交叉引用目录**:
@@ -179,23 +187,27 @@ C4Context
 ### 5.1 性能方案
 
 **缓存策略**:
+
 - Redis 作为统一缓存层
 - 信源配置缓存：热加载后写入 Redis，TTL 与配置刷新周期一致，避免每次请求读取数据库
 - LLM 调用结果缓存：相同内容指纹 + 相同处理类型的 LLM 调用结果缓存 24h，减少重复调用
 - 检索结果缓存：高频查询关键词缓存 5min（短 TTL，保证时效性）
 
 **异步处理**:
+
 - 采集-处理-存储-分发全链路通过 Celery 任务链异步执行（prd#§2 F-008）
 - FastAPI 路由层使用 async/await 处理 API 请求，不阻塞工作线程
 - LLM 调用使用异步 HTTP 客户端（httpx AsyncClient），支持并发调用
-- 用户即时检索请求异步回调（prd#§2 F-011 AC-052）
+- 用户即时检索请求异步回调（prd#§2 F-011 AC-052）：微信/企业微信 Webhook 收到消息 → M-007 立即返回占位响应（"正在检索"） → 提交 Celery 异步任务 → M-008 执行检索+LLM 摘要 → 通过微信客服消息接口/企业微信应用消息接口主动推送结果
 
 **分页方案**:
+
 - 列表类 API 统一使用游标分页（cursor-based pagination），避免深分页性能问题
 - 默认每页 20 条，最大 100 条
 - 响应包含 `next_cursor` 和 `has_more` 字段
 
 **并发控制**:
+
 - 单节点并发采集任务数 >= 20（prd#§3.1），通过 Celery worker concurrency 配置
 - 按信源配置独立的请求速率限制，使用 Redis 令牌桶算法实现（prd#§2 F-003 AC-011）
 - 分布式锁（Redis）防止同一信源的重复采集（prd#§2 F-008 AC-037）
@@ -203,22 +215,26 @@ C4Context
 ### 5.2 安全方案
 
 **认证机制**:
+
 - v1 采用 API Key 认证（prd#§3.2）
 - API Key 通过环境变量或加密配置文件配置
 - FastAPI 依赖注入统一验证 `X-API-Key` 请求头
 - 内部 Webhook 回调端点（微信/企业微信）使用平台签名验证，不使用 API Key
 
 **敏感配置管理**:
+
 - LLM API 密钥、数据库密码等敏感信息通过环境变量注入（prd#§3.2）
 - 配置文件中敏感字段支持 `${ENV_VAR}` 占位符语法，运行时从环境变量解析
 - Docker 部署时通过 `.env` 文件或 Docker Secrets 管理
 
 **输入校验策略**:
+
 - 所有接受文件路径/文件名参数的 API 实施白名单校验，禁止路径遍历字符（`..`、`/`、`\`）
 - API-005 重载配置接口仅接受文件名（不含路径），从预定义配置目录加载，白名单由 M-001 配置管理模块维护
 - 所有用户输入经 Pydantic 模型校验后方可进入业务逻辑层
 
 **数据安全**:
+
 - 采集内容仅存储在本地 PostgreSQL，不上传至外部服务（prd#§3.2）
 - LLM 调用时仅发送必要的文本片段，不发送用户身份信息
 - 敏感词过滤在 LLM 调用前后双重检查（prd#§2 F-006 AC-026）
@@ -226,6 +242,7 @@ C4Context
 ### 5.3 错误处理
 
 **错误码体系**:
+
 ```
 错误码格式: IS-{模块缩写}-{3位数字}
 示例:
@@ -236,6 +253,7 @@ C4Context
 ```
 
 **统一错误响应格式**:
+
 ```json
 {
   "error": {
@@ -248,6 +266,7 @@ C4Context
 ```
 
 **重试策略**:
+
 | 场景 | 重试次数 | 退避策略 | 降级方案 |
 |------|---------|---------|---------|
 | 采集失败 | 3 次 | 指数退避（1s, 2s, 4s） | 记录错误，跳过本次，下次调度重试 |
@@ -256,6 +275,7 @@ C4Context
 | 数据库操作失败 | 2 次 | 固定间隔（0.5s） | 抛出异常，任务标记为 failed |
 
 **熔断机制** (prd#§2 F-007 AC-029):
+
 - LLM 服务调用采用熔断器模式
 - 连续失败 5 次触发熔断（Open 状态），停止调用 60s
 - 60s 后进入半开状态（Half-Open），允许 1 次试探调用
@@ -263,8 +283,10 @@ C4Context
 - 熔断期间自动降级到传统处理逻辑（prd#§2 F-005 AC-021, F-006 AC-027）
 
 **降级策略** (prd#§2 F-007 AC-030):
+
 - LLM 降级切换时间 < 500ms
 - 降级映射表:
+
   | LLM 处理 | 降级方案 |
   |---------|---------|
   | 结构化提取 | 规则引擎 + 正则提取 |
@@ -277,6 +299,7 @@ C4Context
   | 引导语生成 | 无引导语 |
 
 ## 6. 目录结构
+
 ```text
 intellisource/
 ├── src/
@@ -395,6 +418,7 @@ intellisource/
 ## 7. 开发约定
 
 ### 7.1 命名规范
+
 | 类别 | 规范 | 示例 |
 |------|------|------|
 | Python 模块/文件 | snake_case | `rate_limiter.py` |
@@ -408,6 +432,7 @@ intellisource/
 | 环境变量 | UPPER_SNAKE_CASE，`IS_` 前缀 | `IS_DATABASE_URL` |
 
 ### 7.2 代码风格
+
 - **格式化**: Ruff (替代 Black + isort + flake8)
 - **类型检查**: mypy (strict mode)
 - **测试框架**: pytest + pytest-asyncio
@@ -415,16 +440,19 @@ intellisource/
 - **Pre-commit hooks**: ruff check + ruff format + mypy
 
 ### 7.3 Git 约定
+
 - **分支策略**: GitHub Flow（main + feature branches）
   - `main`: 稳定主分支，保护分支
   - `feat/{feature-name}`: 功能分支
   - `fix/{bug-description}`: 修复分支
   - `chore/{task}`: 工程化任务
 - **Commit 格式**: Conventional Commits
+
   ```
   <type>(<scope>): <description>
 
   type: feat | fix | refactor | test | docs | chore | ci
   scope: collector | pipeline | llm | scheduler | distributor | search | storage | api | cli | config
   ```
+
 - **PR 规范**: 每个 PR 关联一个任务 ID，通过 CI 检查后合并

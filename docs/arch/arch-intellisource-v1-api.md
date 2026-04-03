@@ -1,17 +1,19 @@
 # Architecture 分卷 -- 接口契约: IntelliSource
 <!-- required_sections: ["## 3. 接口契约"] -->
 <!-- volume_type: api -->
-<!-- id: arch-intellisource-v1-api | author: architect | status: draft -->
+<!-- id: arch-intellisource-v1-api | author: architect | status: approved -->
 <!-- deps: prd-intellisource-v1 | consumers: tech-lead, developer, devops -->
 <!-- volume: api | split-from: arch-intellisource-v1 -->
 
 [NAV]
+
 - §3 接口契约 → API-001..API-029
 [/NAV]
 
 ## 3. 接口契约
 
 > 通用约定:
+>
 > - 基础路径: `/api/v1`
 > - 认证: 所有接口（除 Webhook 回调和健康检查外）需在请求头携带 `X-API-Key`
 > - Webhook 回调接口使用平台签名验证
@@ -19,6 +21,7 @@
 > - 错误响应统一格式见 arch#§5.3
 
 ### API-001: 获取信源列表
+
 ```yaml
 path: /api/v1/sources
 method: GET
@@ -43,6 +46,7 @@ response:
 ```
 
 ### API-002: 创建信源
+
 ```yaml
 path: /api/v1/sources
 method: POST
@@ -78,6 +82,7 @@ response:
 ```
 
 ### API-003: 更新信源（部分更新）
+
 ```yaml
 path: /api/v1/sources/{id}
 method: PATCH
@@ -107,11 +112,13 @@ response:
   404: { schema: "ErrorResponse", desc: "信源不存在" }
 ```
 
-### API-004: 删除信源
+### API-004: 删除信源（软删除）
+
 ```yaml
 path: /api/v1/sources/{id}
 method: DELETE
 module: M-001
+desc: "软删除信源（设置 deleted_at 时间戳），不物理删除。有运行中采集任务时拒绝删除。级联行为：关联的 Subscription 自动暂停（status→paused），历史内容（RawContent/ProcessedContent）保持可查询但不再触发新采集。API-001 列表默认排除已删除信源"
 request:
   headers:
     X-API-Key: { type: string, required: true, desc: "API 认证密钥" }
@@ -121,9 +128,11 @@ response:
   204: { desc: "删除成功，无返回体" }
   401: { schema: "ErrorResponse", desc: "认证失败" }
   404: { schema: "ErrorResponse", desc: "信源不存在" }
+  409: { schema: "ErrorResponse", desc: "信源有运行中的采集任务，无法删除" }
 ```
 
 ### API-005: 重载配置
+
 ```yaml
 path: /api/v1/sources/reload
 method: POST
@@ -145,6 +154,7 @@ response:
 ```
 
 ### API-006: 获取任务列表
+
 ```yaml
 path: /api/v1/tasks
 method: GET
@@ -169,6 +179,7 @@ response:
 ```
 
 ### API-007: 触发采集任务
+
 ```yaml
 path: /api/v1/tasks/collect
 method: POST
@@ -192,6 +203,7 @@ response:
 ```
 
 ### API-008: 查询任务状态
+
 ```yaml
 path: /api/v1/tasks/{id}
 method: GET
@@ -218,6 +230,7 @@ response:
 ```
 
 ### API-009: 暂停/恢复任务
+
 ```yaml
 path: /api/v1/tasks/{id}
 method: PATCH
@@ -242,6 +255,7 @@ response:
 ```
 
 ### API-010: 创建工作流
+
 ```yaml
 path: /api/v1/workflows
 method: POST
@@ -275,6 +289,7 @@ response:
 ```
 
 ### API-011: 执行工作流
+
 ```yaml
 path: /api/v1/workflows/{id}/run
 method: POST
@@ -298,6 +313,7 @@ response:
 ```
 
 ### API-012: 混合检索
+
 ```yaml
 path: /api/v1/search
 method: POST
@@ -334,6 +350,7 @@ response:
 ```
 
 ### API-013: 即时问答
+
 ```yaml
 path: /api/v1/search/chat
 method: POST
@@ -364,6 +381,7 @@ response:
 ```
 
 ### API-014: 获取内容列表
+
 ```yaml
 path: /api/v1/contents
 method: GET
@@ -400,6 +418,7 @@ response:
 ```
 
 ### API-015: 获取内容详情
+
 ```yaml
 path: /api/v1/contents/{id}
 method: GET
@@ -433,6 +452,7 @@ response:
 ```
 
 ### API-016: 获取聚类列表
+
 ```yaml
 path: /api/v1/clusters
 method: GET
@@ -466,6 +486,7 @@ response:
 ```
 
 ### API-017: LLM 用量统计
+
 ```yaml
 path: /api/v1/llm/stats
 method: GET
@@ -509,6 +530,7 @@ response:
 ```
 
 ### API-018: 系统健康检查
+
 ```yaml
 path: /api/v1/health
 method: GET
@@ -537,6 +559,7 @@ response:
 ```
 
 ### API-019: 系统指标
+
 ```yaml
 path: /api/v1/metrics
 method: GET
@@ -553,7 +576,24 @@ response:
 ```
 
 ### API-020: 微信消息回调
+
 ```yaml
+path: /api/v1/webhooks/wechat
+method: GET
+module: M-007
+desc: "微信公众号 URL 验证接口（首次配置 Webhook 时微信平台发起 GET 请求验证）"
+request:
+  query:
+    signature: { type: string, required: true, desc: "微信签名 sha1(sort(token, timestamp, nonce))" }
+    timestamp: { type: string, required: true, desc: "时间戳" }
+    nonce: { type: string, required: true, desc: "随机数" }
+    echostr: { type: string, required: true, desc: "随机字符串，验证通过后原样返回" }
+response:
+  200:
+    content_type: "text/plain"
+    desc: "签名验证通过，返回 echostr 明文"
+  403: { desc: "签名验证失败" }
+---
 path: /api/v1/webhooks/wechat
 method: POST
 module: M-007
@@ -576,7 +616,24 @@ response:
 ```
 
 ### API-021: 企业微信消息回调
+
 ```yaml
+path: /api/v1/webhooks/wework
+method: GET
+module: M-007
+desc: "企业微信 URL 验证接口（首次配置 Webhook 时企业微信平台发起 GET 请求验证）"
+request:
+  query:
+    msg_signature: { type: string, required: true, desc: "消息体签名" }
+    timestamp: { type: string, required: true, desc: "时间戳" }
+    nonce: { type: string, required: true, desc: "随机数" }
+    echostr: { type: string, required: true, desc: "加密的随机字符串，验证通过后解密返回明文" }
+response:
+  200:
+    content_type: "text/plain"
+    desc: "签名验证通过，返回解密后的 echostr 明文"
+  403: { desc: "签名验证失败" }
+---
 path: /api/v1/webhooks/wework
 method: POST
 module: M-007
@@ -598,6 +655,7 @@ response:
 ```
 
 ### API-022: 获取订阅规则列表
+
 ```yaml
 path: /api/v1/subscriptions
 method: GET
@@ -631,6 +689,7 @@ response:
 ```
 
 ### API-023: 创建订阅规则
+
 ```yaml
 path: /api/v1/subscriptions
 method: POST
@@ -674,6 +733,7 @@ response:
 ```
 
 ### API-024: 更新订阅规则
+
 ```yaml
 path: /api/v1/subscriptions/{id}
 method: PATCH
@@ -700,6 +760,7 @@ response:
 ```
 
 ### API-025: 删除订阅规则
+
 ```yaml
 path: /api/v1/subscriptions/{id}
 method: DELETE
@@ -717,6 +778,7 @@ response:
 ```
 
 ### API-026: 获取工作流列表
+
 ```yaml
 path: /api/v1/workflows
 method: GET
@@ -750,6 +812,7 @@ response:
 ```
 
 ### API-027: 获取工作流详情
+
 ```yaml
 path: /api/v1/workflows/{id}
 method: GET
@@ -778,6 +841,7 @@ response:
 ```
 
 ### API-028: 更新工作流
+
 ```yaml
 path: /api/v1/workflows/{id}
 method: PATCH
@@ -802,6 +866,7 @@ response:
 ```
 
 ### API-029: 删除工作流
+
 ```yaml
 path: /api/v1/workflows/{id}
 method: DELETE
@@ -823,6 +888,7 @@ response:
 ### 通用响应类型定义
 
 #### ErrorResponse
+
 ```yaml
 error:
   code: { type: string, desc: "错误码，格式 IS-{MOD}-{NNN}" }
@@ -832,6 +898,7 @@ error:
 ```
 
 #### Source
+
 ```yaml
 id: { type: string, desc: "信源 ID (UUID)" }
 name: { type: string, desc: "信源名称" }
@@ -854,6 +921,7 @@ updated_at: { type: datetime, desc: "更新时间" }
 ```
 
 #### TaskBrief
+
 ```yaml
 id: { type: string, desc: "任务 ID" }
 type: { type: string, desc: "任务类型" }

@@ -5,6 +5,7 @@
 <!-- volume: main -->
 
 [NAV]
+
 - §1 迭代规划 → Sprint 1..5 (总览表)
 - §2 依赖图
 - §3 任务卡详细 → 见Sprint分卷 (dev-plan-intellisource-v1-s1 ~ s5)
@@ -15,11 +16,13 @@
 ## 1. 迭代规划
 
 ### Sprint 1: 基础设施与数据层
+
 | 任务ID | 任务名 | 模块 | 复杂度 | 依赖 | TDD测试点 | 状态 |
 |--------|--------|------|--------|------|-----------|------|
 | T-001 | 项目骨架与基础配置 | — | S | — | AC-项目结构 | todo |
 | T-002 | 数据库连接管理与ORM基础 | M-009 | M | T-001 | AC-054 | todo |
 | T-003 | ORM模型定义(全部实体) | M-009 | L | T-002 | AC-054, AC-055 | todo |
+| T-047 | Alembic数据库迁移(初始) | M-009 | S | T-003 | AC-054 | todo |
 | T-004 | 数据访问层(Repository) | M-009 | L | T-003 | AC-054 | todo |
 | T-005 | pgvector向量存储与检索 | M-009 | M | T-003 | AC-055, AC-056 | todo |
 | T-006 | 结构化日志与可观测性基础 | M-010 | M | T-001 | AC-057, AC-058, AC-059 | todo |
@@ -28,6 +31,7 @@
 | T-009 | 配置加载与热加载 | M-001 | M | T-008, T-004 | AC-002, AC-004 | todo |
 
 ### Sprint 2: 采集引擎与处理管道
+
 | 任务ID | 任务名 | 模块 | 复杂度 | 依赖 | TDD测试点 | 状态 |
 |--------|--------|------|--------|------|-----------|------|
 | T-010 | 采集器抽象基类与注册中心 | M-002 | M | T-009 | AC-005 | todo |
@@ -39,8 +43,10 @@
 | T-016 | 处理管道引擎与处理器基类 | M-003 | M | T-004 | AC-013, AC-015, AC-016 | todo |
 | T-017 | 管道条件分支与批处理模式 | M-003 | M | T-016 | AC-014, AC-017 | todo |
 | T-018 | 内置处理器(解析/去重/打标/格式化) | M-003 | M | T-016 | AC-015 | todo |
+| T-048 | 集成测试:采集→管道→存储 | M-002,M-003,M-009 | M | T-011, T-018, T-004 | AC-005, AC-007, AC-013 | todo |
 
 ### Sprint 3: LLM智能处理
+
 | 任务ID | 任务名 | 模块 | 复杂度 | 依赖 | TDD测试点 | 状态 |
 |--------|--------|------|--------|------|-----------|------|
 | T-019 | LLM统一网关(litellm封装) | M-005 | M | T-006, T-004 | AC-028, AC-031 | todo |
@@ -53,6 +59,7 @@
 | T-026 | 敏感词过滤与合规检查 | M-004 | S | T-022 | AC-026 | todo |
 
 ### Sprint 4: 任务编排与分发
+
 | 任务ID | 任务名 | 模块 | 复杂度 | 依赖 | TDD测试点 | 状态 |
 |--------|--------|------|--------|------|-----------|------|
 | T-027 | Celery任务定义与任务链构建 | M-006 | L | T-010, T-016, T-004 | AC-034, AC-035 | todo |
@@ -65,8 +72,10 @@
 | T-034 | 邮件分发渠道 | M-007 | S | T-031 | AC-042, AC-044, AC-045 | todo |
 | T-035 | 推送频率控制与免打扰 | M-007 | S | T-031 | AC-046 | todo |
 | T-036 | 推送内容LLM优化 | M-004 | M | T-025, T-031 | AC-047, AC-048, AC-049 | todo |
+| T-049 | 集成测试:任务链编排与分发 | M-006,M-007,M-009 | M | T-029, T-034 | AC-034, AC-037, AC-044 | todo |
 
 ### Sprint 5: 检索/API/CLI与集成
+
 | 任务ID | 任务名 | 模块 | 复杂度 | 依赖 | TDD测试点 | 状态 |
 |--------|--------|------|--------|------|-----------|------|
 | T-037 | 混合检索引擎 | M-008 | L | T-005, T-019 | AC-051, AC-056 | todo |
@@ -79,7 +88,7 @@
 | T-044 | 认证中间件与请求追踪 | M-011 | M | T-006 | AC-061 | todo |
 | T-045 | CLI工具 | M-011 | M | T-041, T-042 | AC-064 | todo |
 | T-046 | FastAPI应用入口与Docker部署 | M-011 | M | T-044, T-043 | AC-065 | todo |
-| T-047 | Alembic数据库迁移 | M-009 | S | T-003 | AC-054 | todo |
+| T-050 | E2E测试:核心场景端到端验证 | 全模块 | L | T-046, T-049 | AC-034, AC-043, AC-052 | todo |
 
 ## 2. 依赖图
 
@@ -151,17 +160,26 @@ graph LR
     T-042 --> T-045
     T-043 --> T-046
     T-044 --> T-046
+    T-011 --> T-048
+    T-018 --> T-048
+    T-004 --> T-048
+    T-029 --> T-049
+    T-034 --> T-049
+    T-046 --> T-050
+    T-049 --> T-050
     style T-001,T-002,T-003,T-004,T-019,T-020,T-022,T-025,T-031,T-043,T-046 fill:#f96,stroke:#333,stroke-width:2px
+    style T-048,T-049,T-050 fill:#6cf,stroke:#333,stroke-width:2px
 ```
 
 ## 3. 任务卡详细
 
 > 任务卡详细见Sprint分卷:
-> - Sprint 1: [dev-plan-intellisource-v1-s1](dev-plan-intellisource-v1-s1.md) (T-001 ~ T-009)
-> - Sprint 2: [dev-plan-intellisource-v1-s2](dev-plan-intellisource-v1-s2.md) (T-010 ~ T-018)
+>
+> - Sprint 1: [dev-plan-intellisource-v1-s1](dev-plan-intellisource-v1-s1.md) (T-001 ~ T-009, T-047)
+> - Sprint 2: [dev-plan-intellisource-v1-s2](dev-plan-intellisource-v1-s2.md) (T-010 ~ T-018, T-048)
 > - Sprint 3: [dev-plan-intellisource-v1-s3](dev-plan-intellisource-v1-s3.md) (T-019 ~ T-026)
-> - Sprint 4: [dev-plan-intellisource-v1-s4](dev-plan-intellisource-v1-s4.md) (T-027 ~ T-036)
-> - Sprint 5: [dev-plan-intellisource-v1-s5](dev-plan-intellisource-v1-s5.md) (T-037 ~ T-047)
+> - Sprint 4: [dev-plan-intellisource-v1-s4](dev-plan-intellisource-v1-s4.md) (T-027 ~ T-036, T-049)
+> - Sprint 5: [dev-plan-intellisource-v1-s5](dev-plan-intellisource-v1-s5.md) (T-037 ~ T-046, T-050)
 
 ## 4. 关键路径
 
@@ -172,6 +190,7 @@ graph LR
 **关键路径说明**: 从项目骨架出发，经过数据库连接、ORM模型、数据访问层，到 LLM 网关和熔断器，再到 LLM 处理器（结构化提取 -> 摘要/打标），最终到分发基类和 API 路由集成层。这条路径横跨全部 5 个 Sprint，串联了存储层 -> LLM 智能处理 -> 分发 -> API 集成的核心价值链，任何节点延迟会直接影响整体交付。
 
 **次关键路径**:
+
 - T-001 -> T-002 -> T-003 -> T-004 -> T-016 -> T-022 -> T-023 -> T-024 (处理管道到聚类链路，权重 20)
 - T-001 -> T-002 -> T-003 -> T-005 -> T-037 -> T-038 -> T-039 (向量检索到即时检索链路，权重 16)
 - T-001 -> T-008 -> T-009 -> T-010 -> T-027 -> T-028 -> T-030 (配置到任务编排链路，权重 16)

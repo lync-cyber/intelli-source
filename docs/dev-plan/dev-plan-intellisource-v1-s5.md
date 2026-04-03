@@ -6,12 +6,14 @@
 <!-- volume: sprint | split-from: dev-plan-intellisource-v1 -->
 
 [NAV]
-- §3 任务卡详细 → T-037..T-047 (Sprint 5: 检索/API/CLI与集成)
+
+- §3 任务卡详细 → T-037..T-046, T-050 (Sprint 5: 检索/API/CLI与集成)
 [/NAV]
 
 ## 3. 任务卡详细
 
 ### T-037: 混合检索引擎
+
 - **目标**: 实现关键词 + 向量语义混合检索引擎，支持多种检索模式和结果融合排序
 - **模块**: M-008
 - **接口**: API-012 的业务逻辑层
@@ -34,6 +36,7 @@
   - arch-intellisource-v1-data#§4.E-004（embedding, 全文检索索引）
 
 ### T-038: 意图理解与即时问答
+
 - **目标**: 实现 LLM 驱动的自然语言意图理解和基于检索的即时问答功能
 - **模块**: M-008
 - **接口**: API-013 的业务逻辑层
@@ -55,6 +58,7 @@
   - arch-intellisource-v1-api#API-013
 
 ### T-039: 多轮对话管理
+
 - **目标**: 实现多轮对话会话管理器，保持最近 5 轮上下文
 - **模块**: M-008
 - **接口**: API-013（session_id 支持）
@@ -74,6 +78,7 @@
   - arch-intellisource-v1-data#§4.E-011
 
 ### T-040: Webhook回调处理(微信/企业微信)
+
 - **目标**: 实现微信和企业微信的消息回调处理，包括签名验证、消息解析和指令路由
 - **模块**: M-007
 - **接口**: API-020, API-021
@@ -95,6 +100,7 @@
   - arch#§5.2（Webhook 签名验证）
 
 ### T-041: API路由层 -- 信源管理
+
 - **目标**: 实现信源管理的 FastAPI 路由（CRUD + 配置重载），连接 M-001 业务逻辑
 - **模块**: M-011
 - **接口**: API-001, API-002, API-003, API-004, API-005
@@ -118,6 +124,7 @@
   - arch-intellisource-v1-api#API-004
 
 ### T-042: API路由层 -- 任务与工作流
+
 - **目标**: 实现任务管理和工作流管理的 FastAPI 路由
 - **模块**: M-011
 - **接口**: API-006, API-007, API-008, API-009, API-010, API-011, API-026, API-027, API-028, API-029
@@ -143,6 +150,7 @@
   - arch-intellisource-v1-api#API-011
 
 ### T-043: API路由层 -- 内容/检索/订阅/LLM/系统
+
 - **目标**: 实现内容查询、检索、订阅管理、LLM 统计和系统端点的 FastAPI 路由
 - **模块**: M-011
 - **接口**: API-012, API-013, API-014, API-015, API-016, API-017, API-018, API-019, API-022, API-023, API-024, API-025
@@ -172,6 +180,7 @@
   - arch-intellisource-v1-api#API-022
 
 ### T-044: 认证中间件与请求追踪
+
 - **目标**: 实现 API Key 认证中间件、请求日志中间件和请求链路追踪中间件
 - **模块**: M-011
 - **接口**: 全部需认证的 API
@@ -192,6 +201,7 @@
   - arch#§5.3（统一错误响应格式）
 
 ### T-045: CLI工具
+
 - **目标**: 实现基于 typer 的 CLI 工具，封装常用 API 操作（信源管理/任务触发/状态查询）
 - **模块**: M-011
 - **接口**: 无（CLI 通过 HTTP 调用 API）
@@ -212,6 +222,7 @@
   - arch#§6（cli/ 目录结构）
 
 ### T-046: FastAPI应用入口与Docker部署
+
 - **目标**: 组装 FastAPI 应用入口（注册路由/中间件/生命周期），编写 Dockerfile 和 docker-compose.yml
 - **模块**: M-011
 - **接口**: 全部 API
@@ -236,23 +247,25 @@
   - prd#§3.3（兼容性 -- Docker 部署）
 - **实现提示**: PostgreSQL 使用包含 zhparser 扩展的镜像（如 abcfy2/zhparser）；Celery worker 和 beat 作为独立容器
 
-### T-047: Alembic数据库迁移
-- **目标**: 配置 Alembic 迁移框架，基于 ORM 模型生成初始迁移脚本，确保 upgrade/downgrade 正确工作
-- **模块**: M-009
-- **接口**: 无
-- **复杂度**: S
+### T-050: E2E测试:核心场景端到端验证
+
+- **目标**: 基于 docker-compose 环境，验证系统核心真实场景的端到端工作流（API 触发→采集→LLM处理→推送→检索）
+- **模块**: 全模块
+- **接口**: API-002, API-007, API-012, API-013, API-023
+- **复杂度**: L
 - **tdd_acceptance**:
-  - [ ] AC-054 映射: 数据库表结构与 ORM 模型一致
-  - [ ] AC-T047-1: `alembic upgrade head` 从空库创建全部表和索引
-  - [ ] AC-T047-2: `alembic downgrade base` 回退所有迁移（清除全部表）
-  - [ ] AC-T047-3: 迁移脚本包含 pgvector 扩展创建（CREATE EXTENSION IF NOT EXISTS vector）
-  - [ ] AC-T047-4: 迁移脚本包含 zhparser 扩展创建（CREATE EXTENSION IF NOT EXISTS zhparser）
-  - [ ] AC-T047-5: E-007 LLMCallLog 分区表正确创建
+  - [ ] AC-T050-1: 场景1「信源配置到内容推送」— POST /api/v1/sources 创建信源 → POST /api/v1/tasks/collect 触发采集 → 轮询任务状态直到 success → GET /api/v1/contents 验证内容已入库且有摘要/标签 → 验证 PushRecord 已生成
+  - [ ] AC-T050-2: 场景2「混合检索端到端」— 在已有内容基础上 → POST /api/v1/search 执行 hybrid 检索 → 验证返回结果包含正确的 score/snippet/source_name
+  - [ ] AC-T050-3: 场景3「即时问答端到端」— POST /api/v1/search/chat 发起问答 → 验证返回 answer 和 sources 引用 → 使用同一 session_id 发送后续问题 → 验证上下文保持
+  - [ ] AC-T050-4: 场景4「LLM 降级端到端」— 配置不可达的 LLM 端点 → 触发采集 → 验证内容仍正常入库（processed_by=fallback），摘要使用截断式摘要，标签使用关键词匹配
+  - [ ] AC-T050-5: 全部场景通过 API Key 认证，无 Key 请求返回 401
 - **deliverables** (交付物):
-  - [ ] `alembic/env.py` -- Alembic 环境配置
-  - [ ] `alembic/versions/{initial}.py` -- 初始迁移脚本（完整版）
-  - [ ] `tests/integration/test_migration.py` -- 迁移测试
+  - [ ] `tests/e2e/test_source_to_push.py` -- 信源配置到推送场景
+  - [ ] `tests/e2e/test_search_e2e.py` -- 检索与问答场景
+  - [ ] `tests/e2e/test_fallback_e2e.py` -- LLM 降级场景
+  - [ ] `tests/e2e/conftest.py` -- E2E 测试 fixture（docker-compose 启动/停止、API client、测试数据清理）
 - **context_load**:
-  - arch-intellisource-v1-data#§4（全部实体）
-  - arch#§1.4（pgvector, zhparser）
-- **实现提示**: T-003 中已生成初始迁移脚本的草稿，此任务负责完善和验证；分区表创建需手写 SQL 而非 autogenerate
+  - arch#§5.3（降级策略、错误处理）
+  - arch-intellisource-v1-api（全部 API 契约）
+  - prd#§1.3（成功指标）
+- **实现提示**: 使用 docker-compose 启动完整服务栈（app + worker + beat + postgres + redis）；LLM 调用使用 litellm 的 mock provider 或低成本模型（如 gpt-3.5-turbo）；降级场景通过配置无效 API Key 触发熔断；标记 `@pytest.mark.e2e`，CI 中可选执行
