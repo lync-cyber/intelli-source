@@ -87,7 +87,7 @@
 - **依赖模块**: M-009（调用日志持久化）, M-010（指标上报）
 - **内部关键组件**:
   - `LLMGateway` — 统一 LLM 调用接口，基于 litellm 封装，屏蔽提供商差异（AC-028）
-  - `CircuitBreaker` — 熔断器实现（AC-029），连续失败 5 次触发，60s 恢复探测
+  - `CircuitBreaker` — 熔断器实现（AC-029），连续失败次数达到 M-001 AppSettings.llm.circuit_breaker_threshold（默认 5）触发，冷却时间由 circuit_breaker_cooldown 配置（默认 60s）
   - `FallbackManager` — 降级管理器，LLM 失败时自动切换（AC-030，<500ms）
   - `PriorityQueue` — 优先级队列，隔离用户交互请求和后台处理请求（AC-032）
   - `CostTracker` — 成本追踪器，记录 Token 消耗/延迟/IO 长度，支持聚合统计（AC-033）
@@ -136,7 +136,7 @@
   - `ChatSessionManager` — 多轮对话会话管理器（AC-053），从 M-001 AppSettings.chat 读取上下文策略配置:
     - `truncate` 模式: 保留最近 N 轮原始对话（N = `max_rounds`），超出时丢弃最早的对话
     - `compress` 模式: 对话轮数超过 `compress_threshold` 时，调用 M-005 LLM 网关对早期对话生成语义摘要（不超过 `compress_max_tokens` Token），摘要存入 context 的 `summary` 字段，仅保留摘要 + 最近 `compress_threshold` 轮原始对话
-  - `ContextCompressor` — 上下文压缩器（compress 模式专用），调用 M-005 LLM 网关将历史对话压缩为语义摘要，压缩 prompt 模板可配置
+  - `ContextCompressor` — 上下文压缩器（compress 模式专用），调用 M-005 LLM 网关将历史对话压缩为语义摘要，压缩 prompt 模板 v1 使用内置默认模板 [ASSUMPTION: v1 不开放 prompt 模板配置，后续版本可通过 AppSettings 扩展]。降级策略: LLM 压缩调用失败时自动降级为 truncate 模式（丢弃最早对话，保留最近 max_rounds 轮），不阻塞对话流程
 
 ### M-009: 存储与检索模块 (storage)
 
