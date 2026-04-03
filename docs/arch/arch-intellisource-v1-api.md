@@ -118,7 +118,7 @@ response:
 path: /api/v1/sources/{id}
 method: DELETE
 module: M-001
-desc: "软删除信源（设置 deleted_at 时间戳），不物理删除。有运行中采集任务时拒绝删除"
+desc: "软删除信源（设置 deleted_at 时间戳），不物理删除。有运行中采集任务时拒绝删除。级联行为：关联的 Subscription 自动暂停（status→paused），历史内容（RawContent/ProcessedContent）保持可查询但不再触发新采集。API-001 列表默认排除已删除信源"
 request:
   headers:
     X-API-Key: { type: string, required: true, desc: "API 认证密钥" }
@@ -579,6 +579,22 @@ response:
 
 ```yaml
 path: /api/v1/webhooks/wechat
+method: GET
+module: M-007
+desc: "微信公众号 URL 验证接口（首次配置 Webhook 时微信平台发起 GET 请求验证）"
+request:
+  query:
+    signature: { type: string, required: true, desc: "微信签名 sha1(sort(token, timestamp, nonce))" }
+    timestamp: { type: string, required: true, desc: "时间戳" }
+    nonce: { type: string, required: true, desc: "随机数" }
+    echostr: { type: string, required: true, desc: "随机字符串，验证通过后原样返回" }
+response:
+  200:
+    content_type: "text/plain"
+    desc: "签名验证通过，返回 echostr 明文"
+  403: { desc: "签名验证失败" }
+---
+path: /api/v1/webhooks/wechat
 method: POST
 module: M-007
 desc: "微信公众号消息/事件回调接口，使用微信签名验证"
@@ -602,6 +618,22 @@ response:
 ### API-021: 企业微信消息回调
 
 ```yaml
+path: /api/v1/webhooks/wework
+method: GET
+module: M-007
+desc: "企业微信 URL 验证接口（首次配置 Webhook 时企业微信平台发起 GET 请求验证）"
+request:
+  query:
+    msg_signature: { type: string, required: true, desc: "消息体签名" }
+    timestamp: { type: string, required: true, desc: "时间戳" }
+    nonce: { type: string, required: true, desc: "随机数" }
+    echostr: { type: string, required: true, desc: "加密的随机字符串，验证通过后解密返回明文" }
+response:
+  200:
+    content_type: "text/plain"
+    desc: "签名验证通过，返回解密后的 echostr 明文"
+  403: { desc: "签名验证失败" }
+---
 path: /api/v1/webhooks/wework
 method: POST
 module: M-007
