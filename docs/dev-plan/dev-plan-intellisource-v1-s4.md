@@ -109,23 +109,29 @@
   - prd#§2.F-008（AC-066, AC-067）
 - **实现提示**: strict 模式本质上是配置驱动的函数调用序列；flexible 模式使用 litellm 的 function calling 能力，将工具定义传给 LLM 并循环处理 tool_calls 直到 LLM 返回文本响应或达到 max_steps
 
-### T-031: 分发器基类与订阅规则匹配
+### T-031: 分发器基类与订阅规则匹配（含高级关键词/权重评分）
 
-- **目标**: 定义分发器统一接口（BaseDistributor）、实现订阅规则匹配引擎和推送去重/历史记录
+- **目标**: 定义分发器统一接口（BaseDistributor）、实现支持高级关键词语法的订阅规则匹配引擎、内容权重评分器和推送去重/历史记录
 - **模块**: M-007
 - **接口**: 无（内部框架）
 - **复杂度**: M
 - **tdd_acceptance**:
   - [ ] AC-043 映射: SubscriptionMatcher 基于关键词/标签匹配推送内容到对应订阅
+  - [ ] AC-043a: SubscriptionMatcher 结合 ContentScorer 权重评分进行推送排序和阈值过滤
   - [ ] AC-T031-1: BaseDistributor 定义 distribute(content, subscription) -> PushRecord 统一接口
   - [ ] AC-T031-2: SubscriptionMatcher.match(content) 返回匹配的 Subscription 列表
-  - [ ] AC-T031-3: 匹配规则支持 keywords（OR 逻辑）和 tags（OR 逻辑）过滤
-  - [ ] AC-T031-4: DeliveryTracker 记录推送历史并检查去重
+  - [ ] AC-T031-3: 匹配规则支持 keywords（OR 逻辑）、tags（OR 逻辑）、sentiment 过滤
+  - [ ] AC-T031-4: 关键词高级语法：普通词（包含即匹配）、`+`前缀必选词（必须包含）、`!`前缀排除词（排除匹配）、`/pattern/`正则匹配
+  - [ ] AC-T031-5: ContentScorer.score(content, subscription) 综合计算权重分（源可信度 × 时间衰减 × 关键词匹配度），推送时按权重降序排列
+  - [ ] AC-T031-6: Subscription.match_rules.min_score 阈值过滤，权重低于阈值的内容不推送（默认 0 表示不过滤）
+  - [ ] AC-T031-7: DeliveryTracker 记录推送历史并检查去重
 - **deliverables** (交付物):
   - [ ] `src/intellisource/distributor/base.py` -- 分发器抽象基类
-  - [ ] `src/intellisource/distributor/matcher.py` -- 订阅规则匹配引擎
+  - [ ] `src/intellisource/distributor/matcher.py` -- 订阅规则匹配引擎（含高级关键词语法解析）
+  - [ ] `src/intellisource/distributor/scorer.py` -- 内容权重评分器
   - [ ] `src/intellisource/distributor/__init__.py` -- 模块导出
-  - [ ] `tests/unit/distributor/test_matcher.py` -- 匹配器测试
+  - [ ] `tests/unit/distributor/test_matcher.py` -- 匹配器测试（含高级关键词语法）
+  - [ ] `tests/unit/distributor/test_scorer.py` -- 权重评分测试
 - **context_load**:
   - arch#§2.M-007
   - arch-intellisource-v1-data#§4.E-009

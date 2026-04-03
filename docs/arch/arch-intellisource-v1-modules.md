@@ -33,12 +33,13 @@
 - **对外接口**: 无直接对外 API（由 M-006 任务编排调度）
 - **依赖模块**: M-001（获取信源配置）, M-009（存储采集结果）, M-010（日志/指标上报）
 - **内部关键组件**:
-  - `BaseCollector` — 采集器抽象基类，定义统一接口（AC-005）
-  - `CollectorRegistry` — 采集器注册中心，支持插件化注册新采集器
+  - `BaseCollector` — 采集器抽象基类，定义统一接口（AC-005），内置 HTTP 条件请求支持（ETag/If-Modified-Since），子类可复用以减少未变化源的计算开销
+  - `CollectorRegistry` — 采集器注册中心，支持自动发现注册和手动注册两种模式
+  - `SourceAutoDiscovery` — 数据源自发现加载器，启动时扫描 `collector/sources/` 目录，自动发现并注册实现了 `BaseCollector` 接口的子包（借鉴 RSSHub namespace 路由发现模式）。新增数据源只需在 `sources/` 下创建子包并实现标准接口，无需修改注册代码
   - `RSSCollector` — RSS/Atom 采集适配器（AC-006）
   - `APICollector` — 通用 API 采集适配器（AC-006）
   - `WebCollector` — 网页爬虫采集适配器（AC-006）
-  - `AdaptiveScheduler` — 频率自适应调度器，根据历史更新频率动态调整采集间隔（AC-009）
+  - `AdaptiveScheduler` — 频率自适应调度器（AC-009），算法：最小间隔保护（默认 120s）→ 空转指数退避（连续无新内容时 interval × backoff_factor，默认 1.5）→ 新内容恢复（interval × recovery_factor，默认 0.5）→ 基于 E-001 `avg_update_interval` 历史学习动态调整基准间隔
   - `RateLimiter` — 请求速率限制器，基于 Redis 令牌桶算法，按信源独立配置（AC-011）
   - `ProxyManager` — HTTP 代理管理器，按信源配置独立代理（AC-010）
 
@@ -49,7 +50,8 @@
 - **对外接口**: 无直接对外 API（由 M-006 任务编排调度）
 - **依赖模块**: M-009（读写处理结果）, M-010（日志/指标上报）
 - **内部关键组件**:
-  - `PipelineEngine` — 管道执行引擎，按配置编排处理器顺序（AC-013）
+  - `PipelineEngine` — 管道执行引擎，支持中间件链模式（借鉴 RSSHub/Hono 中间件管道），每个处理器可实现前处理-调用下一个-后处理的洋葱模型，同时兼容传统线性编排（AC-013）
+  - `MiddlewareChain` — 中间件链执行器，支持 `process(ctx, next)` 洋葱模型，处理器可在调用 next 前后执行前处理/后处理逻辑，支持在 Workflow (E-012) 的 steps JSONB 中声明中间件组合
   - `BaseProcessor` — 处理器抽象基类，定义统一接口（AC-015）
   - `PipelineContext` — 管道上下文对象，支持处理器间数据传递（AC-016）
   - `ConditionEvaluator` — 条件评估器，支持条件跳过和分支（AC-014）
@@ -84,6 +86,8 @@
   - `FallbackManager` — 降级管理器，LLM 失败时自动切换（AC-030，<500ms）
   - `PriorityQueue` — 优先级队列，隔离用户交互请求和后台处理请求（AC-032）
   - `CostTracker` — 成本追踪器，记录 Token 消耗/延迟/IO 长度，支持聚合统计（AC-033）
+  - `ModelRegistry` — 模型能力注册表，通过 YAML 配置声明每个模型的能力维度（context_window、supports_json_mode、supports_function_calling、cost_per_1k_tokens、best_for 等），支持热加载更新（借鉴 OpenCode Provider 抽象模式）
+  - `SmartRouter` — 智能路由器，根据 LLM 任务类型（extraction/summarization/embedding 等）+ 模型能力 + 成本约束自动选择最优模型；无匹配模型时降级到默认模型并记录 WARNING 日志
   - `SchemaEnforcer` — JSON Mode / Function Calling 输出格式强制器（AC-031）
 
 ### M-006: 任务编排与 Agent 调度模块 (scheduler + agent)
@@ -112,7 +116,8 @@
   - `WeChatDistributor` — 微信公众号推送实现（AC-040）
   - `WeWorkDistributor` — 企业微信推送实现（AC-041）
   - `EmailDistributor` — 邮件推送实现，HTML 格式（AC-042）
-  - `SubscriptionMatcher` — 订阅规则匹配引擎，基于关键词/学科标签匹配（AC-043）
+  - `SubscriptionMatcher` — 订阅规则匹配引擎，支持高级关键词语法（`+`必选词、`!`排除词、`/pattern/`正则匹配）及学科标签匹配（AC-043），结合 ContentScorer 的权重评分进行推送排序和阈值过滤（AC-043a）
+  - `ContentScorer` — 内容权重评分器，综合计算内容权重分（源可信度 × 时间衰减 × 关键词匹配度），用于推送排序和 min_score 阈值过滤
   - `DeliveryTracker` — 推送去重与历史记录（AC-044, AC-045）
   - `FrequencyController` — 推送频率控制与免打扰时段（AC-046）
   - `WebhookHandler` — 微信/企业微信消息回调处理（接收用户消息指令）

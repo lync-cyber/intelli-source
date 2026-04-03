@@ -186,6 +186,8 @@ C4Context
 - 信源配置缓存：热加载后写入 Redis，TTL 与配置刷新周期一致，避免每次请求读取数据库
 - LLM 调用结果缓存：相同内容指纹 + 相同处理类型的 LLM 调用结果缓存 24h，减少重复调用
 - 检索结果缓存：高频查询关键词缓存 5min（短 TTL，保证时效性）
+- 源级 HTTP 缓存：Collector 基类内置 HTTP 条件请求支持（ETag / If-Modified-Since），源内容未变化时跳过解析，减少计算开销；缓存头信息持久化到 E-001 的 `http_etag` 和 `http_last_modified` 字段
+- 源级 TTL 配置：每个源可在 E-001 `metadata` 中自定义 `cache_ttl`（秒），覆盖全局默认 TTL，适配不同源的更新频率差异
 
 **异步处理**:
 
@@ -234,6 +236,19 @@ C4Context
 - 敏感词过滤在 LLM 调用前后双重检查（prd#§2 F-006 AC-026）
 
 ### 5.3 错误处理
+
+**错误分类框架**:
+
+所有模块异常继承 `IntelliSourceError` 基类，包含 `category: ErrorCategory` 枚举和 `recovery_hint: str` 字段。M-006 任务编排根据 `error.category` 自动选择恢复路径。
+
+| 分类 | 含义 | 恢复策略 |
+|------|------|---------|
+| RECOVERABLE_TRANSIENT | 网络超时、临时不可用 | 自动重试（指数退避） |
+| RECOVERABLE_DEGRADED | LLM 失败、非核心服务异常 | 降级到传统逻辑（见降级策略表） |
+| UNRECOVERABLE | 配置错误、数据格式无效 | 记录错误 + 告警，跳过当前项 |
+| EXTERNAL | 第三方服务宕机 | 触发熔断，批量跳过 |
+
+各模块预定义异常类：`CollectorError`、`PipelineError`、`LLMError`、`DistributorError`、`StorageError`，均继承 `IntelliSourceError` 并预设对应的 `category` 默认值。
 
 **错误码体系**:
 
@@ -304,19 +319,25 @@ intellisource/
 │       │   ├── models.py             # 配置数据模型 (Pydantic)
 │       │   ├── loader.py             # YAML/JSON 配置加载与热加载
 │       │   └── validator.py          # 配置校验逻辑
+│       ├── core/                      # 核心基础设施
+│       │   ├── __init__.py
+│       │   └── errors.py             # 错误分类框架 (IntelliSourceError)
 │       ├── collector/                 # M-002 采集引擎
 │       │   ├── __init__.py
 │       │   ├── base.py               # 采集器抽象基类
-│       │   ├── registry.py           # 采集器注册中心
+│       │   ├── registry.py           # 采集器注册中心（支持自动发现）
 │       │   ├── adapters/             # 内置采集适配器
 │       │   │   ├── rss.py
 │       │   │   ├── web.py
 │       │   │   └── api.py
+│       │   ├── sources/              # 数据源自发现目录
+│       │   │   └── __init__.py
 │       │   ├── rate_limiter.py       # 速率限制
 │       │   └── adaptive.py           # 频率自适应
 │       ├── pipeline/                  # M-003 处理管道
 │       │   ├── __init__.py
 │       │   ├── engine.py             # 管道执行引擎
+│       │   ├── middleware.py          # 中间件链执行器
 │       │   ├── base.py               # 处理器抽象基类
 │       │   ├── context.py            # 管道上下文
 │       │   └── processors/           # 内置处理器
@@ -335,6 +356,8 @@ intellisource/
 │       ├── llm/                       # M-004 + M-005 LLM 处理与治理
 │       │   ├── __init__.py
 │       │   ├── gateway.py            # LLM 统一网关
+│       │   ├── models.py             # 模型能力声明 (ModelRegistry)
+│       │   ├── router.py             # 智能路由器 (SmartRouter)
 │       │   ├── circuit_breaker.py    # 熔断器
 │       │   ├── fallback.py           # 降级逻辑
 │       │   ├── processors/           # LLM 处理器（管道插件 + Agent 工具）
@@ -354,6 +377,7 @@ intellisource/
 │       │   ├── __init__.py
 │       │   ├── base.py               # 分发器抽象基类
 │       │   ├── matcher.py            # 订阅规则匹配
+│       │   ├── scorer.py             # 内容权重评分器
 │       │   ├── channels/             # 渠道实现
 │       │   │   ├── wechat.py
 │       │   │   ├── wework.py

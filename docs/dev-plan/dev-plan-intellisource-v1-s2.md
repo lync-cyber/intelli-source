@@ -6,13 +6,15 @@
 <!-- volume: sprint | split-from: dev-plan-intellisource-v1 -->
 
 [NAV]
+
 - §3 任务卡详细 → T-010..T-018 (Sprint 2: 采集引擎与处理管道)
 [/NAV]
 
 ## 3. 任务卡详细
 
-### T-010: 采集器抽象基类与注册中心
-- **目标**: 定义统一的采集器接口（BaseCollector）和插件化注册机制（CollectorRegistry），支持按信源类型自动匹配采集器
+### T-010: 采集器抽象基类与注册中心（含自动发现）
+
+- **目标**: 定义统一的采集器接口（BaseCollector）和插件化注册机制（CollectorRegistry），支持按信源类型自动匹配采集器；实现数据源自发现机制，启动时自动扫描并注册 sources/ 目录下的采集器子包
 - **模块**: M-002
 - **接口**: 无（内部接口，由 M-006 调度）
 - **复杂度**: M
@@ -22,18 +24,23 @@
   - [ ] AC-T010-2: CollectorRegistry.get(type) 按信源类型返回对应采集器实例
   - [ ] AC-T010-3: 未注册类型抛出明确异常（IS-COL-001）
   - [ ] AC-T010-4: 采集输出符合统一数据模型（title/author/body_html/body_text/source_url/published_at/metadata）
+  - [ ] AC-T010-5: CollectorRegistry 支持自动发现模式，启动时扫描 `collector/sources/` 目录自动注册实现了 BaseCollector 接口的子包
+  - [ ] AC-T010-6: 新增 sources/ 子包仅需实现 BaseCollector 接口并在 `__init__.py` 中导出即可被自动发现，无需修改注册代码
+  - [ ] AC-T010-7: BaseCollector 内置 HTTP 条件请求支持（ETag/If-Modified-Since），子类可复用以跳过未变化源的解析
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/collector/base.py` -- 采集器抽象基类
-  - [ ] `src/intellisource/collector/registry.py` -- 采集器注册中心
+  - [ ] `src/intellisource/collector/base.py` -- 采集器抽象基类（含 HTTP 条件请求支持）
+  - [ ] `src/intellisource/collector/registry.py` -- 采集器注册中心（含自动发现逻辑）
+  - [ ] `src/intellisource/collector/sources/__init__.py` -- 数据源自发现目录
   - [ ] `src/intellisource/collector/__init__.py` -- 模块导出
-  - [ ] `tests/unit/collector/test_base.py` -- 基类测试
-  - [ ] `tests/unit/collector/test_registry.py` -- 注册中心测试
+  - [ ] `tests/unit/collector/test_base.py` -- 基类测试（含 HTTP 条件请求）
+  - [ ] `tests/unit/collector/test_registry.py` -- 注册中心测试（含自动发现）
 - **context_load**:
   - arch#§2.M-002
   - arch-intellisource-v1-data#§4.E-003
   - arch#§5.3（错误码体系）
 
 ### T-011: RSS采集适配器
+
 - **目标**: 实现 RSS/Atom Feed 的采集适配器，支持标准 RSS 2.0、Atom 1.0 格式解析和第三方桥接（RSSHub）
 - **模块**: M-002
 - **接口**: 无
@@ -53,6 +60,7 @@
 - **实现提示**: 使用 feedparser 库解析；httpx AsyncClient 获取 Feed 内容；注意处理编码和时区
 
 ### T-012: Web爬虫采集适配器
+
 - **目标**: 实现网页爬虫采集适配器，支持 HTML 页面抓取、正文提取和元数据解析
 - **模块**: M-002
 - **接口**: 无
@@ -73,6 +81,7 @@
 - **实现提示**: httpx AsyncClient 抓取；BeautifulSoup4 解析；可参考 readability 算法实现正文提取
 
 ### T-013: API采集适配器
+
 - **目标**: 实现通用 API 采集适配器，支持通过配置定义 REST API 的请求方式和响应映射
 - **模块**: M-002
 - **接口**: 无
@@ -91,6 +100,7 @@
   - arch-intellisource-v1-data#§4.E-003
 
 ### T-014: 速率限制与代理管理
+
 - **目标**: 实现基于 Redis 令牌桶的请求速率限制器和 HTTP 代理管理器，支持按信源独立配置
 - **模块**: M-002
 - **接口**: 无
@@ -111,6 +121,7 @@
 - **实现提示**: Redis 令牌桶实现参考经典算法；使用 Redis MULTI/EXEC 保证原子性
 
 ### T-015: 频率自适应调度
+
 - **目标**: 实现采集频率自适应算法，根据信源历史更新频率动态调整采集间隔
 - **模块**: M-002
 - **接口**: 无
@@ -129,8 +140,9 @@
   - arch-intellisource-v1-data#§4.E-001（avg_update_interval, error_count 字段）
   - arch#§5.3（重试策略）
 
-### T-016: 处理管道引擎与处理器基类
-- **目标**: 实现可编排的处理管道执行引擎（PipelineEngine）、处理器抽象基类（BaseProcessor）和管道上下文（PipelineContext）
+### T-016: 处理管道引擎与处理器基类（含中间件链）
+
+- **目标**: 实现可编排的处理管道执行引擎（PipelineEngine）、处理器抽象基类（BaseProcessor）、管道上下文（PipelineContext）和中间件链执行器（MiddlewareChain）
 - **模块**: M-003
 - **接口**: 无（内部框架）
 - **复杂度**: M
@@ -140,18 +152,23 @@
   - [ ] AC-016 映射: PipelineContext 支持处理器间数据传递（get/set 键值对）
   - [ ] AC-T016-1: 处理器执行异常不中断管道，记录错误并继续下一个处理器（可配置 fail_fast 模式）
   - [ ] AC-T016-2: 管道执行前后触发日志记录（含执行耗时）
+  - [ ] AC-T016-3: PipelineEngine 支持中间件链模式，处理器可实现 process(ctx, next) 洋葱模型
+  - [ ] AC-T016-4: MiddlewareChain 中间件可在调用 next 前后执行前处理/后处理逻辑，支持嵌套组合
 - **deliverables** (交付物):
   - [ ] `src/intellisource/pipeline/engine.py` -- 管道执行引擎
+  - [ ] `src/intellisource/pipeline/middleware.py` -- 中间件链执行器
   - [ ] `src/intellisource/pipeline/base.py` -- 处理器抽象基类
   - [ ] `src/intellisource/pipeline/context.py` -- 管道上下文
   - [ ] `src/intellisource/pipeline/__init__.py` -- 模块导出
   - [ ] `tests/unit/pipeline/test_engine.py` -- 管道引擎测试
+  - [ ] `tests/unit/pipeline/test_middleware.py` -- 中间件链测试
   - [ ] `tests/unit/pipeline/test_context.py` -- 上下文测试
 - **context_load**:
   - arch#§2.M-003
   - prd#§2.F-004
 
 ### T-017: 管道条件分支与批处理模式
+
 - **目标**: 扩展管道引擎支持条件跳过（基于内容类型/标签）、条件分支和批处理模式
 - **模块**: M-003
 - **接口**: 无
@@ -172,6 +189,7 @@
   - prd#§2.F-004
 
 ### T-018: 内置处理器(解析/去重/打标/格式化)
+
 - **目标**: 实现管道内置的基础处理器：HTML 解析、内容指纹去重、关键词打标、格式转换
 - **模块**: M-003
 - **接口**: 无

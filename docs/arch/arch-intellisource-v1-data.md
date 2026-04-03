@@ -7,7 +7,7 @@
 
 [NAV]
 
-- §4 数据模型 → §4.1 实体关系(不含 ChatMessage 独立实体，对话消息内嵌于 E-011 context JSONB), E-001..E-011（E-012 Workflow 已移除，由管道配置文件替代）
+- §4 数据模型 → §4.1 实体关系(不含 ChatMessage 独立实体，对话消息内嵌于 E-011 context JSONB), E-001..E-012
 [/NAV]
 
 ## 4. 数据模型
@@ -57,6 +57,8 @@ erDiagram
 | next_collect_at | TIMESTAMP WITH TZ | NULL | 下次计划采集时间 |
 | error_count | INTEGER | NOT NULL, DEFAULT 0 | 连续错误计数（自适应用） |
 | avg_update_interval | INTEGER | NULL | 历史平均更新间隔（秒），自适应频率计算依据 |
+| http_etag | VARCHAR(255) | NULL | 上次响应的 ETag 值，用于 HTTP 条件请求 |
+| http_last_modified | VARCHAR(255) | NULL | 上次响应的 Last-Modified 值，用于 HTTP 条件请求 |
 | config_version | INTEGER | NOT NULL, DEFAULT 1 | 配置版本号 |
 | created_at | TIMESTAMP WITH TZ | NOT NULL, DEFAULT NOW() | 创建时间 |
 | updated_at | TIMESTAMP WITH TZ | NOT NULL, DEFAULT NOW() | 更新时间 |
@@ -246,3 +248,19 @@ erDiagram
 **索引**: `idx_chat_session_user` (channel, channel_user_id), `idx_chat_session_active` (last_active_at)
 
 **清理策略**: 超过 24 小时无活跃的会话自动清理 [ASSUMPTION: 24 小时超时为默认值]
+
+### E-012: Workflow (工作流定义)
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| id | UUID | PK | 工作流唯一标识 |
+| name | VARCHAR(255) | NOT NULL, UNIQUE | 工作流名称 |
+| description | TEXT | NULL | 工作流描述 |
+| steps | JSONB | NOT NULL | 步骤定义数组 |
+| schedule_cron | VARCHAR(100) | NULL | Cron 定时表达式 |
+| status | VARCHAR(20) | NOT NULL, DEFAULT 'active', CHECK IN ('active', 'paused', 'archived') | 工作流状态 |
+| last_run_at | TIMESTAMP WITH TZ | NULL | 上次执行时间 |
+| created_at | TIMESTAMP WITH TZ | NOT NULL, DEFAULT NOW() | 创建时间 |
+| updated_at | TIMESTAMP WITH TZ | NOT NULL, DEFAULT NOW() | 更新时间 |
+
+**索引**: `idx_workflow_status` (status), `idx_workflow_schedule` (schedule_cron) WHERE schedule_cron IS NOT NULL
