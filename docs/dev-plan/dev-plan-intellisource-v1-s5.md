@@ -6,12 +6,14 @@
 <!-- volume: sprint | split-from: dev-plan-intellisource-v1 -->
 
 [NAV]
-- §3 任务卡详细 → T-037..T-047 (Sprint 5: 检索/API/CLI与集成)
+
+- §3 任务卡详细 → T-037..T-046 (Sprint 5: 检索/Agent集成/API/CLI)
 [/NAV]
 
 ## 3. 任务卡详细
 
 ### T-037: 混合检索引擎
+
 - **目标**: 实现关键词 + 向量语义混合检索引擎，支持多种检索模式和结果融合排序
 - **模块**: M-008
 - **接口**: API-012 的业务逻辑层
@@ -33,47 +35,37 @@
   - arch-intellisource-v1-api#API-012
   - arch-intellisource-v1-data#§4.E-004（embedding, 全文检索索引）
 
-### T-038: 意图理解与即时问答
-- **目标**: 实现 LLM 驱动的自然语言意图理解和基于检索的即时问答功能
-- **模块**: M-008
+### T-038: 即时检索Agent集成与对话上下文压缩
+
+- **目标**: 将即时检索功能与 AgentRunner flexible 模式集成，实现 LLM 自主编排搜索策略；实现对话上下文 LLM 压缩（compaction）机制
+- **模块**: M-006, M-008
 - **接口**: API-013 的业务逻辑层
 - **复杂度**: M
 - **tdd_acceptance**:
-  - [ ] AC-050 映射: IntentParser 调用 LLM 理解用户自然语言检索意图
-  - [ ] AC-052 映射: 检索结果经 LLM 摘要后返回，不阻塞消息通道
-  - [ ] AC-T038-1: IntentParser 输出结构化检索参数（keywords, tags, date_range, search_mode）
-  - [ ] AC-T038-2: SearchSummarizer 对检索结果生成简洁的回答摘要
-  - [ ] AC-T038-3: 回答中包含引用来源列表（content_id/title/url）
-  - [ ] AC-T038-4: 意图理解降级为关键词直接搜索
+  - [ ] AC-050 映射: AgentRunner flexible 模式下 LLM 自主理解用户意图并选择搜索策略
+  - [ ] AC-051 映射: Agent 可多次调用 search 工具，自主调整搜索参数
+  - [ ] AC-052 映射: 检索结果经 LLM 摘要后异步回调返回
+  - [ ] AC-053 映射: 对话上下文通过 LLM compaction 管理，超出 token 限制时自动压缩历史
+  - [ ] AC-T038-1: ChatSessionManager.get_or_create(channel, channel_user_id) 获取或创建会话
+  - [ ] AC-T038-2: 对话上下文存储在 ChatSession.context JSONB 字段（含 messages + compacted_summary）
+  - [ ] AC-T038-3: 当 total_tokens_estimate 超过管道配置的 token 上限时，调用 LLM 将旧消息压缩为 compacted_summary
+  - [ ] AC-T038-4: compacted_summary 作为系统提示词前缀注入后续 Agent Loop，保持对话连贯性
+  - [ ] AC-T038-5: 超过 24 小时无活跃的会话自动清理
+  - [ ] AC-T038-6: Agent 回答中包含引用来源列表（content_id/title/url）
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/search/intent.py` -- 意图理解器
-  - [ ] `src/intellisource/search/chat.py` -- 即时问答（SearchSummarizer）
-  - [ ] `tests/unit/search/test_intent.py` -- 意图理解测试
-  - [ ] `tests/unit/search/test_chat.py` -- 问答测试
-- **context_load**:
-  - arch#§2.M-008
-  - arch-intellisource-v1-api#API-013
-
-### T-039: 多轮对话管理
-- **目标**: 实现多轮对话会话管理器，保持最近 5 轮上下文
-- **模块**: M-008
-- **接口**: API-013（session_id 支持）
-- **复杂度**: M
-- **tdd_acceptance**:
-  - [ ] AC-053 映射: 支持多轮对话上下文保持（最近 5 轮）
-  - [ ] AC-T039-1: ChatSessionManager.get_or_create(channel, channel_user_id) 获取或创建会话
-  - [ ] AC-T039-2: 对话上下文存储在 ChatSession.context JSONB 字段
-  - [ ] AC-T039-3: 超过 5 轮时自动丢弃最早的对话
-  - [ ] AC-T039-4: 超过 24 小时无活跃的会话自动清理
-  - [ ] AC-T039-5: 新会话或 session_id 为空时创建新 ChatSession
-- **deliverables** (交付物):
-  - [ ] `src/intellisource/search/session.py` -- 对话会话管理器
+  - [ ] `src/intellisource/search/session.py` -- 对话会话管理器（含 compaction）
+  - [ ] `src/intellisource/agent/compaction.py` -- LLM 上下文压缩逻辑
   - [ ] `tests/unit/search/test_session.py` -- 会话管理测试
+  - [ ] `tests/unit/agent/test_compaction.py` -- 上下文压缩测试
 - **context_load**:
+  - arch#§2.M-006（AgentRunner flexible 模式）
   - arch#§2.M-008
   - arch-intellisource-v1-data#§4.E-011
+  - arch-intellisource-v1-api#API-013
+- **实现提示**: compaction 使用独立的 LLM 调用（简短提示词），输入为旧消息历史，输出为结构化摘要（目标、已发现、关键信息）；参考 OpenCode 的 compaction 模式
 
-### T-040: Webhook回调处理(微信/企业微信)
+### T-039: Webhook回调处理(微信/企业微信)
+
 - **目标**: 实现微信和企业微信的消息回调处理，包括签名验证、消息解析和指令路由
 - **模块**: M-007
 - **接口**: API-020, API-021
@@ -95,6 +87,7 @@
   - arch#§5.2（Webhook 签名验证）
 
 ### T-041: API路由层 -- 信源管理
+
 - **目标**: 实现信源管理的 FastAPI 路由（CRUD + 配置重载），连接 M-001 业务逻辑
 - **模块**: M-011
 - **接口**: API-001, API-002, API-003, API-004, API-005
@@ -117,32 +110,29 @@
   - arch-intellisource-v1-api#API-003
   - arch-intellisource-v1-api#API-004
 
-### T-042: API路由层 -- 任务与工作流
-- **目标**: 实现任务管理和工作流管理的 FastAPI 路由
+### T-041: API路由层 -- 任务管理
+
+- **目标**: 实现任务管理的 FastAPI 路由（任务列表/触发/状态/暂停恢复）
 - **模块**: M-011
-- **接口**: API-006, API-007, API-008, API-009, API-010, API-011, API-026, API-027, API-028, API-029
+- **接口**: API-006, API-007, API-008, API-009
 - **复杂度**: M
 - **tdd_acceptance**:
   - [ ] AC-062 映射: API 支持手动触发采集任务和查询任务状态
-  - [ ] AC-063 映射: API 支持定义和执行自定义工作流
   - [ ] AC-065 映射: 自动生成 OpenAPI 文档
-  - [ ] AC-T042-1: GET /api/v1/tasks 任务列表（分页+过滤）
-  - [ ] AC-T042-2: POST /api/v1/tasks/collect 触发采集（返回 202）
-  - [ ] AC-T042-3: 工作流 CRUD（GET/POST/PATCH/DELETE /api/v1/workflows）
-  - [ ] AC-T042-4: POST /api/v1/workflows/{id}/run 执行工作流（返回 202）
+  - [ ] AC-T041-1: GET /api/v1/tasks 任务列表（分页+过滤）
+  - [ ] AC-T041-2: POST /api/v1/tasks/collect 触发采集（返回 202，通过 AgentRunner strict 模式执行）
+  - [ ] AC-T041-3: GET /api/v1/tasks/{id} 查询任务状态（含 pipeline_name 和 execution_mode）
+  - [ ] AC-T041-4: PATCH /api/v1/tasks/{id} 暂停/恢复任务
 - **deliverables** (交付物):
   - [ ] `src/intellisource/api/routers/tasks.py` -- 任务路由
-  - [ ] `src/intellisource/api/routers/workflows.py` -- 工作流路由
   - [ ] `tests/unit/api/test_tasks.py` -- 任务 API 测试
-  - [ ] `tests/unit/api/test_workflows.py` -- 工作流 API 测试
 - **context_load**:
   - arch#§2.M-011
   - arch-intellisource-v1-api#API-006
   - arch-intellisource-v1-api#API-007
-  - arch-intellisource-v1-api#API-010
-  - arch-intellisource-v1-api#API-011
 
-### T-043: API路由层 -- 内容/检索/订阅/LLM/系统
+### T-042: API路由层 -- 内容/检索/订阅/LLM/系统
+
 - **目标**: 实现内容查询、检索、订阅管理、LLM 统计和系统端点的 FastAPI 路由
 - **模块**: M-011
 - **接口**: API-012, API-013, API-014, API-015, API-016, API-017, API-018, API-019, API-022, API-023, API-024, API-025
@@ -171,7 +161,8 @@
   - arch-intellisource-v1-api#API-014
   - arch-intellisource-v1-api#API-022
 
-### T-044: 认证中间件与请求追踪
+### T-043: 认证中间件与请求追踪
+
 - **目标**: 实现 API Key 认证中间件、请求日志中间件和请求链路追踪中间件
 - **模块**: M-011
 - **接口**: 全部需认证的 API
@@ -191,7 +182,8 @@
   - arch#§5.2（认证机制）
   - arch#§5.3（统一错误响应格式）
 
-### T-045: CLI工具
+### T-044: CLI工具
+
 - **目标**: 实现基于 typer 的 CLI 工具，封装常用 API 操作（信源管理/任务触发/状态查询）
 - **模块**: M-011
 - **接口**: 无（CLI 通过 HTTP 调用 API）
@@ -200,7 +192,7 @@
   - [ ] AC-064 映射: CLI 工具封装常用 API 操作
   - [ ] AC-T045-1: `intellisource source list/add/update/delete` 信源管理命令
   - [ ] AC-T045-2: `intellisource task trigger/status` 任务操作命令
-  - [ ] AC-T045-3: `intellisource workflow list/create/run` 工作流命令
+  - [ ] AC-T044-3: `intellisource pipeline list` 查看管道配置命令
   - [ ] AC-T045-4: `intellisource search <query>` 检索命令
   - [ ] AC-T045-5: CLI 输出格式化为表格（默认）或 JSON（--json 参数）
   - [ ] AC-T045-6: API 地址和 Key 通过环境变量或 --api-url/--api-key 参数配置
@@ -211,7 +203,8 @@
   - arch#§2.M-011
   - arch#§6（cli/ 目录结构）
 
-### T-046: FastAPI应用入口与Docker部署
+### T-045: FastAPI应用入口与Docker部署
+
 - **目标**: 组装 FastAPI 应用入口（注册路由/中间件/生命周期），编写 Dockerfile 和 docker-compose.yml
 - **模块**: M-011
 - **接口**: 全部 API
@@ -236,7 +229,8 @@
   - prd#§3.3（兼容性 -- Docker 部署）
 - **实现提示**: PostgreSQL 使用包含 zhparser 扩展的镜像（如 abcfy2/zhparser）；Celery worker 和 beat 作为独立容器
 
-### T-047: Alembic数据库迁移
+### T-046: Alembic数据库迁移
+
 - **目标**: 配置 Alembic 迁移框架，基于 ORM 模型生成初始迁移脚本，确保 upgrade/downgrade 正确工作
 - **模块**: M-009
 - **接口**: 无

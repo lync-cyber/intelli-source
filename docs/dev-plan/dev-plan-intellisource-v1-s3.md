@@ -172,31 +172,27 @@
   - arch#§5.3（降级策略）
 - **实现提示**: 增量聚类策略：新内容到来时与现有聚类中心比较，超过阈值则归入，否则新建
 
-### T-025: 摘要/打标/情感分析处理器
+### T-025: 摘要/打标处理器
 
-- **目标**: 实现 LLM 驱动的综合简报生成、语义打标和情感分析处理器
+- **目标**: 实现 LLM 驱动的综合简报生成和语义打标处理器
 - **模块**: M-004
 - **接口**: 无
 - **复杂度**: M
 - **tdd_acceptance**:
   - [ ] AC-023 映射: DigestGenerator 对同聚类多篇文档生成综合简报（含时间线和要点）
   - [ ] AC-024 映射: SemanticTagger 基于语义为内容打标签，无法归类则进入"未分类"
-  - [ ] AC-025 映射: SentimentAnalyzer 输出 positive/neutral/negative 情感倾向
   - [ ] AC-027 映射: 所有处理器均支持降级到传统逻辑
   - [ ] AC-T025-1: DigestGenerator 输出包含 title/summary/timeline/key_points
   - [ ] AC-T025-2: 打标降级使用关键词匹配 + 预定义标签库
-  - [ ] AC-T025-3: 情感分析降级使用情感词典评分
-  - [ ] AC-T025-4: 摘要降级使用截断式摘要（取前 N 句）
+  - [ ] AC-T025-3: 摘要降级使用截断式摘要（取前 N 句）
 - **deliverables** (交付物):
   - [ ] `src/intellisource/llm/processors/summarizer.py` -- 摘要/简报生成处理器
   - [ ] `src/intellisource/llm/processors/tagger.py` -- 语义打标处理器
-  - [ ] `src/intellisource/llm/processors/sentiment.py` -- 情感分析处理器
   - [ ] `tests/unit/llm/test_summarizer.py` -- 摘要测试
   - [ ] `tests/unit/llm/test_tagger.py` -- 打标测试
-  - [ ] `tests/unit/llm/test_sentiment.py` -- 情感分析测试
 - **context_load**:
   - arch#§2.M-004
-  - arch-intellisource-v1-data#§4.E-004（tags, sentiment 字段）
+  - arch-intellisource-v1-data#§4.E-004（tags 字段）
   - arch-intellisource-v1-data#§4.E-006
   - arch#§5.3（降级策略）
 
