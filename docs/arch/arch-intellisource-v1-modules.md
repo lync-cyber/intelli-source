@@ -6,25 +6,33 @@
 <!-- volume: modules | split-from: arch-intellisource-v1 -->
 
 [NAV]
+
 - §2 模块划分 → M-001..M-011
 [/NAV]
 
 ## 2. 模块划分
 
 ### M-001: 配置管理模块 (config)
-- **职责**: 管理信息源的声明式配置，提供配置的 CRUD、校验、热加载和版本管理能力
-- **映射功能**: F-001（信息源声明式配置）
+
+- **职责**: 管理信息源的声明式配置和系统运行参数，提供配置的 CRUD、校验、热加载和版本管理能力（AC-066）
+- **映射功能**: F-001（信息源声明式配置 + 系统运行参数统一管理）
 - **对外接口**: API-001, API-002, API-003, API-004, API-005
 - **依赖模块**: M-009（配置持久化存储）
 - **内部关键组件**:
   - `SourceConfig` — 信源配置 Pydantic 模型，定义 YAML/JSON 配置结构
+  - `AppSettings` — 系统运行参数 Pydantic 模型（基于 pydantic-settings），统一管理各模块运行参数，支持环境变量覆盖（AC-066）。关键配置分组:
+    - `chat`: 对话上下文策略（`context_strategy`: truncate|compress，默认 truncate）、最大保留轮数（`max_rounds`: 默认 5）、压缩触发阈值（`compress_threshold`: 默认 3 轮）、压缩摘要最大 Token 数（`compress_max_tokens`: 默认 200）、会话超时（`session_timeout_hours`: 默认 24）
+    - `llm`: 熔断连续失败阈值（`circuit_breaker_threshold`: 默认 5）、熔断冷却秒数（`circuit_breaker_cooldown`: 默认 60）、LLM 结果缓存 TTL（`result_cache_ttl`: 默认 86400）
+    - `search`: 检索缓存 TTL（`search_cache_ttl`: 默认 300）
+    - `pagination`: 默认分页大小（`default_page_size`: 默认 20）、最大分页大小（`max_page_size`: 默认 100）
+    - `embedding`: 向量维度（`dimension`: 默认 1536），切换 embedding 模型时需调整此值并执行数据库迁移
   - `ConfigLoader` — 配置文件加载器，支持 YAML/JSON 格式解析
   - `ConfigValidator` — 配置校验器，格式校验失败时拒绝加载并输出错误信息（AC-003）
   - `ConfigWatcher` — 文件变更监听器（基于 watchfiles），实现热加载（AC-002）
   - `ConfigVersionManager` — 配置版本管理，支持回退到历史版本（AC-004）
-  - 配置项包含 `embedding_dimension`（默认 1536），切换 embedding 模型时需调整此值并执行数据库迁移
 
 ### M-002: 采集引擎模块 (collector)
+
 - **职责**: 提供插件化的采集架构，从多种信息源类型采集内容，统一输出标准化数据模型
 - **映射功能**: F-002（插件化采集引擎）, F-003（采集频率自适应与资源隔离）
 - **对外接口**: 无直接对外 API（由 M-006 任务编排调度）
@@ -40,6 +48,7 @@
   - `ProxyManager` — HTTP 代理管理器，按信源配置独立代理（AC-010）
 
 ### M-003: 处理管道模块 (pipeline)
+
 - **职责**: 提供可编排的内容处理管道框架，支持处理器的动态组合、条件分支和上下文传递
 - **映射功能**: F-004（可编排处理管道）
 - **对外接口**: 无直接对外 API（由 M-006 任务编排调度）
@@ -53,6 +62,7 @@
   - 内置处理器: `HTMLParser`, `ContentDedup`（指纹去重）, `KeywordTagger`, `FormatConverter`
 
 ### M-004: LLM 智能处理模块 (llm.processors)
+
 - **职责**: 基于 LLM 实现结构化提取、语义去重、聚类、摘要、打标和情感分析等高级内容处理
 - **映射功能**: F-005（结构化提取/语义去重/聚类）, F-006（摘要/打标/分析）, F-010（推送内容优化）
 - **对外接口**: 无直接对外 API（作为 M-003 管道处理器运行）
@@ -70,6 +80,7 @@
   - 每个 LLM 处理器均实现降级逻辑（AC-021, AC-027, AC-049），降级映射见 arch#§5.3
 
 ### M-005: LLM 服务治理模块 (llm.gateway)
+
 - **职责**: 提供统一的 LLM 调用接口，管理多模型提供商，实现重试、熔断、降级和成本监控
 - **映射功能**: F-007（LLM 服务治理）
 - **对外接口**: API-017（LLM 用量统计）
@@ -83,6 +94,7 @@
   - `SchemaEnforcer` — JSON Mode / Function Calling 输出格式强制器（AC-031）
 
 ### M-006: 任务编排模块 (scheduler)
+
 - **职责**: 编排采集-处理-存储-分发的原子任务链，提供定时调度、并发执行和任务状态管理
 - **映射功能**: F-008（任务编排与调度）
 - **对外接口**: API-006, API-007, API-008, API-009, API-010, API-011, API-026, API-027, API-028, API-029
@@ -96,6 +108,7 @@
   - `IdempotencyGuard` — 幂等保护器，基于内容指纹 + 推送记录 + Redis 分布式锁（AC-037）
 
 ### M-007: 分发渠道模块 (distributor)
+
 - **职责**: 将处理后的内容通过多渠道（微信公众号/企业微信/邮件）推送给订阅用户
 - **映射功能**: F-009（多渠道分发）
 - **对外接口**: API-020（微信回调）, API-021（企业微信回调）, API-022（订阅列表）, API-023（创建订阅）, API-024（更新订阅）, API-025（删除订阅）
@@ -111,17 +124,22 @@
   - `WebhookHandler` — 微信/企业微信消息回调处理（接收用户消息指令）
 
 ### M-008: 即时检索模块 (search)
+
 - **职责**: 处理用户通过消息渠道发送的即时检索指令，理解意图并返回相关摘要
 - **映射功能**: F-011（消息指令式即时检索）
 - **对外接口**: API-012（混合检索）, API-013（即时问答）
-- **依赖模块**: M-005（LLM 意图理解与摘要）, M-009（混合检索）, M-007（接收用户消息/回调返回结果）
+- **依赖模块**: M-001（读取上下文策略配置）, M-005（LLM 意图理解与摘要 + 上下文压缩）, M-009（混合检索）, M-007（接收用户消息/回调返回结果）
 - **内部关键组件**:
   - `IntentParser` — 意图理解器，调用 LLM 解析自然语言检索指令（AC-050）
   - `HybridSearchEngine` — 混合检索引擎，关键词 + 向量语义联合查询（AC-051）
   - `SearchSummarizer` — 检索结果摘要器，LLM 生成结果摘要后异步回调（AC-052）
-  - `ChatSessionManager` — 多轮对话管理器，保持最近 5 轮上下文（AC-053）
+  - `ChatSessionManager` — 多轮对话会话管理器（AC-053），从 M-001 AppSettings.chat 读取上下文策略配置:
+    - `truncate` 模式: 保留最近 N 轮原始对话（N = `max_rounds`），超出时丢弃最早的对话
+    - `compress` 模式: 对话轮数超过 `compress_threshold` 时，调用 M-005 LLM 网关对早期对话生成语义摘要（不超过 `compress_max_tokens` Token），摘要存入 context 的 `summary` 字段，仅保留摘要 + 最近 `compress_threshold` 轮原始对话
+  - `ContextCompressor` — 上下文压缩器（compress 模式专用），调用 M-005 LLM 网关将历史对话压缩为语义摘要，压缩 prompt 模板可配置
 
 ### M-009: 存储与检索模块 (storage)
+
 - **职责**: 管理结构化数据和向量数据的持久化存储，提供统一的数据访问层和混合检索能力
 - **映射功能**: F-012（存储与混合检索）
 - **对外接口**: API-014（内容列表）, API-015（内容详情）, API-016（聚类列表）
@@ -136,6 +154,7 @@
   - `HybridIndex` — 混合索引，结合 PostgreSQL 全文检索 + pgvector 向量检索（AC-056）
 
 ### M-010: 可观测性模块 (observability)
+
 - **职责**: 提供结构化日志、指标监控和分布式链路追踪基础设施
 - **映射功能**: F-013（可观测性）
 - **对外接口**: API-018（健康检查）, API-019（系统指标）
@@ -148,6 +167,7 @@
   - `AlertManager` — 告警管理器，关键指标异常时触发告警（AC-060）
 
 ### M-011: API 与 CLI 模块 (api + cli)
+
 - **职责**: 提供 RESTful API 和命令行工具，作为系统的统一外部接口层
 - **映射功能**: F-014（RESTful API 与 CLI）
 - **对外接口**: 所有 API-001 至 API-029（路由层）

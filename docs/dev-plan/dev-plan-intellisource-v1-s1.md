@@ -6,12 +6,14 @@
 <!-- volume: sprint | split-from: dev-plan-intellisource-v1 -->
 
 [NAV]
+
 - §3 任务卡详细 → T-001..T-009 (Sprint 1: 基础设施与数据层)
 [/NAV]
 
 ## 3. 任务卡详细
 
 ### T-001: 项目骨架与基础配置
+
 - **目标**: 搭建项目目录结构、pyproject.toml、基础依赖安装、Ruff/mypy/pytest 配置
 - **模块**: 全局
 - **接口**: 无
@@ -21,7 +23,7 @@
   - [ ] AC-T001-2: `ruff check src/` 和 `ruff format --check src/` 零错误通过
   - [ ] AC-T001-3: `mypy src/` strict 模式零错误通过
   - [ ] AC-T001-4: `pytest tests/` 可执行且基础 conftest.py 加载成功
-  - [ ] AC-T001-5: 目录结构与 arch#§6 一致（src/intellisource/ 下所有子包存在 __init__.py）
+  - [ ] AC-T001-5: 目录结构与 arch#§6 一致（src/intellisource/ 下所有子包存在 **init**.py）
 - **deliverables** (交付物):
   - [ ] `pyproject.toml` -- 项目配置与依赖声明
   - [ ] `src/intellisource/__init__.py` -- 包入口
@@ -35,6 +37,7 @@
   - arch#§1.4
 
 ### T-002: 数据库连接管理与ORM基础
+
 - **目标**: 实现 PostgreSQL 异步连接池管理（SQLAlchemy AsyncSession），提供数据库会话工厂和生命周期管理
 - **模块**: M-009
 - **接口**: 无（内部基础设施）
@@ -54,6 +57,7 @@
 - **实现提示**: 使用 SQLAlchemy 2.0 的 create_async_engine + async_sessionmaker；数据库 URL 通过 pydantic-settings 从环境变量读取
 
 ### T-003: ORM模型定义(全部实体)
+
 - **目标**: 定义全部 12 个数据实体的 SQLAlchemy ORM 模型，包含字段、约束、索引和关系映射
 - **模块**: M-009
 - **接口**: 无
@@ -74,6 +78,7 @@
   - arch#§2.M-009
 
 ### T-004: 数据访问层(Repository)
+
 - **目标**: 实现各数据实体的 Repository 类，提供 CRUD + 游标分页 + 条件查询的统一数据访问接口
 - **模块**: M-009
 - **接口**: 无（内部接口，被上层模块调用）
@@ -99,6 +104,7 @@
   - arch#§5.1（分页方案）
 
 ### T-005: pgvector向量存储与检索
+
 - **目标**: 实现基于 pgvector 的向量存储、相似度检索和混合索引（关键词+向量联合查询）
 - **模块**: M-009
 - **接口**: 无（内部接口，被 M-008、M-004 调用）
@@ -120,6 +126,7 @@
 - **实现提示**: 使用 pgvector 的 SQLAlchemy 集成；混合检索需融合 PostgreSQL ts_rank 和 cosine distance 两个得分；中文全文检索依赖 zhparser，测试时需确保 PostgreSQL 已安装该扩展
 
 ### T-006: 结构化日志与可观测性基础
+
 - **目标**: 配置 structlog 结构化日志输出，集成 OpenTelemetry 链路追踪基础设施，实现指标收集器骨架
 - **模块**: M-010
 - **接口**: 无（内部基础设施）
@@ -142,6 +149,7 @@
   - arch#§1.4
 
 ### T-007: 健康检查与指标端点
+
 - **目标**: 实现系统健康检查端点（检测数据库/Redis/Celery 可用性）和 Prometheus 格式指标端点
 - **模块**: M-010
 - **接口**: API-018, API-019
@@ -162,22 +170,30 @@
 - **实现提示**: 健康检查通过尝试 ping 各服务判断可用性；Prometheus 指标使用 prometheus_client 库或自行格式化文本输出
 
 ### T-008: 配置模型与校验器
-- **目标**: 定义信源配置的 Pydantic 模型（SourceConfig），实现 YAML/JSON 配置文件解析和格式校验
+
+- **目标**: 定义信源配置的 Pydantic 模型（SourceConfig）和系统运行参数模型（AppSettings），实现 YAML/JSON 配置文件解析和格式校验
 - **模块**: M-001
 - **接口**: 无（内部接口）
 - **复杂度**: M
 - **tdd_acceptance**:
   - [ ] AC-001 映射: SourceConfig 模型支持 name/type/url/tags/schedule/proxy/rate_limit 等字段定义
   - [ ] AC-003 映射: 无效配置（缺失必填字段、类型错误、URL 格式错误）抛出明确的 ValidationError
+  - [ ] AC-066 映射: AppSettings 模型（基于 pydantic-settings）统一管理系统运行参数，包含 chat/llm/search/pagination/embedding 配置分组，所有字段有合理默认值且支持环境变量覆盖（IS_ 前缀）
   - [ ] AC-T008-1: 支持 YAML 和 JSON 两种格式解析
   - [ ] AC-T008-2: 校验失败返回所有错误列表（非第一个错误即停止）
   - [ ] AC-T008-3: 配置支持 ${ENV_VAR} 占位符语法，运行时从环境变量解析
+  - [ ] AC-T008-4: AppSettings.chat 分组包含 context_strategy(truncate|compress)、max_rounds(默认5)、compress_threshold(默认3)、compress_max_tokens(默认200)、session_timeout_hours(默认24)
+  - [ ] AC-T008-5: AppSettings.llm 分组包含 circuit_breaker_threshold(默认5)、circuit_breaker_cooldown(默认60)、result_cache_ttl(默认86400)
+  - [ ] AC-T008-6: AppSettings.search 分组包含 search_cache_ttl(默认300)
+  - [ ] AC-T008-7: AppSettings.pagination 分组包含 default_page_size(默认20)、max_page_size(默认100)
+  - [ ] AC-T008-8: AppSettings.embedding 分组包含 dimension(默认1536)
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/config/models.py` -- 配置 Pydantic 模型
+  - [ ] `src/intellisource/config/models.py` -- 配置 Pydantic 模型（SourceConfig + AppSettings）
   - [ ] `src/intellisource/config/validator.py` -- 配置校验逻辑
   - [ ] `src/intellisource/config/__init__.py` -- 模块导出
   - [ ] `config/sources.example.yaml` -- 信源配置示例文件
-  - [ ] `tests/unit/config/test_models.py` -- 模型测试
+  - [ ] `config/settings.example.toml` -- 系统运行参数配置示例文件
+  - [ ] `tests/unit/config/test_models.py` -- 模型测试（含 AppSettings）
   - [ ] `tests/unit/config/test_validator.py` -- 校验器测试
 - **context_load**:
   - arch#§2.M-001
@@ -185,6 +201,7 @@
   - prd#§2.F-001
 
 ### T-009: 配置加载与热加载
+
 - **目标**: 实现配置文件的加载（从 YAML/JSON 文件读取并持久化到数据库）、热加载（文件变更自动重载）和版本管理（回退）
 - **模块**: M-001
 - **接口**: API-005（配置重载的业务逻辑层）
