@@ -1,17 +1,19 @@
 # Development Plan 分卷 -- Sprint 1: IntelliSource
 <!-- required_sections: ["## 3. 任务卡详细"] -->
 <!-- volume_type: sprint -->
-<!-- id: dev-plan-intellisource-v1-s1 | author: tech-lead | status: draft -->
+<!-- id: dev-plan-intellisource-v1-s1 | author: tech-lead | status: approved -->
 <!-- deps: arch-intellisource-v1 | consumers: developer, qa-engineer -->
 <!-- volume: sprint | split-from: dev-plan-intellisource-v1 -->
 
 [NAV]
+
 - §3 任务卡详细 → T-001..T-009 (Sprint 1: 基础设施与数据层)
 [/NAV]
 
 ## 3. 任务卡详细
 
 ### T-001: 项目骨架与基础配置
+
 - **目标**: 搭建项目目录结构、pyproject.toml、基础依赖安装、Ruff/mypy/pytest 配置
 - **模块**: 全局
 - **接口**: 无
@@ -21,7 +23,7 @@
   - [ ] AC-T001-2: `ruff check src/` 和 `ruff format --check src/` 零错误通过
   - [ ] AC-T001-3: `mypy src/` strict 模式零错误通过
   - [ ] AC-T001-4: `pytest tests/` 可执行且基础 conftest.py 加载成功
-  - [ ] AC-T001-5: 目录结构与 arch#§6 一致（src/intellisource/ 下所有子包存在 __init__.py）
+  - [ ] AC-T001-5: 目录结构与 arch#§6 一致（src/intellisource/ 下所有子包存在 **init**.py）
 - **deliverables** (交付物):
   - [ ] `pyproject.toml` -- 项目配置与依赖声明
   - [ ] `src/intellisource/__init__.py` -- 包入口
@@ -35,6 +37,7 @@
   - arch#§1.4
 
 ### T-002: 数据库连接管理与ORM基础
+
 - **目标**: 实现 PostgreSQL 异步连接池管理（SQLAlchemy AsyncSession），提供数据库会话工厂和生命周期管理
 - **模块**: M-009
 - **接口**: 无（内部基础设施）
@@ -54,6 +57,7 @@
 - **实现提示**: 使用 SQLAlchemy 2.0 的 create_async_engine + async_sessionmaker；数据库 URL 通过 pydantic-settings 从环境变量读取
 
 ### T-003: ORM模型定义(全部实体)
+
 - **目标**: 定义全部 12 个数据实体的 SQLAlchemy ORM 模型，包含字段、约束、索引和关系映射
 - **模块**: M-009
 - **接口**: 无
@@ -74,6 +78,7 @@
   - arch#§2.M-009
 
 ### T-004: 数据访问层(Repository)
+
 - **目标**: 实现各数据实体的 Repository 类，提供 CRUD + 游标分页 + 条件查询的统一数据访问接口
 - **模块**: M-009
 - **接口**: 无（内部接口，被上层模块调用）
@@ -99,6 +104,7 @@
   - arch#§5.1（分页方案）
 
 ### T-005: pgvector向量存储与检索
+
 - **目标**: 实现基于 pgvector 的向量存储、相似度检索和混合索引（关键词+向量联合查询）
 - **模块**: M-009
 - **接口**: 无（内部接口，被 M-008、M-004 调用）
@@ -120,6 +126,7 @@
 - **实现提示**: 使用 pgvector 的 SQLAlchemy 集成；混合检索需融合 PostgreSQL ts_rank 和 cosine distance 两个得分；中文全文检索依赖 zhparser，测试时需确保 PostgreSQL 已安装该扩展
 
 ### T-006: 结构化日志与可观测性基础
+
 - **目标**: 配置 structlog 结构化日志输出，集成 OpenTelemetry 链路追踪基础设施，实现指标收集器骨架
 - **模块**: M-010
 - **接口**: 无（内部基础设施）
@@ -142,6 +149,7 @@
   - arch#§1.4
 
 ### T-007: 健康检查与指标端点
+
 - **目标**: 实现系统健康检查端点（检测数据库/Redis/Celery 可用性）和 Prometheus 格式指标端点
 - **模块**: M-010
 - **接口**: API-018, API-019
@@ -162,6 +170,7 @@
 - **实现提示**: 健康检查通过尝试 ping 各服务判断可用性；Prometheus 指标使用 prometheus_client 库或自行格式化文本输出
 
 ### T-008: 配置模型与校验器
+
 - **目标**: 定义信源配置的 Pydantic 模型（SourceConfig），实现 YAML/JSON 配置文件解析和格式校验
 - **模块**: M-001
 - **接口**: 无（内部接口）
@@ -185,6 +194,7 @@
   - prd#§2.F-001
 
 ### T-009: 配置加载与热加载
+
 - **目标**: 实现配置文件的加载（从 YAML/JSON 文件读取并持久化到数据库）、热加载（文件变更自动重载）和版本管理（回退）
 - **模块**: M-001
 - **接口**: API-005（配置重载的业务逻辑层）

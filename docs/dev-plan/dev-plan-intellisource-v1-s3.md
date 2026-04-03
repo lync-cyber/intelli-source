@@ -1,17 +1,19 @@
 # Development Plan 分卷 -- Sprint 3: IntelliSource
 <!-- required_sections: ["## 3. 任务卡详细"] -->
 <!-- volume_type: sprint -->
-<!-- id: dev-plan-intellisource-v1-s3 | author: tech-lead | status: draft -->
+<!-- id: dev-plan-intellisource-v1-s3 | author: tech-lead | status: approved -->
 <!-- deps: arch-intellisource-v1 | consumers: developer, qa-engineer -->
 <!-- volume: sprint | split-from: dev-plan-intellisource-v1 -->
 
 [NAV]
+
 - §3 任务卡详细 → T-019..T-026 (Sprint 3: LLM智能处理)
 [/NAV]
 
 ## 3. 任务卡详细
 
 ### T-019: LLM统一网关(litellm封装)
+
 - **目标**: 基于 litellm 封装统一的 LLM 调用接口（LLMGateway），屏蔽不同模型提供商差异，支持 JSON Mode/Function Calling 输出格式
 - **模块**: M-005
 - **接口**: 无（内部接口，被 M-004/M-008 调用）
@@ -34,6 +36,7 @@
 - **实现提示**: litellm.completion() 作为底层调用；使用 pydantic 校验 LLM 输出；测试使用 unittest.mock 模拟 litellm 响应
 
 ### T-020: 熔断器与降级管理器
+
 - **目标**: 实现 LLM 调用的熔断器（Circuit Breaker）和降级管理器（FallbackManager），确保 LLM 故障时主流程不中断
 - **模块**: M-005
 - **接口**: 无
@@ -57,6 +60,7 @@
 - **实现提示**: 熔断器状态机使用 Redis HASH 存储（failure_count, state, last_failure_at）；降级映射表见 arch#§5.3 降级策略表
 
 ### T-021: LLM优先级队列与成本追踪
+
 - **目标**: 实现 LLM 调用的优先级队列（隔离用户交互和后台处理请求）和成本追踪器（记录 Token 消耗/延迟）
 - **模块**: M-005
 - **接口**: API-017（LLM 用量统计的数据来源）
@@ -79,6 +83,7 @@
   - arch-intellisource-v1-api#API-017
 
 ### T-022: LLM结构化提取处理器
+
 - **目标**: 实现 LLM 结构化数据提取处理器（作为管道处理器），支持按 JSON Schema 从文本中提取结构化信息
 - **模块**: M-004
 - **接口**: 无（管道处理器，由 M-003 调度）
@@ -101,6 +106,7 @@
   - arch-intellisource-v1-data#§4.E-004（structured_data 字段）
 
 ### T-023: 语义去重处理器
+
 - **目标**: 实现基于向量检索 + LLM 判定的语义级去重处理器，识别语义相同但表述不同的内容
 - **模块**: M-004
 - **接口**: 无
@@ -123,6 +129,7 @@
 - **实现提示**: 向量检索调用 M-009 VectorStore；LLM 判定使用简短 prompt（给出两篇文章判断是否重复）；SimHash 降级可用 simhash 库
 
 ### T-024: 内容聚类处理器
+
 - **目标**: 实现同主题多源内容的自动聚类处理器，将相关内容归组并生成聚类主题
 - **模块**: M-004
 - **接口**: 无
@@ -144,6 +151,7 @@
 - **实现提示**: 增量聚类策略：新内容到来时与现有聚类中心比较，超过阈值则归入，否则新建
 
 ### T-025: 摘要/打标/情感分析处理器
+
 - **目标**: 实现 LLM 驱动的综合简报生成、语义打标和情感分析处理器
 - **模块**: M-004
 - **接口**: 无
@@ -171,6 +179,7 @@
   - arch#§5.3（降级策略）
 
 ### T-026: 敏感词过滤与合规检查
+
 - **目标**: 实现内容敏感词过滤和合规检查处理器，在 LLM 调用前后双重检查
 - **模块**: M-004
 - **接口**: 无

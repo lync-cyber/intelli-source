@@ -1,17 +1,19 @@
 # Architecture 分卷 -- 数据模型: IntelliSource
 <!-- required_sections: ["## 4. 数据模型"] -->
 <!-- volume_type: data -->
-<!-- id: arch-intellisource-v1-data | author: architect | status: draft -->
+<!-- id: arch-intellisource-v1-data | author: architect | status: approved -->
 <!-- deps: prd-intellisource-v1 | consumers: tech-lead, developer, devops -->
 <!-- volume: data | split-from: arch-intellisource-v1 -->
 
 [NAV]
+
 - §4 数据模型 → §4.1 实体关系(不含 ChatMessage 独立实体，对话消息内嵌于 E-011 context JSONB), E-001..E-012
 [/NAV]
 
 ## 4. 数据模型
 
 ### 4.1 实体关系
+
 ```mermaid
 erDiagram
     Source ||--o{ CollectTask : "触发"
@@ -34,10 +36,11 @@ erDiagram
 
     Workflow ||--o{ TaskChain : "实例化"
 
-    LLMCallLog }o--|| ProcessedContent : "处理关联"
+    LLMCallLog }o--o| ProcessedContent : "处理关联(content_id可为空)"
 ```
 
 ### E-001: Source (信息源)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 信源唯一标识 |
@@ -63,6 +66,7 @@ erDiagram
 **索引**: `idx_source_status` (status), `idx_source_next_collect` (next_collect_at), `idx_source_tags` (tags, GIN)
 
 ### E-002: CollectTask (采集任务)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 任务唯一标识 |
@@ -81,6 +85,7 @@ erDiagram
 **索引**: `idx_collect_task_status` (status), `idx_collect_task_source` (source_id), `idx_collect_task_chain` (task_chain_id)
 
 ### E-003: RawContent (原始内容)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 原始内容唯一标识 |
@@ -99,6 +104,7 @@ erDiagram
 **索引**: `idx_raw_content_fingerprint` (fingerprint, UNIQUE), `idx_raw_content_source` (source_id), `idx_raw_content_published` (published_at)
 
 ### E-004: ProcessedContent (处理后内容)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 处理后内容唯一标识 |
@@ -123,6 +129,7 @@ erDiagram
 **索引**: `idx_processed_content_cluster` (cluster_id), `idx_processed_content_tags` (tags, GIN), `idx_processed_content_embedding` (embedding, HNSW/IVFFlat), `idx_processed_content_published` (published_at), `idx_processed_content_ts` (to_tsvector('chinese', title || ' ' || body_text), GIN) -- 全文检索
 
 ### E-005: ContentCluster (内容聚类)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 聚类唯一标识 |
@@ -137,6 +144,7 @@ erDiagram
 **索引**: `idx_cluster_tags` (tags, GIN), `idx_cluster_updated` (updated_at)
 
 ### E-006: Digest (综合简报)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 简报唯一标识 |
@@ -152,6 +160,7 @@ erDiagram
 **索引**: `idx_digest_cluster` (cluster_id)
 
 ### E-007: LLMCallLog (LLM 调用日志)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 日志唯一标识 |
@@ -173,6 +182,7 @@ erDiagram
 **分区策略**: 按 `created_at` 月份分区（Range Partition），超过 3 个月的分区可归档 [ASSUMPTION: 3 个月保留期为默认值，用户可调整]
 
 ### E-008: TaskChain (任务链)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 任务链唯一标识 |
@@ -190,6 +200,7 @@ erDiagram
 **索引**: `idx_task_chain_status` (status), `idx_task_chain_workflow` (workflow_id)
 
 ### E-009: Subscription (订阅规则)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 订阅唯一标识 |
@@ -207,6 +218,7 @@ erDiagram
 **索引**: `idx_subscription_channel` (channel), `idx_subscription_status` (status), `idx_subscription_rules` (match_rules, GIN)
 
 ### E-010: PushRecord (推送记录)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 推送记录唯一标识 |
@@ -223,6 +235,7 @@ erDiagram
 **索引**: `idx_push_record_subscription` (subscription_id), `idx_push_record_content` (content_id), `idx_push_record_dedup` (subscription_id, content_id, channel, UNIQUE) -- 去重约束
 
 ### E-011: ChatSession (对话会话)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 会话唯一标识 |
@@ -237,6 +250,7 @@ erDiagram
 **清理策略**: 超过 24 小时无活跃的会话自动清理 [ASSUMPTION: 24 小时超时为默认值]
 
 ### E-012: Workflow (工作流定义)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 工作流唯一标识 |

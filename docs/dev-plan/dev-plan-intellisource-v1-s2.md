@@ -1,17 +1,19 @@
 # Development Plan 分卷 -- Sprint 2: IntelliSource
 <!-- required_sections: ["## 3. 任务卡详细"] -->
 <!-- volume_type: sprint -->
-<!-- id: dev-plan-intellisource-v1-s2 | author: tech-lead | status: draft -->
+<!-- id: dev-plan-intellisource-v1-s2 | author: tech-lead | status: approved -->
 <!-- deps: arch-intellisource-v1 | consumers: developer, qa-engineer -->
 <!-- volume: sprint | split-from: dev-plan-intellisource-v1 -->
 
 [NAV]
+
 - §3 任务卡详细 → T-010..T-018 (Sprint 2: 采集引擎与处理管道)
 [/NAV]
 
 ## 3. 任务卡详细
 
 ### T-010: 采集器抽象基类与注册中心
+
 - **目标**: 定义统一的采集器接口（BaseCollector）和插件化注册机制（CollectorRegistry），支持按信源类型自动匹配采集器
 - **模块**: M-002
 - **接口**: 无（内部接口，由 M-006 调度）
@@ -34,6 +36,7 @@
   - arch#§5.3（错误码体系）
 
 ### T-011: RSS采集适配器
+
 - **目标**: 实现 RSS/Atom Feed 的采集适配器，支持标准 RSS 2.0、Atom 1.0 格式解析和第三方桥接（RSSHub）
 - **模块**: M-002
 - **接口**: 无
@@ -53,6 +56,7 @@
 - **实现提示**: 使用 feedparser 库解析；httpx AsyncClient 获取 Feed 内容；注意处理编码和时区
 
 ### T-012: Web爬虫采集适配器
+
 - **目标**: 实现网页爬虫采集适配器，支持 HTML 页面抓取、正文提取和元数据解析
 - **模块**: M-002
 - **接口**: 无
@@ -73,6 +77,7 @@
 - **实现提示**: httpx AsyncClient 抓取；BeautifulSoup4 解析；可参考 readability 算法实现正文提取
 
 ### T-013: API采集适配器
+
 - **目标**: 实现通用 API 采集适配器，支持通过配置定义 REST API 的请求方式和响应映射
 - **模块**: M-002
 - **接口**: 无
@@ -91,6 +96,7 @@
   - arch-intellisource-v1-data#§4.E-003
 
 ### T-014: 速率限制与代理管理
+
 - **目标**: 实现基于 Redis 令牌桶的请求速率限制器和 HTTP 代理管理器，支持按信源独立配置
 - **模块**: M-002
 - **接口**: 无
@@ -105,12 +111,14 @@
   - [ ] `src/intellisource/collector/rate_limiter.py` -- 速率限制器
   - [ ] `src/intellisource/collector/proxy.py` -- 代理管理器
   - [ ] `tests/unit/collector/test_rate_limiter.py` -- 速率限制测试
+  - [ ] `tests/unit/collector/test_proxy.py` -- 代理管理器测试
 - **context_load**:
   - arch#§2.M-002
   - arch#§5.1（并发控制）
 - **实现提示**: Redis 令牌桶实现参考经典算法；使用 Redis MULTI/EXEC 保证原子性
 
 ### T-015: 频率自适应调度
+
 - **目标**: 实现采集频率自适应算法，根据信源历史更新频率动态调整采集间隔
 - **模块**: M-002
 - **接口**: 无
@@ -130,6 +138,7 @@
   - arch#§5.3（重试策略）
 
 ### T-016: 处理管道引擎与处理器基类
+
 - **目标**: 实现可编排的处理管道执行引擎（PipelineEngine）、处理器抽象基类（BaseProcessor）和管道上下文（PipelineContext）
 - **模块**: M-003
 - **接口**: 无（内部框架）
@@ -152,6 +161,7 @@
   - prd#§2.F-004
 
 ### T-017: 管道条件分支与批处理模式
+
 - **目标**: 扩展管道引擎支持条件跳过（基于内容类型/标签）、条件分支和批处理模式
 - **模块**: M-003
 - **接口**: 无
@@ -172,6 +182,7 @@
   - prd#§2.F-004
 
 ### T-018: 内置处理器(解析/去重/打标/格式化)
+
 - **目标**: 实现管道内置的基础处理器：HTML 解析、内容指纹去重、关键词打标、格式转换
 - **模块**: M-003
 - **接口**: 无
