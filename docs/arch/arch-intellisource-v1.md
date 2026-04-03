@@ -391,7 +391,8 @@ intellisource/
 │       │   │   ├── content.py
 │       │   │   ├── task.py
 │       │   │   ├── subscription.py
-│       │   │   └── push.py
+│       │   │   ├── push.py
+│       │   │   └── chat_session.py
 │       │   └── vector.py             # pgvector 向量操作
 │       ├── observability/             # M-010 可观测性
 │       │   ├── __init__.py
