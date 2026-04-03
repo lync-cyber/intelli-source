@@ -1,17 +1,25 @@
 # Architecture 分卷 -- 数据模型: IntelliSource
 <!-- required_sections: ["## 4. 数据模型"] -->
 <!-- volume_type: data -->
-<!-- id: arch-intellisource-v1-data | author: architect | status: draft -->
+<!-- id: arch-intellisource-v1-data | author: architect | status: approved -->
 <!-- deps: prd-intellisource-v1 | consumers: tech-lead, developer, devops -->
 <!-- volume: data | split-from: arch-intellisource-v1 -->
 
 [NAV]
+
 - §4 数据模型 → §4.1 实体关系(不含 ChatMessage 独立实体，对话消息内嵌于 E-011 context JSONB), E-001..E-012
 [/NAV]
 
 ## 4. 数据模型
 
+> **通用约定**:
+>
+> - 所有 `updated_at` 字段通过 SQLAlchemy `onupdate=func.now()` 自动更新，无需应用层手动维护
+> - 所有 `created_at` 字段通过 `server_default=func.now()` 由数据库自动填充
+> - Source 实体采用软删除（`deleted_at` 字段），其他实体随信源级联保留
+
 ### 4.1 实体关系
+
 ```mermaid
 erDiagram
     Source ||--o{ CollectTask : "触发"
@@ -38,6 +46,7 @@ erDiagram
 ```
 
 ### E-001: Source (信息源)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 信源唯一标识 |
@@ -58,11 +67,13 @@ erDiagram
 | avg_update_interval | INTEGER | NULL | 历史平均更新间隔（秒），自适应频率计算依据 |
 | config_version | INTEGER | NOT NULL, DEFAULT 1 | 配置版本号 |
 | created_at | TIMESTAMP WITH TZ | NOT NULL, DEFAULT NOW() | 创建时间 |
-| updated_at | TIMESTAMP WITH TZ | NOT NULL, DEFAULT NOW() | 更新时间 |
+| updated_at | TIMESTAMP WITH TZ | NOT NULL, DEFAULT NOW() | 更新时间（SQLAlchemy onupdate=func.now()） |
+| deleted_at | TIMESTAMP WITH TZ | NULL | 软删除时间戳，非空表示已删除 |
 
-**索引**: `idx_source_status` (status), `idx_source_next_collect` (next_collect_at), `idx_source_tags` (tags, GIN)
+**索引**: `idx_source_status` (status) WHERE deleted_at IS NULL, `idx_source_next_collect` (next_collect_at) WHERE deleted_at IS NULL, `idx_source_tags` (tags, GIN)
 
 ### E-002: CollectTask (采集任务)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 任务唯一标识 |
@@ -81,6 +92,7 @@ erDiagram
 **索引**: `idx_collect_task_status` (status), `idx_collect_task_source` (source_id), `idx_collect_task_chain` (task_chain_id)
 
 ### E-003: RawContent (原始内容)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 原始内容唯一标识 |
@@ -92,13 +104,15 @@ erDiagram
 | body_text | TEXT | NULL | 纯文本正文 |
 | source_url | TEXT | NOT NULL | 原始 URL |
 | published_at | TIMESTAMP WITH TZ | NULL | 发布时间 |
-| fingerprint | VARCHAR(64) | NOT NULL, UNIQUE | 内容指纹（SHA-256） |
+| fingerprint | VARCHAR(64) | NOT NULL, UNIQUE | 内容指纹（SHA-256），用于精确去重（粗筛） |
+| dedup_status | VARCHAR(20) | NOT NULL, DEFAULT 'unique', CHECK IN ('unique', 'duplicate') | 语义去重结果；指纹去重为入库粗筛，语义去重在处理管道中标记 duplicate |
 | raw_metadata | JSONB | DEFAULT '{}' | 原始元数据 |
 | created_at | TIMESTAMP WITH TZ | NOT NULL, DEFAULT NOW() | 入库时间 |
 
-**索引**: `idx_raw_content_fingerprint` (fingerprint, UNIQUE), `idx_raw_content_source` (source_id), `idx_raw_content_published` (published_at)
+**索引**: `idx_raw_content_fingerprint` (fingerprint, UNIQUE), `idx_raw_content_source` (source_id), `idx_raw_content_published` (published_at), `idx_raw_content_dedup` (dedup_status)
 
 ### E-004: ProcessedContent (处理后内容)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 处理后内容唯一标识 |
@@ -110,7 +124,7 @@ erDiagram
 | sentiment | VARCHAR(10) | NULL, CHECK IN ('positive', 'neutral', 'negative') | 情感倾向 |
 | cluster_id | UUID | FK → ContentCluster.id, NULL | 所属聚类 |
 | fingerprint | VARCHAR(64) | NOT NULL | 内容指纹（继承自 RawContent） |
-| embedding | VECTOR(1536) | NULL | 内容向量表示（pgvector）[ASSUMPTION: v1 默认使用 1536 维度的 embedding 模型（如 OpenAI text-embedding-ada-002），维度值通过 M-001 配置管理模块的 embedding_dimension 配置项管理，切换 embedding 模型时需同步调整并执行 Alembic 迁移] |
+| embedding | VECTOR(1536) | NULL | 内容向量表示（pgvector）[ASSUMPTION: v1 使用 1536 维度（OpenAI text-embedding-ada-002）。注意：切换 embedding 模型为破坏性变更，需删除重建列并重新生成全部向量数据。维度通过 M-001 embedding_dimension 配置] |
 | structured_data | JSONB | NULL | LLM 结构化提取结果 |
 | processing_status | VARCHAR(20) | NOT NULL, DEFAULT 'pending', CHECK IN ('pending', 'processing', 'completed', 'failed', 'fallback') | 处理状态 |
 | processed_by | VARCHAR(20) | NOT NULL, DEFAULT 'llm', CHECK IN ('llm', 'fallback', 'manual') | 处理方式 |
@@ -123,6 +137,7 @@ erDiagram
 **索引**: `idx_processed_content_cluster` (cluster_id), `idx_processed_content_tags` (tags, GIN), `idx_processed_content_embedding` (embedding, HNSW/IVFFlat), `idx_processed_content_published` (published_at), `idx_processed_content_ts` (to_tsvector('chinese', title || ' ' || body_text), GIN) -- 全文检索
 
 ### E-005: ContentCluster (内容聚类)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 聚类唯一标识 |
@@ -137,6 +152,7 @@ erDiagram
 **索引**: `idx_cluster_tags` (tags, GIN), `idx_cluster_updated` (updated_at)
 
 ### E-006: Digest (综合简报)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 简报唯一标识 |
@@ -152,6 +168,7 @@ erDiagram
 **索引**: `idx_digest_cluster` (cluster_id)
 
 ### E-007: LLMCallLog (LLM 调用日志)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 日志唯一标识 |
@@ -173,6 +190,7 @@ erDiagram
 **分区策略**: 按 `created_at` 月份分区（Range Partition），超过 3 个月的分区可归档 [ASSUMPTION: 3 个月保留期为默认值，用户可调整]
 
 ### E-008: TaskChain (任务链)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 任务链唯一标识 |
@@ -190,6 +208,7 @@ erDiagram
 **索引**: `idx_task_chain_status` (status), `idx_task_chain_workflow` (workflow_id)
 
 ### E-009: Subscription (订阅规则)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 订阅唯一标识 |
@@ -207,6 +226,7 @@ erDiagram
 **索引**: `idx_subscription_channel` (channel), `idx_subscription_status` (status), `idx_subscription_rules` (match_rules, GIN)
 
 ### E-010: PushRecord (推送记录)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 推送记录唯一标识 |
@@ -223,6 +243,7 @@ erDiagram
 **索引**: `idx_push_record_subscription` (subscription_id), `idx_push_record_content` (content_id), `idx_push_record_dedup` (subscription_id, content_id, channel, UNIQUE) -- 去重约束
 
 ### E-011: ChatSession (对话会话)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 会话唯一标识 |
@@ -237,6 +258,7 @@ erDiagram
 **清理策略**: 超过 24 小时无活跃的会话自动清理 [ASSUMPTION: 24 小时超时为默认值]
 
 ### E-012: Workflow (工作流定义)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 工作流唯一标识 |
