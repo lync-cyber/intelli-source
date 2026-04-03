@@ -6,12 +6,14 @@
 <!-- volume: sprint | split-from: dev-plan-intellisource-v1 -->
 
 [NAV]
+
 - §3 任务卡详细 → T-037..T-047 (Sprint 5: 检索/API/CLI与集成)
 [/NAV]
 
 ## 3. 任务卡详细
 
 ### T-037: 混合检索引擎
+
 - **目标**: 实现关键词 + 向量语义混合检索引擎，支持多种检索模式和结果融合排序
 - **模块**: M-008
 - **接口**: API-012 的业务逻辑层
@@ -34,6 +36,7 @@
   - arch-intellisource-v1-data#§4.E-004（embedding, 全文检索索引）
 
 ### T-038: 意图理解与即时问答
+
 - **目标**: 实现 LLM 驱动的自然语言意图理解和基于检索的即时问答功能
 - **模块**: M-008
 - **接口**: API-013 的业务逻辑层
@@ -45,35 +48,48 @@
   - [ ] AC-T038-2: SearchSummarizer 对检索结果生成简洁的回答摘要
   - [ ] AC-T038-3: 回答中包含引用来源列表（content_id/title/url）
   - [ ] AC-T038-4: 意图理解降级为关键词直接搜索
+  - [ ] AC-T038-5: SearchSummarizer 输出 schema 包含 intent_summary 字段（1-2 句意图摘要），搭便车于已有 LLM 调用
 - **deliverables** (交付物):
   - [ ] `src/intellisource/search/intent.py` -- 意图理解器
-  - [ ] `src/intellisource/search/chat.py` -- 即时问答（SearchSummarizer）
+  - [ ] `src/intellisource/search/chat.py` -- 即时问答（SearchSummarizer，含 intent_summary 输出）
   - [ ] `tests/unit/search/test_intent.py` -- 意图理解测试
   - [ ] `tests/unit/search/test_chat.py` -- 问答测试
 - **context_load**:
   - arch#§2.M-008
   - arch-intellisource-v1-api#API-013
 
-### T-039: 多轮对话管理
-- **目标**: 实现多轮对话会话管理器，保持最近 5 轮上下文
+### T-039: 多轮对话管理与上下文压缩
+
+- **目标**: 实现多轮对话会话管理器，基于 token 预算的上下文压缩，支持意图分离和异步摘要
 - **模块**: M-008
 - **接口**: API-013（session_id 支持）
-- **复杂度**: M
+- **复杂度**: L
 - **tdd_acceptance**:
-  - [ ] AC-053 映射: 支持多轮对话上下文保持（最近 5 轮）
+  - [ ] AC-053 映射: 支持多轮对话上下文保持，基于可配置 token 预算（`chat.context_token_budget`）而非硬编码轮数
   - [ ] AC-T039-1: ChatSessionManager.get_or_create(channel, channel_user_id) 获取或创建会话
-  - [ ] AC-T039-2: 对话上下文存储在 ChatSession.context JSONB 字段
-  - [ ] AC-T039-3: 超过 5 轮时自动丢弃最早的对话
-  - [ ] AC-T039-4: 超过 24 小时无活跃的会话自动清理
+  - [ ] AC-T039-2: 对话上下文使用结构化 JSONB 格式存储（summary + recent_turns），assistant 消息分离 content（意图摘要）与 full_content（完整回答）
+  - [ ] AC-T039-3: get_context_for_llm() 按 token 预算从最近轮次向前填充，仅使用 assistant 的 content（意图摘要），超预算时截断最旧轮次
+  - [ ] AC-T039-4: 超过 `chat.session_timeout_hours` 无活跃的会话自动清理
   - [ ] AC-T039-5: 新会话或 session_id 为空时创建新 ChatSession
+  - [ ] AC-T039-6: ContextCompressor.should_compress() 在轮次超过 `chat.compress_after_turns` 且旧轮次即将被淘汰时返回 true
+  - [ ] AC-T039-7: ContextCompressor.compress_older_turns() 使用 `chat.compress_model` 将旧轮次压缩为结构化摘要
+  - [ ] AC-T039-8: 压缩操作在响应用户后异步执行，不影响响应延迟
+  - [ ] AC-T039-9: 压缩调用记录到 LLMCallLog（call_type="context_compress"，priority=low）
+  - [ ] AC-T039-10: 读取到旧格式（[] 数组）的 context 时自动迁移为新格式
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/search/session.py` -- 对话会话管理器
+  - [ ] `src/intellisource/search/session.py` -- 对话会话管理器（ChatSessionManager）
+  - [ ] `src/intellisource/search/context_compressor.py` -- 上下文压缩器（ContextCompressor）
+  - [ ] `src/intellisource/llm/prompts/context_compress.txt` -- 压缩 prompt 模板
   - [ ] `tests/unit/search/test_session.py` -- 会话管理测试
+  - [ ] `tests/unit/search/test_context_compressor.py` -- 压缩器测试
 - **context_load**:
   - arch#§2.M-008
-  - arch-intellisource-v1-data#§4.E-011
+  - arch-intellisource-v1-data#§4.E-011（含 Context Schema）
+  - arch#§5.1（上下文压缩缓存策略、对话配置表）
+- **实现提示**: 意图分离搭便车于 T-038 SearchSummarizer 的 intent_summary 输出；压缩使用 LLMGateway.estimate_tokens()（T-019 AC-T019-5）进行 token 计数；异步压缩通过 asyncio.create_task 或 Celery 实现
 
 ### T-040: Webhook回调处理(微信/企业微信)
+
 - **目标**: 实现微信和企业微信的消息回调处理，包括签名验证、消息解析和指令路由
 - **模块**: M-007
 - **接口**: API-020, API-021
@@ -95,6 +111,7 @@
   - arch#§5.2（Webhook 签名验证）
 
 ### T-041: API路由层 -- 信源管理
+
 - **目标**: 实现信源管理的 FastAPI 路由（CRUD + 配置重载），连接 M-001 业务逻辑
 - **模块**: M-011
 - **接口**: API-001, API-002, API-003, API-004, API-005
@@ -118,6 +135,7 @@
   - arch-intellisource-v1-api#API-004
 
 ### T-042: API路由层 -- 任务与工作流
+
 - **目标**: 实现任务管理和工作流管理的 FastAPI 路由
 - **模块**: M-011
 - **接口**: API-006, API-007, API-008, API-009, API-010, API-011, API-026, API-027, API-028, API-029
@@ -143,6 +161,7 @@
   - arch-intellisource-v1-api#API-011
 
 ### T-043: API路由层 -- 内容/检索/订阅/LLM/系统
+
 - **目标**: 实现内容查询、检索、订阅管理、LLM 统计和系统端点的 FastAPI 路由
 - **模块**: M-011
 - **接口**: API-012, API-013, API-014, API-015, API-016, API-017, API-018, API-019, API-022, API-023, API-024, API-025
@@ -172,6 +191,7 @@
   - arch-intellisource-v1-api#API-022
 
 ### T-044: 认证中间件与请求追踪
+
 - **目标**: 实现 API Key 认证中间件、请求日志中间件和请求链路追踪中间件
 - **模块**: M-011
 - **接口**: 全部需认证的 API
@@ -192,6 +212,7 @@
   - arch#§5.3（统一错误响应格式）
 
 ### T-045: CLI工具
+
 - **目标**: 实现基于 typer 的 CLI 工具，封装常用 API 操作（信源管理/任务触发/状态查询）
 - **模块**: M-011
 - **接口**: 无（CLI 通过 HTTP 调用 API）
@@ -212,6 +233,7 @@
   - arch#§6（cli/ 目录结构）
 
 ### T-046: FastAPI应用入口与Docker部署
+
 - **目标**: 组装 FastAPI 应用入口（注册路由/中间件/生命周期），编写 Dockerfile 和 docker-compose.yml
 - **模块**: M-011
 - **接口**: 全部 API
@@ -237,6 +259,7 @@
 - **实现提示**: PostgreSQL 使用包含 zhparser 扩展的镜像（如 abcfy2/zhparser）；Celery worker 和 beat 作为独立容器
 
 ### T-047: Alembic数据库迁移
+
 - **目标**: 配置 Alembic 迁移框架，基于 ORM 模型生成初始迁移脚本，确保 upgrade/downgrade 正确工作
 - **模块**: M-009
 - **接口**: 无

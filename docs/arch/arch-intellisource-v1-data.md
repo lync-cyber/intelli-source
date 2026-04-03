@@ -6,12 +6,14 @@
 <!-- volume: data | split-from: arch-intellisource-v1 -->
 
 [NAV]
+
 - §4 数据模型 → §4.1 实体关系(不含 ChatMessage 独立实体，对话消息内嵌于 E-011 context JSONB), E-001..E-012
 [/NAV]
 
 ## 4. 数据模型
 
 ### 4.1 实体关系
+
 ```mermaid
 erDiagram
     Source ||--o{ CollectTask : "触发"
@@ -38,6 +40,7 @@ erDiagram
 ```
 
 ### E-001: Source (信息源)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 信源唯一标识 |
@@ -63,6 +66,7 @@ erDiagram
 **索引**: `idx_source_status` (status), `idx_source_next_collect` (next_collect_at), `idx_source_tags` (tags, GIN)
 
 ### E-002: CollectTask (采集任务)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 任务唯一标识 |
@@ -81,6 +85,7 @@ erDiagram
 **索引**: `idx_collect_task_status` (status), `idx_collect_task_source` (source_id), `idx_collect_task_chain` (task_chain_id)
 
 ### E-003: RawContent (原始内容)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 原始内容唯一标识 |
@@ -99,6 +104,7 @@ erDiagram
 **索引**: `idx_raw_content_fingerprint` (fingerprint, UNIQUE), `idx_raw_content_source` (source_id), `idx_raw_content_published` (published_at)
 
 ### E-004: ProcessedContent (处理后内容)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 处理后内容唯一标识 |
@@ -123,6 +129,7 @@ erDiagram
 **索引**: `idx_processed_content_cluster` (cluster_id), `idx_processed_content_tags` (tags, GIN), `idx_processed_content_embedding` (embedding, HNSW/IVFFlat), `idx_processed_content_published` (published_at), `idx_processed_content_ts` (to_tsvector('chinese', title || ' ' || body_text), GIN) -- 全文检索
 
 ### E-005: ContentCluster (内容聚类)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 聚类唯一标识 |
@@ -137,6 +144,7 @@ erDiagram
 **索引**: `idx_cluster_tags` (tags, GIN), `idx_cluster_updated` (updated_at)
 
 ### E-006: Digest (综合简报)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 简报唯一标识 |
@@ -152,6 +160,7 @@ erDiagram
 **索引**: `idx_digest_cluster` (cluster_id)
 
 ### E-007: LLMCallLog (LLM 调用日志)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 日志唯一标识 |
@@ -173,6 +182,7 @@ erDiagram
 **分区策略**: 按 `created_at` 月份分区（Range Partition），超过 3 个月的分区可归档 [ASSUMPTION: 3 个月保留期为默认值，用户可调整]
 
 ### E-008: TaskChain (任务链)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 任务链唯一标识 |
@@ -190,6 +200,7 @@ erDiagram
 **索引**: `idx_task_chain_status` (status), `idx_task_chain_workflow` (workflow_id)
 
 ### E-009: Subscription (订阅规则)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 订阅唯一标识 |
@@ -207,6 +218,7 @@ erDiagram
 **索引**: `idx_subscription_channel` (channel), `idx_subscription_status` (status), `idx_subscription_rules` (match_rules, GIN)
 
 ### E-010: PushRecord (推送记录)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 推送记录唯一标识 |
@@ -223,20 +235,50 @@ erDiagram
 **索引**: `idx_push_record_subscription` (subscription_id), `idx_push_record_content` (content_id), `idx_push_record_dedup` (subscription_id, content_id, channel, UNIQUE) -- 去重约束
 
 ### E-011: ChatSession (对话会话)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 会话唯一标识 |
 | channel | VARCHAR(20) | NOT NULL | 消息渠道 |
 | channel_user_id | VARCHAR(255) | NOT NULL | 渠道用户标识（OpenID 等） |
-| context | JSONB | NOT NULL, DEFAULT '[]' | 对话上下文（最近 5 轮），内嵌存储对话消息历史，每条消息结构: {role: "user"\|"assistant", content: string, timestamp: datetime}，不单独建表 |
+| context | JSONB | NOT NULL, DEFAULT '{}' | 对话上下文（结构化格式），包含 summary（历史摘要）和 recent_turns（近期轮次）两部分，详见下方 Context Schema |
 | last_active_at | TIMESTAMP WITH TZ | NOT NULL, DEFAULT NOW() | 最后活跃时间 |
 | created_at | TIMESTAMP WITH TZ | NOT NULL, DEFAULT NOW() | 创建时间 |
 
+**Context Schema**:
+
+```json
+{
+  "summary": {
+    "text": "string — 历史对话压缩摘要",
+    "token_count": "int — 摘要 token 数",
+    "covers_turns": "int — 摘要覆盖的历史轮次数",
+    "updated_at": "datetime"
+  },
+  "recent_turns": [
+    {
+      "role": "user|assistant",
+      "content": "string — 用户消息原文（user）或意图摘要（assistant）",
+      "full_content": "string — 助手完整回答（仅 assistant 角色，不注入 LLM 上下文，供展示/审计）",
+      "sources": "[{content_id, title, url}] — 引用来源（仅 assistant 角色）",
+      "timestamp": "datetime",
+      "token_count": "int"
+    }
+  ],
+  "total_token_count": "int — 当前上下文总 token 数",
+  "turn_count": "int — 会话生命周期总轮次数"
+}
+```
+
+- assistant 角色的 `content` 存储意图摘要（1-2 句），`full_content` 存储完整回答。LLM 上下文构建时仅使用 `content`
+- 向后兼容: 读取到旧格式（`[]` 数组）时，下次写入自动迁移为新格式
+
 **索引**: `idx_chat_session_user` (channel, channel_user_id), `idx_chat_session_active` (last_active_at)
 
-**清理策略**: 超过 24 小时无活跃的会话自动清理 [ASSUMPTION: 24 小时超时为默认值]
+**清理策略**: 超过 `chat.session_timeout_hours`（见 settings.example.toml）无活跃的会话自动清理
 
 ### E-012: Workflow (工作流定义)
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | UUID | PK | 工作流唯一标识 |
