@@ -35,6 +35,14 @@ erDiagram
     TaskChain ||--o{ CollectTask : "包含"
 
     LLMCallLog }o--|| ProcessedContent : "处理关联"
+
+    ChatSession {
+        UUID id PK
+        VARCHAR channel
+        VARCHAR channel_user_id
+        JSONB context
+        TIMESTAMP last_active_at
+    }
 ```
 
 ### E-001: Source (信息源)
@@ -165,7 +173,7 @@ erDiagram
 | id | UUID | PK | 日志唯一标识 |
 | model | VARCHAR(100) | NOT NULL | 模型名称 |
 | provider | VARCHAR(50) | NOT NULL | 提供商 |
-| call_type | VARCHAR(50) | NOT NULL | 调用类型: extract/dedup/cluster/summarize/tag/sentiment/search/optimize |
+| call_type | VARCHAR(50) | NOT NULL | 调用类型: extract/dedup/cluster/summarize/tag/sentiment/search/optimize/context_compress |
 | content_id | UUID | NULL | 关联内容 ID |
 | input_tokens | INTEGER | NOT NULL | 输入 Token 数 |
 | output_tokens | INTEGER | NOT NULL | 输出 Token 数 |
@@ -245,9 +253,38 @@ erDiagram
 | last_active_at | TIMESTAMP WITH TZ | NOT NULL, DEFAULT NOW() | 最后活跃时间 |
 | created_at | TIMESTAMP WITH TZ | NOT NULL, DEFAULT NOW() | 创建时间 |
 
+**Context Schema**:
+
+```json
+{
+  "summary": {
+    "text": "string — 历史对话压缩摘要",
+    "token_count": "int — 摘要 token 数",
+    "covers_turns": "int — 摘要覆盖的历史轮次数",
+    "updated_at": "datetime"
+  },
+  "recent_turns": [
+    {
+      "role": "user|assistant",
+      "content": "string — 用户消息原文（user）或意图摘要（assistant）",
+      "full_content": "string — 助手完整回答（仅 assistant 角色，不注入 LLM 上下文，供展示/审计）",
+      "sources": "[{content_id, title, url}] — 引用来源（仅 assistant 角色）",
+      "timestamp": "datetime",
+      "token_count": "int"
+    }
+  ],
+  "total_token_count": "int — 当前上下文总 token 数",
+  "turn_count": "int — 会话生命周期总轮次数"
+}
+```
+
+- assistant 角色的 `content` 存储意图摘要（1-2 句），`full_content` 存储完整回答。LLM 上下文构建时仅使用 `content`
+- 所有 `token_count` 字段统一通过 `LLMGateway.estimate_tokens()` 计算（见 T-019 AC-T019-5），优先使用 litellm.token_counter（按当前配置模型的 tokenizer），不可用时回退到启发式估算
+- 向后兼容: 读取到旧格式（`[]` 数组）时，下次写入自动迁移为新格式
+
 **索引**: `idx_chat_session_user` (channel, channel_user_id), `idx_chat_session_active` (last_active_at)
 
-**清理策略**: 超过 24 小时无活跃的会话自动清理 [ASSUMPTION: 24 小时超时为默认值]
+**清理策略**: 超过 `chat.session_timeout_hours`（见 settings.example.toml）无活跃的会话自动清理
 
 ### E-012: Workflow (工作流定义)
 

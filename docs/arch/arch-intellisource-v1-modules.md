@@ -144,6 +144,7 @@
   - `ContentRepository` — 内容数据访问层（AC-054）
   - `TaskRepository` — 任务数据访问层
   - `PushRepository` — 推送记录数据访问层
+  - `ChatSessionRepository` — 对话会话数据访问层（E-011 CRUD、超时清理）
   - `VectorStore` — pgvector 向量存储与检索（AC-055）
   - `HybridIndex` — 混合索引，结合 PostgreSQL 全文检索 + pgvector 向量检索（AC-056）
 

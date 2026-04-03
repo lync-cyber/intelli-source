@@ -60,6 +60,12 @@
 - **context_load**:
   - arch#§2.M-006（AgentRunner flexible 模式）
   - arch#§2.M-008
+  - arch-intellisource-v1-data#§4.E-011（含 Context Schema）
+  - arch#§5.1（上下文压缩缓存策略、对话配置表）
+- **实现提示**: 意图分离搭便车于 T-038 SearchSummarizer 的 intent_summary 输出；压缩使用 LLMGateway.estimate_tokens()（T-019 AC-T019-5）进行 token 计数；异步压缩通过 asyncio.create_task 或 Celery 实现
+
+### T-040: Webhook回调处理(微信/企业微信)
+
   - arch-intellisource-v1-data#§4.E-011
   - arch-intellisource-v1-api#API-013
 - **实现提示**: compaction 使用独立的 LLM 调用（简短提示词），输入为旧消息历史，输出为结构化摘要（目标、已发现、关键信息）；参考 OpenCode 的 compaction 模式
@@ -110,9 +116,9 @@
   - arch-intellisource-v1-api#API-003
   - arch-intellisource-v1-api#API-004
 
-### T-041: API路由层 -- 任务管理
+### T-042: API路由层 -- 任务与工作流
 
-- **目标**: 实现任务管理的 FastAPI 路由（任务列表/触发/状态/暂停恢复）
+- **目标**: 实现任务管理和工作流管理的 FastAPI 路由
 - **模块**: M-011
 - **接口**: API-006, API-007, API-008, API-009
 - **复杂度**: M
@@ -131,7 +137,7 @@
   - arch-intellisource-v1-api#API-006
   - arch-intellisource-v1-api#API-007
 
-### T-042: API路由层 -- 内容/检索/订阅/LLM/系统
+### T-043: API路由层 -- 内容/检索/订阅/LLM/系统
 
 - **目标**: 实现内容查询、检索、订阅管理、LLM 统计和系统端点的 FastAPI 路由
 - **模块**: M-011
@@ -161,7 +167,7 @@
   - arch-intellisource-v1-api#API-014
   - arch-intellisource-v1-api#API-022
 
-### T-043: 认证中间件与请求追踪
+### T-044: 认证中间件与请求追踪
 
 - **目标**: 实现 API Key 认证中间件、请求日志中间件和请求链路追踪中间件
 - **模块**: M-011
@@ -182,7 +188,7 @@
   - arch#§5.2（认证机制）
   - arch#§5.3（统一错误响应格式）
 
-### T-044: CLI工具
+### T-045: CLI工具
 
 - **目标**: 实现基于 typer 的 CLI 工具，封装常用 API 操作（信源管理/任务触发/状态查询）
 - **模块**: M-011
@@ -203,7 +209,7 @@
   - arch#§2.M-011
   - arch#§6（cli/ 目录结构）
 
-### T-045: FastAPI应用入口与Docker部署
+### T-046: FastAPI应用入口与Docker部署
 
 - **目标**: 组装 FastAPI 应用入口（注册路由/中间件/生命周期），编写 Dockerfile 和 docker-compose.yml
 - **模块**: M-011
@@ -229,7 +235,7 @@
   - prd#§3.3（兼容性 -- Docker 部署）
 - **实现提示**: PostgreSQL 使用包含 zhparser 扩展的镜像（如 abcfy2/zhparser）；Celery worker 和 beat 作为独立容器
 
-### T-046: Alembic数据库迁移
+### T-047: Alembic数据库迁移
 
 - **目标**: 配置 Alembic 迁移框架，基于 ORM 模型生成初始迁移脚本，确保 upgrade/downgrade 正确工作
 - **模块**: M-009

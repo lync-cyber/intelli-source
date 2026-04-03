@@ -186,6 +186,7 @@ C4Context
 - 信源配置缓存：热加载后写入 Redis，TTL 与配置刷新周期一致，避免每次请求读取数据库
 - LLM 调用结果缓存：相同内容指纹 + 相同处理类型的 LLM 调用结果缓存 24h，减少重复调用
 - 检索结果缓存：高频查询关键词缓存 5min（短 TTL，保证时效性）
+- 对话上下文压缩：多轮对话通过意图分离 + token 预算滑动窗口 + 异步摘要压缩控制上下文 token 消耗，参数见 settings.example.toml `[chat]` 段
 - 源级 HTTP 缓存：Collector 基类内置 HTTP 条件请求支持（ETag / If-Modified-Since），源内容未变化时跳过解析，减少计算开销；缓存头信息持久化到 E-001 的 `http_etag` 和 `http_last_modified` 字段
 - 源级 TTL 配置：每个源可在 E-001 `metadata` 中自定义 `cache_ttl`（秒），覆盖全局默认 TTL，适配不同源的更新频率差异
 
@@ -207,6 +208,16 @@ C4Context
 - 单节点并发采集任务数 >= 20（prd#§3.1），通过 Celery worker concurrency 配置
 - 按信源配置独立的请求速率限制，使用 Redis 令牌桶算法实现（prd#§2 F-003 AC-011）
 - 分布式锁（Redis）防止同一信源的重复采集（prd#§2 F-008 AC-037）
+
+**对话配置** (settings.example.toml `[chat]` 段):
+
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| context_token_budget | int | 2000 | 上下文注入 LLM 的最大 token 预算 |
+| compress_after_turns | int | 4 | 超过 N 轮后触发压缩检查 |
+| compress_model | string | — | 压缩使用的廉价模型（如 gpt-4o-mini），为空则使用默认模型 |
+| session_timeout_hours | int | 24 | 会话超时清理时间（小时） |
+| max_recent_turns | int | 10 | recent_turns 数组硬上限 |
 
 ### 5.2 安全方案
 
@@ -305,6 +316,7 @@ C4Context
   | 打标签 | 关键词匹配 + 预定义标签库 |
   | 内容重排序 | 默认时间排序 |
   | 引导语生成 | 无引导语 |
+  | 上下文压缩 | 截断最旧轮次（保留最近 N 轮原文） |
 
 ## 6. 目录结构
 
@@ -365,6 +377,11 @@ intellisource/
 │       │   │   ├── dedup.py          # 语义去重
 │       │   │   ├── cluster.py        # 聚类
 │       │   │   ├── summarizer.py     # 摘要
+│       │   │   ├── tagger.py         # 打标
+│       │   │   ├── sentiment.py      # 情感分析
+│       │   │   └── optimizer.py      # 推送优化
+│       │   ├── prompts/              # LLM prompt 模板
+│       │   │   └── context_compress.txt  # 上下文压缩 prompt
 │       │   │   └── tagger.py         # 打标
 │       │   └── schemas/              # LLM 输入输出 JSON Schema
 │       │       └── *.json
@@ -396,7 +413,8 @@ intellisource/
 │       │   │   ├── content.py
 │       │   │   ├── task.py
 │       │   │   ├── subscription.py
-│       │   │   └── push.py
+│       │   │   ├── push.py
+│       │   │   └── chat_session.py
 │       │   └── vector.py             # pgvector 向量操作
 │       ├── observability/             # M-010 可观测性
 │       │   ├── __init__.py

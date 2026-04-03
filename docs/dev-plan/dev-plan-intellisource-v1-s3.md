@@ -25,8 +25,9 @@
   - [ ] AC-T019-2: 请求参数标准化（temperature/max_tokens/system_prompt）跨提供商一致
   - [ ] AC-T019-3: 调用结果包含 input_tokens/output_tokens/latency_ms 元数据
   - [ ] AC-T019-4: JSON Schema 校验失败时抛出 SchemaValidationError
+  - [ ] AC-T019-5: LLMGateway.estimate_tokens(text, model) 提供 token 计数能力，优先使用 litellm.token_counter，不可用时回退到启发式估算
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/llm/gateway.py` -- LLM 统一网关
+  - [ ] `src/intellisource/llm/gateway.py` -- LLM 统一网关（含 estimate_tokens）
   - [ ] `src/intellisource/llm/__init__.py` -- 模块导出
   - [ ] `src/intellisource/llm/schemas/` -- LLM 输入输出 JSON Schema 目录
   - [ ] `tests/unit/llm/test_gateway.py` -- 网关测试（使用 Mock LLM）
