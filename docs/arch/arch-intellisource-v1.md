@@ -5,6 +5,7 @@
 <!-- volume: main -->
 
 [NAV]
+
 - §1 架构概览 → §1.1 项目类型, §1.2 架构风格, §1.3 系统上下文图, §1.4 技术栈
 - §2 模块划分 → 详见分卷 arch-intellisource-v1-modules
 - §3 接口契约 → 详见分卷 arch-intellisource-v1-api
@@ -17,19 +18,23 @@
 ## 1. 架构概览
 
 ### 1.1 项目类型
+
 - **类型**: backend-only
 - **说明**: IntelliSource 为后端服务系统，通过 RESTful API + CLI 对外提供管理接口，通过消息渠道（微信/企业微信/邮件）进行内容分发。v1 不提供 Web 管理界面（prd#§4），orchestrator 据此跳过 UI 设计阶段。
 
 ### 1.2 架构风格
-- **风格**: 模块化单体 (Modular Monolith) + 事件驱动异步处理
+
+- **风格**: 模块化单体 (Modular Monolith) + 事件驱动异步处理 + 双模式 Agent 调度
 - **选型理由**:
   1. **团队规模匹配**: 个人/小团队（<=10人）自部署场景，微服务的运维复杂度不合理（prd#§4）
   2. **部署简便**: 单进程 + Celery Worker 的部署模型适配 Docker Compose 一键部署需求（prd#§3.3）
   3. **内聚高耦合低**: 模块间通过明确的内部接口通信，未来可按模块拆分为独立服务
   4. **异步处理链**: 采集-处理-存储-分发天然适合事件驱动的任务链模式（prd#§2 F-008）
-- **调研依据**: 模块化单体是小团队项目的推荐起步架构，在保持开发效率的同时预留扩展空间。相比纯微服务，减少了服务间通信、分布式事务和独立部署的复杂度。
+  5. **统一 Agent 调度**: 定时任务和即时查询由统一的 Agent 调度层管理。定时任务采用严格模式（strict）按管道配置直接执行函数调用，零 LLM 开销、100% 确定性；即时查询采用灵活模式（flexible）由 LLM Agent Loop 自主编排工具调用，提供智能检索能力（prd#§2 F-008 AC-066/AC-067）
+- **调研依据**: 模块化单体是小团队项目的推荐起步架构，在保持开发效率的同时预留扩展空间。双模式 Agent 调度借鉴 OpenCode 等开源 AI 编程助手的 Agent Loop + 工具调用架构，通过管道配置文件（Pipeline Config）约束 LLM 行为边界，在确定性与灵活性之间取得平衡。
 
 ### 1.3 系统上下文图
+
 ```mermaid
 C4Context
     title IntelliSource - 系统上下文
@@ -61,6 +66,7 @@ C4Context
 ```
 
 ### 1.4 技术栈
+
 | 层次 | 技术 | 版本 | 选型理由 | 调研来源 |
 |------|------|------|----------|----------|
 | 编程语言 | Python | 3.11+ | 用户确认；生态丰富，LLM/数据处理库完备 | 用户选型 |
@@ -97,6 +103,7 @@ C4Context
 **推荐**: pgvector。理由：(1) 无额外基础设施，降低自部署复杂度；(2) <100 万文档规模性能充足；(3) 向量与结构化数据同库同事务，简化数据一致性管理。
 
 ## 2. 模块划分
+>
 > 详见分卷: [arch-intellisource-v1-modules](arch-intellisource-v1-modules.md)
 
 **模块交叉引用目录**:
@@ -106,7 +113,7 @@ C4Context
 | M-001 | 配置管理模块 | F-001 |
 | M-002 | 采集引擎模块 | F-002, F-003 |
 | M-003 | 处理管道模块 | F-004 |
-| M-004 | LLM 智能处理模块 | F-005, F-006, F-010 |
+| M-004 | LLM 智能处理模块 | F-005, F-006 |
 | M-005 | LLM 服务治理模块 | F-007 |
 | M-006 | 任务编排模块 | F-008 |
 | M-007 | 分发渠道模块 | F-009 |
@@ -118,6 +125,7 @@ C4Context
 **功能覆盖验证**: 全部 14 个功能点（F-001 至 F-014）均已映射到至少一个模块，无遗漏。
 
 ## 3. 接口契约
+>
 > 详见分卷: [arch-intellisource-v1-api](arch-intellisource-v1-api.md)
 
 **接口交叉引用目录**:
@@ -133,8 +141,6 @@ C4Context
 | API-007 | 触发采集任务 | M-006 | POST | /api/v1/tasks/collect |
 | API-008 | 查询任务状态 | M-006 | GET | /api/v1/tasks/{id} |
 | API-009 | 暂停/恢复任务 | M-006 | PATCH | /api/v1/tasks/{id} |
-| API-010 | 创建工作流 | M-006 | POST | /api/v1/workflows |
-| API-011 | 执行工作流 | M-006 | POST | /api/v1/workflows/{id}/run |
 | API-012 | 混合检索 | M-008 | POST | /api/v1/search |
 | API-013 | 即时问答 | M-008 | POST | /api/v1/search/chat |
 | API-014 | 获取内容列表 | M-009 | GET | /api/v1/contents |
@@ -149,12 +155,9 @@ C4Context
 | API-023 | 创建订阅规则 | M-007 | POST | /api/v1/subscriptions |
 | API-024 | 更新订阅规则 | M-007 | PATCH | /api/v1/subscriptions/{id} |
 | API-025 | 删除订阅规则 | M-007 | DELETE | /api/v1/subscriptions/{id} |
-| API-026 | 获取工作流列表 | M-006 | GET | /api/v1/workflows |
-| API-027 | 获取工作流详情 | M-006 | GET | /api/v1/workflows/{id} |
-| API-028 | 更新工作流 | M-006 | PATCH | /api/v1/workflows/{id} |
-| API-029 | 删除工作流 | M-006 | DELETE | /api/v1/workflows/{id} |
 
 ## 4. 数据模型
+>
 > 详见分卷: [arch-intellisource-v1-data](arch-intellisource-v1-data.md)
 
 **实体交叉引用目录**:
@@ -172,30 +175,33 @@ C4Context
 | E-009 | Subscription (订阅规则) | M-007 |
 | E-010 | PushRecord (推送记录) | M-007 |
 | E-011 | ChatSession (对话会话) | M-008 |
-| E-012 | Workflow (工作流定义) | M-006 |
 
 ## 5. 非功能架构
 
 ### 5.1 性能方案
 
 **缓存策略**:
+
 - Redis 作为统一缓存层
 - 信源配置缓存：热加载后写入 Redis，TTL 与配置刷新周期一致，避免每次请求读取数据库
 - LLM 调用结果缓存：相同内容指纹 + 相同处理类型的 LLM 调用结果缓存 24h，减少重复调用
 - 检索结果缓存：高频查询关键词缓存 5min（短 TTL，保证时效性）
 
 **异步处理**:
+
 - 采集-处理-存储-分发全链路通过 Celery 任务链异步执行（prd#§2 F-008）
 - FastAPI 路由层使用 async/await 处理 API 请求，不阻塞工作线程
 - LLM 调用使用异步 HTTP 客户端（httpx AsyncClient），支持并发调用
 - 用户即时检索请求异步回调（prd#§2 F-011 AC-052）
 
 **分页方案**:
+
 - 列表类 API 统一使用游标分页（cursor-based pagination），避免深分页性能问题
 - 默认每页 20 条，最大 100 条
 - 响应包含 `next_cursor` 和 `has_more` 字段
 
 **并发控制**:
+
 - 单节点并发采集任务数 >= 20（prd#§3.1），通过 Celery worker concurrency 配置
 - 按信源配置独立的请求速率限制，使用 Redis 令牌桶算法实现（prd#§2 F-003 AC-011）
 - 分布式锁（Redis）防止同一信源的重复采集（prd#§2 F-008 AC-037）
@@ -203,22 +209,26 @@ C4Context
 ### 5.2 安全方案
 
 **认证机制**:
+
 - v1 采用 API Key 认证（prd#§3.2）
 - API Key 通过环境变量或加密配置文件配置
 - FastAPI 依赖注入统一验证 `X-API-Key` 请求头
 - 内部 Webhook 回调端点（微信/企业微信）使用平台签名验证，不使用 API Key
 
 **敏感配置管理**:
+
 - LLM API 密钥、数据库密码等敏感信息通过环境变量注入（prd#§3.2）
 - 配置文件中敏感字段支持 `${ENV_VAR}` 占位符语法，运行时从环境变量解析
 - Docker 部署时通过 `.env` 文件或 Docker Secrets 管理
 
 **输入校验策略**:
+
 - 所有接受文件路径/文件名参数的 API 实施白名单校验，禁止路径遍历字符（`..`、`/`、`\`）
 - API-005 重载配置接口仅接受文件名（不含路径），从预定义配置目录加载，白名单由 M-001 配置管理模块维护
 - 所有用户输入经 Pydantic 模型校验后方可进入业务逻辑层
 
 **数据安全**:
+
 - 采集内容仅存储在本地 PostgreSQL，不上传至外部服务（prd#§3.2）
 - LLM 调用时仅发送必要的文本片段，不发送用户身份信息
 - 敏感词过滤在 LLM 调用前后双重检查（prd#§2 F-006 AC-026）
@@ -226,6 +236,7 @@ C4Context
 ### 5.3 错误处理
 
 **错误码体系**:
+
 ```
 错误码格式: IS-{模块缩写}-{3位数字}
 示例:
@@ -236,6 +247,7 @@ C4Context
 ```
 
 **统一错误响应格式**:
+
 ```json
 {
   "error": {
@@ -248,6 +260,7 @@ C4Context
 ```
 
 **重试策略**:
+
 | 场景 | 重试次数 | 退避策略 | 降级方案 |
 |------|---------|---------|---------|
 | 采集失败 | 3 次 | 指数退避（1s, 2s, 4s） | 记录错误，跳过本次，下次调度重试 |
@@ -256,6 +269,7 @@ C4Context
 | 数据库操作失败 | 2 次 | 固定间隔（0.5s） | 抛出异常，任务标记为 failed |
 
 **熔断机制** (prd#§2 F-007 AC-029):
+
 - LLM 服务调用采用熔断器模式
 - 连续失败 5 次触发熔断（Open 状态），停止调用 60s
 - 60s 后进入半开状态（Half-Open），允许 1 次试探调用
@@ -263,8 +277,10 @@ C4Context
 - 熔断期间自动降级到传统处理逻辑（prd#§2 F-005 AC-021, F-006 AC-027）
 
 **降级策略** (prd#§2 F-007 AC-030):
+
 - LLM 降级切换时间 < 500ms
 - 降级映射表:
+
   | LLM 处理 | 降级方案 |
   |---------|---------|
   | 结构化提取 | 规则引擎 + 正则提取 |
@@ -272,11 +288,11 @@ C4Context
   | 聚类分析 | TF-IDF + 余弦相似度聚类 |
   | 摘要生成 | 截断式摘要（取前 N 句） |
   | 打标签 | 关键词匹配 + 预定义标签库 |
-  | 情感分析 | 情感词典评分 |
   | 内容重排序 | 默认时间排序 |
   | 引导语生成 | 无引导语 |
 
 ## 6. 目录结构
+
 ```text
 intellisource/
 ├── src/
@@ -308,27 +324,32 @@ intellisource/
 │       │       ├── dedup.py
 │       │       ├── tagger.py
 │       │       └── formatter.py
+│       ├── agent/                      # Agent 统一调度层
+│       │   ├── __init__.py
+│       │   ├── runner.py             # AgentRunner - 双模式执行引擎
+│       │   ├── tools.py              # Agent 工具定义与注册
+│       │   ├── pipeline.py           # 管道配置加载与校验
+│       │   ├── compaction.py         # 对话上下文 LLM 压缩
+│       │   └── prompts/              # Agent 系统提示词
+│       │       └── base.txt
 │       ├── llm/                       # M-004 + M-005 LLM 处理与治理
 │       │   ├── __init__.py
 │       │   ├── gateway.py            # LLM 统一网关
 │       │   ├── circuit_breaker.py    # 熔断器
 │       │   ├── fallback.py           # 降级逻辑
-│       │   ├── processors/           # LLM 处理器（管道插件）
+│       │   ├── processors/           # LLM 处理器（管道插件 + Agent 工具）
 │       │   │   ├── extractor.py      # 结构化提取
 │       │   │   ├── dedup.py          # 语义去重
 │       │   │   ├── cluster.py        # 聚类
 │       │   │   ├── summarizer.py     # 摘要
-│       │   │   ├── tagger.py         # 打标
-│       │   │   ├── sentiment.py      # 情感分析
-│       │   │   └── optimizer.py      # 推送优化
+│       │   │   └── tagger.py         # 打标
 │       │   └── schemas/              # LLM 输入输出 JSON Schema
 │       │       └── *.json
-│       ├── scheduler/                 # M-006 任务编排
+│       ├── scheduler/                 # M-006 任务调度（触发层）
 │       │   ├── __init__.py
-│       │   ├── tasks.py              # Celery 任务定义
-│       │   ├── chains.py             # 任务链编排
+│       │   ├── tasks.py              # Celery 任务定义（调用 AgentRunner）
 │       │   ├── state_machine.py      # 任务状态机
-│       │   └── workflow.py           # 工作流引擎
+│       │   └── idempotency.py        # 幂等保护与分布式锁
 │       ├── distributor/               # M-007 分发渠道
 │       │   ├── __init__.py
 │       │   ├── base.py               # 分发器抽象基类
@@ -338,11 +359,10 @@ intellisource/
 │       │   │   ├── wework.py
 │       │   │   └── email.py
 │       │   └── webhooks.py           # 消息回调处理
-│       ├── search/                    # M-008 即时检索
+│       ├── search/                    # M-008 检索与对话
 │       │   ├── __init__.py
-│       │   ├── hybrid.py             # 混合检索引擎
-│       │   ├── intent.py             # 意图理解
-│       │   └── chat.py               # 多轮对话管理
+│       │   ├── hybrid.py             # 混合检索引擎（Agent 工具）
+│       │   └── session.py            # 对话会话管理（含 compaction）
 │       ├── storage/                   # M-009 存储与检索
 │       │   ├── __init__.py
 │       │   ├── database.py           # 数据库连接管理
@@ -366,7 +386,6 @@ intellisource/
 │       │   └── routers/              # 路由定义
 │       │       ├── sources.py
 │       │       ├── tasks.py
-│       │       ├── workflows.py
 │       │       ├── search.py
 │       │       ├── contents.py
 │       │       ├── subscriptions.py
@@ -381,7 +400,11 @@ intellisource/
 │   └── conftest.py
 ├── config/
 │   ├── sources.example.yaml          # 信源配置示例
-│   └── settings.example.toml         # 系统配置示例
+│   ├── settings.example.toml         # 系统配置示例
+│   └── pipelines/                    # 管道配置文件
+│       ├── scheduled-collect.yaml    # 定时采集管道（strict 模式）
+│       ├── manual-collect.yaml       # 手动触发管道（strict 模式）
+│       └── instant-search.yaml       # 即时检索管道（flexible 模式）
 ├── docker/
 │   ├── Dockerfile
 │   └── docker-compose.yml
@@ -395,6 +418,7 @@ intellisource/
 ## 7. 开发约定
 
 ### 7.1 命名规范
+
 | 类别 | 规范 | 示例 |
 |------|------|------|
 | Python 模块/文件 | snake_case | `rate_limiter.py` |
@@ -408,6 +432,7 @@ intellisource/
 | 环境变量 | UPPER_SNAKE_CASE，`IS_` 前缀 | `IS_DATABASE_URL` |
 
 ### 7.2 代码风格
+
 - **格式化**: Ruff (替代 Black + isort + flake8)
 - **类型检查**: mypy (strict mode)
 - **测试框架**: pytest + pytest-asyncio
@@ -415,16 +440,19 @@ intellisource/
 - **Pre-commit hooks**: ruff check + ruff format + mypy
 
 ### 7.3 Git 约定
+
 - **分支策略**: GitHub Flow（main + feature branches）
   - `main`: 稳定主分支，保护分支
   - `feat/{feature-name}`: 功能分支
   - `fix/{bug-description}`: 修复分支
   - `chore/{task}`: 工程化任务
 - **Commit 格式**: Conventional Commits
+
   ```
   <type>(<scope>): <description>
 
   type: feat | fix | refactor | test | docs | chore | ci
   scope: collector | pipeline | llm | scheduler | distributor | search | storage | api | cli | config
   ```
+
 - **PR 规范**: 每个 PR 关联一个任务 ID，通过 CI 检查后合并

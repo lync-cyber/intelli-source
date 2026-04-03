@@ -6,29 +6,29 @@
 <!-- volume: sprint | split-from: dev-plan-intellisource-v1 -->
 
 [NAV]
+
 - §3 任务卡详细 → T-027..T-036 (Sprint 4: 任务编排与分发)
 [/NAV]
 
 ## 3. 任务卡详细
 
-### T-027: Celery任务定义与任务链构建
-- **目标**: 定义 Celery 任务（采集/处理/分发），实现任务链构建器将多个阶段串联为原子任务链
+### T-027: Celery任务定义与调度触发
+
+- **目标**: 定义 Celery 任务作为调度触发层，负责定时/手动/消息触发后调用 AgentRunner 执行对应管道配置
 - **模块**: M-006
 - **接口**: 无（内部基础设施）
-- **复杂度**: L
+- **复杂度**: M
 - **tdd_acceptance**:
-  - [ ] AC-034 映射: 采集->处理->存储->分发串联为原子任务链，单步失败可独立重试
+  - [ ] AC-034 映射: Celery 任务触发 AgentRunner 执行管道配置，单步失败可独立重试
   - [ ] AC-035 映射: 定时任务与手动触发任务通过独立队列并行处理
-  - [ ] AC-T027-1: TaskChainBuilder.build(source_ids, pipeline_config, distribute_config) 返回 Celery chain
-  - [ ] AC-T027-2: 单步失败时记录错误到 CollectTask.error_message，不中断后续步骤（可配置）
-  - [ ] AC-T027-3: 任务链执行状态持久化到 TaskChain 表（E-008）
+  - [ ] AC-T027-1: CeleryTasks.run_pipeline(pipeline_name, params) 加载管道配置并调用 AgentRunner
+  - [ ] AC-T027-2: 单步失败时记录错误到 CollectTask.error_message
+  - [ ] AC-T027-3: 任务链执行状态持久化到 TaskChain 表（E-008），包含 pipeline_name 和 execution_mode
   - [ ] AC-T027-4: 支持 low/normal/high 三级优先级队列
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/scheduler/tasks.py` -- Celery 任务定义
-  - [ ] `src/intellisource/scheduler/chains.py` -- 任务链构建器
+  - [ ] `src/intellisource/scheduler/tasks.py` -- Celery 任务定义（触发层）
   - [ ] `src/intellisource/scheduler/__init__.py` -- 模块导出
   - [ ] `tests/unit/scheduler/test_tasks.py` -- 任务定义测试
-  - [ ] `tests/unit/scheduler/test_chains.py` -- 任务链测试
 - **context_load**:
   - arch#§2.M-006
   - arch-intellisource-v1-data#§4.E-002
@@ -36,6 +36,7 @@
   - arch#§5.3（重试策略）
 
 ### T-028: 任务状态机与调度管理
+
 - **目标**: 实现统一任务状态机（pending->running->success/failed + pause/resume/timeout）和定时调度管理
 - **模块**: M-006
 - **接口**: API-008, API-009 的业务逻辑层
@@ -57,6 +58,7 @@
   - arch-intellisource-v1-api#API-009
 
 ### T-029: 幂等保护与分布式锁
+
 - **目标**: 实现基于内容指纹、推送记录和 Redis 分布式锁的幂等保护机制，防止重复处理和推送
 - **模块**: M-006
 - **接口**: 无
@@ -77,28 +79,38 @@
   - arch-intellisource-v1-data#§4.E-010（去重约束）
 - **实现提示**: Redis SET NX EX 实现分布式锁；内容指纹唯一约束由数据库层保证
 
-### T-030: 工作流引擎
-- **目标**: 实现用户自定义工作流引擎，支持灵活组合采集-处理-分发步骤
+### T-030: AgentRunner双模式执行引擎
+
+- **目标**: 实现双模式 Agent 执行引擎。strict 模式按管道配置步骤顺序直接调用工具函数（零 LLM 开销，用于定时任务）；flexible 模式运行 LLM Agent Loop，LLM 自主选择工具调用（用于即时检索）
 - **模块**: M-006
-- **接口**: API-010, API-011 的业务逻辑层
-- **复杂度**: M
+- **接口**: 无（内部引擎，被 CeleryTasks 和 Webhook 处理调用）
+- **复杂度**: L
 - **tdd_acceptance**:
-  - [ ] AC-063 映射: 工作流支持自定义步骤组合（collect/process/distribute 的灵活编排）
-  - [ ] AC-T030-1: WorkflowEngine.create(name, steps, schedule) 创建工作流定义并持久化
-  - [ ] AC-T030-2: WorkflowEngine.run(workflow_id, override_params) 实例化工作流为 TaskChain 执行
-  - [ ] AC-T030-3: 每个步骤支持 on_failure 策略（retry/skip/abort）
-  - [ ] AC-T030-4: 支持 Cron 表达式定时执行（注册到 Celery Beat）
-  - [ ] AC-T030-5: 工作流 CRUD 操作与 Workflow 表（E-012）正确交互
+  - [ ] AC-066 映射: PipelineConfig 正确解析 YAML 管道配置文件（mode, tools_allowed/denied, steps, max_steps）
+  - [ ] AC-067 映射: strict 模式按 steps 顺序直接调用工具函数，不经过 LLM；flexible 模式通过 LLM Agent Loop 自主编排工具调用
+  - [ ] AC-T030-1: AgentRunner.run_strict(pipeline_config, params) 按步骤顺序执行，返回执行结果
+  - [ ] AC-T030-2: AgentRunner.run_flexible(pipeline_config, user_message, session) 运行 LLM Agent Loop
+  - [ ] AC-T030-3: flexible 模式下 max_steps 超限时强制终止并返回当前结果
+  - [ ] AC-T030-4: flexible 模式下 tools_denied 中的工具不出现在 LLM 可用工具列表中
+  - [ ] AC-T030-5: strict 模式执行失败时按管道配置的 on_failure 策略处理（retry/skip/abort）
+  - [ ] AC-T030-6: 两种模式的执行结果均持久化到 TaskChain 表（E-008）
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/scheduler/workflow.py` -- 工作流引擎
-  - [ ] `tests/unit/scheduler/test_workflow.py` -- 工作流测试
+  - [ ] `src/intellisource/agent/__init__.py` -- 模块导出
+  - [ ] `src/intellisource/agent/runner.py` -- AgentRunner 双模式执行引擎
+  - [ ] `src/intellisource/agent/pipeline.py` -- PipelineConfig 管道配置加载与校验
+  - [ ] `src/intellisource/agent/prompts/base.txt` -- Agent 基础系统提示词
+  - [ ] `config/pipelines/scheduled-collect.yaml` -- 定时采集管道配置示例
+  - [ ] `config/pipelines/instant-search.yaml` -- 即时检索管道配置示例
+  - [ ] `tests/unit/agent/test_runner.py` -- AgentRunner 测试
+  - [ ] `tests/unit/agent/test_pipeline.py` -- 管道配置测试
 - **context_load**:
   - arch#§2.M-006
-  - arch-intellisource-v1-data#§4.E-012
-  - arch-intellisource-v1-api#API-010
-  - arch-intellisource-v1-api#API-011
+  - arch#§1.2（双模式 Agent 调度）
+  - prd#§2.F-008（AC-066, AC-067）
+- **实现提示**: strict 模式本质上是配置驱动的函数调用序列；flexible 模式使用 litellm 的 function calling 能力，将工具定义传给 LLM 并循环处理 tool_calls 直到 LLM 返回文本响应或达到 max_steps
 
 ### T-031: 分发器基类与订阅规则匹配
+
 - **目标**: 定义分发器统一接口（BaseDistributor）、实现订阅规则匹配引擎和推送去重/历史记录
 - **模块**: M-007
 - **接口**: 无（内部框架）
@@ -107,7 +119,7 @@
   - [ ] AC-043 映射: SubscriptionMatcher 基于关键词/标签匹配推送内容到对应订阅
   - [ ] AC-T031-1: BaseDistributor 定义 distribute(content, subscription) -> PushRecord 统一接口
   - [ ] AC-T031-2: SubscriptionMatcher.match(content) 返回匹配的 Subscription 列表
-  - [ ] AC-T031-3: 匹配规则支持 keywords（OR 逻辑）、tags（OR 逻辑）、sentiment 过滤
+  - [ ] AC-T031-3: 匹配规则支持 keywords（OR 逻辑）和 tags（OR 逻辑）过滤
   - [ ] AC-T031-4: DeliveryTracker 记录推送历史并检查去重
 - **deliverables** (交付物):
   - [ ] `src/intellisource/distributor/base.py` -- 分发器抽象基类
@@ -120,6 +132,7 @@
   - arch-intellisource-v1-data#§4.E-010
 
 ### T-032: 微信公众号分发渠道
+
 - **目标**: 实现微信公众号推送（模板消息/图文消息），包含 Access Token 管理和推送结果追踪
 - **模块**: M-007
 - **接口**: 无（由 M-006 任务链触发）
@@ -140,6 +153,7 @@
 - **实现提示**: 微信公众号 API 使用 httpx；测试使用 Mock 服务模拟微信接口响应
 
 ### T-033: 企业微信分发渠道
+
 - **目标**: 实现企业微信应用消息推送，包含 Access Token 管理和消息格式化
 - **模块**: M-007
 - **接口**: 无
@@ -159,6 +173,7 @@
   - arch#§5.3（重试策略）
 
 ### T-034: 邮件分发渠道
+
 - **目标**: 实现 HTML 格式邮件推送，支持 SMTP 配置和邮件模板
 - **模块**: M-007
 - **接口**: 无
@@ -178,6 +193,7 @@
 - **实现提示**: 使用 Python 标准库 email + aiosmtplib 实现异步 SMTP 发送
 
 ### T-035: 推送频率控制与免打扰
+
 - **目标**: 实现推送频率控制（realtime/hourly/daily/weekly）和免打扰时段功能
 - **模块**: M-007
 - **接口**: 无
@@ -195,22 +211,28 @@
   - arch#§2.M-007
   - arch-intellisource-v1-data#§4.E-009（frequency, quiet_hours 字段）
 
-### T-036: 推送内容LLM优化
-- **目标**: 实现推送前的 LLM 内容重排序和引导语生成处理器
-- **模块**: M-004
-- **接口**: 无
+### T-036: Agent工具注册与管道配置
+
+- **目标**: 将各模块的核心功能包装为 Agent 可调用的工具函数，注册到 AgentToolRegistry；创建各场景的管道配置文件
+- **模块**: M-006
+- **接口**: 无（内部基础设施）
 - **复杂度**: M
 - **tdd_acceptance**:
-  - [ ] AC-047 映射: PushOptimizer 调用 LLM 对推送内容按相关性/重要性重排序
-  - [ ] AC-048 映射: 为推送内容生成简短引导语/摘要
-  - [ ] AC-049 映射: LLM 处理失败时降级为默认排序和无引导语格式
-  - [ ] AC-T036-1: PushOptimizer 实现 BaseProcessor 接口
-  - [ ] AC-T036-2: 降级逻辑使用默认时间排序 + 无引导语
-  - [ ] AC-T036-3: 优化结果不修改原始内容，仅影响推送呈现
+  - [ ] AC-066 映射: 管道配置文件正确定义各场景的工具集和步骤约束
+  - [ ] AC-T036-1: AgentToolRegistry 注册 collect 工具（调用 M-002 采集引擎）
+  - [ ] AC-T036-2: AgentToolRegistry 注册 process 工具（调用 M-003 处理管道）
+  - [ ] AC-T036-3: AgentToolRegistry 注册 distribute 工具（调用 M-007 分发）
+  - [ ] AC-T036-4: AgentToolRegistry 注册 search 工具（调用 M-008 混合检索引擎）
+  - [ ] AC-T036-5: AgentToolRegistry 注册 get_content_detail 工具（调用 M-009 内容详情）
+  - [ ] AC-T036-6: 工具定义包含 name/description/parameters(JSON Schema)/execute 函数
+  - [ ] AC-T036-7: scheduled-collect.yaml 管道配置：mode=strict, tools_allowed=[collect,process,distribute]
+  - [ ] AC-T036-8: instant-search.yaml 管道配置：mode=flexible, tools_allowed=[search,get_content_detail,summarize_for_user]
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/llm/processors/optimizer.py` -- 推送优化处理器
-  - [ ] `tests/unit/llm/test_optimizer.py` -- 优化器测试
+  - [ ] `src/intellisource/agent/tools.py` -- Agent 工具定义与注册
+  - [ ] `config/pipelines/scheduled-collect.yaml` -- 定时采集管道配置
+  - [ ] `config/pipelines/manual-collect.yaml` -- 手动触发管道配置
+  - [ ] `config/pipelines/instant-search.yaml` -- 即时检索管道配置
+  - [ ] `tests/unit/agent/test_tools.py` -- 工具注册测试
 - **context_load**:
-  - arch#§2.M-004
-  - arch#§5.3（降级策略）
-  - prd#§2.F-010
+  - arch#§2.M-006（AgentToolRegistry）
+  - arch#§2.M-002, M-003, M-007, M-008（各模块作为工具来源）
