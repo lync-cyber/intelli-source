@@ -5,9 +5,10 @@
 - 技术栈: Python 3.11+ / FastAPI / Celery + Redis / PostgreSQL + pgvector / SQLAlchemy 2.0 / litellm
 - 开发框架: CataForge
 - 运行时环境(runtime): claude-code
-- 框架版本: 未追踪
+- 框架版本: 0.2.0
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
+
 - 当前阶段: development
 - 上次完成: tech-lead — 开发计划完成并通过审查
 - 下一步行动: 开始 Sprint 1 开发，通过 tdd-engine 执行 TDD 流程
@@ -30,9 +31,9 @@
 
 ## 全局约定
 
-- 命名: {规范}
-- Commit: {格式}
-- 分支: {策略}
+- 命名: PEP 8（snake_case 函数/变量，PascalCase 类名）
+- Commit: Conventional Commits（feat/fix/docs/chore/refactor/test）
+- 分支: GitHub Flow（main + feature branches）
 - 设计工具: none
   <!-- 可选值: none | penpot。设为 penpot 时启用 Penpot MCP 集成，需本地运行 Penpot + MCP Plugin -->
 - 人工审查检查点: [pre_dev, pre_deploy]
