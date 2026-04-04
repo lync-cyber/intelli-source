@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
@@ -25,7 +25,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import VARCHAR
 
 
-class Base(DeclarativeBase):  # type: ignore[misc]
+class Base(DeclarativeBase):
     pass
 
 
@@ -43,7 +43,7 @@ class Source(Base):
     name: Mapped[str] = mapped_column(VARCHAR(255), nullable=False, unique=True)
     type: Mapped[str] = mapped_column(VARCHAR(20), nullable=False)
     url: Mapped[str] = mapped_column(Text, nullable=False)
-    tags: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    tags: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list)
     status: Mapped[str] = mapped_column(VARCHAR(20), nullable=False, default="active")
     schedule_interval: Mapped[int] = mapped_column(
         Integer, nullable=False, default=3600
@@ -56,7 +56,7 @@ class Source(Base):
     rate_limit_concurrency: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True
     )
-    metadata_: Mapped[dict] = mapped_column(
+    metadata_: Mapped[dict[str, Any]] = mapped_column(
         "metadata", JSONB, nullable=False, default=dict
     )
     last_collected_at: Mapped[Optional[datetime]] = mapped_column(
@@ -206,7 +206,9 @@ class RawContent(Base):
         TIMESTAMP(timezone=True), nullable=True
     )
     fingerprint: Mapped[str] = mapped_column(VARCHAR(64), nullable=False, unique=True)
-    raw_metadata: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    raw_metadata: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict
+    )
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
@@ -239,7 +241,7 @@ class ContentCluster(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     topic: Mapped[str] = mapped_column(Text, nullable=False)
-    tags: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    tags: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list)
     content_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     centroid = mapped_column(Vector(1536), nullable=True)
     status: Mapped[str] = mapped_column(VARCHAR(20), nullable=False, default="active")
@@ -282,13 +284,15 @@ class ProcessedContent(Base):
     title: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     body_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    tags: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    tags: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list)
     cluster_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("content_clusters.id"), nullable=True
     )
     fingerprint: Mapped[Optional[str]] = mapped_column(VARCHAR(64), nullable=True)
     embedding = mapped_column(Vector(1536), nullable=True)
-    structured_data: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    structured_data: Mapped[Optional[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=True
+    )
     processing_status: Mapped[str] = mapped_column(
         VARCHAR(20), nullable=False, default="pending"
     )
@@ -349,8 +353,8 @@ class Digest(Base):
     )
     title: Mapped[str] = mapped_column(Text, nullable=False)
     summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    timeline: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
-    key_points: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    timeline: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
+    key_points: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list)
     generated_by: Mapped[str] = mapped_column(
         VARCHAR(20), nullable=False, default="llm"
     )
@@ -421,12 +425,12 @@ class Subscription(Base):
         UUID(as_uuid=True), ForeignKey("sources.id"), nullable=True
     )
     channel: Mapped[str] = mapped_column(VARCHAR(20), nullable=False)
-    channel_config: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    match_rules: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    channel_config: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    match_rules: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     frequency: Mapped[str] = mapped_column(
         VARCHAR(20), nullable=False, default="realtime"
     )
-    quiet_hours: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    quiet_hours: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
     status: Mapped[str] = mapped_column(VARCHAR(20), nullable=False, default="active")
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
@@ -513,7 +517,7 @@ class ChatSession(Base):
     )
     channel: Mapped[str] = mapped_column(VARCHAR(20), nullable=False)
     channel_user_id: Mapped[str] = mapped_column(VARCHAR(255), nullable=False)
-    context: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    context: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     last_active_at: Mapped[Optional[datetime]] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True
     )
