@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
@@ -25,7 +25,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import VARCHAR
 
 
-class Base(DeclarativeBase):
+class Base(DeclarativeBase):  # type: ignore[misc]
     pass
 
 
@@ -80,9 +80,9 @@ class Source(Base):
     )
 
     # Relationships
-    collect_tasks: Mapped[List["CollectTask"]] = relationship(back_populates="source")
-    raw_contents: Mapped[List["RawContent"]] = relationship(back_populates="source")
-    subscriptions: Mapped[List["Subscription"]] = relationship(back_populates="source")
+    collect_tasks: Mapped[list["CollectTask"]] = relationship(back_populates="source")
+    raw_contents: Mapped[list["RawContent"]] = relationship(back_populates="source")
+    subscriptions: Mapped[list["Subscription"]] = relationship(back_populates="source")
 
     __table_args__ = (
         Index("ix_sources_status", "status"),
@@ -121,7 +121,7 @@ class TaskChain(Base):
     )
 
     # Relationships
-    collect_tasks: Mapped[List["CollectTask"]] = relationship(
+    collect_tasks: Mapped[list["CollectTask"]] = relationship(
         back_populates="task_chain"
     )
 
@@ -169,7 +169,7 @@ class CollectTask(Base):
     task_chain: Mapped[Optional["TaskChain"]] = relationship(
         back_populates="collect_tasks"
     )
-    raw_contents: Mapped[List["RawContent"]] = relationship(
+    raw_contents: Mapped[list["RawContent"]] = relationship(
         back_populates="collect_task"
     )
 
@@ -251,10 +251,10 @@ class ContentCluster(Base):
     )
 
     # Relationships
-    processed_contents: Mapped[List["ProcessedContent"]] = relationship(
+    processed_contents: Mapped[list["ProcessedContent"]] = relationship(
         back_populates="cluster"
     )
-    digests: Mapped[List["Digest"]] = relationship(back_populates="cluster")
+    digests: Mapped[list["Digest"]] = relationship(back_populates="cluster")
 
     __table_args__ = (
         Index("ix_content_clusters_tags", "tags", postgresql_using="gin"),
@@ -437,7 +437,7 @@ class Subscription(Base):
 
     # Relationships
     source: Mapped[Optional["Source"]] = relationship(back_populates="subscriptions")
-    push_records: Mapped[List["PushRecord"]] = relationship(
+    push_records: Mapped[list["PushRecord"]] = relationship(
         back_populates="subscription"
     )
 
@@ -497,13 +497,6 @@ class PushRecord(Base):
         ),
         Index("ix_push_records_subscription_id", "subscription_id"),
         Index("ix_push_records_content_id", "content_id"),
-        Index(
-            "ix_push_records_dedup",
-            "subscription_id",
-            "content_id",
-            "channel",
-            unique=True,
-        ),
     )
 
 
