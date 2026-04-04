@@ -1,13 +1,13 @@
 # Architecture 分卷 -- 数据模型: IntelliSource
 <!-- required_sections: ["## 4. 数据模型"] -->
 <!-- volume_type: data -->
-<!-- id: arch-intellisource-v1-data | author: architect | status: draft -->
+<!-- id: arch-intellisource-v1-data | author: architect | status: approved -->
 <!-- deps: prd-intellisource-v1 | consumers: tech-lead, developer, devops -->
 <!-- volume: data | split-from: arch-intellisource-v1 -->
 
 [NAV]
 
-- §4 数据模型 → §4.1 实体关系(不含 ChatMessage 独立实体，对话消息内嵌于 E-011 context JSONB), E-001..E-012
+- §4 数据模型 → §4.1 实体关系(不含 ChatMessage 独立实体，对话消息内嵌于 E-011 context JSONB), E-001..E-011
 [/NAV]
 
 ## 4. 数据模型
@@ -173,7 +173,7 @@ erDiagram
 | id | UUID | PK | 日志唯一标识 |
 | model | VARCHAR(100) | NOT NULL | 模型名称 |
 | provider | VARCHAR(50) | NOT NULL | 提供商 |
-| call_type | VARCHAR(50) | NOT NULL | 调用类型: extract/dedup/cluster/summarize/tag/sentiment/search/optimize/context_compress |
+| call_type | VARCHAR(50) | NOT NULL | 调用类型: extract/dedup/cluster/summarize/tag/search/optimize/context_compress |
 | content_id | UUID | NULL | 关联内容 ID |
 | input_tokens | INTEGER | NOT NULL | 输入 Token 数 |
 | output_tokens | INTEGER | NOT NULL | 输出 Token 数 |
@@ -285,19 +285,3 @@ erDiagram
 **索引**: `idx_chat_session_user` (channel, channel_user_id), `idx_chat_session_active` (last_active_at)
 
 **清理策略**: 超过 `chat.session_timeout_hours`（见 settings.example.toml）无活跃的会话自动清理
-
-### E-012: Workflow (工作流定义)
-
-| 字段 | 类型 | 约束 | 说明 |
-|------|------|------|------|
-| id | UUID | PK | 工作流唯一标识 |
-| name | VARCHAR(255) | NOT NULL, UNIQUE | 工作流名称 |
-| description | TEXT | NULL | 工作流描述 |
-| steps | JSONB | NOT NULL | 步骤定义数组 |
-| schedule_cron | VARCHAR(100) | NULL | Cron 定时表达式 |
-| status | VARCHAR(20) | NOT NULL, DEFAULT 'active', CHECK IN ('active', 'paused', 'archived') | 工作流状态 |
-| last_run_at | TIMESTAMP WITH TZ | NULL | 上次执行时间 |
-| created_at | TIMESTAMP WITH TZ | NOT NULL, DEFAULT NOW() | 创建时间 |
-| updated_at | TIMESTAMP WITH TZ | NOT NULL, DEFAULT NOW() | 更新时间 |
-
-**索引**: `idx_workflow_status` (status), `idx_workflow_schedule` (schedule_cron) WHERE schedule_cron IS NOT NULL

@@ -48,8 +48,7 @@
 
 | 任务ID | 任务名 | 模块 | 复杂度 | 依赖 | TDD测试点 | 状态 |
 |--------|--------|------|--------|------|-----------|------|
-| T-019 | LLM统一网关(litellm封装) | M-005 | M | T-006, T-004 | AC-028, AC-031 | todo |
-| T-019a | LLM模型能力声明与智能路由 | M-005 | M | T-019 | AC-T019a-1~4 | todo |
+| T-019 | LLM统一网关(litellm封装+模型路由配置) | M-005 | M | T-006, T-004 | AC-028, AC-031 | todo |
 | T-020 | 熔断器与降级管理器 | M-005 | L | T-019 | AC-029, AC-030 | todo |
 | T-021 | LLM优先级队列与成本追踪 | M-005 | M | T-019 | AC-032, AC-033 | todo |
 | T-022 | LLM结构化提取处理器 | M-004 | M | T-019, T-016 | AC-018, AC-021 | todo |
@@ -65,7 +64,7 @@
 | T-027 | Celery任务定义与调度触发 | M-006 | M | T-010, T-016, T-004 | AC-034, AC-035 | todo |
 | T-028 | 任务状态机与调度管理 | M-006 | M | T-027 | AC-038, AC-039 | todo |
 | T-029 | 幂等保护与分布式锁 | M-006 | M | T-027 | AC-036, AC-037 | todo |
-| T-030 | 工作流引擎 | M-006 | M | T-028 | AC-063 | todo |
+| T-030 | AgentRunner双模式执行引擎 | M-006 | L | T-028, T-019 | AC-066, AC-067 | todo |
 | T-031 | 分发器基类与订阅规则匹配(含高级关键词/权重评分) | M-007 | M | T-004, T-025 | AC-043, AC-043a, AC-T031-4~6 | todo |
 | T-032 | 微信公众号分发渠道 | M-007 | M | T-031 | AC-040, AC-044, AC-045 | todo |
 | T-033 | 企业微信分发渠道 | M-007 | M | T-031 | AC-041, AC-044, AC-045 | todo |
@@ -126,7 +125,6 @@ graph LR
     T-016 --> T-018
     T-016 --> T-022
     T-016 --> T-027
-    T-019 --> T-019a
     T-019 --> T-020
     T-019 --> T-021
     T-019 --> T-022
@@ -153,7 +151,7 @@ graph LR
     T-033 --> T-039
     T-036 --> T-038
     T-037 --> T-038
-    T-037 --> T-043
+    T-037 --> T-042
     T-019 --> T-039
     T-038 --> T-039
     T-021 --> T-042
@@ -170,7 +168,7 @@ graph LR
 >
 > - Sprint 1: [dev-plan-intellisource-v1-s1](dev-plan-intellisource-v1-s1.md) (T-001 ~ T-009, T-007a)
 > - Sprint 2: [dev-plan-intellisource-v1-s2](dev-plan-intellisource-v1-s2.md) (T-010 ~ T-018)
-> - Sprint 3: [dev-plan-intellisource-v1-s3](dev-plan-intellisource-v1-s3.md) (T-019 ~ T-026, T-019a)
+> - Sprint 3: [dev-plan-intellisource-v1-s3](dev-plan-intellisource-v1-s3.md) (T-019 ~ T-026)
 > - Sprint 4: [dev-plan-intellisource-v1-s4](dev-plan-intellisource-v1-s4.md) (T-027 ~ T-036)
 > - Sprint 5: [dev-plan-intellisource-v1-s5](dev-plan-intellisource-v1-s5.md) (T-037 ~ T-046)
 
@@ -187,7 +185,7 @@ graph LR
 - T-001 -> T-002 -> T-003 -> T-004 -> T-016 -> T-022 -> T-023 -> T-024 (处理管道到聚类链路，权重 20)
 - T-001 -> T-002 -> T-003 -> T-005 -> T-037 -> T-038 (向量检索到即时检索链路，权重 15)
 
-**新增任务关键路径影响**: T-007a（S=1，依赖 T-006）和 T-019a（M=2，依赖 T-019）均为侧链任务，不在主关键路径上，总权重 24 不变。
+**新增任务关键路径影响**: T-007a（S=1，依赖 T-006）为侧链任务，不在主关键路径上，总权重 24 不变。
 
 ## 5. 风险项
 

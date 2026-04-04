@@ -1,20 +1,20 @@
 # Development Plan 分卷 -- Sprint 3: IntelliSource
 <!-- required_sections: ["## 3. 任务卡详细"] -->
 <!-- volume_type: sprint -->
-<!-- id: dev-plan-intellisource-v1-s3 | author: tech-lead | status: draft -->
+<!-- id: dev-plan-intellisource-v1-s3 | author: tech-lead | status: approved -->
 <!-- deps: arch-intellisource-v1 | consumers: developer, qa-engineer -->
 <!-- volume: sprint | split-from: dev-plan-intellisource-v1 -->
 
 [NAV]
 
-- §3 任务卡详细 → T-019..T-026, T-019a (Sprint 3: LLM智能处理)
+- §3 任务卡详细 → T-019..T-026 (Sprint 3: LLM智能处理)
 [/NAV]
 
 ## 3. 任务卡详细
 
-### T-019: LLM统一网关(litellm封装)
+### T-019: LLM统一网关(litellm封装+模型路由配置)
 
-- **目标**: 基于 litellm 封装统一的 LLM 调用接口（LLMGateway），屏蔽不同模型提供商差异，支持 JSON Mode/Function Calling 输出格式
+- **目标**: 基于 litellm 封装统一的 LLM 调用接口（LLMGateway），屏蔽不同模型提供商差异，支持 JSON Mode/Function Calling 输出格式；通过配置文件实现 task_type → model 的路由映射
 - **模块**: M-005
 - **接口**: 无（内部接口，被 M-004/M-008 调用）
 - **复杂度**: M
@@ -26,37 +26,19 @@
   - [ ] AC-T019-3: 调用结果包含 input_tokens/output_tokens/latency_ms 元数据
   - [ ] AC-T019-4: JSON Schema 校验失败时抛出 SchemaValidationError
   - [ ] AC-T019-5: LLMGateway.estimate_tokens(text, model) 提供 token 计数能力，优先使用 litellm.token_counter，不可用时回退到启发式估算
+  - [ ] AC-T019-6: 从 `config/llm_models.yaml` 加载 task_type → model 映射配置，调用时可传入 task_type 参数自动选择模型（也可手动指定 model 覆盖）；无匹配时使用 default_model 并记录 WARNING 日志
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/llm/gateway.py` -- LLM 统一网关（含 estimate_tokens）
+  - [ ] `src/intellisource/llm/gateway.py` -- LLM 统一网关（含 estimate_tokens 和模型路由）
+  - [ ] `src/intellisource/llm/model_config.py` -- 模型路由配置加载
   - [ ] `src/intellisource/llm/__init__.py` -- 模块导出
   - [ ] `src/intellisource/llm/schemas/` -- LLM 输入输出 JSON Schema 目录
+  - [ ] `config/llm_models.example.yaml` -- 模型路由配置示例
   - [ ] `tests/unit/llm/test_gateway.py` -- 网关测试（使用 Mock LLM）
+  - [ ] `tests/unit/llm/test_model_config.py` -- 模型路由配置测试
 - **context_load**:
   - arch#§2.M-005
   - arch#§1.4（litellm 选型）
-- **实现提示**: litellm.completion() 作为底层调用；使用 pydantic 校验 LLM 输出；测试使用 unittest.mock 模拟 litellm 响应
-
-### T-019a: LLM模型能力声明与智能路由
-
-- **目标**: 实现模型能力注册表（ModelRegistry）和智能路由器（SmartRouter），通过 YAML 配置声明每个模型的能力维度，根据 LLM 任务类型自动选择最优模型
-- **模块**: M-005
-- **接口**: 无（内部接口，被 LLMGateway 调用）
-- **复杂度**: M
-- **tdd_acceptance**:
-  - [ ] AC-T019a-1: ModelRegistry 从 `config/llm_models.yaml` 加载模型能力声明（context_window、supports_json_mode、supports_function_calling、cost_per_1k_tokens、best_for 列表），支持热加载更新
-  - [ ] AC-T019a-2: SmartRouter.select_model(task_type, constraints) 根据任务类型（extraction/summarization/embedding/sentiment/tagging）+ 模型能力 + 可选成本约束返回最优模型标识
-  - [ ] AC-T019a-3: 无匹配模型时降级到配置的 default_model 并记录 WARNING 日志
-  - [ ] AC-T019a-4: LLMGateway 集成 SmartRouter，调用时可传入 task_type 参数自动路由（也可手动指定 model 覆盖路由）
-- **deliverables** (交付物):
-  - [ ] `src/intellisource/llm/models.py` -- 模型能力注册表（ModelRegistry）
-  - [ ] `src/intellisource/llm/router.py` -- 智能路由器（SmartRouter）
-  - [ ] `config/llm_models.example.yaml` -- 模型能力配置示例
-  - [ ] `tests/unit/llm/test_models.py` -- 模型注册表测试
-  - [ ] `tests/unit/llm/test_router.py` -- 智能路由器测试
-- **context_load**:
-  - arch#§2.M-005（ModelRegistry、SmartRouter 组件定义）
-  - arch#§5.3（降级策略）
-- **实现提示**: YAML 配置示例应包含至少 3 个模型声明（如 gpt-4o、claude-sonnet、embedding-ada-002）；SmartRouter 优先匹配 best_for 列表，其次按 cost_per_1k_tokens 升序排列
+- **实现提示**: litellm.completion() 作为底层调用；使用 pydantic 校验 LLM 输出；测试使用 unittest.mock 模拟 litellm 响应；模型路由为简单字典查找（task_type → model_id），不需要复杂的能力匹配逻辑
 
 ### T-020: 熔断器与降级管理器
 

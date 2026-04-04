@@ -1,7 +1,7 @@
 # Development Plan 分卷 -- Sprint 2: IntelliSource
 <!-- required_sections: ["## 3. 任务卡详细"] -->
 <!-- volume_type: sprint -->
-<!-- id: dev-plan-intellisource-v1-s2 | author: tech-lead | status: draft -->
+<!-- id: dev-plan-intellisource-v1-s2 | author: tech-lead | status: approved -->
 <!-- deps: arch-intellisource-v1 | consumers: developer, qa-engineer -->
 <!-- volume: sprint | split-from: dev-plan-intellisource-v1 -->
 

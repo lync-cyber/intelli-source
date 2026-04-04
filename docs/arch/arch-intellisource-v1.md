@@ -368,8 +368,7 @@ intellisource/
 │       ├── llm/                       # M-004 + M-005 LLM 处理与治理
 │       │   ├── __init__.py
 │       │   ├── gateway.py            # LLM 统一网关
-│       │   ├── models.py             # 模型能力声明 (ModelRegistry)
-│       │   ├── router.py             # 智能路由器 (SmartRouter)
+│       │   ├── model_config.py       # 模型路由配置加载 (task_type → model 映射)
 │       │   ├── circuit_breaker.py    # 熔断器
 │       │   ├── fallback.py           # 降级逻辑
 │       │   ├── processors/           # LLM 处理器（管道插件 + Agent 工具）
@@ -378,11 +377,9 @@ intellisource/
 │       │   │   ├── cluster.py        # 聚类
 │       │   │   ├── summarizer.py     # 摘要
 │       │   │   ├── tagger.py         # 打标
-│       │   │   ├── sentiment.py      # 情感分析
 │       │   │   └── optimizer.py      # 推送优化
 │       │   ├── prompts/              # LLM prompt 模板
 │       │   │   └── context_compress.txt  # 上下文压缩 prompt
-│       │   │   └── tagger.py         # 打标
 │       │   └── schemas/              # LLM 输入输出 JSON Schema
 │       │       └── *.json
 │       ├── scheduler/                 # M-006 任务调度（触发层）

@@ -1,7 +1,7 @@
 # Development Plan 分卷 -- Sprint 4: IntelliSource
 <!-- required_sections: ["## 3. 任务卡详细"] -->
 <!-- volume_type: sprint -->
-<!-- id: dev-plan-intellisource-v1-s4 | author: tech-lead | status: draft -->
+<!-- id: dev-plan-intellisource-v1-s4 | author: tech-lead | status: approved -->
 <!-- deps: arch-intellisource-v1 | consumers: developer, qa-engineer -->
 <!-- volume: sprint | split-from: dev-plan-intellisource-v1 -->
 
@@ -120,7 +120,7 @@
   - [ ] AC-043a: SubscriptionMatcher 结合 ContentScorer 权重评分进行推送排序和阈值过滤
   - [ ] AC-T031-1: BaseDistributor 定义 distribute(content, subscription) -> PushRecord 统一接口
   - [ ] AC-T031-2: SubscriptionMatcher.match(content) 返回匹配的 Subscription 列表
-  - [ ] AC-T031-3: 匹配规则支持 keywords（OR 逻辑）、tags（OR 逻辑）、sentiment 过滤
+  - [ ] AC-T031-3: 匹配规则支持 keywords（OR 逻辑）、tags（OR 逻辑）
   - [ ] AC-T031-4: 关键词高级语法：普通词（包含即匹配）、`+`前缀必选词（必须包含）、`!`前缀排除词（排除匹配）、`/pattern/`正则匹配
   - [ ] AC-T031-5: ContentScorer.score(content, subscription) 综合计算权重分（源可信度 × 时间衰减 × 关键词匹配度），推送时按权重降序排列
   - [ ] AC-T031-6: Subscription.match_rules.min_score 阈值过滤，权重低于阈值的内容不推送（默认 0 表示不过滤）
