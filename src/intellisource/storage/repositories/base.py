@@ -68,7 +68,8 @@ class BaseRepository(Generic[ModelT]):
     # -- read ----------------------------------------------------------------
 
     async def get_by_id(self, id: uuid.UUID) -> ModelT | None:  # noqa: A002
-        return await self._session.get(self._model_class, id)
+        result: ModelT | None = await self._session.get(self._model_class, id)
+        return result
 
     # -- update --------------------------------------------------------------
 
@@ -109,14 +110,14 @@ class BaseRepository(Generic[ModelT]):
         limit = min(limit, MAX_PAGE_SIZE)
 
         if cursor is not None:
-            stmt = stmt.where(self._model_class.id > uuid.UUID(cursor))
+            stmt = stmt.where(self._model_class.id > uuid.UUID(cursor))  # type: ignore[attr-defined]
 
-        stmt = stmt.order_by(self._model_class.id).limit(limit + 1)
+        stmt = stmt.order_by(self._model_class.id).limit(limit + 1)  # type: ignore[attr-defined]
         result = await self._session.execute(stmt)
         rows = list(result.scalars().all())
 
         has_more = len(rows) > limit
         items = rows[:limit]
-        next_cursor = str(items[-1].id) if has_more and items else None
+        next_cursor = str(items[-1].id) if has_more and items else None  # type: ignore[attr-defined]
 
         return {"items": items, "next_cursor": next_cursor, "has_more": has_more}

@@ -3,6 +3,7 @@
 ## 项目信息
 
 - 技术栈: Python 3.11+ / FastAPI / Celery + Redis / PostgreSQL + pgvector / SQLAlchemy 2.0 / litellm
+- 包管理器: uv（禁止使用 pip/pip3，所有依赖安装和运行均通过 uv）
 - 开发框架: CataForge
 - 运行时环境(runtime): claude-code
 - 框架版本: 0.2.0
@@ -41,6 +42,13 @@
 - 人工审查检查点: [pre_dev, pre_deploy]
   <!-- 可选值: phase_transition | pre_dev | pre_deploy | post_sprint | none。详见 COMMON-RULES §MANUAL_REVIEW_CHECKPOINTS -->
 - 文档类型命名: 统一用小写 kebab-case（prd、arch、dev-plan、test-report、ui-spec、deploy-spec…），包括人类可读文本、工具参数（template_id/doc_type）和产出文件名（如 arch-{project}-{ver}.md）
+- 包管理命令规范:
+  - 安装依赖: `uv sync`（根据 pyproject.toml + uv.lock 安装）
+  - 添加依赖: `uv add <package>`
+  - 添加开发依赖: `uv add --dev <package>`
+  - 运行测试: `uv run pytest tests/`
+  - 运行脚本: `uv run python <script>`
+  - 禁止使用: `pip install`、`pip3 install`、`python -m pytest`（直接调用）
 
 ## 效率原则 (全局遵循)
 

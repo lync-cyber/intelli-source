@@ -81,7 +81,10 @@ class ConfigValidator:
         results: list[SourceConfig] = []
         errors: list[str] = []
 
-        for i, source_data in enumerate(sources_resolved):  # type: ignore[union-attr]
+        if not isinstance(sources_resolved, list):
+            raise ValueError("Expected 'sources' to be a list")
+
+        for i, source_data in enumerate(sources_resolved):
             try:
                 results.append(self.validate_source(source_data))
             except ValidationError as e:

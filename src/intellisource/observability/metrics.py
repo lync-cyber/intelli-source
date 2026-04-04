@@ -16,18 +16,25 @@ class MetricsCollector:
     _instance: MetricsCollector | None = None
     _lock: threading.Lock = threading.Lock()
 
+    _counters: dict[str, float]
+    _counter_descriptions: dict[str, str]
+    _gauges: dict[str, float]
+    _gauge_descriptions: dict[str, str]
+    _histograms: dict[str, list[float]]
+    _histogram_descriptions: dict[str, str]
+
     def __new__(cls) -> MetricsCollector:
         if cls._instance is None:
             with cls._lock:
                 # Double-checked locking to avoid race conditions
                 if cls._instance is None:
                     instance = super().__new__(cls)
-                    instance._counters: dict[str, float] = {}
-                    instance._counter_descriptions: dict[str, str] = {}
-                    instance._gauges: dict[str, float] = {}
-                    instance._gauge_descriptions: dict[str, str] = {}
-                    instance._histograms: dict[str, list[float]] = {}
-                    instance._histogram_descriptions: dict[str, str] = {}
+                    instance._counters = {}
+                    instance._counter_descriptions = {}
+                    instance._gauges = {}
+                    instance._gauge_descriptions = {}
+                    instance._histograms = {}
+                    instance._histogram_descriptions = {}
                     cls._instance = instance
         return cls._instance
 
