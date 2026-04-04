@@ -1,27 +1,11 @@
-# IntelliSource
+# CataForge
 
-## 框架元信息
-- 框架版本: 未追踪
-- 可跳过阶段: ui_design (无前端UI时可跳过)
+## 项目信息
 
-## 环境
-
-- 始终直接运行 git 命令，无需 `cd` 前缀，当前工作目录默认已经是仓库根目录
-- 所有文件操作均使用相对路径
-
-## 效率原则
-
-### 全局约定
-- 项目名称: IntelliSource
 - 技术栈: Python 3.11+ / FastAPI / Celery + Redis / PostgreSQL + pgvector / SQLAlchemy 2.0 / litellm
-- 命名规范: snake_case (Python), kebab-case (API路径)
-- Commit格式: Conventional Commits (feat: / fix: / chore: 等)
-- 分支策略: GitHub Flow (main + feature branches)
-
-### 质量标准
-- 所有文档必须通过 reviewer 门禁后才能进入下一阶段
-- 代码必须通过 TDD 三阶段 (RED → GREEN → REFACTOR)
-- 每个 Sprint 完成后执行 Sprint Review
+- 开发框架: CataForge
+- 运行时环境(runtime): claude-code
+- 框架版本: 未追踪
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 - 当前阶段: development
@@ -36,3 +20,53 @@
   - dev-plan: approved
   - test-report: 未开始
   - deploy-spec: 未开始
+
+## 文档导航
+
+- 导航索引: docs/NAV-INDEX.md (所有Agent优先查阅此文件)
+- 通用规则: .claude/rules/COMMON-RULES.md (所有Agent共享的行为规则和修订流程)
+- 状态码Schema: .claude/schemas/agent-result.schema.json (agent-result 格式权威定义)
+- 加载原则: 按任务需要通过NAV-INDEX定位并加载相关章节
+
+## 全局约定
+
+- 命名: {规范}
+- Commit: {格式}
+- 分支: {策略}
+- 设计工具: none
+  <!-- 可选值: none | penpot。设为 penpot 时启用 Penpot MCP 集成，需本地运行 Penpot + MCP Plugin -->
+- 人工审查检查点: [pre_dev, pre_deploy]
+  <!-- 可选值: phase_transition | pre_dev | pre_deploy | post_sprint | none。详见 COMMON-RULES §MANUAL_REVIEW_CHECKPOINTS -->
+- 文档类型命名: 统一用小写 kebab-case（prd、arch、dev-plan、test-report、ui-spec、deploy-spec…），包括人类可读文本、工具参数（template_id/doc_type）和产出文件名（如 arch-{project}-{ver}.md）
+
+## 效率原则 (全局遵循)
+
+- 按需加载: 先查NAV-INDEX，仅加载任务相关章节
+- 最小传递: Agent间传递doc_id#section引用，非全文
+- 不确定时调研: 调用research skill，不猜测
+- 选择题优先: 需要用户输入时优先提供选项
+- 长文拆分: 文档超500行时按doc-gen拆分策略分卷
+
+## 框架执行机制
+
+- Agent编排: orchestrator通过agent-dispatch skill激活子代理
+- DEV阶段特殊处理: Phase 5由orchestrator直接通过tdd-engine skill编排RED/GREEN/REFACTOR三个子代理，每个子代理拥有独立上下文
+- Skill调用: Agent按SKILL.md中的步骤式指令执行工作流
+- 状态持久化: 所有状态写入CLAUDE.md和docs/目录
+- 子代理通信: 通过文件系统(docs/和src/)传递产出物路径
+- 运行时适配: agent-dispatch根据runtime字段选择激活方式(claude-code/cursor/codex/generic)
+- **写权限规则**: CLAUDE.md由orchestrator独占写入；其他Agent只写各自在docs/或src/下的产出文件，任务执行进度通过doc-gen更新dev-plan文档
+
+## Agent-Skill映射
+>
+> 权威来源为各 AGENT.md 的 `skills:` 字段。查询: `grep -h 'skills:' -A 20 .claude/agents/*/AGENT.md`
+
+## 框架元信息
+
+- 语言定位: 中文框架（所有提示词、文档模板、用户交互均为中文；代码/变量/CLI参数使用英文）
+- model:inherit 说明: 所有 AGENT.md 中 `model: inherit` 表示继承父会话（即 orchestrator 或用户会话）的模型设置。如需为特定 Agent 指定模型，可在 AGENT.md frontmatter 中设置 `model: <model-id>`
+- 阶段配置: 以下阶段可在 Bootstrap 时标记为 N/A 以跳过:
+  - ui_design: 后端/CLI/API-only 项目可跳过（默认行为）
+  - testing: 原型/PoC 项目可跳过
+  - deployment: 库/SDK 项目可跳过
+  <!-- orchestrator 在 Bootstrap Step 1 收集项目信息时，向用户确认可跳过的阶段 -->

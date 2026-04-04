@@ -21,7 +21,7 @@
 | needs_input | 需要用户输入才能继续 | 所有Agent | 进入Interrupt-Resume Protocol |
 | blocked | 无法继续，需外部干预 | TDD子代理、任何Agent遇到不可恢复错误 | 记录阻塞原因，请求人工介入，不自动重试 |
 | rolled-back | 重构失败已回滚 | REFACTOR子代理 | 使用GREEN阶段产出，标记MEDIUM |
-| approved | 审查通过，无问题 | reviewer | 执行Phase Transition Protocol |
+| approved | 审查通过，无问题 | reviewer | 执行 Phase Transition Protocol |
 | approved_with_notes | 审查通过但有MEDIUM/LOW建议（无CRITICAL/HIGH时触发） | reviewer | 向用户展示问题列表，用户选择"接受并继续"或"要求修复" |
 | needs_revision | 审查不通过(有CRITICAL/HIGH) | reviewer | 进入Revision Protocol |
 
@@ -42,6 +42,24 @@
 |--------|-----|------|
 | MAX_QUESTIONS_PER_BATCH | 3 | 每批向用户提问的最大问题数 |
 | MIN_REVIEW_SOURCES | 3 | reflector 执行 retrospective 的最小信号源文件数（REVIEW + CODE-REVIEW + CORRECTIONS-LOG 合计） |
+| MANUAL_REVIEW_CHECKPOINTS | [pre_dev, pre_deploy] | 阶段转换时需用户确认才能继续的检查点（见 ORCHESTRATOR-PROTOCOLS §Manual Review Checkpoint Protocol） |
+| EVENT_LOG_PATH | docs/EVENT-LOG.jsonl | 统一事件日志路径（JSONL 格式，见 ORCHESTRATOR-PROTOCOLS §Event Log 规范） |
+| EVENT_LOG_SCHEMA | .claude/schemas/event-log.schema.json | 事件日志 Schema 定义 |
+
+### MANUAL_REVIEW_CHECKPOINTS 可选值
+| 值 | 触发时机 | 说明 |
+|----|---------|------|
+| phase_transition | 每次阶段转换 | 所有 Phase N→N+1 均暂停确认（最严格） |
+| pre_dev | Phase 4→5 转换前 | 开发阶段成本最高，确认开发计划和资源投入 |
+| pre_deploy | Phase 6→7 转换前 | 部署前 go/no-go 决策 |
+| post_sprint | 每个 Sprint Review 通过后 | 确认是否继续下一 Sprint 或调整优先级 |
+| none | — | 完全自动推进，仅保留现有失败驱动的门禁 |
+
+规则:
+- 默认值 `[pre_dev, pre_deploy]` 覆盖最高风险节点
+- 用户可在 Bootstrap 时或运行中通过修改 CLAUDE.md §全局约定 覆盖
+- `none` 与其他值互斥，设为 `none` 时忽略列表中其他值
+- `phase_transition` 已隐含 pre_dev 和 pre_deploy，不需重复列出
 
 ## 文档引用格式
 Agent 间传递文档引用时使用以下统一格式:
@@ -62,6 +80,13 @@ Agent 间传递文档引用时使用以下统一格式:
 - `section_number` 为纯数字（1, 2, 3...）
 - `item_id` 为条目编号（F-xxx, M-xxx, API-xxx, E-xxx, T-xxx, C-xxx, P-xxx）
 - 分卷文件的引用格式不变，doc-nav 负责定位到正确的分卷文件
+
+## 事件日志规范
+- 事件日志 `docs/EVENT-LOG.jsonl` 为编排流程时间线和审计追踪的单一事实来源
+- 格式: JSONL（每行一个 JSON 对象），Schema 见 `.claude/schemas/event-log.schema.json`
+- 写入: orchestrator 通过 `python .claude/scripts/event_logger.py` CLI 或 Hook 自动写入
+- 读取: reflector 在 retrospective 时分析事件日志，所有 Agent 可通过 Grep 查询
+- 详细事件类型和记录时机见 ORCHESTRATOR-PROTOCOLS.md §Event Log 规范
 
 ## 通用 Anti-Patterns
 - 禁止: 猜测项目状态，以 CLAUDE.md 和 docs/ 目录为唯一事实来源
