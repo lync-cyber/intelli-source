@@ -13,9 +13,9 @@ from typing import AsyncIterator
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
+    async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.orm import sessionmaker
 
 
 class DatabaseManager:
@@ -37,7 +37,7 @@ class DatabaseManager:
                 "environment variable must be set"
             )
         self._engine: AsyncEngine = create_async_engine(url)
-        self._session_factory = sessionmaker(
+        self._session_factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
             bind=self._engine,
             class_=AsyncSession,
             expire_on_commit=False,
@@ -75,5 +75,5 @@ class DatabaseManager:
             def _closed_creator(*a: object, **kw: object) -> None:
                 raise RuntimeError("DatabaseManager is closed")
 
-            self._engine.pool._creator = _closed_creator  # type: ignore[assignment]
+            self._engine.pool._creator = _closed_creator  # type: ignore[assignment,unused-ignore]
             self._closed = True
