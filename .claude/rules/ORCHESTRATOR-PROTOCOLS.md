@@ -1,6 +1,6 @@
 # Orchestrator Protocols
 
-> 协议快速定位 — 核心协议: Bootstrap, Interrupt-Resume, Revision, Phase Transition, Approved-with-Notes, Rolled-back Recovery, TDD Blocked Recovery, Sprint Review, Change Request, Agent Crash Recovery, needs_revision 计数 | 学习协议: On-Correction Learning, Adaptive Review, Retrospective & Improvement | 模板: CLAUDE.md Update Template
+> 协议快速定位 — 核心协议: Bootstrap, Interrupt-Resume, Revision, Approved-with-Notes, **Phase Transition**, **Manual Review Checkpoint**, Rolled-back Recovery, TDD Blocked Recovery, Sprint Review, Change Request, Agent Crash Recovery, needs_revision 计数 | 基础设施: Event Log | 学习协议: On-Correction Learning, Adaptive Review, Retrospective & Improvement | 模板: CLAUDE.md Update Template
 
 ---
 # Part 1: 核心协议 (Core Protocols)
@@ -9,12 +9,13 @@
 
 ## Project Bootstrap
 当项目从零开始 (CLAUDE.md 不存在) 时:
-1. **收集项目基本信息** — 向用户确认: 项目名称、技术栈、命名规范、Commit格式、分支策略
+1. **收集项目基本信息** — 向用户确认: 项目名称、技术栈、命名规范、Commit格式、分支策略、人工审查检查点偏好（默认 `[pre_dev, pre_deploy]`）
 2. **创建目录结构**: `mkdir -p docs/{prd,arch,dev-plan,ui-spec,test-report,deploy-spec,research,changelog,reviews/{doc,code,sprint,retro}}`
 3. **创建 CLAUDE.md** — 按下方 Update Template 生成，所有文档状态设为"未开始"，当前阶段设为 requirements
 4. **写入框架版本** — 读取 pyproject.toml 的 `[project].version` 字段填入 CLAUDE.md `框架版本` 字段（如 pyproject.toml 不存在则标注"未追踪"）
 5. **创建 docs/NAV-INDEX.md** — 生成空索引骨架
-6. **进入 Phase 1** — 通过agent-dispatch激活 product-manager
+6. **记录初始事件** — `python .claude/scripts/event_logger.py --event session_start --phase requirements --detail "项目初始化完成"`
+7. **进入 Phase 1** — 通过agent-dispatch激活 product-manager
 
 ## Interrupt-Resume Protocol
 注: 前台子代理(默认)可直接使用AskUserQuestion向用户提问。本协议仅在后台子代理返回 needs_input 时触发。
@@ -52,15 +53,6 @@
 
 注意: Revision 是在已有文档基础上的增量修订，不是从零开始。
 
-## Phase Transition Protocol
-当 reviewer 返回 approved 或用户在 Approved-with-Notes 中选择"接受并继续"时，执行以下阶段转换步骤:
-1. **更新文档内部状态** — Edit 对应文档头的 `status: draft` → `status: approved`
-2. **更新 CLAUDE.md 文档状态** — Edit CLAUDE.md 项目状态区对应文档行（如 `prd: draft` → `prd: approved`）
-3. **更新 CLAUDE.md 阶段信息** — 按 Update Template 更新: 当前阶段、上次完成、下一步行动、已完成阶段
-4. **进入下一 Phase** — 按 Phase Routing 激活下一阶段的 Agent
-
-注意: 步骤 1-3 必须在步骤 4 之前完成。如果遗漏状态更新，恢复会话时会因 CLAUDE.md 显示 draft 而误判阶段未完成。
-
 ## Approved-with-Notes Protocol
 当 reviewer 返回 approved_with_notes 时:
 1. 从 REVIEW 报告中提取 MEDIUM/LOW 问题列表
@@ -68,6 +60,47 @@
    - "接受并继续": 将文档状态变更为 approved，进入下一 Phase
    - "要求修复选中的问题": 将用户选中的问题标记为待修复，文档状态变更为 needs_revision，进入 Revision Protocol
 3. 用户选择"接受"时，MEDIUM/LOW 问题记录保留在 REVIEW 报告中供后续参考
+
+## Phase Transition Protocol
+当 reviewer 返回 approved 或 approved_with_notes 且用户选择"接受并继续"时，执行以下状态持久化步骤:
+
+1. **更新文档头状态** — 将文档内部 `status: draft` / `status: review` 更新为 `status: approved`
+2. **更新 CLAUDE.md 文档状态** — 对应文档状态字段标记为 approved
+3. **更新 CLAUDE.md 阶段信息** — 按 CLAUDE.md Update Template 更新当前阶段、上次完成、下一步行动、已完成阶段
+4. **一致性验证** — 确认文档头 status 与 CLAUDE.md 字段一致
+5. **进入下一阶段** — 通过 agent-dispatch 激活下一阶段 Agent
+
+> **关键**: 步骤 1-4 必须在步骤 5 之前全部完成，防止会话恢复时因状态未更新而误判阶段未完成。
+
+## Manual Review Checkpoint Protocol
+阶段转换时，根据 MANUAL_REVIEW_CHECKPOINTS 常量（见 COMMON-RULES §框架配置常量）决定是否暂停等待用户确认。
+
+**触发时机**: 文档状态变为 approved 且 orchestrator 即将进入下一 Phase 时。
+
+**执行步骤**:
+1. 读取 CLAUDE.md §全局约定 中的 `人工审查检查点` 字段（未配置则使用 COMMON-RULES 默认值 `[pre_dev, pre_deploy]`）
+2. 判断当前转换是否命中检查点:
+   - `phase_transition` → 所有 Phase 转换均命中
+   - `pre_dev` → 仅 Phase 4→5（dev_planning → development）命中
+   - `pre_deploy` → 仅 Phase 6→7（testing → deployment）命中
+   - `post_sprint` → Sprint Review approved 后、进入下一 Sprint 或 Phase 6 前命中
+   - `none` → 不命中，直接推进
+3. 命中时，使用 AskUserQuestion 向用户展示阶段摘要并确认:
+   ```
+   === 阶段转换确认 ===
+   已完成: {当前阶段名} — {关键产出摘要}
+   即将进入: {下一阶段名} — {预期工作概述}
+
+   选项:
+   1. 确认继续
+   2. 暂停，我需要先审查产出
+   3. 调整方向（进入 Change Request 流程）
+   ```
+4. 用户选择"确认继续" → 正常推进
+5. 用户选择"暂停" → orchestrator 等待用户后续指令（不自动推进）
+6. 用户选择"调整方向" → 进入 Change Request Protocol
+
+**不命中时**: 直接按现有逻辑自动推进，无额外交互。
 
 ## Rolled-back Recovery Protocol
 当 TDD REFACTOR 子代理返回 `rolled-back` 状态时:
@@ -193,6 +226,36 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
 - N=1: 正常修订流程
 - N>=2: 触发 Adaptive Review Protocol
 - N>=3: 暂停自动推进，请求人工介入
+
+## Event Log 规范
+orchestrator 在关键节点向 `docs/EVENT-LOG.jsonl` 追加事件记录，用于审计追踪和 reflector 回顾分析。
+
+**格式**: JSONL（每行一个 JSON 对象），Schema 见 `.claude/schemas/event-log.schema.json`
+- 必填字段: `ts` (ISO 8601), `event`, `phase`, `detail`
+- 可选字段: `agent`, `task_type`, `status`, `ref`
+
+**事件类型与写入时机**:
+| 事件 | 触发条件 |
+|------|---------|
+| session_start | 会话启动（Hook 自动写入） |
+| phase_start | Phase Transition Protocol 步骤 5 |
+| phase_end | reviewer 返回 approved |
+| agent_dispatch | agent-dispatch 调度子代理前 |
+| agent_return | 子代理返回结果后（Hook 自动写入） |
+| review_verdict | reviewer 返回审查结论 |
+| user_decision | 用户在 Approved-with-Notes / Change Request 中做出选择 |
+| revision_start | 进入 Revision Protocol |
+| tdd_phase | TDD RED/GREEN/REFACTOR 阶段切换 |
+| incident | 崩溃、rolled-back 等异常事件 |
+| state_change | CLAUDE.md 状态字段变更 |
+| correction | On-Correction Learning 触发时 |
+| doc_finalize | doc-gen finalize 完成 |
+
+**写入方式**: 优先使用 `python .claude/scripts/event_logger.py` CLI，如:
+```bash
+python .claude/scripts/event_logger.py --event phase_start --phase architecture --detail "进入架构设计阶段"
+```
+Hook（session_context.py, validate_agent_result.py）自动写入 session_start 和 agent_return 事件。
 
 ---
 # Part 2: 学习协议 (Learning Protocols)
