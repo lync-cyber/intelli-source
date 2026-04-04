@@ -164,7 +164,7 @@
 - **tdd_acceptance**:
   - [ ] AC-023 映射: DigestGenerator 对同聚类多篇文档生成综合简报（含时间线和要点）
   - [ ] AC-024 映射: SemanticTagger 基于语义为内容打标签，无法归类则进入"未分类"
-  - [ ] AC-027 映射: 所有处理器均支持降级到传统逻辑
+  - [ ] AC-025 映射: 所有处理器均支持降级到传统逻辑
   - [ ] AC-T025-1: DigestGenerator 输出包含 title/summary/timeline/key_points
   - [ ] AC-T025-2: 打标降级使用关键词匹配 + 预定义标签库
   - [ ] AC-T025-3: 摘要降级使用截断式摘要（取前 N 句）
@@ -186,7 +186,7 @@
 - **接口**: 无
 - **复杂度**: S
 - **tdd_acceptance**:
-  - [ ] AC-026 映射: 支持敏感词过滤与合规检查
+  - [ ] AC-025 映射: 支持敏感词过滤与合规检查
   - [ ] AC-T026-1: ContentFilter 实现 BaseProcessor 接口
   - [ ] AC-T026-2: 敏感词库可通过配置文件加载和热更新
   - [ ] AC-T026-3: LLM 调用前过滤输入中的敏感信息
@@ -197,5 +197,5 @@
   - [ ] `tests/unit/llm/test_filter.py` -- 过滤器测试
 - **context_load**:
   - arch#§2.M-004
-  - prd#§2.F-006（AC-026）
+  - prd#§2.F-006（AC-025）
   - arch#§5.2（数据安全）

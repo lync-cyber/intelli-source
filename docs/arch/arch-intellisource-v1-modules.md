@@ -70,9 +70,9 @@
   - `ContentClusterer` — 内容聚类处理器，同主题多源内容分组（AC-020）
   - `DigestGenerator` — 综合简报生成器，多篇文档聚合摘要（AC-023）
   - `SemanticTagger` — 语义打标处理器（AC-024）
-  - `ContentFilter` — 敏感词过滤与合规检查（AC-026）
+  - `ContentFilter` — 敏感词过滤与合规检查（AC-025）
   - `FingerprintGenerator` — 内容指纹生成器（AC-022）
-  - 每个 LLM 处理器均实现降级逻辑（AC-021, AC-027），降级映射见 arch#§5.3
+  - 每个 LLM 处理器均实现降级逻辑（AC-021, AC-026），降级映射见 arch#§5.3
 
 ### M-005: LLM 服务治理模块 (llm.gateway)
 
