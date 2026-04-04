@@ -244,7 +244,7 @@ C4Context
 
 - 采集内容仅存储在本地 PostgreSQL，不上传至外部服务（prd#§3.2）
 - LLM 调用时仅发送必要的文本片段，不发送用户身份信息
-- 敏感词过滤在 LLM 调用前后双重检查（prd#§2 F-006 AC-026）
+- 敏感词过滤在 LLM 调用前后双重检查（prd#§2 F-006 AC-025）
 
 ### 5.3 错误处理
 
@@ -300,7 +300,7 @@ C4Context
 - 连续失败 5 次触发熔断（Open 状态），停止调用 60s
 - 60s 后进入半开状态（Half-Open），允许 1 次试探调用
 - 试探成功则关闭熔断（Closed），失败则继续 Open
-- 熔断期间自动降级到传统处理逻辑（prd#§2 F-005 AC-021, F-006 AC-027）
+- 熔断期间自动降级到传统处理逻辑（prd#§2 F-005 AC-021, F-006 AC-026）
 
 **降级策略** (prd#§2 F-007 AC-030):
 
@@ -368,8 +368,7 @@ intellisource/
 │       ├── llm/                       # M-004 + M-005 LLM 处理与治理
 │       │   ├── __init__.py
 │       │   ├── gateway.py            # LLM 统一网关
-│       │   ├── models.py             # 模型能力声明 (ModelRegistry)
-│       │   ├── router.py             # 智能路由器 (SmartRouter)
+│       │   ├── model_config.py       # 模型路由配置加载 (task_type → model 映射)
 │       │   ├── circuit_breaker.py    # 熔断器
 │       │   ├── fallback.py           # 降级逻辑
 │       │   ├── processors/           # LLM 处理器（管道插件 + Agent 工具）
@@ -378,11 +377,9 @@ intellisource/
 │       │   │   ├── cluster.py        # 聚类
 │       │   │   ├── summarizer.py     # 摘要
 │       │   │   ├── tagger.py         # 打标
-│       │   │   ├── sentiment.py      # 情感分析
 │       │   │   └── optimizer.py      # 推送优化
 │       │   ├── prompts/              # LLM prompt 模板
 │       │   │   └── context_compress.txt  # 上下文压缩 prompt
-│       │   │   └── tagger.py         # 打标
 │       │   └── schemas/              # LLM 输入输出 JSON Schema
 │       │       └── *.json
 │       ├── scheduler/                 # M-006 任务调度（触发层）

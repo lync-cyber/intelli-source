@@ -1,7 +1,7 @@
 # Architecture 分卷 -- 接口契约: IntelliSource
 <!-- required_sections: ["## 3. 接口契约"] -->
 <!-- volume_type: api -->
-<!-- id: arch-intellisource-v1-api | author: architect | status: draft -->
+<!-- id: arch-intellisource-v1-api | author: architect | status: approved -->
 <!-- deps: prd-intellisource-v1 | consumers: tech-lead, developer, devops -->
 <!-- volume: api | split-from: arch-intellisource-v1 -->
 
@@ -349,7 +349,6 @@ response:
           title: { type: string, desc: "标题" }
           summary: { type: string, desc: "摘要" }
           tags: { type: "array[string]", desc: "标签列表" }
-          sentiment: { type: string, desc: "情感倾向: positive | neutral | negative" }
           source_name: { type: string, desc: "来源名称" }
           published_at: { type: datetime, desc: "发布时间" }
       next_cursor: { type: "string | null", desc: "下一页游标" }
@@ -378,7 +377,6 @@ response:
       body_text: { type: string, desc: "正文内容" }
       summary: { type: "string | null", desc: "LLM 生成摘要" }
       tags: { type: "array[string]", desc: "标签列表" }
-      sentiment: { type: "string | null", desc: "情感倾向" }
       fingerprint: { type: string, desc: "内容指纹" }
       source_url: { type: string, desc: "原始 URL" }
       source_name: { type: string, desc: "来源名称" }
@@ -618,7 +616,6 @@ request:
       fields:
         keywords: { type: "array[string]", required: false, desc: "关键词列表" }
         tags: { type: "array[string]", required: false, desc: "标签列表" }
-        sentiment: { type: "array[string]", required: false, desc: "情感倾向过滤: positive | neutral | negative" }
     frequency: { type: string, required: false, desc: "推送频率: realtime | hourly | daily | weekly，默认 realtime" }
     quiet_hours:
       type: object

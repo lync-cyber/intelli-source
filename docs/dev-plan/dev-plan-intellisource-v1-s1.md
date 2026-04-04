@@ -1,7 +1,7 @@
 # Development Plan 分卷 -- Sprint 1: IntelliSource
 <!-- required_sections: ["## 3. 任务卡详细"] -->
 <!-- volume_type: sprint -->
-<!-- id: dev-plan-intellisource-v1-s1 | author: tech-lead | status: draft -->
+<!-- id: dev-plan-intellisource-v1-s1 | author: tech-lead | status: approved -->
 <!-- deps: arch-intellisource-v1 | consumers: developer, qa-engineer -->
 <!-- volume: sprint | split-from: dev-plan-intellisource-v1 -->
 
@@ -63,7 +63,7 @@
 - **接口**: 无
 - **复杂度**: L
 - **tdd_acceptance**:
-  - [ ] AC-T003-1: 12 个 ORM 模型（E-001~E-012）字段类型与 arch-intellisource-v1-data 定义一致
+  - [ ] AC-T003-1: 12 个 ORM 模型（E-001~E-011）字段类型与 arch-intellisource-v1-data 定义一致
   - [ ] AC-T003-2: 所有 FK 关系正确建立（Source->CollectTask, RawContent->ProcessedContent 等）
   - [ ] AC-T003-3: JSONB 字段使用 SQLAlchemy 的 JSON 类型且默认值正确
   - [ ] AC-T003-4: pgvector VECTOR(1536) 类型字段正确定义（E-004 embedding, E-005 centroid）
@@ -71,10 +71,10 @@
   - [ ] AC-T003-6: Alembic 可基于模型自动生成迁移脚本且 upgrade/downgrade 成功
 - **deliverables** (交付物):
   - [ ] `src/intellisource/storage/models.py` -- 全部 ORM 模型定义
-  - [ ] `alembic/versions/{initial_migration}.py` -- 初始迁移脚本（草稿版，由 T-047 完善和验证）
+  - [ ] `alembic/versions/{initial_migration}.py` -- 初始迁移脚本（草稿版，由 T-046 完善和验证）
   - [ ] `tests/unit/storage/test_models.py` -- 模型定义测试
 - **context_load**:
-  - arch-intellisource-v1-data#§4（全部实体 E-001~E-012）
+  - arch-intellisource-v1-data#§4（全部实体 E-001~E-011）
   - arch#§2.M-009
 
 ### T-004: 数据访问层(Repository)

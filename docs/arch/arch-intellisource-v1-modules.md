@@ -1,7 +1,7 @@
 # Architecture 分卷 -- 模块划分: IntelliSource
 <!-- required_sections: ["## 2. 模块划分"] -->
 <!-- volume_type: modules -->
-<!-- id: arch-intellisource-v1-modules | author: architect | status: draft -->
+<!-- id: arch-intellisource-v1-modules | author: architect | status: approved -->
 <!-- deps: prd-intellisource-v1 | consumers: tech-lead, developer, devops -->
 <!-- volume: modules | split-from: arch-intellisource-v1 -->
 
@@ -51,7 +51,7 @@
 - **依赖模块**: M-009（读写处理结果）, M-010（日志/指标上报）
 - **内部关键组件**:
   - `PipelineEngine` — 管道执行引擎，支持中间件链模式（借鉴 RSSHub/Hono 中间件管道），每个处理器可实现前处理-调用下一个-后处理的洋葱模型，同时兼容传统线性编排（AC-013）
-  - `MiddlewareChain` — 中间件链执行器，支持 `process(ctx, next)` 洋葱模型，处理器可在调用 next 前后执行前处理/后处理逻辑，支持在 Workflow (E-012) 的 steps JSONB 中声明中间件组合
+  - `MiddlewareChain` — 中间件链执行器，支持 `process(ctx, next)` 洋葱模型，处理器可在调用 next 前后执行前处理/后处理逻辑，支持在 PipelineConfig YAML 的 steps 中声明中间件组合
   - `BaseProcessor` — 处理器抽象基类，定义统一接口（AC-015）
   - `PipelineContext` — 管道上下文对象，支持处理器间数据传递（AC-016）
   - `ConditionEvaluator` — 条件评估器，支持条件跳过和分支（AC-014）
@@ -70,9 +70,9 @@
   - `ContentClusterer` — 内容聚类处理器，同主题多源内容分组（AC-020）
   - `DigestGenerator` — 综合简报生成器，多篇文档聚合摘要（AC-023）
   - `SemanticTagger` — 语义打标处理器（AC-024）
-  - `ContentFilter` — 敏感词过滤与合规检查（AC-026）
+  - `ContentFilter` — 敏感词过滤与合规检查（AC-025）
   - `FingerprintGenerator` — 内容指纹生成器（AC-022）
-  - 每个 LLM 处理器均实现降级逻辑（AC-021, AC-027），降级映射见 arch#§5.3
+  - 每个 LLM 处理器均实现降级逻辑（AC-021, AC-026），降级映射见 arch#§5.3
 
 ### M-005: LLM 服务治理模块 (llm.gateway)
 
@@ -86,8 +86,7 @@
   - `FallbackManager` — 降级管理器，LLM 失败时自动切换（AC-030，<500ms）
   - `PriorityQueue` — 优先级队列，隔离用户交互请求和后台处理请求（AC-032）
   - `CostTracker` — 成本追踪器，记录 Token 消耗/延迟/IO 长度，支持聚合统计（AC-033）
-  - `ModelRegistry` — 模型能力注册表，通过 YAML 配置声明每个模型的能力维度（context_window、supports_json_mode、supports_function_calling、cost_per_1k_tokens、best_for 等），支持热加载更新（借鉴 OpenCode Provider 抽象模式）
-  - `SmartRouter` — 智能路由器，根据 LLM 任务类型（extraction/summarization/embedding 等）+ 模型能力 + 成本约束自动选择最优模型；无匹配模型时降级到默认模型并记录 WARNING 日志
+  - 模型路由通过 YAML 配置文件 (`config/llm_models.yaml`) 声明 task_type → model 映射（如 extraction → gpt-4o, embedding → text-embedding-ada-002），LLMGateway 根据 task_type 参数查找配置选择模型；无匹配时使用 default_model 并记录 WARNING 日志
   - `SchemaEnforcer` — JSON Mode / Function Calling 输出格式强制器（AC-031）
 
 ### M-006: 任务编排与 Agent 调度模块 (scheduler + agent)
