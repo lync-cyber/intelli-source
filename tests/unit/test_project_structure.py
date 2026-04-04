@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import importlib
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -115,7 +114,7 @@ class TestPyprojectDependencies:
         )
 
     def test_package_installable(self) -> None:
-        """The IntelliSource package must be pip-installable (dry-run).
+        """The IntelliSource package must be installable via uv (dry-run).
 
         This test depends on pyproject.toml declaring 'intellisource' as the
         project name (validated by test_pyproject_toml_exists_in_project_root).
@@ -127,8 +126,7 @@ class TestPyprojectDependencies:
         )
         result = subprocess.run(
             [
-                sys.executable,
-                "-m",
+                "uv",
                 "pip",
                 "install",
                 "-e",
@@ -140,7 +138,7 @@ class TestPyprojectDependencies:
             cwd=str(PROJECT_ROOT),
         )
         assert result.returncode == 0, (
-            f"pip install --dry-run failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
+            f"uv pip install --dry-run failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
         )
 
 
