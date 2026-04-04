@@ -41,6 +41,7 @@ packages = ["src/intellisource"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
+asyncio_mode = "auto"
 
 [tool.ruff]
 target-version = "py311"
