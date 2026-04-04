@@ -1,0 +1,534 @@
+"""ORM model definitions for all entities (T-003).
+
+Defines 11 SQLAlchemy 2.0 mapped models corresponding to E-001 through E-011.
+"""
+
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+from typing import List, Optional
+
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import (
+    Boolean,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    Text,
+    UniqueConstraint,
+    func,
+)
+from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.types import VARCHAR
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+# ---------------------------------------------------------------------------
+# E-001: Source
+# ---------------------------------------------------------------------------
+
+
+class Source(Base):
+    __tablename__ = "sources"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    name: Mapped[str] = mapped_column(VARCHAR(255), nullable=False, unique=True)
+    type: Mapped[str] = mapped_column(VARCHAR(20), nullable=False)
+    url: Mapped[str] = mapped_column(Text, nullable=False)
+    tags: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    status: Mapped[str] = mapped_column(VARCHAR(20), nullable=False, default="active")
+    schedule_interval: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=3600
+    )
+    schedule_adaptive: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True
+    )
+    proxy: Mapped[Optional[str]] = mapped_column(VARCHAR(255), nullable=True)
+    rate_limit_qps: Mapped[Optional[float]] = mapped_column(Numeric, nullable=True)
+    rate_limit_concurrency: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True
+    )
+    metadata_: Mapped[dict] = mapped_column(
+        "metadata", JSONB, nullable=False, default=dict
+    )
+    last_collected_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    next_collect_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    error_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    avg_update_interval: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    http_etag: Mapped[Optional[str]] = mapped_column(VARCHAR(255), nullable=True)
+    http_last_modified: Mapped[Optional[str]] = mapped_column(
+        VARCHAR(255), nullable=True
+    )
+    config_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), onupdate=func.now()
+    )
+
+    # Relationships
+    collect_tasks: Mapped[List["CollectTask"]] = relationship(back_populates="source")
+    raw_contents: Mapped[List["RawContent"]] = relationship(back_populates="source")
+    subscriptions: Mapped[List["Subscription"]] = relationship(back_populates="source")
+
+    __table_args__ = (
+        Index("ix_sources_status", "status"),
+        Index("ix_sources_next_collect_at", "next_collect_at"),
+        Index("ix_sources_tags", "tags", postgresql_using="gin"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# E-008: TaskChain
+# ---------------------------------------------------------------------------
+
+
+class TaskChain(Base):
+    __tablename__ = "task_chains"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    pipeline_name: Mapped[str] = mapped_column(VARCHAR(100), nullable=False)
+    status: Mapped[str] = mapped_column(VARCHAR(20), nullable=False, default="pending")
+    trigger_type: Mapped[str] = mapped_column(VARCHAR(20), nullable=False)
+    execution_mode: Mapped[str] = mapped_column(VARCHAR(20), nullable=False)
+    total_steps: Mapped[int] = mapped_column(Integer, nullable=False)
+    completed_steps: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    current_step: Mapped[Optional[str]] = mapped_column(VARCHAR(100), nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    started_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    finished_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    # Relationships
+    collect_tasks: Mapped[List["CollectTask"]] = relationship(
+        back_populates="task_chain"
+    )
+
+    __table_args__ = (
+        Index("ix_task_chains_status", "status"),
+        Index("ix_task_chains_pipeline_name", "pipeline_name"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# E-002: CollectTask
+# ---------------------------------------------------------------------------
+
+
+class CollectTask(Base):
+    __tablename__ = "collect_tasks"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    source_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sources.id"), nullable=False
+    )
+    task_chain_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("task_chains.id"), nullable=True
+    )
+    status: Mapped[str] = mapped_column(VARCHAR(20), nullable=False, default="pending")
+    priority: Mapped[str] = mapped_column(VARCHAR(20), nullable=False, default="normal")
+    trigger_type: Mapped[str] = mapped_column(VARCHAR(20), nullable=False)
+    items_collected: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    started_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    finished_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    # Relationships
+    source: Mapped["Source"] = relationship(back_populates="collect_tasks")
+    task_chain: Mapped[Optional["TaskChain"]] = relationship(
+        back_populates="collect_tasks"
+    )
+    raw_contents: Mapped[List["RawContent"]] = relationship(
+        back_populates="collect_task"
+    )
+
+    __table_args__ = (
+        Index("ix_collect_tasks_status", "status"),
+        Index("ix_collect_tasks_source_id", "source_id"),
+        Index("ix_collect_tasks_task_chain_id", "task_chain_id"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# E-003: RawContent
+# ---------------------------------------------------------------------------
+
+
+class RawContent(Base):
+    __tablename__ = "raw_contents"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    source_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sources.id"), nullable=False
+    )
+    collect_task_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("collect_tasks.id"), nullable=True
+    )
+    title: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    author: Mapped[Optional[str]] = mapped_column(VARCHAR(255), nullable=True)
+    body_html: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    body_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    published_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    fingerprint: Mapped[str] = mapped_column(VARCHAR(64), nullable=False, unique=True)
+    raw_metadata: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    # Relationships
+    source: Mapped["Source"] = relationship(back_populates="raw_contents")
+    collect_task: Mapped[Optional["CollectTask"]] = relationship(
+        back_populates="raw_contents"
+    )
+    processed_content: Mapped[Optional["ProcessedContent"]] = relationship(
+        back_populates="raw_content", uselist=False
+    )
+
+    __table_args__ = (
+        Index("ix_raw_contents_fingerprint", "fingerprint"),
+        Index("ix_raw_contents_source_id", "source_id"),
+        Index("ix_raw_contents_published_at", "published_at"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# E-005: ContentCluster
+# ---------------------------------------------------------------------------
+
+
+class ContentCluster(Base):
+    __tablename__ = "content_clusters"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    topic: Mapped[str] = mapped_column(Text, nullable=False)
+    tags: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    content_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    centroid = mapped_column(Vector(1536), nullable=True)
+    status: Mapped[str] = mapped_column(VARCHAR(20), nullable=False, default="active")
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), onupdate=func.now()
+    )
+
+    # Relationships
+    processed_contents: Mapped[List["ProcessedContent"]] = relationship(
+        back_populates="cluster"
+    )
+    digests: Mapped[List["Digest"]] = relationship(back_populates="cluster")
+
+    __table_args__ = (
+        Index("ix_content_clusters_tags", "tags", postgresql_using="gin"),
+        Index("ix_content_clusters_updated_at", "updated_at"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# E-004: ProcessedContent
+# ---------------------------------------------------------------------------
+
+
+class ProcessedContent(Base):
+    __tablename__ = "processed_contents"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    raw_content_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("raw_contents.id"),
+        nullable=False,
+        unique=True,
+    )
+    title: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    body_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    tags: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    cluster_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("content_clusters.id"), nullable=True
+    )
+    fingerprint: Mapped[Optional[str]] = mapped_column(VARCHAR(64), nullable=True)
+    embedding = mapped_column(Vector(1536), nullable=True)
+    structured_data: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    processing_status: Mapped[str] = mapped_column(
+        VARCHAR(20), nullable=False, default="pending"
+    )
+    processed_by: Mapped[str] = mapped_column(
+        VARCHAR(20), nullable=False, default="llm"
+    )
+    source_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    source_name: Mapped[Optional[str]] = mapped_column(VARCHAR(255), nullable=True)
+    published_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    processed_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    # Relationships
+    raw_content: Mapped["RawContent"] = relationship(back_populates="processed_content")
+    cluster: Mapped[Optional["ContentCluster"]] = relationship(
+        back_populates="processed_contents"
+    )
+
+    __table_args__ = (
+        Index("ix_processed_contents_processing_status", "processing_status"),
+        Index("ix_processed_contents_cluster_id", "cluster_id"),
+        Index("ix_processed_contents_tags", "tags", postgresql_using="gin"),
+        Index(
+            "ix_processed_contents_embedding",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+        Index("ix_processed_contents_published_at", "published_at"),
+        Index(
+            "ix_processed_contents_fts",
+            "body_text",
+            postgresql_using="gin",
+            postgresql_ops={"body_text": "gin_trgm_ops"},
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# E-006: Digest
+# ---------------------------------------------------------------------------
+
+
+class Digest(Base):
+    __tablename__ = "digests"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    cluster_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("content_clusters.id"), nullable=False
+    )
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    timeline: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    key_points: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    generated_by: Mapped[str] = mapped_column(
+        VARCHAR(20), nullable=False, default="llm"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), onupdate=func.now()
+    )
+
+    # Relationships
+    cluster: Mapped["ContentCluster"] = relationship(back_populates="digests")
+
+    __table_args__ = (Index("ix_digests_cluster_id", "cluster_id"),)
+
+
+# ---------------------------------------------------------------------------
+# E-007: LLMCallLog
+# ---------------------------------------------------------------------------
+
+
+class LLMCallLog(Base):
+    __tablename__ = "llm_call_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    model: Mapped[str] = mapped_column(VARCHAR(100), nullable=False)
+    provider: Mapped[str] = mapped_column(VARCHAR(50), nullable=False)
+    call_type: Mapped[str] = mapped_column(VARCHAR(50), nullable=False)
+    content_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("processed_contents.id"),
+        nullable=True,
+    )
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    input_length: Mapped[int] = mapped_column(Integer, nullable=False)
+    output_length: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(VARCHAR(20), nullable=False)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        Index("ix_llm_call_logs_model", "model"),
+        Index("ix_llm_call_logs_created_at", "created_at"),
+        Index("ix_llm_call_logs_call_type", "call_type"),
+        Index("ix_llm_call_logs_content_id", "content_id"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# E-009: Subscription
+# ---------------------------------------------------------------------------
+
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    name: Mapped[str] = mapped_column(VARCHAR(255), nullable=False)
+    source_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sources.id"), nullable=True
+    )
+    channel: Mapped[str] = mapped_column(VARCHAR(20), nullable=False)
+    channel_config: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    match_rules: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    frequency: Mapped[str] = mapped_column(
+        VARCHAR(20), nullable=False, default="realtime"
+    )
+    quiet_hours: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    status: Mapped[str] = mapped_column(VARCHAR(20), nullable=False, default="active")
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), onupdate=func.now()
+    )
+
+    # Relationships
+    source: Mapped[Optional["Source"]] = relationship(back_populates="subscriptions")
+    push_records: Mapped[List["PushRecord"]] = relationship(
+        back_populates="subscription"
+    )
+
+    __table_args__ = (
+        Index("ix_subscriptions_channel", "channel"),
+        Index("ix_subscriptions_status", "status"),
+        Index(
+            "ix_subscriptions_match_rules",
+            "match_rules",
+            postgresql_using="gin",
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# E-010: PushRecord
+# ---------------------------------------------------------------------------
+
+
+class PushRecord(Base):
+    __tablename__ = "push_records"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    subscription_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("subscriptions.id"), nullable=False
+    )
+    content_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("processed_contents.id"),
+        nullable=False,
+    )
+    channel: Mapped[str] = mapped_column(VARCHAR(20), nullable=False)
+    status: Mapped[str] = mapped_column(VARCHAR(20), nullable=False, default="pending")
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    sent_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    delivered_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    # Relationships
+    subscription: Mapped["Subscription"] = relationship(back_populates="push_records")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "subscription_id",
+            "content_id",
+            "channel",
+            name="uq_push_records_dedup",
+        ),
+        Index("ix_push_records_subscription_id", "subscription_id"),
+        Index("ix_push_records_content_id", "content_id"),
+        Index(
+            "ix_push_records_dedup",
+            "subscription_id",
+            "content_id",
+            "channel",
+            unique=True,
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# E-011: ChatSession
+# ---------------------------------------------------------------------------
+
+
+class ChatSession(Base):
+    __tablename__ = "chat_sessions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    channel: Mapped[str] = mapped_column(VARCHAR(20), nullable=False)
+    channel_user_id: Mapped[str] = mapped_column(VARCHAR(255), nullable=False)
+    context: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    last_active_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        Index("ix_chat_sessions_user", "channel", "channel_user_id"),
+        Index("ix_chat_sessions_last_active_at", "last_active_at"),
+    )
