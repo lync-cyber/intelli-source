@@ -3,10 +3,21 @@
 from __future__ import annotations
 
 import abc
+import hashlib
 from dataclasses import dataclass, field
 from datetime import datetime
 
 import httpx
+
+
+def compute_fingerprint(
+    source_url: str, title: str | None, published_at: datetime | None
+) -> str:
+    """Compute SHA-256 hex digest from source_url + title + published_at."""
+    raw = (
+        source_url + (title or "") + (published_at.isoformat() if published_at else "")
+    )
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 @dataclass

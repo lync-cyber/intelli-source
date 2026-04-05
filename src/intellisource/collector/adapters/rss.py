@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import re
 from datetime import datetime
@@ -10,7 +9,7 @@ from email.utils import parsedate_to_datetime
 
 import feedparser
 
-from intellisource.collector.base import BaseCollector, RawContent
+from intellisource.collector.base import BaseCollector, RawContent, compute_fingerprint
 
 logger = logging.getLogger(__name__)
 
@@ -65,16 +64,6 @@ def _extract_link(entry: dict[str, object]) -> str:
     return ""
 
 
-def _compute_fingerprint(
-    source_url: str, title: str | None, published_at: datetime | None
-) -> str:
-    """Compute SHA-256 fingerprint from source_url + title + published_at."""
-    raw = (
-        source_url + (title or "") + (published_at.isoformat() if published_at else "")
-    )
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
-
-
 class RSSCollector(BaseCollector):
     """Collector for RSS 2.0 and Atom 1.0 feeds."""
 
@@ -105,7 +94,7 @@ class RSSCollector(BaseCollector):
             body_html = _extract_body_html(entry)
             body_text = _strip_html(body_html) if body_html else None
             published_at = _parse_published(entry)
-            fingerprint = _compute_fingerprint(source_url, title, published_at)
+            fingerprint = compute_fingerprint(source_url, title, published_at)
 
             results.append(
                 RawContent(

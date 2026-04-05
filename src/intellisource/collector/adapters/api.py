@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import hashlib
 import logging
 from datetime import datetime
 from typing import Any
 
 import httpx
 
-from intellisource.collector.base import BaseCollector, RawContent
+from intellisource.collector.base import BaseCollector, RawContent, compute_fingerprint
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +19,6 @@ def _resolve_path(data: object, path: str) -> object | None:
     Supports paths like ``"$.data.articles"`` or ``"data.articles"``.
     Returns *None* when any segment is missing.
     """
-    # Strip leading "$." if present
     if isinstance(path, str) and path.startswith("$."):
         path = path[2:]
 
@@ -33,6 +31,14 @@ def _resolve_path(data: object, path: str) -> object | None:
     return current
 
 
+def _resolve_str(item: object, mapping: dict[str, str], key: str) -> str | None:
+    """Resolve a field mapping key to a string value, or None."""
+    if key not in mapping:
+        return None
+    val = _resolve_path(item, mapping[key])
+    return str(val) if val is not None else None
+
+
 def _parse_datetime(value: object) -> datetime | None:
     """Parse an ISO-8601 datetime string, returning *None* on failure."""
     if not isinstance(value, str):
@@ -41,16 +47,6 @@ def _parse_datetime(value: object) -> datetime | None:
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
     except (ValueError, TypeError):
         return None
-
-
-def _compute_fingerprint(
-    source_url: str, title: str | None, published_at: datetime | None
-) -> str:
-    """Compute SHA-256 hex digest from source_url + title + published_at."""
-    raw = (
-        source_url + (title or "") + (published_at.isoformat() if published_at else "")
-    )
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 class APICollector(BaseCollector):
@@ -126,42 +122,17 @@ class APICollector(BaseCollector):
 
         results: list[RawContent] = []
         for item in items:
-            title_val = (
-                _resolve_path(item, field_mapping["title"])
-                if "title" in field_mapping
-                else None
-            )
-            title = str(title_val) if title_val is not None else None
-
-            author_val = (
-                _resolve_path(item, field_mapping["author"])
-                if "author" in field_mapping
-                else None
-            )
-            author = str(author_val) if author_val is not None else None
-
-            body_text_val = (
-                _resolve_path(item, field_mapping["body_text"])
-                if "body_text" in field_mapping
-                else None
-            )
-            body_text = str(body_text_val) if body_text_val is not None else None
-
-            source_url_val = (
-                _resolve_path(item, field_mapping["source_url"])
-                if "source_url" in field_mapping
-                else None
-            )
-            source_url_str = str(source_url_val) if source_url_val is not None else url
-
-            published_at_val = (
+            title = _resolve_str(item, field_mapping, "title")
+            author = _resolve_str(item, field_mapping, "author")
+            body_text = _resolve_str(item, field_mapping, "body_text")
+            source_url_str = _resolve_str(item, field_mapping, "source_url") or url
+            published_at = _parse_datetime(
                 _resolve_path(item, field_mapping["published_at"])
                 if "published_at" in field_mapping
                 else None
             )
-            published_at = _parse_datetime(published_at_val)
 
-            fingerprint = _compute_fingerprint(source_url_str, title, published_at)
+            fingerprint = compute_fingerprint(source_url_str, title, published_at)
 
             results.append(
                 RawContent(
