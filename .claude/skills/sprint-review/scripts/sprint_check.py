@@ -80,7 +80,7 @@ def extract_sprint_tasks(dev_plan_files: list, sprint_number: int) -> list:
                 i += 1
                 continue
 
-            # 检测任务卡（### T-NNN 或 #### T-NNN，支持 T-007a 等后缀）
+            # 检测任务卡（### T-NNN 或 #### T-NNN，支持字母后缀如 T-007a）
             task_match = re.match(r"^#{2,4}\s+(T-\d+[a-z]?)", line)
             if task_match:
                 if current_task:
@@ -105,7 +105,7 @@ def extract_sprint_tasks(dev_plan_files: list, sprint_number: int) -> list:
                 if status_match:
                     current_task["status"] = status_match.group(1).strip().lower()
 
-                # deliverables字段 (支持 "**deliverables** (交付物):" 格式)
+                # deliverables字段（支持 "**deliverables** (交付物):" 格式）
                 deliv_match = re.match(
                     r"^[-*]\s+\*?\*?(?:deliverables|交付物)\*?\*?\s*(?:\([^)]*\)\s*)?[:：]",
                     line,
@@ -116,18 +116,14 @@ def extract_sprint_tasks(dev_plan_files: list, sprint_number: int) -> list:
                     i += 1
                     while i < len(lines) and re.match(r"^\s+[-*]", lines[i]):
                         path = re.sub(r"^\s+[-*]\s+", "", lines[i]).strip()
-                        # 去掉markdown标记和checkbox
-                        path = re.sub(r"[`*]", "", path).strip()
+                        # 去掉 checkbox 前缀 ([ ] 或 [x])
                         path = re.sub(r"^\[[ x]\]\s*", "", path).strip()
-                        # 去掉 " -- 描述" 后缀
-                        path = re.sub(r"\s+--\s+.*$", "", path).strip()
-                        # 跳过非文件路径（含中文/空格、模板变量{} 或无路径分隔符）
-                        is_file_path = (
-                            ("/" in path or "." in path)
-                            and "{" not in path
-                            and not re.search(r"[\u4e00-\u9fff\s]", path)
-                        )
-                        if path and is_file_path:
+                        # 去掉markdown标记
+                        path = re.sub(r"[`*]", "", path).strip()
+                        # 去掉 " — 描述" 或 " -- 描述" 后缀
+                        path = re.sub(r"\s+[—\-]{1,2}\s+.*$", "", path).strip()
+                        # 过滤非路径文本（含中文、空格、模板变量）
+                        if path and not re.search(r"[\u4e00-\u9fff\s{]", path):
                             current_task["deliverables"].append(path)
                         i += 1
                     continue
@@ -149,7 +145,7 @@ def extract_sprint_tasks(dev_plan_files: list, sprint_number: int) -> list:
                     current_task["tdd_acceptance"] = list(set(ac_ids))
                     continue
 
-                # 表格行中的任务（| T-001 | ... | done | ...）
+                # 表格行中的任务（| T-001 | ... | done | ...），支持字母后缀
                 table_match = re.match(
                     r"^\|\s*(T-\d+[a-z]?)\s*\|.*?\|\s*(done|todo|in[_-]?progress|blocked)\s*\|",
                     line,
@@ -159,7 +155,7 @@ def extract_sprint_tasks(dev_plan_files: list, sprint_number: int) -> list:
                     if table_match.group(1) == current_task["id"]:
                         current_task["status"] = table_match.group(2).strip().lower()
 
-            # 表格行直接解析（无任务卡格式时的fallback）
+            # 表格行直接解析（无任务卡格式时的fallback），支持字母后缀
             if not current_task:
                 table_match = re.match(
                     r"^\|\s*(T-\d+[a-z]?)\s*\|.*?\|\s*(done|todo|in[_-]?progress|blocked)\s*\|",
@@ -182,26 +178,26 @@ def extract_sprint_tasks(dev_plan_files: list, sprint_number: int) -> list:
             tasks.append(current_task)
             current_task = None
 
-    # 回填状态: 当从volume文件提取的任务缺少status时，从主文件表格中查找
-    tasks_missing_status = [t for t in tasks if not t["status"]]
-    if tasks_missing_status and sprint_volume:
-        # 从所有dev-plan文件（含主文件）的表格行中提取状态
-        status_map: dict[str, str] = {}
+    # 后处理: 从所有 dev-plan 文件的表格行回填缺失状态
+    tasks_missing_status = {t["id"] for t in tasks if not t["status"]}
+    if tasks_missing_status:
         for filepath in dev_plan_files:
             with open(filepath, "r", encoding="utf-8") as f:
-                for tbl_line in f:
-                    tbl_match = re.match(
+                for line in f:
+                    table_match = re.match(
                         r"^\|\s*(T-\d+[a-z]?)\s*\|.*?\|\s*(done|todo|in[_-]?progress|blocked)\s*\|",
-                        tbl_line,
+                        line,
                         re.IGNORECASE,
                     )
-                    if tbl_match:
-                        status_map[tbl_match.group(1)] = (
-                            tbl_match.group(2).strip().lower()
-                        )
-        for t in tasks_missing_status:
-            if t["id"] in status_map:
-                t["status"] = status_map[t["id"]]
+                    if table_match and table_match.group(1) in tasks_missing_status:
+                        tid = table_match.group(1)
+                        status = table_match.group(2).strip().lower()
+                        for t in tasks:
+                            if t["id"] == tid and not t["status"]:
+                                t["status"] = status
+                        tasks_missing_status.discard(tid)
+            if not tasks_missing_status:
+                break
 
     return tasks
 
@@ -261,13 +257,8 @@ def check_unplanned_files(tasks: list, src_dir: str) -> list:
     for root, _, files in os.walk(src_dir):
         for f in files:
             filepath = os.path.normpath(os.path.join(root, f))
-            # 跳过隐藏文件、__pycache__目录和编译文件
-            if (
-                f.startswith(".")
-                or f in ("__pycache__",)
-                or "__pycache__" in root
-                or f.endswith(".pyc")
-            ):
+            # 跳过隐藏文件、__pycache__ 目录内文件和 .pyc 文件
+            if f.startswith(".") or f.endswith(".pyc") or "__pycache__" in root:
                 continue
             if filepath not in planned_paths:
                 # 检查是否为任何deliverables的子路径
