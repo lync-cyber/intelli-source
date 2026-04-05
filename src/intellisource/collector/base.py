@@ -47,6 +47,7 @@ class BaseCollector(abc.ABC):
         url: str,
         etag: str | None = None,
         last_modified: str | None = None,
+        timeout: float = 30.0,
     ) -> httpx.Response | None:
         """Perform an HTTP GET with conditional request headers.
 
@@ -58,7 +59,7 @@ class BaseCollector(abc.ABC):
         if last_modified is not None:
             headers["If-Modified-Since"] = last_modified
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.get(url, headers=headers)
 
         if response.status_code == 304:

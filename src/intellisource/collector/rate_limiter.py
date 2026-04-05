@@ -65,7 +65,7 @@ class RateLimiter:
         conc_key = f"ratelimit:conc:{source_id}"
 
         while True:
-            now = time.monotonic()
+            now = time.time()
             result = await self._redis.eval(
                 _LUA_SCRIPT,
                 2,

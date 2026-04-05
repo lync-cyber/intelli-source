@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from intellisource.pipeline.base import BaseProcessor
 from intellisource.pipeline.context import PipelineContext
+
+logger = logging.getLogger(__name__)
 
 
 class ConditionEvaluator:
@@ -36,6 +39,7 @@ class ConditionEvaluator:
                 return False
             return bool(value in field_value)
 
+        logger.warning("Unknown condition operator: %s", operator)
         return False
 
 
