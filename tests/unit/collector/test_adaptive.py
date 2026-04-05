@@ -4,7 +4,7 @@ Covers:
 - AC-009: Dynamic interval calculation based on historical update frequency
 - AC-012: Auto-retry with exponential backoff (3 attempts), failure logging
 - AC-T015-1: New sources use default interval; adaptive adjustment after 5 collections
-- AC-T015-2: Adaptive interval clamped to [5 min, 24 hours]
+- AC-T015-2: Adaptive interval clamped to [2 min, 24 hours] (arch §2.M-002: 120s minimum)
 - AC-T015-3: Consecutive errors extend interval (backoff); success restores it
 """
 
@@ -13,6 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import pytest
+
 from intellisource.collector.adaptive import AdaptiveScheduler, RetryPolicy
 
 # ---------------------------------------------------------------------------
@@ -126,15 +127,15 @@ class TestAdaptiveSchedulerAdaptive:
 
 
 # ---------------------------------------------------------------------------
-# AdaptiveScheduler — AC-T015-2: interval clamping (min 300s, max 86400s)
+# AdaptiveScheduler — AC-T015-2: interval clamping (min 120s, max 86400s)
 # ---------------------------------------------------------------------------
 
 
 class TestAdaptiveSchedulerClamping:
-    """Adaptive interval must be clamped: min=300s (5 min), max=86400s (24h)."""
+    """Adaptive interval must be clamped: min=120s (2 min), max=86400s (24h)."""
 
     def test_very_frequent_updates_clamped_to_minimum(self):
-        """Even with extremely frequent updates, interval should not go below 300s."""
+        """Even with extremely frequent updates, interval should not go below 120s."""
         scheduler = AdaptiveScheduler()
         stats = SourceStats(
             collect_count=100,
@@ -144,7 +145,7 @@ class TestAdaptiveSchedulerClamping:
             default_interval=3600,
         )
         result = scheduler.calculate_next_interval(stats)
-        assert result >= 300, "Interval must not go below 300 seconds (5 minutes)"
+        assert result >= 120, "Interval must not go below 120 seconds (2 minutes)"
 
     def test_very_infrequent_updates_clamped_to_maximum(self):
         """Even with very rare updates, interval should not exceed 86400s."""
@@ -160,7 +161,7 @@ class TestAdaptiveSchedulerClamping:
         assert result <= 86400, "Interval must not exceed 86400 seconds (24 hours)"
 
     def test_minimum_boundary_exact(self):
-        """Interval of exactly 300 is valid (not below minimum)."""
+        """Interval of exactly 120 is valid (not below minimum)."""
         scheduler = AdaptiveScheduler()
         stats = SourceStats(
             collect_count=50,
@@ -170,7 +171,7 @@ class TestAdaptiveSchedulerClamping:
             default_interval=3600,
         )
         result = scheduler.calculate_next_interval(stats)
-        assert result >= 300
+        assert result >= 120
 
     def test_maximum_boundary_exact(self):
         """Interval of exactly 86400 is valid (not above maximum)."""

@@ -4,7 +4,7 @@ Implements:
 - AC-009: Dynamic interval calculation based on historical update frequency
 - AC-012: Auto-retry with exponential backoff (3 attempts)
 - AC-T015-1: New sources use default interval; adaptive after 5 collections
-- AC-T015-2: Adaptive interval clamped to [300s, 86400s]
+- AC-T015-2: Adaptive interval clamped to [120s, 86400s]
 - AC-T015-3: Consecutive errors extend interval; success restores it
 """
 
@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-MIN_INTERVAL: int = 300  # 5 minutes
+MIN_INTERVAL: int = 120  # 2 minutes (arch §2.M-002 default)
 MAX_INTERVAL: int = 86400  # 24 hours
 ADAPTIVE_THRESHOLD: int = 5  # minimum collections before adaptive kicks in
 
@@ -36,7 +36,7 @@ class AdaptiveScheduler:
 
         For new sources (collect_count < 5), returns default_interval.
         For mature sources, adapts based on avg_update_interval with
-        error backoff and clamping to [300, 86400].
+        error backoff and clamping to [120, 86400].
         """
         if source_stats.collect_count < ADAPTIVE_THRESHOLD:
             return source_stats.default_interval

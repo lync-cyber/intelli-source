@@ -14,10 +14,15 @@ logger = logging.getLogger(__name__)
 
 
 def _resolve_path(data: object, path: str) -> object | None:
-    """Resolve a simple dot-notation JSONPath on a dict.
+    """Resolve a simple dot-notation path on a dict.
 
     Supports paths like ``"$.data.articles"`` or ``"data.articles"``.
     Returns *None* when any segment is missing.
+
+    Note: This is a simplified dot-notation resolver, not a full JSONPath
+    implementation. It does NOT support array indexing (``[0]``),
+    wildcards (``*``), recursive descent (``..``), or filter expressions.
+    For v1 this covers the common API field mapping use case.
     """
     if isinstance(path, str) and path.startswith("$."):
         path = path[2:]

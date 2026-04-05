@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import hashlib
-
 import httpx
 from bs4 import BeautifulSoup
 
-from intellisource.collector.base import BaseCollector, RawContent
+from intellisource.collector.base import BaseCollector, RawContent, compute_fingerprint
 
 # Tags and CSS classes considered non-content noise
 _NOISE_TAGS: list[str] = ["nav", "footer", "header", "aside"]
@@ -78,8 +76,8 @@ class WebCollector(BaseCollector):
                 body_html = ""
                 body_text = soup.get_text(separator=" ", strip=True)
 
-        # Compute fingerprint
-        fingerprint = hashlib.sha256((url + html).encode("utf-8")).hexdigest()
+        # Compute fingerprint (consistent with RSS/API collectors)
+        fingerprint = compute_fingerprint(url, title, None)
 
         return [
             RawContent(
