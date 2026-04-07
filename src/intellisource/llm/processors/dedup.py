@@ -5,28 +5,13 @@ Uses vector search + LLM judgment.
 
 from __future__ import annotations
 
-import hashlib
 import json
-import re
 from typing import Any
 
 from intellisource.llm.processors._async_compat import run_async
+from intellisource.llm.processors.fingerprint import FingerprintGenerator
 from intellisource.pipeline.base import BaseProcessor
 from intellisource.pipeline.context import PipelineContext
-
-
-class FingerprintGenerator:
-    """Generate stable SHA-256 fingerprints from normalized title + body text."""
-
-    def generate(self, title: str, body_text: str) -> str:
-        """Return a SHA-256 hex digest of the normalized title + body_text."""
-        normalized = self._normalize(title) + self._normalize(body_text)
-        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
-
-    @staticmethod
-    def _normalize(text: str) -> str:
-        """Lowercase, strip, and collapse whitespace."""
-        return re.sub(r"\s+", " ", text.strip().lower())
 
 
 class SemanticDedup(BaseProcessor):
@@ -92,6 +77,15 @@ class SemanticDedup(BaseProcessor):
             f'Respond with JSON: {{"is_duplicate": bool, "confidence": float}}'
         )
         result = run_async(self._gateway.complete(prompt))
+        run_async(
+            self._call_log.record(
+                call_type="dedup",
+                status="success",
+                input_tokens=result.metadata.get("input_tokens", 0),
+                output_tokens=result.metadata.get("output_tokens", 0),
+                metadata=result.metadata,
+            )
+        )
         parsed = json.loads(result.content)
         if parsed.get("is_duplicate"):
             context.set("is_duplicate", True)
