@@ -18,9 +18,9 @@ import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from intellisource.llm.gateway import LLMGateway, SchemaEnforcer, SchemaValidationError
 
 from intellisource.core.errors import ErrorCategory, LLMError
+from intellisource.llm.gateway import LLMGateway, SchemaEnforcer, SchemaValidationError
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -409,7 +409,7 @@ class TestTaskTypeModelRouting:
         with (
             patch("intellisource.llm.gateway.litellm") as mock_litellm,
             patch(
-                "intellisource.llm.gateway.load_model_config",
+                "intellisource.llm.gateway._load_routing_config",
                 return_value=mock_config,
             ),
         ):
@@ -433,7 +433,7 @@ class TestTaskTypeModelRouting:
         with (
             patch("intellisource.llm.gateway.litellm") as mock_litellm,
             patch(
-                "intellisource.llm.gateway.load_model_config",
+                "intellisource.llm.gateway._load_routing_config",
                 return_value=mock_config,
             ),
         ):
@@ -459,7 +459,7 @@ class TestTaskTypeModelRouting:
         with (
             patch("intellisource.llm.gateway.litellm") as mock_litellm,
             patch(
-                "intellisource.llm.gateway.load_model_config",
+                "intellisource.llm.gateway._load_routing_config",
                 return_value=mock_config,
             ),
             patch("intellisource.llm.gateway.logger") as mock_logger,
@@ -483,7 +483,7 @@ class TestTaskTypeModelRouting:
         with (
             patch("intellisource.llm.gateway.litellm") as mock_litellm,
             patch(
-                "intellisource.llm.gateway.load_model_config",
+                "intellisource.llm.gateway._load_routing_config",
                 return_value=mock_config,
             ),
         ):

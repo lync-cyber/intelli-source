@@ -68,6 +68,15 @@ class SemanticTagger(BaseProcessor):
                 f"Content: {body_text}"
             )
             result = run_async(self._gateway.complete(prompt))
+            run_async(
+                self._call_log.record(
+                    call_type="tag",
+                    status="success",
+                    input_tokens=result.metadata.get("input_tokens", 0),
+                    output_tokens=result.metadata.get("output_tokens", 0),
+                    metadata=result.metadata,
+                )
+            )
             parsed = json.loads(result.content)
             if not isinstance(parsed, list):
                 return None

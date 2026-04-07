@@ -59,9 +59,7 @@ class FallbackManager:
         if task_type not in self._fallback_registry:
             raise KeyError(f"No fallback registered for task type: {task_type}")
         fallback_fn = self._fallback_registry[task_type]
-        result = await asyncio.get_event_loop().run_in_executor(
-            None, fallback_fn, input_data
-        )
+        result = await asyncio.to_thread(fallback_fn, input_data)
         await self._call_log.record(
             task_type=task_type,
             status="fallback",

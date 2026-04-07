@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ContentExtraction",
+  "description": "Standard schema for LLM structured data extraction from content.",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Extracted title of the content."
+    },
+    "authors": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of author names."
+    },
+    "date": {
+      "type": "string",
+      "description": "Publication or event date (ISO 8601 preferred)."
+    },
+    "keywords": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Key topics or keywords extracted from the content."
+    },
+    "summary": {
+      "type": "string",
+      "description": "Brief summary of the content."
+    },
+    "entities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string" }
+        },
+        "required": ["name", "type"]
+      },
+      "description": "Named entities found in the content."
+    }
+  },
+  "additionalProperties": true
+}

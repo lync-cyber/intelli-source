@@ -32,6 +32,7 @@ class ContentClusterer(BaseProcessor):
         self._vector_store = vector_store
         self._call_log = call_log
         self.cluster_threshold = cluster_threshold
+        self._last_method: str = ""
 
     def process(self, context: PipelineContext) -> PipelineContext:
         """Process context to assign content to a cluster.
@@ -89,6 +90,15 @@ class ContentClusterer(BaseProcessor):
                 f"Respond with only the topic label."
             )
             result = run_async(self._gateway.complete(prompt))
+            run_async(
+                self._call_log.record(
+                    call_type="cluster",
+                    status="success",
+                    input_tokens=result.metadata.get("input_tokens", 0),
+                    output_tokens=result.metadata.get("output_tokens", 0),
+                    metadata=result.metadata,
+                )
+            )
             self._last_method = "llm"
             content: str = result.content
             return content

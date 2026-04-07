@@ -63,19 +63,23 @@ class LLMExtractor(BaseProcessor):
             result = run_async(self._gateway.complete(prompt))
             parsed = json.loads(result.content)
             jsonschema.validate(instance=parsed, schema=self._extraction_schema)
-            self._call_log.record(
-                call_type="extract",
-                status="success",
-                input_tokens=result.metadata.get("input_tokens", 0),
-                output_tokens=result.metadata.get("output_tokens", 0),
-                metadata=result.metadata,
+            run_async(
+                self._call_log.record(
+                    call_type="extract",
+                    status="success",
+                    input_tokens=result.metadata.get("input_tokens", 0),
+                    output_tokens=result.metadata.get("output_tokens", 0),
+                    metadata=result.metadata,
+                )
             )
             return dict(parsed)
         except Exception:
-            self._call_log.record(
-                call_type="extract",
-                status="fallback",
-                input_tokens=0,
+            run_async(
+                self._call_log.record(
+                    call_type="extract",
+                    status="fallback",
+                    input_tokens=0,
+                )
             )
             return None
 
