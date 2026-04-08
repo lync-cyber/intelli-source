@@ -1,0 +1,19 @@
+name: scheduled-collect
+mode: strict
+max_steps: 20
+on_failure: retry
+tools_allowed:
+  - collect
+  - process
+  - distribute
+tools_denied: []
+steps:
+  - tool: collect
+    params:
+      source_type: rss
+  - tool: process
+    params:
+      pipeline: default
+  - tool: distribute
+    params:
+      channels: all

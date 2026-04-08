@@ -88,24 +88,25 @@
 - **模块**: M-006
 - **接口**: 无（内部引擎，被 CeleryTasks 和 Webhook 处理调用）
 - **复杂度**: L
+- **status**: done
 - **tdd_acceptance**:
-  - [ ] AC-066 映射: PipelineConfig 正确解析 YAML 管道配置文件（mode, tools_allowed/denied, steps, max_steps）
-  - [ ] AC-067 映射: strict 模式按 steps 顺序直接调用工具函数，不经过 LLM；flexible 模式通过 LLM Agent Loop 自主编排工具调用
-  - [ ] AC-T030-1: AgentRunner.run_strict(pipeline_config, params) 按步骤顺序执行，返回执行结果
-  - [ ] AC-T030-2: AgentRunner.run_flexible(pipeline_config, user_message, session) 运行 LLM Agent Loop
-  - [ ] AC-T030-3: flexible 模式下 max_steps 超限时强制终止并返回当前结果
-  - [ ] AC-T030-4: flexible 模式下 tools_denied 中的工具不出现在 LLM 可用工具列表中
-  - [ ] AC-T030-5: strict 模式执行失败时按管道配置的 on_failure 策略处理（retry/skip/abort）
-  - [ ] AC-T030-6: 两种模式的执行结果均持久化到 TaskChain 表（E-008）
+  - [x] AC-066 映射: PipelineConfig 正确解析 YAML 管道配置文件（mode, tools_allowed/denied, steps, max_steps）
+  - [x] AC-067 映射: strict 模式按 steps 顺序直接调用工具函数，不经过 LLM；flexible 模式通过 LLM Agent Loop 自主编排工具调用
+  - [x] AC-T030-1: AgentRunner.run_strict(pipeline_config, params) 按步骤顺序执行，返回执行结果
+  - [x] AC-T030-2: AgentRunner.run_flexible(pipeline_config, user_message, session) 运行 LLM Agent Loop
+  - [x] AC-T030-3: flexible 模式下 max_steps 超限时强制终止并返回当前结果
+  - [x] AC-T030-4: flexible 模式下 tools_denied 中的工具不出现在 LLM 可用工具列表中
+  - [x] AC-T030-5: strict 模式执行失败时按管道配置的 on_failure 策略处理（retry/skip/abort）
+  - [x] AC-T030-6: 两种模式的执行结果均持久化到 TaskChain 表（E-008）
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/agent/__init__.py` -- 模块导出
-  - [ ] `src/intellisource/agent/runner.py` -- AgentRunner 双模式执行引擎
-  - [ ] `src/intellisource/agent/pipeline.py` -- PipelineConfig 管道配置加载与校验
-  - [ ] `src/intellisource/agent/prompts/base.txt` -- Agent 基础系统提示词
-  - [ ] `config/pipelines/scheduled-collect.yaml` -- 定时采集管道配置示例
-  - [ ] `config/pipelines/instant-search.yaml` -- 即时检索管道配置示例
-  - [ ] `tests/unit/agent/test_runner.py` -- AgentRunner 测试
-  - [ ] `tests/unit/agent/test_pipeline.py` -- 管道配置测试
+  - [x] `src/intellisource/agent/__init__.py` -- 模块导出
+  - [x] `src/intellisource/agent/runner.py` -- AgentRunner 双模式执行引擎
+  - [x] `src/intellisource/agent/pipeline.py` -- PipelineConfig 管道配置加载与校验
+  - [x] `src/intellisource/agent/prompts/base.txt` -- Agent 基础系统提示词
+  - [x] `config/pipelines/scheduled-collect.yaml` -- 定时采集管道配置示例
+  - [x] `config/pipelines/instant-search.yaml` -- 即时检索管道配置示例
+  - [x] `tests/unit/agent/test_runner.py` -- AgentRunner 测试
+  - [x] `tests/unit/agent/test_pipeline.py` -- 管道配置测试
 - **context_load**:
   - arch#§2.M-006
   - arch#§1.2（双模式 Agent 调度）
