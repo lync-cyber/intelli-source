@@ -148,16 +148,17 @@
 - **模块**: M-007
 - **接口**: 无（由 M-006 任务链触发）
 - **复杂度**: M
+- **status**: done
 - **tdd_acceptance**:
-  - [ ] AC-040 映射: WeChatDistributor 支持通过微信公众号发送模板消息和图文消息
-  - [ ] AC-044 映射: 同一内容对同一用户同一渠道不重复推送
-  - [ ] AC-045 映射: 推送失败自动重试（3次，固定间隔5s），记录推送历史
-  - [ ] AC-T032-1: Access Token 缓存到 Redis，过期前自动刷新
-  - [ ] AC-T032-2: 推送内容格式化为微信支持的消息格式
-  - [ ] AC-T032-3: 推送结果（成功/失败/错误码）记录到 PushRecord
+  - [x] AC-040 映射: WeChatDistributor 支持通过微信公众号发送模板消息和图文消息
+  - [x] AC-044 映射: 同一内容对同一用户同一渠道不重复推送
+  - [x] AC-045 映射: 推送失败自动重试（3次，固定间隔5s），记录推送历史
+  - [x] AC-T032-1: Access Token 缓存到 Redis，过期前自动刷新
+  - [x] AC-T032-2: 推送内容格式化为微信支持的消息格式
+  - [x] AC-T032-3: 推送结果（成功/失败/错误码）记录到 PushRecord
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/distributor/channels/wechat.py` -- 微信公众号分发
-  - [ ] `tests/unit/distributor/test_wechat.py` -- 微信推送测试（Mock 微信 API）
+  - [x] `src/intellisource/distributor/channels/wechat.py` -- 微信公众号分发
+  - [x] `tests/unit/distributor/test_wechat.py` -- 微信推送测试（Mock 微信 API）
 - **context_load**:
   - arch#§2.M-007
   - arch#§5.3（重试策略 -- 推送失败）
@@ -169,16 +170,17 @@
 - **模块**: M-007
 - **接口**: 无
 - **复杂度**: M
+- **status**: done
 - **tdd_acceptance**:
-  - [ ] AC-041 映射: WeWorkDistributor 支持通过企业微信发送应用消息
-  - [ ] AC-044 映射: 同一内容不重复推送
-  - [ ] AC-045 映射: 推送失败自动重试
-  - [ ] AC-T033-1: 企业微信 Access Token 缓存与刷新
-  - [ ] AC-T033-2: 支持文本/Markdown/图文卡片消息格式
-  - [ ] AC-T033-3: 推送结果追踪
+  - [x] AC-041 映射: WeWorkDistributor 支持通过企业微信发送应用消息
+  - [x] AC-044 映射: 同一内容不重复推送
+  - [x] AC-045 映射: 推送失败自动重试
+  - [x] AC-T033-1: 企业微信 Access Token 缓存与刷新
+  - [x] AC-T033-2: 支持文本/Markdown/图文卡片消息格式
+  - [x] AC-T033-3: 推送结果追踪
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/distributor/channels/wework.py` -- 企业微信分发
-  - [ ] `tests/unit/distributor/test_wework.py` -- 企业微信推送测试
+  - [x] `src/intellisource/distributor/channels/wework.py` -- 企业微信分发
+  - [x] `tests/unit/distributor/test_wework.py` -- 企业微信推送测试
 - **context_load**:
   - arch#§2.M-007
   - arch#§5.3（重试策略）
@@ -189,16 +191,17 @@
 - **模块**: M-007
 - **接口**: 无
 - **复杂度**: S
+- **status**: done
 - **tdd_acceptance**:
-  - [ ] AC-042 映射: EmailDistributor 通过 SMTP 发送 HTML 格式邮件
-  - [ ] AC-044 映射: 同一内容不重复推送
-  - [ ] AC-045 映射: 推送失败自动重试
-  - [ ] AC-T034-1: SMTP 配置通过环境变量读取（IS_SMTP_HOST/PORT/USER/PASSWORD）
-  - [ ] AC-T034-2: 邮件内容使用 HTML 模板格式化（标题/摘要/来源链接）
-  - [ ] AC-T034-3: 支持 TLS/SSL 加密连接
+  - [x] AC-042 映射: EmailDistributor 通过 SMTP 发送 HTML 格式邮件
+  - [x] AC-044 映射: 同一内容不重复推送
+  - [x] AC-045 映射: 推送失败自动重试
+  - [x] AC-T034-1: SMTP 配置通过环境变量读取（IS_SMTP_HOST/PORT/USER/PASSWORD）
+  - [x] AC-T034-2: 邮件内容使用 HTML 模板格式化（标题/摘要/来源链接）
+  - [x] AC-T034-3: 支持 TLS/SSL 加密连接
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/distributor/channels/email.py` -- 邮件分发
-  - [ ] `tests/unit/distributor/test_email.py` -- 邮件推送测试
+  - [x] `src/intellisource/distributor/channels/email.py` -- 邮件分发
+  - [x] `tests/unit/distributor/test_email.py` -- 邮件推送测试
 - **context_load**:
   - arch#§2.M-007
 - **实现提示**: 使用 Python 标准库 email + aiosmtplib 实现异步 SMTP 发送
@@ -209,15 +212,16 @@
 - **模块**: M-007
 - **接口**: 无
 - **复杂度**: S
+- **status**: done
 - **tdd_acceptance**:
-  - [ ] AC-046 映射: 支持推送频率控制和免打扰时段配置
-  - [ ] AC-T035-1: FrequencyController 按订阅配置的频率批量/延迟推送
-  - [ ] AC-T035-2: hourly/daily/weekly 模式下内容聚合后统一推送
-  - [ ] AC-T035-3: 免打扰时段内的推送延迟到时段结束后发送
-  - [ ] AC-T035-4: realtime 模式下内容立即推送（不受频率控制）
+  - [x] AC-046 映射: 支持推送频率控制和免打扰时段配置
+  - [x] AC-T035-1: FrequencyController 按订阅配置的频率批量/延迟推送
+  - [x] AC-T035-2: hourly/daily/weekly 模式下内容聚合后统一推送
+  - [x] AC-T035-3: 免打扰时段内的推送延迟到时段结束后发送
+  - [x] AC-T035-4: realtime 模式下内容立即推送（不受频率控制）
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/distributor/frequency.py` -- 频率控制器
-  - [ ] `tests/unit/distributor/test_frequency.py` -- 频率控制测试
+  - [x] `src/intellisource/distributor/frequency.py` -- 频率控制器
+  - [x] `tests/unit/distributor/test_frequency.py` -- 频率控制测试
 - **context_load**:
   - arch#§2.M-007
   - arch-intellisource-v1-data#§4.E-009（frequency, quiet_hours 字段）
