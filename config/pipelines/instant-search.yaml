@@ -1,0 +1,16 @@
+name: instant-search
+mode: flexible
+max_steps: 5
+on_failure: skip
+tools_allowed:
+  - search
+  - get_content_detail
+  - summarize_for_user
+tools_denied:
+  - collect
+  - process
+  - distribute
+steps:
+  - tool: search
+    params:
+      query: ""

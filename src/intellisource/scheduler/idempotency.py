@@ -40,7 +40,8 @@ class FingerprintChecker:
 
     async def is_duplicate(self, fingerprint: str) -> bool:
         """Return True if fingerprint already exists."""
-        return await self._repository.exists_by_fingerprint(fingerprint)
+        result: bool = await self._repository.exists_by_fingerprint(fingerprint)
+        return result
 
     async def record(self, fingerprint: str, content_id: Any) -> None:
         """Persist fingerprint-to-content_id mapping."""
@@ -60,7 +61,10 @@ class PushDeduplicator:
         channel: str,
     ) -> bool:
         """Return True if push already sent for this combination."""
-        return await self._repository.exists(subscription_id, content_id, channel)
+        result: bool = await self._repository.exists(
+            subscription_id, content_id, channel
+        )
+        return result
 
     async def record(
         self,

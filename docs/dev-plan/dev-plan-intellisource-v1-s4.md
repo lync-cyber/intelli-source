@@ -88,24 +88,25 @@
 - **模块**: M-006
 - **接口**: 无（内部引擎，被 CeleryTasks 和 Webhook 处理调用）
 - **复杂度**: L
+- **status**: done
 - **tdd_acceptance**:
-  - [ ] AC-066 映射: PipelineConfig 正确解析 YAML 管道配置文件（mode, tools_allowed/denied, steps, max_steps）
-  - [ ] AC-067 映射: strict 模式按 steps 顺序直接调用工具函数，不经过 LLM；flexible 模式通过 LLM Agent Loop 自主编排工具调用
-  - [ ] AC-T030-1: AgentRunner.run_strict(pipeline_config, params) 按步骤顺序执行，返回执行结果
-  - [ ] AC-T030-2: AgentRunner.run_flexible(pipeline_config, user_message, session) 运行 LLM Agent Loop
-  - [ ] AC-T030-3: flexible 模式下 max_steps 超限时强制终止并返回当前结果
-  - [ ] AC-T030-4: flexible 模式下 tools_denied 中的工具不出现在 LLM 可用工具列表中
-  - [ ] AC-T030-5: strict 模式执行失败时按管道配置的 on_failure 策略处理（retry/skip/abort）
-  - [ ] AC-T030-6: 两种模式的执行结果均持久化到 TaskChain 表（E-008）
+  - [x] AC-066 映射: PipelineConfig 正确解析 YAML 管道配置文件（mode, tools_allowed/denied, steps, max_steps）
+  - [x] AC-067 映射: strict 模式按 steps 顺序直接调用工具函数，不经过 LLM；flexible 模式通过 LLM Agent Loop 自主编排工具调用
+  - [x] AC-T030-1: AgentRunner.run_strict(pipeline_config, params) 按步骤顺序执行，返回执行结果
+  - [x] AC-T030-2: AgentRunner.run_flexible(pipeline_config, user_message, session) 运行 LLM Agent Loop
+  - [x] AC-T030-3: flexible 模式下 max_steps 超限时强制终止并返回当前结果
+  - [x] AC-T030-4: flexible 模式下 tools_denied 中的工具不出现在 LLM 可用工具列表中
+  - [x] AC-T030-5: strict 模式执行失败时按管道配置的 on_failure 策略处理（retry/skip/abort）
+  - [x] AC-T030-6: 两种模式的执行结果均持久化到 TaskChain 表（E-008）
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/agent/__init__.py` -- 模块导出
-  - [ ] `src/intellisource/agent/runner.py` -- AgentRunner 双模式执行引擎
-  - [ ] `src/intellisource/agent/pipeline.py` -- PipelineConfig 管道配置加载与校验
-  - [ ] `src/intellisource/agent/prompts/base.txt` -- Agent 基础系统提示词
-  - [ ] `config/pipelines/scheduled-collect.yaml` -- 定时采集管道配置示例
-  - [ ] `config/pipelines/instant-search.yaml` -- 即时检索管道配置示例
-  - [ ] `tests/unit/agent/test_runner.py` -- AgentRunner 测试
-  - [ ] `tests/unit/agent/test_pipeline.py` -- 管道配置测试
+  - [x] `src/intellisource/agent/__init__.py` -- 模块导出
+  - [x] `src/intellisource/agent/runner.py` -- AgentRunner 双模式执行引擎
+  - [x] `src/intellisource/agent/pipeline.py` -- PipelineConfig 管道配置加载与校验
+  - [x] `src/intellisource/agent/prompts/base.txt` -- Agent 基础系统提示词
+  - [x] `config/pipelines/scheduled-collect.yaml` -- 定时采集管道配置示例
+  - [x] `config/pipelines/instant-search.yaml` -- 即时检索管道配置示例
+  - [x] `tests/unit/agent/test_runner.py` -- AgentRunner 测试
+  - [x] `tests/unit/agent/test_pipeline.py` -- 管道配置测试
 - **context_load**:
   - arch#§2.M-006
   - arch#§1.2（双模式 Agent 调度）
@@ -147,16 +148,17 @@
 - **模块**: M-007
 - **接口**: 无（由 M-006 任务链触发）
 - **复杂度**: M
+- **status**: done
 - **tdd_acceptance**:
-  - [ ] AC-040 映射: WeChatDistributor 支持通过微信公众号发送模板消息和图文消息
-  - [ ] AC-044 映射: 同一内容对同一用户同一渠道不重复推送
-  - [ ] AC-045 映射: 推送失败自动重试（3次，固定间隔5s），记录推送历史
-  - [ ] AC-T032-1: Access Token 缓存到 Redis，过期前自动刷新
-  - [ ] AC-T032-2: 推送内容格式化为微信支持的消息格式
-  - [ ] AC-T032-3: 推送结果（成功/失败/错误码）记录到 PushRecord
+  - [x] AC-040 映射: WeChatDistributor 支持通过微信公众号发送模板消息和图文消息
+  - [x] AC-044 映射: 同一内容对同一用户同一渠道不重复推送
+  - [x] AC-045 映射: 推送失败自动重试（3次，固定间隔5s），记录推送历史
+  - [x] AC-T032-1: Access Token 缓存到 Redis，过期前自动刷新
+  - [x] AC-T032-2: 推送内容格式化为微信支持的消息格式
+  - [x] AC-T032-3: 推送结果（成功/失败/错误码）记录到 PushRecord
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/distributor/channels/wechat.py` -- 微信公众号分发
-  - [ ] `tests/unit/distributor/test_wechat.py` -- 微信推送测试（Mock 微信 API）
+  - [x] `src/intellisource/distributor/channels/wechat.py` -- 微信公众号分发
+  - [x] `tests/unit/distributor/test_wechat.py` -- 微信推送测试（Mock 微信 API）
 - **context_load**:
   - arch#§2.M-007
   - arch#§5.3（重试策略 -- 推送失败）
@@ -168,16 +170,17 @@
 - **模块**: M-007
 - **接口**: 无
 - **复杂度**: M
+- **status**: done
 - **tdd_acceptance**:
-  - [ ] AC-041 映射: WeWorkDistributor 支持通过企业微信发送应用消息
-  - [ ] AC-044 映射: 同一内容不重复推送
-  - [ ] AC-045 映射: 推送失败自动重试
-  - [ ] AC-T033-1: 企业微信 Access Token 缓存与刷新
-  - [ ] AC-T033-2: 支持文本/Markdown/图文卡片消息格式
-  - [ ] AC-T033-3: 推送结果追踪
+  - [x] AC-041 映射: WeWorkDistributor 支持通过企业微信发送应用消息
+  - [x] AC-044 映射: 同一内容不重复推送
+  - [x] AC-045 映射: 推送失败自动重试
+  - [x] AC-T033-1: 企业微信 Access Token 缓存与刷新
+  - [x] AC-T033-2: 支持文本/Markdown/图文卡片消息格式
+  - [x] AC-T033-3: 推送结果追踪
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/distributor/channels/wework.py` -- 企业微信分发
-  - [ ] `tests/unit/distributor/test_wework.py` -- 企业微信推送测试
+  - [x] `src/intellisource/distributor/channels/wework.py` -- 企业微信分发
+  - [x] `tests/unit/distributor/test_wework.py` -- 企业微信推送测试
 - **context_load**:
   - arch#§2.M-007
   - arch#§5.3（重试策略）
@@ -188,16 +191,17 @@
 - **模块**: M-007
 - **接口**: 无
 - **复杂度**: S
+- **status**: done
 - **tdd_acceptance**:
-  - [ ] AC-042 映射: EmailDistributor 通过 SMTP 发送 HTML 格式邮件
-  - [ ] AC-044 映射: 同一内容不重复推送
-  - [ ] AC-045 映射: 推送失败自动重试
-  - [ ] AC-T034-1: SMTP 配置通过环境变量读取（IS_SMTP_HOST/PORT/USER/PASSWORD）
-  - [ ] AC-T034-2: 邮件内容使用 HTML 模板格式化（标题/摘要/来源链接）
-  - [ ] AC-T034-3: 支持 TLS/SSL 加密连接
+  - [x] AC-042 映射: EmailDistributor 通过 SMTP 发送 HTML 格式邮件
+  - [x] AC-044 映射: 同一内容不重复推送
+  - [x] AC-045 映射: 推送失败自动重试
+  - [x] AC-T034-1: SMTP 配置通过环境变量读取（IS_SMTP_HOST/PORT/USER/PASSWORD）
+  - [x] AC-T034-2: 邮件内容使用 HTML 模板格式化（标题/摘要/来源链接）
+  - [x] AC-T034-3: 支持 TLS/SSL 加密连接
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/distributor/channels/email.py` -- 邮件分发
-  - [ ] `tests/unit/distributor/test_email.py` -- 邮件推送测试
+  - [x] `src/intellisource/distributor/channels/email.py` -- 邮件分发
+  - [x] `tests/unit/distributor/test_email.py` -- 邮件推送测试
 - **context_load**:
   - arch#§2.M-007
 - **实现提示**: 使用 Python 标准库 email + aiosmtplib 实现异步 SMTP 发送
@@ -208,15 +212,16 @@
 - **模块**: M-007
 - **接口**: 无
 - **复杂度**: S
+- **status**: done
 - **tdd_acceptance**:
-  - [ ] AC-046 映射: 支持推送频率控制和免打扰时段配置
-  - [ ] AC-T035-1: FrequencyController 按订阅配置的频率批量/延迟推送
-  - [ ] AC-T035-2: hourly/daily/weekly 模式下内容聚合后统一推送
-  - [ ] AC-T035-3: 免打扰时段内的推送延迟到时段结束后发送
-  - [ ] AC-T035-4: realtime 模式下内容立即推送（不受频率控制）
+  - [x] AC-046 映射: 支持推送频率控制和免打扰时段配置
+  - [x] AC-T035-1: FrequencyController 按订阅配置的频率批量/延迟推送
+  - [x] AC-T035-2: hourly/daily/weekly 模式下内容聚合后统一推送
+  - [x] AC-T035-3: 免打扰时段内的推送延迟到时段结束后发送
+  - [x] AC-T035-4: realtime 模式下内容立即推送（不受频率控制）
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/distributor/frequency.py` -- 频率控制器
-  - [ ] `tests/unit/distributor/test_frequency.py` -- 频率控制测试
+  - [x] `src/intellisource/distributor/frequency.py` -- 频率控制器
+  - [x] `tests/unit/distributor/test_frequency.py` -- 频率控制测试
 - **context_load**:
   - arch#§2.M-007
   - arch-intellisource-v1-data#§4.E-009（frequency, quiet_hours 字段）
@@ -227,22 +232,23 @@
 - **模块**: M-006
 - **接口**: 无（内部基础设施）
 - **复杂度**: M
+- **status**: done
 - **tdd_acceptance**:
-  - [ ] AC-066 映射: 管道配置文件正确定义各场景的工具集和步骤约束
-  - [ ] AC-T036-1: AgentToolRegistry 注册 collect 工具（调用 M-002 采集引擎）
-  - [ ] AC-T036-2: AgentToolRegistry 注册 process 工具（调用 M-003 处理管道）
-  - [ ] AC-T036-3: AgentToolRegistry 注册 distribute 工具（调用 M-007 分发）
-  - [ ] AC-T036-4: AgentToolRegistry 注册 search 工具（调用 M-008 混合检索引擎）
-  - [ ] AC-T036-5: AgentToolRegistry 注册 get_content_detail 工具（调用 M-009 内容详情）
-  - [ ] AC-T036-6: 工具定义包含 name/description/parameters(JSON Schema)/execute 函数
-  - [ ] AC-T036-7: scheduled-collect.yaml 管道配置：mode=strict, tools_allowed=[collect,process,distribute]
-  - [ ] AC-T036-8: instant-search.yaml 管道配置：mode=flexible, tools_allowed=[search,get_content_detail,summarize_for_user]
+  - [x] AC-066 映射: 管道配置文件正确定义各场景的工具集和步骤约束
+  - [x] AC-T036-1: AgentToolRegistry 注册 collect 工具（调用 M-002 采集引擎）
+  - [x] AC-T036-2: AgentToolRegistry 注册 process 工具（调用 M-003 处理管道）
+  - [x] AC-T036-3: AgentToolRegistry 注册 distribute 工具（调用 M-007 分发）
+  - [x] AC-T036-4: AgentToolRegistry 注册 search 工具（调用 M-008 混合检索引擎）
+  - [x] AC-T036-5: AgentToolRegistry 注册 get_content_detail 工具（调用 M-009 内容详情）
+  - [x] AC-T036-6: 工具定义包含 name/description/parameters(JSON Schema)/execute 函数
+  - [x] AC-T036-7: scheduled-collect.yaml 管道配置：mode=strict, tools_allowed=[collect,process,distribute]
+  - [x] AC-T036-8: instant-search.yaml 管道配置：mode=flexible, tools_allowed=[search,get_content_detail,summarize_for_user]
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/agent/tools.py` -- Agent 工具定义与注册
-  - [ ] `config/pipelines/scheduled-collect.yaml` -- 定时采集管道配置
-  - [ ] `config/pipelines/manual-collect.yaml` -- 手动触发管道配置
-  - [ ] `config/pipelines/instant-search.yaml` -- 即时检索管道配置
-  - [ ] `tests/unit/agent/test_tools.py` -- 工具注册测试
+  - [x] `src/intellisource/agent/tools.py` -- Agent 工具定义与注册
+  - [x] `config/pipelines/scheduled-collect.yaml` -- 定时采集管道配置
+  - [x] `config/pipelines/manual-collect.yaml` -- 手动触发管道配置
+  - [x] `config/pipelines/instant-search.yaml` -- 即时检索管道配置
+  - [x] `tests/unit/agent/test_tools.py` -- 工具注册测试
 - **context_load**:
   - arch#§2.M-006（AgentToolRegistry）
   - arch#§2.M-002, M-003, M-007, M-008（各模块作为工具来源）

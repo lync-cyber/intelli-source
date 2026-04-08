@@ -6,8 +6,13 @@ Supports strict mode (sequential tool execution) and flexible mode
 
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import Any
+
+from intellisource.core.errors import ErrorCategory, IntelliSourceError
+
+logger = logging.getLogger(__name__)
 
 
 class AgentRunner:
@@ -101,7 +106,9 @@ class AgentRunner:
             {"role": "user", "content": user_message},
         ]
 
-        assert self._llm_gateway is not None
+        if self._llm_gateway is None:
+            msg = "LLM gateway is required for flexible mode"
+            raise IntelliSourceError(msg, ErrorCategory.UNRECOVERABLE)
         while steps_executed < config.max_steps:
             response = await self._llm_gateway.chat(
                 messages=messages,
@@ -117,8 +124,19 @@ class AgentRunner:
                 if tool_fn is not None:
                     try:
                         await tool_fn(**tc.get("arguments", {}))
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.warning(
+                            "Tool %s failed: %s",
+                            tc["name"],
+                            exc,
+                        )
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "content": f"Error: {exc}",
+                                "tool_call_id": tc.get("id", ""),
+                            }
+                        )
 
         return self._persist(
             status="success",

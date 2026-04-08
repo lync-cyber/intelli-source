@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -10,7 +11,7 @@ from typing import Any
 try:
     import aiosmtplib
 except ImportError:  # pragma: no cover
-    aiosmtplib = None  # type: ignore[assignment]
+    aiosmtplib = None
 
 from intellisource.distributor.base import BaseDistributor
 
@@ -84,7 +85,7 @@ class EmailDistributor(BaseDistributor):
         msg["To"] = to_addr
         msg.attach(MIMEText(html_body, "html"))
 
-        await aiosmtplib.send(  # type: ignore[union-attr]
+        await aiosmtplib.send(
             msg,
             hostname=self.smtp_host,
             port=self.smtp_port,
@@ -110,7 +111,7 @@ class EmailDistributor(BaseDistributor):
             **extra,
         }
 
-    async def distribute(  # type: ignore[override]
+    async def distribute(
         self,
         content: Any,
         subscription: Any,
@@ -150,6 +151,7 @@ class EmailDistributor(BaseDistributor):
                 )
             except Exception as exc:  # noqa: BLE001
                 last_err = exc
+                await asyncio.sleep(RETRY_INTERVAL)
 
         return self._make_result(
             "failed",
