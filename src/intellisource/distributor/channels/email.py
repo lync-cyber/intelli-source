@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -150,6 +151,7 @@ class EmailDistributor(BaseDistributor):
                 )
             except Exception as exc:  # noqa: BLE001
                 last_err = exc
+                await asyncio.sleep(RETRY_INTERVAL)
 
         return self._make_result(
             "failed",

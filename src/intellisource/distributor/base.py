@@ -10,5 +10,5 @@ class BaseDistributor(abc.ABC):
     """Abstract base class for content distributors."""
 
     @abc.abstractmethod
-    def distribute(self, content: Any, subscription: Any) -> Any:
+    async def distribute(self, content: Any, subscription: Any) -> Any:
         """Distribute content to a subscription."""

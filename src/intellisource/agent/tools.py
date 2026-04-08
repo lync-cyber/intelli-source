@@ -114,8 +114,13 @@ async def _get_content_detail_execute(**kwargs: Any) -> dict[str, Any]:
     return {"status": "ok", "tool": "get_content_detail", **kwargs}
 
 
+async def _summarize_for_user_execute(**kwargs: Any) -> dict[str, Any]:
+    """Placeholder: summarize content for user in flexible mode."""
+    return {"status": "ok", "tool": "summarize_for_user", **kwargs}
+
+
 def _default_tool_defs() -> list[ToolDefinition]:
-    """Return the five built-in tool definitions."""
+    """Return the six built-in tool definitions."""
     return [
         ToolDefinition(
             name="collect",
@@ -177,5 +182,17 @@ def _default_tool_defs() -> list[ToolDefinition]:
                 },
             },
             execute=_get_content_detail_execute,
+        ),
+        ToolDefinition(
+            name="summarize_for_user",
+            description="Summarize retrieved content for user response.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "content": {"type": "string"},
+                    "format": {"type": "string"},
+                },
+            },
+            execute=_summarize_for_user_execute,
         ),
     ]

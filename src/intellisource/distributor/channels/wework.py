@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from typing import Any
 
@@ -87,6 +88,7 @@ class WeWorkDistributor(BaseDistributor):
                     subscription,
                 )
             last_err = res.get("errmsg", "unknown error")
+            await asyncio.sleep(RETRY_INTERVAL)
 
         return self._build_result(
             "failed",

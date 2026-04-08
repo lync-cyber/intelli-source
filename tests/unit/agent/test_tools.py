@@ -215,7 +215,7 @@ class TestRegistryAPI:
     """Verify AgentToolRegistry core API methods."""
 
     def test_list_tools_returns_all_defaults(self, registry: Any) -> None:
-        """AC-T036-6: list_tools returns all 5 built-in names."""
+        """AC-T036-6: list_tools returns all 6 built-in names."""
         names = registry.list_tools()
         expected = {
             "collect",
@@ -223,6 +223,7 @@ class TestRegistryAPI:
             "distribute",
             "search",
             "get_content_detail",
+            "summarize_for_user",
         }
         assert set(names) == expected
 
@@ -371,7 +372,7 @@ class TestRegistryEdgeCases:
         reg = tools_mod.AgentToolRegistry()
         reg.register_defaults()
         reg.register_defaults()
-        assert len(reg.list_tools()) == 5
+        assert len(reg.list_tools()) == 6
 
     def test_filter_with_empty_allowed_returns_empty(self, registry: Any) -> None:
         """AC-T036-6: filter(allowed=[]) returns no tools."""
