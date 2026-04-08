@@ -41,6 +41,7 @@
 - 人工审查检查点: [pre_dev, pre_deploy]
   <!-- 可选值: phase_transition | pre_dev | pre_deploy | post_sprint | none。详见 COMMON-RULES §MANUAL_REVIEW_CHECKPOINTS -->
 - 文档类型命名: 统一用小写 kebab-case（prd、arch、dev-plan、test-report、ui-spec、deploy-spec…），包括人类可读文本、工具参数（template_id/doc_type）和产出文件名（如 arch-{project}-{ver}.md）
+- 包管理器: uv（使用 `uv run pytest` 运行测试，`uv add` 添加依赖，不使用 pip）
 
 ## 效率原则 (全局遵循)
 
