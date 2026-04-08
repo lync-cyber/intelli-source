@@ -232,22 +232,23 @@
 - **模块**: M-006
 - **接口**: 无（内部基础设施）
 - **复杂度**: M
+- **status**: done
 - **tdd_acceptance**:
-  - [ ] AC-066 映射: 管道配置文件正确定义各场景的工具集和步骤约束
-  - [ ] AC-T036-1: AgentToolRegistry 注册 collect 工具（调用 M-002 采集引擎）
-  - [ ] AC-T036-2: AgentToolRegistry 注册 process 工具（调用 M-003 处理管道）
-  - [ ] AC-T036-3: AgentToolRegistry 注册 distribute 工具（调用 M-007 分发）
-  - [ ] AC-T036-4: AgentToolRegistry 注册 search 工具（调用 M-008 混合检索引擎）
-  - [ ] AC-T036-5: AgentToolRegistry 注册 get_content_detail 工具（调用 M-009 内容详情）
-  - [ ] AC-T036-6: 工具定义包含 name/description/parameters(JSON Schema)/execute 函数
-  - [ ] AC-T036-7: scheduled-collect.yaml 管道配置：mode=strict, tools_allowed=[collect,process,distribute]
-  - [ ] AC-T036-8: instant-search.yaml 管道配置：mode=flexible, tools_allowed=[search,get_content_detail,summarize_for_user]
+  - [x] AC-066 映射: 管道配置文件正确定义各场景的工具集和步骤约束
+  - [x] AC-T036-1: AgentToolRegistry 注册 collect 工具（调用 M-002 采集引擎）
+  - [x] AC-T036-2: AgentToolRegistry 注册 process 工具（调用 M-003 处理管道）
+  - [x] AC-T036-3: AgentToolRegistry 注册 distribute 工具（调用 M-007 分发）
+  - [x] AC-T036-4: AgentToolRegistry 注册 search 工具（调用 M-008 混合检索引擎）
+  - [x] AC-T036-5: AgentToolRegistry 注册 get_content_detail 工具（调用 M-009 内容详情）
+  - [x] AC-T036-6: 工具定义包含 name/description/parameters(JSON Schema)/execute 函数
+  - [x] AC-T036-7: scheduled-collect.yaml 管道配置：mode=strict, tools_allowed=[collect,process,distribute]
+  - [x] AC-T036-8: instant-search.yaml 管道配置：mode=flexible, tools_allowed=[search,get_content_detail,summarize_for_user]
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/agent/tools.py` -- Agent 工具定义与注册
-  - [ ] `config/pipelines/scheduled-collect.yaml` -- 定时采集管道配置
-  - [ ] `config/pipelines/manual-collect.yaml` -- 手动触发管道配置
-  - [ ] `config/pipelines/instant-search.yaml` -- 即时检索管道配置
-  - [ ] `tests/unit/agent/test_tools.py` -- 工具注册测试
+  - [x] `src/intellisource/agent/tools.py` -- Agent 工具定义与注册
+  - [x] `config/pipelines/scheduled-collect.yaml` -- 定时采集管道配置
+  - [x] `config/pipelines/manual-collect.yaml` -- 手动触发管道配置
+  - [x] `config/pipelines/instant-search.yaml` -- 即时检索管道配置
+  - [x] `tests/unit/agent/test_tools.py` -- 工具注册测试
 - **context_load**:
   - arch#§2.M-006（AgentToolRegistry）
   - arch#§2.M-002, M-003, M-007, M-008（各模块作为工具来源）

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
+from typing import Any
 
 from intellisource.core.errors import ErrorCategory, IntelliSourceError
 
@@ -73,7 +74,7 @@ class TaskStateMachine:
         """Return current state of a task, defaulting to 'pending'."""
         return self._states.get(task_id, "pending")
 
-    def transition(self, task_id: str, action: str) -> dict:
+    def transition(self, task_id: str, action: str) -> dict[str, Any]:
         """Execute a state transition and return metadata dict."""
         if action not in VALID_ACTIONS:
             msg = f"Unknown action '{action}'"
@@ -89,7 +90,7 @@ class TaskStateMachine:
         new_state = _TRANSITIONS[key]
         self._states[task_id] = new_state
 
-        result: dict = {
+        result: dict[str, Any] = {
             "from_state": current,
             "to_state": new_state,
         }
@@ -109,14 +110,14 @@ class SchedulerManager:
     """Manages Celery Beat schedule registration and removal."""
 
     def __init__(self) -> None:
-        self._schedules: dict[str, dict] = {}
+        self._schedules: dict[str, dict[str, Any]] = {}
 
     def register_schedule(
         self,
         name: str,
         cron_expr: str,
         pipeline_name: str,
-        params: dict,
+        params: dict[str, Any],
     ) -> None:
         """Register a scheduled task. Raises ValueError on duplicate."""
         if name in self._schedules:
@@ -135,15 +136,15 @@ class SchedulerManager:
             raise KeyError(name)
         del self._schedules[name]
 
-    def list_schedules(self) -> list[dict]:
+    def list_schedules(self) -> list[dict[str, Any]]:
         """Return all registered schedules as a list of dicts."""
         return list(self._schedules.values())
 
     def trigger_manual(
         self,
         pipeline_name: str,
-        params: dict,
-    ) -> dict:
+        params: dict[str, Any],
+    ) -> dict[str, Any]:
         """Trigger a manual pipeline execution."""
         return {
             "task_id": str(uuid.uuid4()),

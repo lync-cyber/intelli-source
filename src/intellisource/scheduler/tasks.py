@@ -109,7 +109,7 @@ class CeleryTasks:
                 # Success -- update chain status.
                 if chain_repo is not None:
                     _run_sync(chain_repo.update(status="success"))
-                return result  # type: ignore[return-value]
+                return dict(result)
             except Exception as exc:
                 last_error = exc
                 if attempt < MAX_RETRIES:

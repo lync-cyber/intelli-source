@@ -37,7 +37,7 @@ class WeWorkDistributor(BaseDistributor):
     # distribute (ABC entry-point)
     # ------------------------------------------------------------------
 
-    async def distribute(  # type: ignore[override]
+    async def distribute(
         self,
         content: Any,
         subscription: Any,

@@ -10,4 +10,7 @@ tools_denied:
   - collect
   - process
   - distribute
-steps: []
+steps:
+  - tool: search
+    params:
+      query: ""
