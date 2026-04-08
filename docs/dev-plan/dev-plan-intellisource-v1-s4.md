@@ -18,17 +18,18 @@
 - **模块**: M-006
 - **接口**: 无（内部基础设施）
 - **复杂度**: M
+- **status**: done
 - **tdd_acceptance**:
-  - [ ] AC-034 映射: Celery 任务触发 AgentRunner 执行管道配置，单步失败可独立重试
-  - [ ] AC-035 映射: 定时任务与手动触发任务通过独立队列并行处理
-  - [ ] AC-T027-1: CeleryTasks.run_pipeline(pipeline_name, params) 加载管道配置并调用 AgentRunner
-  - [ ] AC-T027-2: 单步失败时记录错误到 CollectTask.error_message
-  - [ ] AC-T027-3: 任务链执行状态持久化到 TaskChain 表（E-008），包含 pipeline_name 和 execution_mode
-  - [ ] AC-T027-4: 支持 low/normal/high 三级优先级队列
+  - [x] AC-034 映射: Celery 任务触发 AgentRunner 执行管道配置，单步失败可独立重试
+  - [x] AC-035 映射: 定时任务与手动触发任务通过独立队列并行处理
+  - [x] AC-T027-1: CeleryTasks.run_pipeline(pipeline_name, params) 加载管道配置并调用 AgentRunner
+  - [x] AC-T027-2: 单步失败时记录错误到 CollectTask.error_message
+  - [x] AC-T027-3: 任务链执行状态持久化到 TaskChain 表（E-008），包含 pipeline_name 和 execution_mode
+  - [x] AC-T027-4: 支持 low/normal/high 三级优先级队列
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/scheduler/tasks.py` -- Celery 任务定义（触发层）
-  - [ ] `src/intellisource/scheduler/__init__.py` -- 模块导出
-  - [ ] `tests/unit/scheduler/test_tasks.py` -- 任务定义测试
+  - [x] `src/intellisource/scheduler/tasks.py` -- Celery 任务定义（触发层）
+  - [x] `src/intellisource/scheduler/__init__.py` -- 模块导出
+  - [x] `tests/unit/scheduler/test_tasks.py` -- 任务定义测试
 - **context_load**:
   - arch#§2.M-006
   - arch-intellisource-v1-data#§4.E-002
@@ -41,16 +42,17 @@
 - **模块**: M-006
 - **接口**: API-008, API-009 的业务逻辑层
 - **复杂度**: M
+- **status**: done
 - **tdd_acceptance**:
-  - [ ] AC-038 映射: 状态机支持 pending/running/success/failed/paused/cancelled 状态转换
-  - [ ] AC-039 映射: 支持 Celery Beat 定时调度、手动触发、消息触发三种模式
-  - [ ] AC-T028-1: pause 操作暂停正在执行的任务链（revoke pending subtasks）
-  - [ ] AC-T028-2: resume 操作从暂停点恢复执行
-  - [ ] AC-T028-3: 任务超时（可配置）自动标记为 failed
-  - [ ] AC-T028-4: SchedulerManager 管理 Celery Beat 定时任务的注册和取消
+  - [x] AC-038 映射: 状态机支持 pending/running/success/failed/paused/cancelled 状态转换
+  - [x] AC-039 映射: 支持 Celery Beat 定时调度、手动触发、消息触发三种模式
+  - [x] AC-T028-1: pause 操作暂停正在执行的任务链（revoke pending subtasks）
+  - [x] AC-T028-2: resume 操作从暂停点恢复执行
+  - [x] AC-T028-3: 任务超时（可配置）自动标记为 failed
+  - [x] AC-T028-4: SchedulerManager 管理 Celery Beat 定时任务的注册和取消
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/scheduler/state_machine.py` -- 任务状态机
-  - [ ] `tests/unit/scheduler/test_state_machine.py` -- 状态机测试
+  - [x] `src/intellisource/scheduler/state_machine.py` -- 任务状态机
+  - [x] `tests/unit/scheduler/test_state_machine.py` -- 状态机测试
 - **context_load**:
   - arch#§2.M-006
   - arch-intellisource-v1-data#§4.E-002（status 字段）
@@ -63,16 +65,17 @@
 - **模块**: M-006
 - **接口**: 无
 - **复杂度**: M
+- **status**: done
 - **tdd_acceptance**:
-  - [ ] AC-036 映射: 多工作节点并发执行任务时不产生重复处理
-  - [ ] AC-037 映射: 幂等设计覆盖文档指纹去重 + 推送记录 + 分布式锁三层
-  - [ ] AC-T029-1: IdempotencyGuard.acquire(source_id) 获取分布式锁，防止同一信源并发采集
-  - [ ] AC-T029-2: 锁超时自动释放（默认 5 分钟），防止死锁
-  - [ ] AC-T029-3: 内容指纹去重在入库前检查 RawContent.fingerprint 唯一约束
-  - [ ] AC-T029-4: 推送去重通过 PushRecord 的 (subscription_id, content_id, channel) 唯一约束
+  - [x] AC-036 映射: 多工作节点并发执行任务时不产生重复处理
+  - [x] AC-037 映射: 幂等设计覆盖文档指纹去重 + 推送记录 + 分布式锁三层
+  - [x] AC-T029-1: IdempotencyGuard.acquire(source_id) 获取分布式锁，防止同一信源并发采集
+  - [x] AC-T029-2: 锁超时自动释放（默认 5 分钟），防止死锁
+  - [x] AC-T029-3: 内容指纹去重在入库前检查 RawContent.fingerprint 唯一约束
+  - [x] AC-T029-4: 推送去重通过 PushRecord 的 (subscription_id, content_id, channel) 唯一约束
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/scheduler/idempotency.py` -- 幂等保护器
-  - [ ] `tests/unit/scheduler/test_idempotency.py` -- 幂等测试
+  - [x] `src/intellisource/scheduler/idempotency.py` -- 幂等保护器
+  - [x] `tests/unit/scheduler/test_idempotency.py` -- 幂等测试
 - **context_load**:
   - arch#§2.M-006
   - arch#§5.1（并发控制）
@@ -115,23 +118,24 @@
 - **模块**: M-007
 - **接口**: 无（内部框架）
 - **复杂度**: M
+- **status**: done
 - **tdd_acceptance**:
-  - [ ] AC-043 映射: SubscriptionMatcher 基于关键词/标签匹配推送内容到对应订阅
-  - [ ] AC-043a: SubscriptionMatcher 结合 ContentScorer 权重评分进行推送排序和阈值过滤
-  - [ ] AC-T031-1: BaseDistributor 定义 distribute(content, subscription) -> PushRecord 统一接口
-  - [ ] AC-T031-2: SubscriptionMatcher.match(content) 返回匹配的 Subscription 列表
-  - [ ] AC-T031-3: 匹配规则支持 keywords（OR 逻辑）、tags（OR 逻辑）
-  - [ ] AC-T031-4: 关键词高级语法：普通词（包含即匹配）、`+`前缀必选词（必须包含）、`!`前缀排除词（排除匹配）、`/pattern/`正则匹配
-  - [ ] AC-T031-5: ContentScorer.score(content, subscription) 综合计算权重分（源可信度 × 时间衰减 × 关键词匹配度），推送时按权重降序排列
-  - [ ] AC-T031-6: Subscription.match_rules.min_score 阈值过滤，权重低于阈值的内容不推送（默认 0 表示不过滤）
-  - [ ] AC-T031-7: DeliveryTracker 记录推送历史并检查去重
+  - [x] AC-043 映射: SubscriptionMatcher 基于关键词/标签匹配推送内容到对应订阅
+  - [x] AC-043a: SubscriptionMatcher 结合 ContentScorer 权重评分进行推送排序和阈值过滤
+  - [x] AC-T031-1: BaseDistributor 定义 distribute(content, subscription) -> PushRecord 统一接口
+  - [x] AC-T031-2: SubscriptionMatcher.match(content) 返回匹配的 Subscription 列表
+  - [x] AC-T031-3: 匹配规则支持 keywords（OR 逻辑）、tags（OR 逻辑）
+  - [x] AC-T031-4: 关键词高级语法：普通词（包含即匹配）、`+`前缀必选词（必须包含）、`!`前缀排除词（排除匹配）、`/pattern/`正则匹配
+  - [x] AC-T031-5: ContentScorer.score(content, subscription) 综合计算权重分（源可信度 × 时间衰减 × 关键词匹配度），推送时按权重降序排列
+  - [x] AC-T031-6: Subscription.match_rules.min_score 阈值过滤，权重低于阈值的内容不推送（默认 0 表示不过滤）
+  - [x] AC-T031-7: DeliveryTracker 记录推送历史并检查去重
 - **deliverables** (交付物):
-  - [ ] `src/intellisource/distributor/base.py` -- 分发器抽象基类
-  - [ ] `src/intellisource/distributor/matcher.py` -- 订阅规则匹配引擎（含高级关键词语法解析）
-  - [ ] `src/intellisource/distributor/scorer.py` -- 内容权重评分器
-  - [ ] `src/intellisource/distributor/__init__.py` -- 模块导出
-  - [ ] `tests/unit/distributor/test_matcher.py` -- 匹配器测试（含高级关键词语法）
-  - [ ] `tests/unit/distributor/test_scorer.py` -- 权重评分测试
+  - [x] `src/intellisource/distributor/base.py` -- 分发器抽象基类
+  - [x] `src/intellisource/distributor/matcher.py` -- 订阅规则匹配引擎（含高级关键词语法解析）
+  - [x] `src/intellisource/distributor/scorer.py` -- 内容权重评分器
+  - [x] `src/intellisource/distributor/__init__.py` -- 模块导出
+  - [x] `tests/unit/distributor/test_matcher.py` -- 匹配器测试（含高级关键词语法）
+  - [x] `tests/unit/distributor/test_scorer.py` -- 权重评分测试
 - **context_load**:
   - arch#§2.M-007
   - arch-intellisource-v1-data#§4.E-009

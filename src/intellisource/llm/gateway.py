@@ -102,6 +102,7 @@ class LLMGateway:
     def __init__(self) -> None:
         self._default_temperature: float = 0.7
         self._default_max_tokens: int = 4096
+        self._routing_config: dict[str, Any] = _load_routing_config()
 
     async def complete(
         self,
@@ -128,8 +129,7 @@ class LLMGateway:
         resolved_model = model
 
         if resolved_model is None and task_type is not None:
-            config = _load_routing_config()
-            models = config.get("models", {})
+            models = self._routing_config.get("models", {})
             if task_type in models:
                 resolved_model = models[task_type]["model"]
             else:
@@ -137,7 +137,7 @@ class LLMGateway:
                     "No model config for task_type '%s', using default_model",
                     task_type,
                 )
-                resolved_model = config["default_model"]["model"]
+                resolved_model = self._routing_config["default_model"]["model"]
 
         if resolved_model is None:
             resolved_model = "gpt-4o-mini"

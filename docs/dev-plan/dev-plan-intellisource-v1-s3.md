@@ -105,6 +105,7 @@
   - [ ] `src/intellisource/llm/processors/__init__.py` -- 模块导出
   - [ ] `src/intellisource/llm/schemas/extraction.json` -- 提取 JSON Schema
   - [ ] `tests/unit/llm/test_extractor.py` -- 提取器测试
+  - [ ] `src/intellisource/llm/processors/_async_compat.py` -- sync/async 桥接工具
 - **context_load**:
   - arch#§2.M-004
   - arch#§5.3（降级策略）

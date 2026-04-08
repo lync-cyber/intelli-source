@@ -13,6 +13,7 @@ import time
 from unittest.mock import AsyncMock
 
 import pytest
+
 from intellisource.llm.circuit_breaker import CircuitBreaker, CircuitState
 
 # ---------------------------------------------------------------------------
@@ -22,12 +23,31 @@ from intellisource.llm.circuit_breaker import CircuitBreaker, CircuitState
 
 @pytest.fixture
 def mock_redis() -> AsyncMock:
-    """Return an AsyncMock simulating an async Redis client."""
+    """Return an AsyncMock simulating an async Redis client with state tracking.
+
+    hset calls update an in-memory store so that subsequent hgetall calls
+    return the persisted state — matching real Redis multi-Worker semantics.
+    The store is exposed as ``redis._store`` for tests that need to seed state.
+    """
     redis = AsyncMock()
-    # Default: return empty state (CLOSED, 0 failures)
-    redis.hgetall.return_value = {}
-    redis.hset.return_value = True
-    redis.delete.return_value = True
+    store: dict[str, dict[bytes, bytes]] = {}
+
+    async def _hset(name: str, mapping: dict[str, str]) -> bool:
+        store[name] = {k.encode(): v.encode() for k, v in mapping.items()}
+        return True
+
+    async def _hgetall(name: str) -> dict[bytes, bytes]:
+        return dict(store.get(name, {}))
+
+    async def _delete(*names: str) -> bool:
+        for n in names:
+            store.pop(n, None)
+        return True
+
+    redis.hset.side_effect = _hset
+    redis.hgetall.side_effect = _hgetall
+    redis.delete.side_effect = _delete
+    redis._store = store
     return redis
 
 
@@ -92,8 +112,8 @@ class TestCircuitBreakerStateMachine:
         self, breaker: CircuitBreaker, mock_redis: AsyncMock
     ) -> None:
         """AC-029: After recovery_timeout (60s), state becomes HALF_OPEN."""
-        # Simulate stored state: OPEN with last_failure 61 seconds ago
-        mock_redis.hgetall.return_value = {
+        # Seed store: OPEN with last_failure 61 seconds ago
+        mock_redis._store[breaker._key] = {
             b"state": b"OPEN",
             b"failure_count": b"5",
             b"last_failure_at": str(time.time() - 61).encode(),
@@ -105,8 +125,8 @@ class TestCircuitBreakerStateMachine:
         self, breaker: CircuitBreaker, mock_redis: AsyncMock
     ) -> None:
         """AC-029 / AC-T020-5: Probe success in HALF_OPEN resets to CLOSED."""
-        # Start in HALF_OPEN
-        mock_redis.hgetall.return_value = {
+        # Seed store as HALF_OPEN (OPEN + timeout expired)
+        mock_redis._store[breaker._key] = {
             b"state": b"OPEN",
             b"failure_count": b"5",
             b"last_failure_at": str(time.time() - 61).encode(),
@@ -119,7 +139,7 @@ class TestCircuitBreakerStateMachine:
         self, breaker: CircuitBreaker, mock_redis: AsyncMock
     ) -> None:
         """Probe failure in HALF_OPEN should revert to OPEN."""
-        mock_redis.hgetall.return_value = {
+        mock_redis._store[breaker._key] = {
             b"state": b"OPEN",
             b"failure_count": b"5",
             b"last_failure_at": str(time.time() - 61).encode(),
@@ -162,7 +182,7 @@ class TestCircuitBreakerRedisPersistence:
         self, breaker: CircuitBreaker, mock_redis: AsyncMock
     ) -> None:
         """get_state must read from Redis, not local memory only."""
-        mock_redis.hgetall.return_value = {
+        mock_redis._store[breaker._key] = {
             b"state": b"CLOSED",
             b"failure_count": b"0",
             b"last_failure_at": b"0",
@@ -239,10 +259,7 @@ class TestCircuitBreakerPerModelTracking:
         for _ in range(5):
             await breaker_a.record_failure()
 
-        # breaker_b should still be CLOSED (separate Redis state)
-        # We need to make hgetall return different values per key
-        # For breaker_b, return empty (CLOSED)
-        mock_redis.hgetall.return_value = {}
+        # breaker_b should still be CLOSED (separate Redis state via store)
         state_b = await breaker_b.get_state()
         assert state_b == CircuitState.CLOSED
 
@@ -259,20 +276,15 @@ class TestHalfOpenRecovery:
         self, breaker: CircuitBreaker, mock_redis: AsyncMock
     ) -> None:
         """After successful probe in HALF_OPEN, allow_request returns True."""
-        # Simulate HALF_OPEN state (OPEN + timeout expired)
-        mock_redis.hgetall.return_value = {
+        # Seed store as HALF_OPEN (OPEN + timeout expired)
+        mock_redis._store[breaker._key] = {
             b"state": b"OPEN",
             b"failure_count": b"5",
             b"last_failure_at": str(time.time() - 61).encode(),
         }
-        # Record probe success
+        # Record probe success — this writes CLOSED to store
         await breaker.record_success()
-        # Now simulate CLOSED state from Redis after reset
-        mock_redis.hgetall.return_value = {
-            b"state": b"CLOSED",
-            b"failure_count": b"0",
-            b"last_failure_at": b"0",
-        }
+        # Store now has CLOSED state; allow_request should return True
         allowed = await breaker.allow_request()
         assert allowed is True
 
@@ -280,7 +292,7 @@ class TestHalfOpenRecovery:
         self, breaker: CircuitBreaker, mock_redis: AsyncMock
     ) -> None:
         """In HALF_OPEN, the breaker should allow exactly one probe request."""
-        mock_redis.hgetall.return_value = {
+        mock_redis._store[breaker._key] = {
             b"state": b"OPEN",
             b"failure_count": b"5",
             b"last_failure_at": str(time.time() - 61).encode(),

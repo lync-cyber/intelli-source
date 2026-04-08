@@ -52,21 +52,12 @@ class CircuitBreaker:
         self._model = model
         self._provider = provider
         self._key = f"circuit_breaker:{provider}:{model}"
-        # Local cache mirrors Redis state; written on every _write_state call
-        self._local_failure_count: int = 0
-        self._local_state: CircuitState = CircuitState.CLOSED
-        self._local_last_failure_at: float = 0.0
-        self._dirty: bool = False
 
     async def _read_state(self) -> tuple[CircuitState, int, float]:
-        """Read circuit state from Redis, using local cache when available."""
-        if self._dirty:
-            # Local cache is authoritative after a write in this instance
-            return (
-                self._local_state,
-                self._local_failure_count,
-                self._local_last_failure_at,
-            )
+        """Read circuit state from Redis.
+
+        Always fetches latest for multi-Worker consistency.
+        """
         data: dict[bytes, bytes] = await self._redis.hgetall(self._key)
         if not data:
             return CircuitState.CLOSED, 0, 0.0
@@ -91,10 +82,6 @@ class CircuitBreaker:
                 "last_failure_at": str(last_failure_at),
             },
         )
-        self._local_state = state
-        self._local_failure_count = failure_count
-        self._local_last_failure_at = last_failure_at
-        self._dirty = True
 
     async def get_state(self) -> CircuitState:
         """Return the current circuit state, applying timeout transitions."""

@@ -76,7 +76,31 @@
       "Bash(xargs basename:*)",
       "Bash(python .claude/hooks/notify_done.py)",
       "Bash(echo \"exit: $?\")",
-      "Bash(grep -h 'skills:' -A 5 .claude/agents/*/AGENT.md)"
+      "Bash(grep -h 'skills:' -A 5 .claude/agents/*/AGENT.md)",
+      "Bash(PYTHONIOENCODING=utf-8 python .claude/scripts/event_logger.py --event session_start --phase development --detail \"Resume Sprint 3, process approved_with_notes\")",
+      "Bash(PYTHONIOENCODING=utf-8 uv run python .claude/skills/sprint-review/scripts/sprint_check.py --sprint 3 --dev-plan docs/dev-plan/dev-plan-intellisource-v1.md --sprint-plan docs/dev-plan/dev-plan-intellisource-v1-s3.md --src-dir src/intellisource --test-dir tests/unit)",
+      "Bash(PYTHONIOENCODING=utf-8 uv run python .claude/skills/sprint-review/scripts/sprint_check.py 3 --dev-plan docs/dev-plan/ --src-dir src/intellisource --test-dir tests/unit --reviews-dir docs/reviews/code/)",
+      "Bash(PYTHONIOENCODING=utf-8 python .claude/scripts/event_logger.py --event phase_end --phase development --detail \"Sprint 3 Review approved \\(SPRINT-REVIEW-s3-r2\\)\")",
+      "Bash(grep -E \"\\\\.md$\")",
+      "Bash(grep -n \"^## 6\\\\|^## 7\" /c/Users/hlin/LocalWork/GitRepo/intelli-source/docs/arch/*.md)",
+      "Bash(PYTHONIOENCODING=utf-8 uv run python -m pytest tests/unit/distributor/test_matcher.py tests/unit/distributor/test_scorer.py -x -v)",
+      "Bash(PYTHONIOENCODING=utf-8 uv run python -m pytest tests/unit/scheduler/test_tasks.py -x -v)",
+      "Bash(PYTHONIOENCODING=utf-8 uv run python -m pytest tests/unit/scheduler/test_tasks.py -x -q)",
+      "Bash(PYTHONIOENCODING=utf-8 uv run python -m pytest tests/unit/scheduler/test_idempotency.py -x -q)",
+      "Bash(PYTHONIOENCODING=utf-8 uv run python -m pytest tests/unit/scheduler/test_state_machine.py -x -q)",
+      "Bash(PYTHONIOENCODING=utf-8 uv run python -m pytest tests/unit/scheduler/test_idempotency.py -q)",
+      "Bash(PYTHONIOENCODING=utf-8 uv run python -m pytest tests/unit/scheduler/test_state_machine.py -q)",
+      "Bash(PYTHONIOENCODING=utf-8 uv run python -m pytest tests/unit/distributor/test_wework.py -x -q)",
+      "Bash(PYTHONIOENCODING=utf-8 uv run python -m pytest tests/unit/distributor/test_frequency.py -x -q)",
+      "Bash(PYTHONIOENCODING=utf-8 uv run python -m pytest tests/unit/distributor/test_email.py -x -q)",
+      "Bash(PYTHONIOENCODING=utf-8 uv run python -m pytest tests/unit/agent/ -x -q)",
+      "Bash(PYTHONIOENCODING=utf-8 uv run python -m pytest tests/unit/distributor/test_wework.py -q)",
+      "Bash(PYTHONIOENCODING=utf-8 uv run python -m pytest tests/unit/distributor/test_frequency.py -q)",
+      "Bash(PYTHONIOENCODING=utf-8 uv run python -m pytest tests/unit/distributor/test_email.py -q)",
+      "Bash(PYTHONIOENCODING=utf-8 uv run python -m pytest tests/unit/distributor/test_wechat.py -x -q)",
+      "Bash(PYTHONIOENCODING=utf-8 uv run python -m pytest tests/unit/agent/ -q)",
+      "Bash(PYTHONIOENCODING=utf-8 uv run python -m pytest tests/unit/distributor/test_wechat.py -q)",
+      "Bash(PYTHONIOENCODING=utf-8 uv run python -m pytest tests/unit/scheduler/ tests/unit/agent/ tests/unit/distributor/ -x -q)"
     ]
   }
 }
