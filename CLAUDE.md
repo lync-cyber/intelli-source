@@ -5,7 +5,7 @@
 - 技术栈: Python 3.11+ / FastAPI / Celery + Redis / PostgreSQL + pgvector / SQLAlchemy 2.0 / litellm
 - 开发框架: CataForge
 - 运行时环境(runtime): claude-code
-- 框架版本: 0.4.5
+- 框架版本: 0.4.6
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 
@@ -39,7 +39,7 @@
 - 设计工具: none
   <!-- 可选值: none | penpot。设为 penpot 时启用 Penpot MCP 集成，需本地运行 Penpot + MCP Plugin -->
 - 人工审查检查点: [pre_dev, pre_deploy]
-  <!-- 可选值: phase_transition | pre_dev | pre_deploy | post_sprint | none -->
+  <!-- 可选值: phase_transition | pre_dev | pre_deploy | post_sprint | none。详见 COMMON-RULES §MANUAL_REVIEW_CHECKPOINTS -->
 - 文档类型命名: 统一用小写 kebab-case（prd、arch、dev-plan、test-report、ui-spec、deploy-spec…），包括人类可读文本、工具参数（template_id/doc_type）和产出文件名（如 arch-{project}-{ver}.md）
 
 ## 效率原则 (全局遵循)

@@ -3,7 +3,7 @@
   "repo": "lync-cyber/CataForge",
   "branch": "main",
   "token_env": "GITHUB_TOKEN",
-  "last_commit": "a07e48e2b8e7a55a25a2b9161d1d6bcd43e79187",
-  "last_version": "0.4.5",
-  "last_upgrade_date": "2026-04-09T17:15:51"
+  "last_commit": "d6960d5d28e9314716dd304e2ab0e31e407f5f79",
+  "last_version": "0.4.6",
+  "last_upgrade_date": "2026-04-09T17:27:58"
 }

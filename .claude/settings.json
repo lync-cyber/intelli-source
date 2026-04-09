@@ -53,6 +53,17 @@
     ]
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/session_context.py\""
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "matcher": "",
@@ -84,17 +95,6 @@
         ]
       }
     ],
-    "Notification": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/notify_permission.py\""
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
@@ -115,19 +115,19 @@
         ]
       }
     ],
-    "SessionStart": [
+    "Notification": [
       {
         "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/session_context.py\""
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/notify_permission.py\""
           }
         ]
       }
     ]
   },
-  "autoCompact": true,
+  "enabledPlugins": {},
   "mcpServers": {},
-  "enabledPlugins": {}
+  "autoCompact": true
 }
