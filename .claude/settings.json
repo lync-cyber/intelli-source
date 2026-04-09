@@ -53,13 +53,13 @@
     ]
   },
   "hooks": {
-    "PreToolUse": [
+    "Stop": [
       {
-        "matcher": "Bash",
+        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_dangerous.py\""
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/notify_done.py\""
           }
         ]
       }
@@ -84,17 +84,6 @@
         ]
       }
     ],
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/notify_done.py\""
-          }
-        ]
-      }
-    ],
     "Notification": [
       {
         "matcher": "",
@@ -102,6 +91,26 @@
           {
             "type": "command",
             "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/notify_permission.py\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_dangerous.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/log_agent_dispatch.py\""
           }
         ]
       }
@@ -118,7 +127,7 @@
       }
     ]
   },
-  "mcpServers": {},
   "autoCompact": true,
+  "mcpServers": {},
   "enabledPlugins": {}
 }

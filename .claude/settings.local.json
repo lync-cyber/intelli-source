@@ -100,7 +100,11 @@
       "Bash(PYTHONIOENCODING=utf-8 uv run python -m pytest tests/unit/distributor/test_wechat.py -x -q)",
       "Bash(PYTHONIOENCODING=utf-8 uv run python -m pytest tests/unit/agent/ -q)",
       "Bash(PYTHONIOENCODING=utf-8 uv run python -m pytest tests/unit/distributor/test_wechat.py -q)",
-      "Bash(PYTHONIOENCODING=utf-8 uv run python -m pytest tests/unit/scheduler/ tests/unit/agent/ tests/unit/distributor/ -x -q)"
+      "Bash(PYTHONIOENCODING=utf-8 uv run python -m pytest tests/unit/scheduler/ tests/unit/agent/ tests/unit/distributor/ -x -q)",
+      "Bash(sed 's/.*\\\\\\(`[^`]*`\\\\\\).*/\\\\1/g')",
+      "Bash(awk '/^\\\\- \\\\*\\\\*deliverables\\\\*\\\\*/{flag=1; next} /^\\\\- \\\\*\\\\*/{flag=0} flag && /\\\\`.*\\\\`/{print}' \"/c/Users/hlin/LocalWork/GitRepo/intelli-source/docs/dev-plan/dev-plan-intellisource-v1-s3.md\")",
+      "Bash(awk '/^\\\\- \\\\*\\\\*deliverables\\\\*\\\\*/{flag=1; next} /^\\\\- \\\\*\\\\*/{flag=0} flag && /\\\\`.*\\\\`/{print}' \"/c/Users/hlin/LocalWork/GitRepo/intelli-source/docs/dev-plan/dev-plan-intellisource-v1-s4.md\")",
+      "Bash(awk '/^\\\\- \\\\*\\\\*deliverables\\\\*\\\\*/{flag=1; next} /^\\\\- \\\\*\\\\*/{flag=0} flag && /\\\\`.*\\\\`/{print}' \"/c/Users/hlin/LocalWork/GitRepo/intelli-source/docs/dev-plan/dev-plan-intellisource-v1-s5.md\")"
     ]
   }
 }
