@@ -72,7 +72,7 @@
 | T-035 | 推送频率控制与免打扰 | M-007 | S | T-031 | AC-046 | done |
 | T-036 | Agent工具注册与管道配置 | M-006 | M | T-030, T-010, T-016, T-031 | AC-066 | done |
 
-### Sprint 5: 检索/API/CLI与集成
+### Sprint 5: 检索/API/CLI与集成 {#sprint-5}
 
 | 任务ID | 任务名 | 模块 | 复杂度 | 依赖 | TDD测试点 | 状态 |
 |--------|--------|------|--------|------|-----------|------|
@@ -86,6 +86,21 @@
 | T-044 | CLI工具 | M-011 | M | T-040, T-041 | AC-064 | todo |
 | T-045 | FastAPI应用入口与Docker部署 | M-011 | M | T-043, T-042 | AC-065 | todo |
 | T-046 | Alembic数据库迁移 | M-009 | S | T-003 | AC-054 | todo |
+
+### Sprint 6: 处理器/智能体架构重构
+
+| 任务ID | 任务名 | 模块 | 复杂度 | 依赖 | TDD测试点 | 状态 |
+|--------|--------|------|--------|------|-----------|------|
+| T-047 | 架构文档修订与Sprint 6 dev-plan | docs | S | — | — | todo |
+| T-048 | 原子化工具函数模块 | M-004→M-003 | M | — | AC-018~AC-025 降级路径 | todo |
+| T-049 | 删除旧LLM处理器 + 重写测试 | M-004 | L | T-048 | 无import残留, mypy零错误 | todo |
+| T-050 | Agent工具注册增强 | M-006 | M | T-048 | AC-066 | todo |
+| T-051 | PromptBuilder与Token截断 | M-005 | M | — | AC-T051 | todo |
+| T-052 | LLM调用结果缓存 | M-005 | M | — | AC-T052 | todo |
+| T-053 | 模型参数配置增强 | M-005 | S | T-051 | AC-T053 | todo |
+| T-054 | Agent处理编排引擎 | M-006 | L | T-048,T-050,T-051 | AC-066,AC-067 | todo |
+| T-055 | 管道配置更新 | M-006 | S | T-050,T-054 | AC-T055 | todo |
+| T-056 | 集成测试与全量回归 | 全模块 | L | ALL | 全量pytest+mypy | todo |
 
 ## 2. 依赖图
 
@@ -171,6 +186,7 @@ graph LR
 > - Sprint 3: [dev-plan-intellisource-v1-s3](dev-plan-intellisource-v1-s3.md) (T-019 ~ T-026)
 > - Sprint 4: [dev-plan-intellisource-v1-s4](dev-plan-intellisource-v1-s4.md) (T-027 ~ T-036)
 > - Sprint 5: [dev-plan-intellisource-v1-s5](dev-plan-intellisource-v1-s5.md) (T-037 ~ T-046)
+> - Sprint 6: [dev-plan-intellisource-v1-s6](dev-plan-intellisource-v1-s6.md) (T-047 ~ T-056)
 
 ## 4. 关键路径
 
