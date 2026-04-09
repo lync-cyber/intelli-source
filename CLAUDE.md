@@ -5,7 +5,7 @@
 - 技术栈: Python 3.11+ / FastAPI / Celery + Redis / PostgreSQL + pgvector / SQLAlchemy 2.0 / litellm
 - 开发框架: CataForge
 - 运行时环境(runtime): claude-code
-- 框架版本: 0.4.2
+- 框架版本: 0.4.3
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 
