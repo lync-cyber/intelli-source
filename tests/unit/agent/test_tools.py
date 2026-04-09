@@ -16,7 +16,7 @@ Covers:
 
 from __future__ import annotations
 
-import asyncio
+import inspect
 from typing import Any
 
 import pytest
@@ -69,7 +69,7 @@ class TestCollectTool:
     def test_collect_is_async_callable(self, registry: Any) -> None:
         """AC-T036-1: collect tool execute fn is async."""
         tool = registry.get("collect")
-        assert asyncio.iscoroutinefunction(tool.execute)
+        assert inspect.iscoroutinefunction(tool.execute)
 
     def test_collect_description_non_empty(self, registry: Any) -> None:
         """AC-T036-1: collect tool has a non-empty description."""
@@ -95,7 +95,7 @@ class TestProcessTool:
     def test_process_is_async_callable(self, registry: Any) -> None:
         """AC-T036-2: process tool execute fn is async."""
         tool = registry.get("process")
-        assert asyncio.iscoroutinefunction(tool.execute)
+        assert inspect.iscoroutinefunction(tool.execute)
 
 
 # ==================================================================
@@ -115,7 +115,7 @@ class TestDistributeTool:
     def test_distribute_is_async_callable(self, registry: Any) -> None:
         """AC-T036-3: distribute tool execute fn is async."""
         tool = registry.get("distribute")
-        assert asyncio.iscoroutinefunction(tool.execute)
+        assert inspect.iscoroutinefunction(tool.execute)
 
 
 # ==================================================================
@@ -135,7 +135,7 @@ class TestSearchTool:
     def test_search_is_async_callable(self, registry: Any) -> None:
         """AC-T036-4: search tool execute fn is async."""
         tool = registry.get("search")
-        assert asyncio.iscoroutinefunction(tool.execute)
+        assert inspect.iscoroutinefunction(tool.execute)
 
 
 # ==================================================================
@@ -155,7 +155,7 @@ class TestGetContentDetailTool:
     def test_get_content_detail_is_async_callable(self, registry: Any) -> None:
         """AC-T036-5: get_content_detail execute fn is async."""
         tool = registry.get("get_content_detail")
-        assert asyncio.iscoroutinefunction(tool.execute)
+        assert inspect.iscoroutinefunction(tool.execute)
 
 
 # ==================================================================
@@ -203,7 +203,7 @@ class TestToolDefinitionSchema:
         """AC-T036-6: tool has an async execute callable."""
         tool = registry.get(tool_name)
         assert callable(tool.execute)
-        assert asyncio.iscoroutinefunction(tool.execute)
+        assert inspect.iscoroutinefunction(tool.execute)
 
 
 # ==================================================================

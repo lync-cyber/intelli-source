@@ -7,7 +7,6 @@ support, priority queues, and task chain persistence.
 from __future__ import annotations
 
 import asyncio
-import time
 from typing import Any
 
 MAX_RETRIES: int = 3
@@ -113,7 +112,10 @@ class CeleryTasks:
             except Exception as exc:
                 last_error = exc
                 if attempt < MAX_RETRIES:
-                    time.sleep(RETRY_BACKOFF_BASE * (2**attempt))
+                    # [ASSUMPTION] In-process retry with exponential backoff.
+                    # When integrated with real Celery, replace with
+                    # self.retry(countdown=...) for non-blocking retries.
+                    _run_sync(asyncio.sleep(RETRY_BACKOFF_BASE * (2**attempt)))
 
         # All retries exhausted -- record error and propagate.
         if TaskRepository is not None:

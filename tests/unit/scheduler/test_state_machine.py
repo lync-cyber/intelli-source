@@ -131,7 +131,7 @@ class TestTaskStateMachineTransitions:
         assert set(mod.VALID_STATES) == expected
 
     def test_valid_actions_enumerated(self):
-        """The module should expose VALID_ACTIONS with all 7 actions."""
+        """The module should expose VALID_ACTIONS with all 8 actions."""
         mod = _import_state_machine()
         expected = {
             "start",
@@ -141,6 +141,7 @@ class TestTaskStateMachineTransitions:
             "resume",
             "cancel",
             "timeout",
+            "retry",
         }
         assert set(mod.VALID_ACTIONS) == expected
 
@@ -207,6 +208,16 @@ class TestInvalidTransitions:
         sm.transition("task-1", "fail")
         with pytest.raises(mod.InvalidTransitionError):
             sm.transition("task-1", "start")
+
+    def test_retry_from_failed_returns_to_pending(self):
+        """'retry' action moves a failed task back to 'pending'."""
+        sm = _make_state_machine()
+        sm.transition("task-1", "start")
+        sm.transition("task-1", "fail")
+        result = sm.transition("task-1", "retry")
+        assert result["from_state"] == "failed"
+        assert result["to_state"] == "pending"
+        assert sm.get_state("task-1") == "pending"
 
     def test_cancel_from_success_raises(self):
         """Cannot 'cancel' a task that is in terminal 'success'."""

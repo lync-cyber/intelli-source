@@ -118,7 +118,7 @@
       }
     ]
   },
+  "mcpServers": {},
   "autoCompact": true,
-  "enabledPlugins": {},
-  "mcpServers": {}
+  "enabledPlugins": {}
 }

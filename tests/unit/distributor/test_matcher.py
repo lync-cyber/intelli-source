@@ -694,3 +694,27 @@ class TestDeliveryTracker:
         sub_id_2 = uuid.uuid4()
         tracker.record(content_id=content_id, subscription_id=sub_id_1)
         assert not tracker.is_duplicate(content_id=content_id, subscription_id=sub_id_2)
+
+    def test_same_content_same_sub_different_channel_not_duplicate(self):
+        """Same (content, sub) on a different channel is NOT a duplicate."""
+        from intellisource.distributor.matcher import DeliveryTracker
+
+        tracker = DeliveryTracker()
+        content_id = uuid.uuid4()
+        sub_id = uuid.uuid4()
+        tracker.record(content_id=content_id, subscription_id=sub_id, channel="email")
+        assert not tracker.is_duplicate(
+            content_id=content_id, subscription_id=sub_id, channel="wechat"
+        )
+
+    def test_same_content_same_sub_same_channel_is_duplicate(self):
+        """Same (content, sub, channel) triple IS a duplicate."""
+        from intellisource.distributor.matcher import DeliveryTracker
+
+        tracker = DeliveryTracker()
+        content_id = uuid.uuid4()
+        sub_id = uuid.uuid4()
+        tracker.record(content_id=content_id, subscription_id=sub_id, channel="wechat")
+        assert tracker.is_duplicate(
+            content_id=content_id, subscription_id=sub_id, channel="wechat"
+        )
