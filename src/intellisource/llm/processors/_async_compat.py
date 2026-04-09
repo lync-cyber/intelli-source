@@ -8,17 +8,22 @@ one needs to be created.
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 from typing import Any, Coroutine, TypeVar
 
 _T = TypeVar("_T")
+
+# Module-level shared executor, reused across calls to avoid the
+# overhead of creating a new ThreadPoolExecutor on every invocation.
+_SHARED_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=4)
 
 
 def run_async(coro: Coroutine[Any, Any, _T]) -> _T:
     """Run an async coroutine from synchronous code.
 
     If an event loop is already running (e.g. inside a Jupyter notebook
-    or an async framework), the coroutine is submitted to a new thread.
-    Otherwise, ``asyncio.run`` is used directly.
+    or an async framework), the coroutine is submitted to a shared
+    thread pool.  Otherwise, ``asyncio.run`` is used directly.
 
     Args:
         coro: The coroutine to execute.
@@ -32,10 +37,7 @@ def run_async(coro: Coroutine[Any, Any, _T]) -> _T:
         loop = None
 
     if loop is not None and loop.is_running():
-        import concurrent.futures
-
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            future = pool.submit(asyncio.run, coro)
-            return future.result()
+        future = _SHARED_POOL.submit(asyncio.run, coro)
+        return future.result()
     else:
         return asyncio.run(coro)

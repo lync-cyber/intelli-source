@@ -182,12 +182,22 @@ class AgentRunner:
         steps_executed: int,
         results: list[dict[str, Any]],
         pipeline_name: str,
+        task_chain_id: str | None = None,
     ) -> dict[str, Any]:
-        """Persist result and return with task_chain_id."""
+        """Persist result and return with task_chain_id.
+
+        Args:
+            task_chain_id: If provided by the caller (e.g. CeleryTasks),
+                use it to correlate with the TaskChain DB record.
+                Otherwise a transient UUID is generated.
+        """
+        # [ASSUMPTION] Generates a local UUID when no upstream id is
+        # provided. Replace with TaskChainRepository write when the
+        # real persistence layer is integrated.
         return {
             "status": status,
             "steps_executed": steps_executed,
             "results": results,
             "pipeline_name": pipeline_name,
-            "task_chain_id": str(uuid.uuid4()),
+            "task_chain_id": task_chain_id or str(uuid.uuid4()),
         }

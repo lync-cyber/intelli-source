@@ -29,6 +29,7 @@ VALID_ACTIONS: set[str] = {
     "resume",
     "cancel",
     "timeout",
+    "retry",
 }
 
 SUPPORTED_TRIGGER_MODES: set[str] = {"scheduled", "manual", "message"}
@@ -46,6 +47,7 @@ _TRANSITIONS: dict[tuple[str, str], str] = {
     ("pending", "cancel"): "cancelled",
     ("running", "cancel"): "cancelled",
     ("paused", "cancel"): "cancelled",
+    ("failed", "retry"): "pending",
 }
 
 
@@ -110,6 +112,9 @@ class SchedulerManager:
     """Manages Celery Beat schedule registration and removal."""
 
     def __init__(self) -> None:
+        # [ASSUMPTION] In-memory schedule storage — sufficient for single-
+        # process dev/test. Replace with Redis or DB-backed store for
+        # multi-worker production deployment.
         self._schedules: dict[str, dict[str, Any]] = {}
 
     def register_schedule(

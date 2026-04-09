@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import html
 import os
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any
+from urllib.parse import quote
 
 try:
     import aiosmtplib
@@ -37,6 +39,9 @@ class EmailDistributor(BaseDistributor):
         self.smtp_user = smtp_user
         self.smtp_password = smtp_password
         self.use_tls = use_tls
+        # [ASSUMPTION] In-process dedup as a fast-path guard; authoritative
+        # dedup is handled by the outer DeliveryTracker / PushRecord DB layer.
+        # This mirrors WeChat/WeWork channels' local dedup strategy.
         self._sent_keys: set[str] = set()
 
     @classmethod
@@ -60,14 +65,15 @@ class EmailDistributor(BaseDistributor):
 
     def format_html(self, content: Any) -> str:
         """Render content as an HTML email body."""
-        title = getattr(content, "title", "")
-        summary = getattr(content, "summary", "")
-        source_url = getattr(content, "source_url", "")
+        title = html.escape(getattr(content, "title", ""))
+        summary = html.escape(getattr(content, "summary", ""))
+        raw_url = getattr(content, "source_url", "")
+        safe_url = quote(raw_url, safe=":/?#[]@!$&'()*+,;=-._~%")
         return (
             "<html><body>"
             f"<h1>{title}</h1>"
             f"<p>{summary}</p>"
-            f'<a href="{source_url}">{source_url}</a>'
+            f'<a href="{safe_url}">{html.escape(raw_url)}</a>'
             "</body></html>"
         )
 

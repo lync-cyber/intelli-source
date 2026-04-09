@@ -16,6 +16,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
 from intellisource.agent.pipeline import PipelineConfig
 from intellisource.agent.runner import AgentRunner
 
@@ -427,20 +428,19 @@ class TestFlexibleToolsDenied:
         )
         # Inspect the tools passed to the LLM gateway
         call_kwargs = llm_gateway.chat.call_args
+        assert call_kwargs is not None, "LLM gateway.chat was never called"
         # The available tools passed to LLM should not include denied tools
-        if call_kwargs and call_kwargs.kwargs.get("tools"):
+        if call_kwargs.kwargs.get("tools"):
             tool_names = [t["name"] for t in call_kwargs.kwargs["tools"]]
-            assert "file_delete" not in tool_names
-            assert "db_drop" not in tool_names
-        elif call_kwargs and len(call_kwargs.args) > 1:
-            # Tools may be passed as positional arg
+        elif len(call_kwargs.args) > 1 and isinstance(call_kwargs.args[1], list):
             tools_arg = call_kwargs.args[1]
-            if isinstance(tools_arg, list):
-                tool_names = [
-                    t.get("name", t) if isinstance(t, dict) else t for t in tools_arg
-                ]
-                assert "file_delete" not in tool_names
-                assert "db_drop" not in tool_names
+            tool_names = [
+                t.get("name", t) if isinstance(t, dict) else t for t in tools_arg
+            ]
+        else:
+            pytest.fail("No tools argument found in LLM gateway.chat call")
+        assert "file_delete" not in tool_names
+        assert "db_drop" not in tool_names
 
 
 # ===================================================================
