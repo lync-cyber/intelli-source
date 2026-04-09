@@ -407,6 +407,6 @@ class TestAsyncProcessingDeadline:
         if _MODULE_MISSING:
             pytest.fail("intellisource.distributor.webhooks not implemented")
 
-        import asyncio
+        import inspect
 
-        assert asyncio.iscoroutinefunction(WeChatWebhookHandler.handle_message)
+        assert inspect.iscoroutinefunction(WeChatWebhookHandler.handle_message)

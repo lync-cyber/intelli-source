@@ -10,6 +10,7 @@ from typing import Any
 
 from intellisource.llm.processors._async_compat import run_async
 from intellisource.llm.processors.fingerprint import FingerprintGenerator
+from intellisource.llm.prompts import load_prompt
 from intellisource.pipeline.base import BaseProcessor
 from intellisource.pipeline.context import PipelineContext
 
@@ -70,11 +71,11 @@ class SemanticDedup(BaseProcessor):
             f"- ID: {c.id}, Score: {c.score}, Title: {c.title}, Body: {c.body_text}"
             for c in candidates
         )
-        prompt = (
-            f"Determine if the following content is a duplicate of any candidate.\n\n"
-            f"New content:\nTitle: {title}\nBody: {body_text}\n\n"
-            f"Candidates:\n{candidate_info}\n\n"
-            f'Respond with JSON: {{"is_duplicate": bool, "confidence": float}}'
+        prompt = load_prompt(
+            "dedup",
+            title=title,
+            body_text=body_text,
+            candidate_info=candidate_info,
         )
         result = run_async(self._gateway.complete(prompt))
         run_async(

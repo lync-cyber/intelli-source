@@ -1,0 +1,5 @@
+Extract structured data from the following text as JSON.
+Schema: {schema}
+
+Text:
+{body_text}

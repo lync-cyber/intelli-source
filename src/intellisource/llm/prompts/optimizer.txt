@@ -1,0 +1,6 @@
+Optimize the following content for distribution on the '{channel}' channel.
+Adjust tone, length, and format for the channel's constraints.
+Return JSON: {{"title": str, "summary": str}}
+
+Title: {title}
+Content: {body_text}

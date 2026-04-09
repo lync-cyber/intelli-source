@@ -1,0 +1,6 @@
+Generate a short cluster topic label for the following content.
+
+Title: {title}
+Body: {body_text}
+
+Respond with only the topic label.

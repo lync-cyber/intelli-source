@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from intellisource.llm.processors._async_compat import run_async
+from intellisource.llm.prompts import load_prompt
 from intellisource.pipeline.base import BaseProcessor
 from intellisource.pipeline.context import PipelineContext
 
@@ -64,13 +65,7 @@ class DigestGenerator(BaseProcessor):
                 f"Content: {doc.get('body_text', '')}"
                 for doc in cluster_contents
             )
-            prompt = (
-                "Generate a JSON digest for the following clustered documents.\n"
-                'Output format: {"title": str, "summary": str, '
-                '"timeline": [{"date": str, "event": str}], '
-                '"key_points": [str]}\n\n'
-                f"{docs_text}"
-            )
+            prompt = load_prompt("summarizer", docs_text=docs_text)
             result = run_async(self._gateway.complete(prompt))
             run_async(
                 self._call_log.record(

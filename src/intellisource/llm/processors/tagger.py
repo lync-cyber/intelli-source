@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from intellisource.llm.processors._async_compat import run_async
+from intellisource.llm.prompts import load_prompt
 from intellisource.pipeline.base import BaseProcessor
 from intellisource.pipeline.context import PipelineContext
 
@@ -59,13 +60,11 @@ class SemanticTagger(BaseProcessor):
             if self._tag_library:
                 tags_json = json.dumps(self._tag_library, ensure_ascii=False)
                 library_hint = f"\nPreferred tags: {tags_json}"
-            prompt = (
-                "Analyze the following content and return "
-                "a JSON array of relevant tags.\n"
-                'If the content cannot be classified, return ["未分类"].\n'
-                f"{library_hint}\n\n"
-                f"Title: {title}\n"
-                f"Content: {body_text}"
+            prompt = load_prompt(
+                "tagger",
+                library_hint=library_hint,
+                title=title,
+                body_text=body_text,
             )
             result = run_async(self._gateway.complete(prompt))
             run_async(

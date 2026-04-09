@@ -10,6 +10,7 @@ from collections import Counter
 from typing import Any
 
 from intellisource.llm.processors._async_compat import run_async
+from intellisource.llm.prompts import load_prompt
 from intellisource.pipeline.base import BaseProcessor
 from intellisource.pipeline.context import PipelineContext
 
@@ -83,12 +84,7 @@ class ContentClusterer(BaseProcessor):
     def _generate_topic(self, title: str, body_text: str) -> str:
         """Generate a cluster topic using LLM, falling back to TF-IDF on failure."""
         try:
-            prompt = (
-                f"Generate a short cluster topic label for the following content.\n\n"
-                f"Title: {title}\n"
-                f"Body: {body_text}\n\n"
-                f"Respond with only the topic label."
-            )
+            prompt = load_prompt("cluster", title=title, body_text=body_text)
             result = run_async(self._gateway.complete(prompt))
             run_async(
                 self._call_log.record(

@@ -9,6 +9,7 @@ from typing import Any
 import jsonschema
 
 from intellisource.llm.processors._async_compat import run_async
+from intellisource.llm.prompts import load_prompt
 from intellisource.pipeline.base import BaseProcessor
 from intellisource.pipeline.context import PipelineContext
 
@@ -55,10 +56,10 @@ class LLMExtractor(BaseProcessor):
     def _try_llm_extraction(self, body_text: str) -> dict[str, Any] | None:
         """Attempt LLM-based extraction. Returns None on failure."""
         try:
-            prompt = (
-                f"Extract structured data from the following text as JSON.\n"
-                f"Schema: {json.dumps(self._extraction_schema)}\n\n"
-                f"Text:\n{body_text}"
+            prompt = load_prompt(
+                "extraction",
+                schema=json.dumps(self._extraction_schema),
+                body_text=body_text,
             )
             result = run_async(self._gateway.complete(prompt))
             parsed = json.loads(result.content)

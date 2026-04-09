@@ -28,6 +28,20 @@ import pytest
 # ---------------------------------------------------------------------------
 
 
+def _mock_db_session() -> AsyncMock:
+    """Create an AsyncMock session whose execute() returns a proper result.
+
+    Prevents 'coroutine was never awaited' warnings by ensuring
+    result.all() returns a plain list instead of a coroutine.
+    """
+    session = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.all.return_value = []
+    mock_result.scalars.return_value.all.return_value = []
+    session.execute.return_value = mock_result
+    return session
+
+
 def _random_vector(dim: int = 1536) -> list[float]:
     """Return a deterministic pseudo-random unit vector."""
     import hashlib
@@ -64,7 +78,7 @@ class TestHybridSearchEngineImportAndModes:
         """search(mode='keyword') executes a keyword-based search."""
         from intellisource.search.hybrid import HybridSearchEngine
 
-        mock_session = AsyncMock()
+        mock_session = _mock_db_session()
         engine = HybridSearchEngine(session=mock_session)
 
         results = await engine.search(query="artificial intelligence", mode="keyword")
@@ -75,7 +89,7 @@ class TestHybridSearchEngineImportAndModes:
         """search(mode='semantic') executes a semantic vector search."""
         from intellisource.search.hybrid import HybridSearchEngine
 
-        mock_session = AsyncMock()
+        mock_session = _mock_db_session()
         engine = HybridSearchEngine(session=mock_session)
 
         results = await engine.search(query="machine learning", mode="semantic")
@@ -86,7 +100,7 @@ class TestHybridSearchEngineImportAndModes:
         """search(mode='hybrid') combines keyword and semantic search."""
         from intellisource.search.hybrid import HybridSearchEngine
 
-        mock_session = AsyncMock()
+        mock_session = _mock_db_session()
         engine = HybridSearchEngine(session=mock_session)
 
         results = await engine.search(query="deep learning", mode="hybrid")
@@ -97,7 +111,7 @@ class TestHybridSearchEngineImportAndModes:
         """When mode is not specified, default to 'hybrid'."""
         from intellisource.search.hybrid import HybridSearchEngine
 
-        mock_session = AsyncMock()
+        mock_session = _mock_db_session()
         engine = HybridSearchEngine(session=mock_session)
 
         # Should not raise; defaults to hybrid mode
@@ -109,7 +123,7 @@ class TestHybridSearchEngineImportAndModes:
         """An invalid search mode raises ValueError."""
         from intellisource.search.hybrid import HybridSearchEngine
 
-        mock_session = AsyncMock()
+        mock_session = _mock_db_session()
         engine = HybridSearchEngine(session=mock_session)
 
         with pytest.raises(ValueError):
@@ -128,7 +142,7 @@ class TestHybridFusionWeights:
         """Default keyword_weight and semantic_weight should both be 0.5."""
         from intellisource.search.hybrid import HybridSearchEngine
 
-        mock_session = AsyncMock()
+        mock_session = _mock_db_session()
         engine = HybridSearchEngine(session=mock_session)
 
         assert engine.keyword_weight == 0.5
@@ -138,7 +152,7 @@ class TestHybridFusionWeights:
         """HybridSearchEngine accepts custom keyword_weight and semantic_weight."""
         from intellisource.search.hybrid import HybridSearchEngine
 
-        mock_session = AsyncMock()
+        mock_session = _mock_db_session()
         engine = HybridSearchEngine(
             session=mock_session,
             keyword_weight=0.3,
@@ -156,7 +170,7 @@ class TestHybridFusionWeights:
         """
         from intellisource.search.hybrid import HybridSearchEngine
 
-        mock_session = AsyncMock()
+        mock_session = _mock_db_session()
 
         engine_equal = HybridSearchEngine(
             session=mock_session,
@@ -185,7 +199,7 @@ class TestSearchFiltering:
         """search() accepts a tags parameter for filtering."""
         from intellisource.search.hybrid import HybridSearchEngine
 
-        mock_session = AsyncMock()
+        mock_session = _mock_db_session()
         engine = HybridSearchEngine(session=mock_session)
 
         # Should not raise TypeError for tags parameter
@@ -200,7 +214,7 @@ class TestSearchFiltering:
         """search() accepts a date_from parameter for time-range filtering."""
         from intellisource.search.hybrid import HybridSearchEngine
 
-        mock_session = AsyncMock()
+        mock_session = _mock_db_session()
         engine = HybridSearchEngine(session=mock_session)
 
         date_from = datetime(2024, 1, 1, tzinfo=timezone.utc)
@@ -215,7 +229,7 @@ class TestSearchFiltering:
         """search() accepts a date_to parameter for time-range filtering."""
         from intellisource.search.hybrid import HybridSearchEngine
 
-        mock_session = AsyncMock()
+        mock_session = _mock_db_session()
         engine = HybridSearchEngine(session=mock_session)
 
         date_to = datetime(2024, 12, 31, tzinfo=timezone.utc)
@@ -230,7 +244,7 @@ class TestSearchFiltering:
         """search() accepts tags + date_from + date_to simultaneously."""
         from intellisource.search.hybrid import HybridSearchEngine
 
-        mock_session = AsyncMock()
+        mock_session = _mock_db_session()
         engine = HybridSearchEngine(session=mock_session)
 
         results = await engine.search(
@@ -246,7 +260,7 @@ class TestSearchFiltering:
         """search() accepts a limit parameter (default 10, max 50)."""
         from intellisource.search.hybrid import HybridSearchEngine
 
-        mock_session = AsyncMock()
+        mock_session = _mock_db_session()
         engine = HybridSearchEngine(session=mock_session)
 
         results = await engine.search(query="test", limit=5)
@@ -257,7 +271,7 @@ class TestSearchFiltering:
         """Limit values above 50 are capped to 50."""
         from intellisource.search.hybrid import HybridSearchEngine
 
-        mock_session = AsyncMock()
+        mock_session = _mock_db_session()
         engine = HybridSearchEngine(session=mock_session)
 
         # Should not raise; limit should be capped internally
@@ -332,7 +346,7 @@ class TestEnrichedSearchResult:
         """Search response must include items list and total count."""
         from intellisource.search.hybrid import HybridSearchEngine
 
-        mock_session = AsyncMock()
+        mock_session = _mock_db_session()
         engine = HybridSearchEngine(session=mock_session)
 
         response = await engine.search(query="test")
@@ -355,7 +369,7 @@ class TestQueryTimeTracking:
         """Search response must include query_time_ms field."""
         from intellisource.search.hybrid import HybridSearchEngine
 
-        mock_session = AsyncMock()
+        mock_session = _mock_db_session()
         engine = HybridSearchEngine(session=mock_session)
 
         response = await engine.search(query="timing test")
@@ -367,7 +381,7 @@ class TestQueryTimeTracking:
         """query_time_ms must be a non-negative integer."""
         from intellisource.search.hybrid import HybridSearchEngine
 
-        mock_session = AsyncMock()
+        mock_session = _mock_db_session()
         engine = HybridSearchEngine(session=mock_session)
 
         response = await engine.search(query="timing test")
@@ -387,7 +401,7 @@ class TestHybridRetrievalAndSorting:
         """Results from hybrid search must be sorted by score descending."""
         from intellisource.search.hybrid import HybridSearchEngine
 
-        mock_session = AsyncMock()
+        mock_session = _mock_db_session()
         engine = HybridSearchEngine(session=mock_session)
 
         response = await engine.search(query="important topic", mode="hybrid")
@@ -402,7 +416,7 @@ class TestHybridRetrievalAndSorting:
         """Keyword-only search results must also be sorted by score descending."""
         from intellisource.search.hybrid import HybridSearchEngine
 
-        mock_session = AsyncMock()
+        mock_session = _mock_db_session()
         engine = HybridSearchEngine(session=mock_session)
 
         response = await engine.search(query="keyword test", mode="keyword")
@@ -415,7 +429,7 @@ class TestHybridRetrievalAndSorting:
         """An empty query string should raise ValueError."""
         from intellisource.search.hybrid import HybridSearchEngine
 
-        mock_session = AsyncMock()
+        mock_session = _mock_db_session()
         engine = HybridSearchEngine(session=mock_session)
 
         with pytest.raises(ValueError):
@@ -426,7 +440,7 @@ class TestHybridRetrievalAndSorting:
         full match count, items is the limited subset)."""
         from intellisource.search.hybrid import HybridSearchEngine
 
-        mock_session = AsyncMock()
+        mock_session = _mock_db_session()
         engine = HybridSearchEngine(session=mock_session)
 
         response = await engine.search(query="test")
@@ -465,7 +479,7 @@ class TestEdgeCases:
         """Passing an empty tags list should behave the same as no filter."""
         from intellisource.search.hybrid import HybridSearchEngine
 
-        mock_session = AsyncMock()
+        mock_session = _mock_db_session()
         engine = HybridSearchEngine(session=mock_session)
 
         # Should not raise
@@ -477,7 +491,7 @@ class TestEdgeCases:
         """date_from > date_to is an invalid range and should raise ValueError."""
         from intellisource.search.hybrid import HybridSearchEngine
 
-        mock_session = AsyncMock()
+        mock_session = _mock_db_session()
         engine = HybridSearchEngine(session=mock_session)
 
         with pytest.raises(ValueError):

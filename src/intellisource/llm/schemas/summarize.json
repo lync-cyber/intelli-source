@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DigestResult",
+  "description": "Schema for LLM-generated content digest.",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Digest title."
+    },
+    "summary": {
+      "type": "string",
+      "description": "Summarized text of clustered documents."
+    },
+    "timeline": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "date": { "type": "string" },
+          "event": { "type": "string" }
+        },
+        "required": ["date", "event"]
+      },
+      "description": "Chronological events extracted from the documents."
+    },
+    "key_points": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Key points from the clustered documents."
+    }
+  },
+  "required": ["title", "summary", "timeline", "key_points"],
+  "additionalProperties": true
+}

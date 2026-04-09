@@ -1,0 +1,4 @@
+Generate a JSON digest for the following clustered documents.
+Output format: {{"title": str, "summary": str, "timeline": [{{"date": str, "event": str}}], "key_points": [str]}}
+
+{docs_text}

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TaggingResult",
+  "description": "Schema for LLM semantic tagging result.",
+  "type": "object",
+  "properties": {
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of relevant tags for the content."
+    }
+  },
+  "required": ["tags"],
+  "additionalProperties": true
+}

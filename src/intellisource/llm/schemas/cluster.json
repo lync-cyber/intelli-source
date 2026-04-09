@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ClusterTopic",
+  "description": "Schema for LLM-generated cluster topic label.",
+  "type": "object",
+  "properties": {
+    "topic": {
+      "type": "string",
+      "description": "Short topic label for the content cluster."
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Confidence score for the topic assignment."
+    }
+  },
+  "required": ["topic"],
+  "additionalProperties": true
+}
