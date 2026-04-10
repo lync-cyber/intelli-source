@@ -22,13 +22,15 @@
 
 | Doc ID | 文件路径 | 状态 | 分卷 | 章节数 |
 |--------|----------|------|------|--------|
-| dev-plan-intellisource-v1 | docs/dev-plan/dev-plan-intellisource-v1.md | approved | 7 (main + s1 + s2 + s3 + s4 + s5 + s6) | 5 |
+| dev-plan-intellisource-v1 | docs/dev-plan/dev-plan-intellisource-v1.md | approved | 9 (main + s1~s8) | 5 |
 | dev-plan-intellisource-v1-s1 | docs/dev-plan/dev-plan-intellisource-v1-s1.md | approved | sprint (split-from: dev-plan-intellisource-v1) | 1 |
 | dev-plan-intellisource-v1-s2 | docs/dev-plan/dev-plan-intellisource-v1-s2.md | approved | sprint (split-from: dev-plan-intellisource-v1) | 1 |
 | dev-plan-intellisource-v1-s3 | docs/dev-plan/dev-plan-intellisource-v1-s3.md | approved | sprint (split-from: dev-plan-intellisource-v1) | 1 |
 | dev-plan-intellisource-v1-s4 | docs/dev-plan/dev-plan-intellisource-v1-s4.md | approved | sprint (split-from: dev-plan-intellisource-v1) | 1 |
 | dev-plan-intellisource-v1-s5 | docs/dev-plan/dev-plan-intellisource-v1-s5.md | approved | sprint (split-from: dev-plan-intellisource-v1) | 1 |
 | dev-plan-intellisource-v1-s6 | docs/dev-plan/dev-plan-intellisource-v1-s6.md | draft | sprint (split-from: dev-plan-intellisource-v1) | 1 |
+| dev-plan-intellisource-v1-s7 | docs/dev-plan/dev-plan-intellisource-v1-s7.md | draft | sprint (split-from: dev-plan-intellisource-v1) | 1 |
+| dev-plan-intellisource-v1-s8 | docs/dev-plan/dev-plan-intellisource-v1-s8.md | draft | sprint (split-from: dev-plan-intellisource-v1) | 1 |
 
 ## 测试报告
 <!-- test-report 文档注册后在此添加 -->
@@ -37,7 +39,11 @@
 <!-- deploy-spec 文档注册后在此添加 -->
 
 ## 研究笔记
-<!-- research 文档注册后在此添加 -->
+
+| Doc ID | 文件路径 | 状态 | 说明 |
+|--------|----------|------|------|
+| prompt-management-analysis | docs/research/prompt-management-analysis.md | completed | OpenCode 提示词管理对比分析 |
+| architecture-review-opencode-benchmark | docs/research/architecture-review-opencode-benchmark.md | completed | OpenCode 对标深度架构评审（Sprint 7/8 规划依据） |
 
 ## 变更日志
 <!-- changelog 文档注册后在此添加 -->

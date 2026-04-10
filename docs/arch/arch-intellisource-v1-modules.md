@@ -24,6 +24,8 @@
   - `ConfigValidator` — 配置校验器，格式校验失败时拒绝加载并输出错误信息（AC-003）
   - `ConfigWatcher` — 文件变更监听器（基于 watchfiles），实现热加载（AC-002）
   - `ConfigVersionManager` — 配置版本管理，支持回退到历史版本（AC-004）
+  - `ConfigResolver` — **[新增]** 配置分层合并器，合并顺序: defaults.yaml（全局默认） → llm_models.yaml（模型配置） → 环境变量（运行时覆盖），使用深度合并策略（dict 递归合并，list 替换）
+  - `LLMModelsConfig` — **[新增]** LLM 配置 Pydantic Schema 验证模型，校验 llm_models.yaml 中的 task_type 映射、ModelProfile 参数合法性和模型 ID 格式
   - 配置项包含 `embedding_dimension`（默认 1536），切换 embedding 模型时需调整此值并执行数据库迁移
 
 ### M-002: 采集引擎模块 (collector)
@@ -91,7 +93,9 @@
   - `LLMGateway` — 统一 LLM 调用接口，基于 litellm 封装，屏蔽提供商差异（AC-028）。Sprint 6 增强: 支持 max_input_tokens 参数自动截断、可选 LLMCache 集成、模型参数 profile 默认值
   - `PromptBuilder` — **[新增]** 统一提示词组装器（借鉴 OpenCode §3.5），加载 .txt 模板 → 变量替换 → 内容 token 截断 → 构建 messages 列表
   - `LLMCache` — **[新增]** Redis LLM 结果缓存（借鉴 OpenCode §3.3），key = fingerprint + call_type + prompt_version，TTL 24h，仅缓存 success 结果
-  - `ModelProfile` — **[新增]** 模型参数配置（借鉴 OpenCode §3.4），按模型 ID 配置 temperature/max_tokens/context_window
+  - `ModelProfile` — **[新增]** 模型参数配置（借鉴 OpenCode §3.4），按模型 ID 配置 temperature/max_tokens/context_window/`prompt_style`（模型特化 prompt 风格，可选值: default/structured/concise）/`timeout_seconds`（LLM 调用超时秒数，默认 60）
+  - `RetryPolicy` — **[新增]** tenacity 指数退避重试策略，仅对 RECOVERABLE_TRANSIENT 类别错误重试（min_wait=1s, max_wait=30s, max_attempts=3），重试耗尽后降级到 FallbackManager
+  - `LLMStatsAggregator` — **[新增]** LLM 调用统计聚合器，按时间窗口/模型/task_type 维度聚合调用量、token 消耗、延迟分布等指标，供 API-019 增强端点使用
   - `CircuitBreaker` — 熔断器实现（AC-029），连续失败 5 次触发，60s 恢复探测
   - `FallbackManager` — 降级管理器，LLM 失败时自动切换（AC-030，<500ms）
   - `PriorityQueue` — 优先级队列，隔离用户交互请求和后台处理请求（AC-032）
@@ -108,7 +112,7 @@
 - **对外接口**: API-006, API-007, API-008, API-009
 - **依赖模块**: M-001（获取调度配置）, M-002（触发采集）, M-003（触发处理）, M-004（原子化处理工具）, M-005（LLM 网关 + PromptBuilder + LLMCache，flexible 模式使用）, M-007（触发分发）, M-008（检索工具）, M-009（任务状态持久化）
 - **内部关键组件**:
-  - `AgentRunner` — 双模式执行引擎（AC-066, AC-067）：strict 模式按管道配置顺序直接调用原子工具函数；flexible 模式运行 LLM Agent Loop，LLM 自主编排原子工具调用 + 通过 `llm_complete` 元工具发起 LLM 处理
+  - `AgentRunner` — 双模式执行引擎（AC-066, AC-067）：strict 模式按管道配置顺序直接调用原子工具函数；flexible 模式运行 LLM Agent Loop，LLM 自主编排原子工具调用 + 通过 `llm_complete` 元工具发起 LLM 处理。支持 `max_tokens_budget` 参数进行 token 级预算控制，超预算时中止循环并返回已有中间结果。**[Sprint 6 范围]** 当前实现 strict/flexible 双模式；未来将引入 Agent 模式系统（process/analyze/preview），在 Sprint 6 后续迭代中规划
   - `PipelineConfig` — 管道配置加载器，解析 YAML 管道配置文件（tools_allowed/denied, steps, mode, max_steps, **system_prompt**）
   - `AgentToolRegistry` — Agent 工具注册中心，注册 M-004 原子工具 + M-002/M-003/M-007/M-008 功能 + `llm_complete` 元工具
   - `llm_complete` — **[新增]** LLM 调用元工具，包装 M-005 LLMGateway + PromptBuilder，由 Agent 在 flexible 模式中按需调用

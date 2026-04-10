@@ -290,7 +290,7 @@ C4Context
 | 场景 | 重试次数 | 退避策略 | 降级方案 |
 |------|---------|---------|---------|
 | 采集失败 | 3 次 | 指数退避（1s, 2s, 4s） | 记录错误，跳过本次，下次调度重试 |
-| LLM 调用失败 | 2 次 | 指数退避（0.5s, 1s） | 切换备用模型 → 传统处理逻辑 |
+| LLM 调用失败 | 3 次 | 指数退避（min=1s, max=30s；Sprint 7 使用 tenacity 实现，替代固定间隔） | 切换备用模型 → 传统处理逻辑 |
 | 推送失败 | 3 次 | 固定间隔（5s） | 记录失败，下次批次重试 |
 | 数据库操作失败 | 2 次 | 固定间隔（0.5s） | 抛出异常，任务标记为 failed |
 
@@ -330,7 +330,8 @@ intellisource/
 │       │   ├── __init__.py
 │       │   ├── models.py             # 配置数据模型 (Pydantic)
 │       │   ├── loader.py             # YAML/JSON 配置加载与热加载
-│       │   └── validator.py          # 配置校验逻辑
+│       │   ├── validator.py          # 配置校验逻辑
+│       │   └── resolver.py           # ConfigResolver 配置分层合并
 │       ├── core/                      # 核心基础设施
 │       │   ├── __init__.py
 │       │   └── errors.py             # 错误分类框架 (IntelliSourceError)
@@ -368,6 +369,8 @@ intellisource/
 │       ├── llm/                       # M-004 + M-005 LLM 处理与治理
 │       │   ├── __init__.py
 │       │   ├── gateway.py            # LLM 统一网关
+│       │   ├── prompt_builder.py     # PromptBuilder 统一提示词组装器
+│       │   ├── cache.py              # LLMCache Redis 结果缓存
 │       │   ├── model_config.py       # 模型路由配置加载 (task_type → model 映射)
 │       │   ├── circuit_breaker.py    # 熔断器
 │       │   ├── fallback.py           # 降级逻辑
@@ -440,6 +443,7 @@ intellisource/
 ├── config/
 │   ├── sources.example.yaml          # 信源配置示例
 │   ├── settings.example.toml         # 系统配置示例
+│   ├── defaults.yaml                 # 全局默认配置（ConfigResolver 基准层）
 │   └── pipelines/                    # 管道配置文件
 │       ├── scheduled-collect.yaml    # 定时采集管道（strict 模式）
 │       ├── manual-collect.yaml       # 手动触发管道（strict 模式）
