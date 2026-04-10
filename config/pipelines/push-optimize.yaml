@@ -1,0 +1,11 @@
+name: push-optimize
+mode: flexible
+system_prompt: push_optimize
+max_steps: 10
+on_failure: skip
+tools_allowed:
+  - truncate_for_push
+  - filter_sensitive
+  - llm_complete
+tools_denied: []
+steps: []

@@ -8,6 +8,7 @@ Covers:
 from __future__ import annotations
 
 import pytest
+
 from intellisource.agent.pipeline import PipelineConfig
 
 # ---------------------------------------------------------------------------
@@ -150,3 +151,64 @@ class TestPipelineConfigValidation:
         bad = {**MINIMAL_STRICT_CONFIG, "on_failure": "explode"}
         with pytest.raises((ValueError, KeyError)):
             PipelineConfig.from_dict(bad)
+
+
+# ===================================================================
+# T-055: Pipeline config updates + system_prompt parsing
+# ===================================================================
+
+
+class TestSystemPromptParsing:
+    """AC-T055-3: PipelineConfig parses system_prompt field."""
+
+    def test_system_prompt_parsed_from_dict(self) -> None:
+        """AC-T055-3: system_prompt is parsed when present."""
+        data = {**FLEXIBLE_CONFIG, "system_prompt": "You are a helper."}
+        config = PipelineConfig.from_dict(data)
+        assert config.system_prompt == "You are a helper."
+
+    def test_system_prompt_defaults_to_none(self) -> None:
+        """AC-T055-3: system_prompt defaults to None when absent."""
+        config = PipelineConfig.from_dict(MINIMAL_STRICT_CONFIG)
+        assert config.system_prompt is None
+
+
+class TestUpdatedPipelineConfigs:
+    """AC-T055-1/2/4: Updated pipeline YAML configs."""
+
+    def test_scheduled_collect_uses_atomic_tools(self) -> None:
+        """AC-T055-1: scheduled-collect tools_allowed includes atomic tools."""
+        from intellisource.agent.tools import load_pipeline_config
+
+        config = load_pipeline_config("scheduled-collect")
+        allowed = set(config.tools_allowed)
+        assert "collect" in allowed
+        assert "distribute" in allowed
+        # Should include atomic processing tools instead of generic "process"
+        assert "regex_extract" in allowed or "fingerprint_generate" in allowed
+
+    def test_instant_search_includes_atomic_tools(self) -> None:
+        """AC-T055-2: instant-search tools_allowed includes atomic tools."""
+        from intellisource.agent.tools import load_pipeline_config
+
+        config = load_pipeline_config("instant-search")
+        allowed = set(config.tools_allowed)
+        assert "search" in allowed
+        assert "get_content_detail" in allowed
+        assert "summarize_for_user" in allowed
+        # Should also include relevant atomic tools
+        assert "tfidf_keywords" in allowed or "truncate_summary" in allowed
+
+    def test_existing_pipeline_configs_parse(self) -> None:
+        """AC-T055-4: All pipeline configs parse without error."""
+        from intellisource.agent.tools import load_pipeline_config
+
+        for name in [
+            "scheduled-collect",
+            "manual-collect",
+            "instant-search",
+            "content-process",
+            "push-optimize",
+        ]:
+            config = load_pipeline_config(name)
+            assert config.name == name

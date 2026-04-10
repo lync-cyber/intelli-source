@@ -474,3 +474,213 @@ class TestResultPersistence:
         )
         assert result["status"] == "success"
         assert "task_chain_id" in result or "chain_id" in result
+
+
+# ===================================================================
+# T-054: Agent processing orchestration engine enhancements
+# ===================================================================
+
+
+class TestRunFlexibleSystemPrompt:
+    """AC-T054-1: run_flexible() accepts system_prompt parameter."""
+
+    async def test_system_prompt_passed_to_llm(
+        self,
+        tool_registry: MagicMock,
+    ) -> None:
+        """AC-T054-1: system_prompt from config sent to LLM gateway."""
+        llm_gw = AsyncMock()
+        llm_gw.chat.return_value = {"tool_calls": [], "content": "done", "done": True}
+        runner = AgentRunner(tool_registry=tool_registry, llm_gateway=llm_gw)
+        config = PipelineConfig.from_dict(
+            {
+                "name": "sys-prompt-test",
+                "mode": "flexible",
+                "steps": [],
+                "max_steps": 3,
+                "on_failure": "skip",
+                "system_prompt": "You are a content processor.",
+            }
+        )
+        await runner.run_flexible(config, user_message="process this", session={})
+        call_kwargs = llm_gw.chat.call_args
+        messages = call_kwargs.kwargs.get("messages") or call_kwargs.args[0]
+        system_msgs = [m for m in messages if m["role"] == "system"]
+        assert len(system_msgs) == 1
+        assert "content processor" in system_msgs[0]["content"]
+
+
+class TestToolResultSerialization:
+    """AC-T054-2: Tool call results serialized back to conversation."""
+
+    async def test_successful_tool_result_in_messages(
+        self,
+        tool_registry: MagicMock,
+    ) -> None:
+        """AC-T054-2: Successful tool result appended to messages."""
+        call_count = 0
+        llm_gw = AsyncMock()
+
+        async def _chat_side_effect(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return {
+                    "tool_calls": [
+                        {
+                            "name": "web_search",
+                            "arguments": {"q": "test"},
+                            "id": "tc-1",
+                        }
+                    ],
+                    "content": "",
+                    "done": False,
+                }
+            return {"tool_calls": [], "content": "done", "done": True}
+
+        llm_gw.chat.side_effect = _chat_side_effect
+        runner = AgentRunner(tool_registry=tool_registry, llm_gateway=llm_gw)
+        config = PipelineConfig.from_dict(
+            {
+                "name": "result-serial-test",
+                "mode": "flexible",
+                "tools_allowed": ["web_search"],
+                "steps": [],
+                "max_steps": 5,
+                "on_failure": "skip",
+            }
+        )
+        await runner.run_flexible(config, user_message="search", session={})
+        # Second call to chat should have tool result in messages
+        second_call = llm_gw.chat.call_args_list[1]
+        messages = second_call.kwargs.get("messages") or second_call.args[0]
+        tool_msgs = [m for m in messages if m["role"] == "tool"]
+        assert len(tool_msgs) >= 1
+
+
+class TestMaxTokensBudget:
+    """AC-T054-8: run_flexible() supports max_tokens_budget."""
+
+    async def test_budget_exhausted_returns_success_with_flag(
+        self,
+        tool_registry: MagicMock,
+    ) -> None:
+        """AC-T054-8: Budget exceeded -> status=success, budget_exhausted=true."""
+        call_count = 0
+        llm_gw = AsyncMock()
+
+        async def _chat_side_effect(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            return {
+                "tool_calls": [
+                    {
+                        "name": "web_search",
+                        "arguments": {"q": "test"},
+                        "id": f"tc-{call_count}",
+                    }
+                ],
+                "content": "",
+                "done": False,
+                "usage": {"total_tokens": 5000},
+            }
+
+        llm_gw.chat.side_effect = _chat_side_effect
+        runner = AgentRunner(tool_registry=tool_registry, llm_gateway=llm_gw)
+        config = PipelineConfig.from_dict(
+            {
+                "name": "budget-test",
+                "mode": "flexible",
+                "tools_allowed": ["web_search"],
+                "steps": [],
+                "max_steps": 20,
+                "on_failure": "skip",
+            }
+        )
+        result = await runner.run_flexible(
+            config,
+            user_message="search lots",
+            session={},
+            max_tokens_budget=8000,
+        )
+        assert result["status"] == "success"
+        assert result.get("budget_exhausted") is True
+
+    async def test_no_budget_runs_normally(
+        self,
+        runner: AgentRunner,
+        flexible_config: PipelineConfig,
+    ) -> None:
+        """AC-T054-8: No budget param -> normal execution, no budget_exhausted."""
+        result = await runner.run_flexible(
+            flexible_config,
+            user_message="normal",
+            session={},
+        )
+        assert result["status"] == "success"
+        assert result.get("budget_exhausted") is not True
+
+
+class TestPromptFiles:
+    """AC-T054-6/7: Prompt file existence and content."""
+
+    def test_content_process_prompt_exists(self) -> None:
+        """AC-T054-6: content_process.txt exists."""
+        from pathlib import Path
+
+        prompt_path = (
+            Path(__file__).resolve().parents[3]
+            / "src"
+            / "intellisource"
+            / "agent"
+            / "prompts"
+            / "content_process.txt"
+        )
+        assert prompt_path.exists(), f"Missing {prompt_path}"
+
+    def test_content_process_covers_workflows(self) -> None:
+        """AC-T054-6: content_process.txt covers extract/dedup/cluster/tag/summarize."""
+        from pathlib import Path
+
+        prompt_path = (
+            Path(__file__).resolve().parents[3]
+            / "src"
+            / "intellisource"
+            / "agent"
+            / "prompts"
+            / "content_process.txt"
+        )
+        content = prompt_path.read_text(encoding="utf-8").lower()
+        for keyword in ["extract", "dedup", "cluster", "tag", "summar"]:
+            assert keyword in content, (
+                f"Keyword '{keyword}' missing from content_process.txt"
+            )
+
+    def test_push_optimize_prompt_exists(self) -> None:
+        """AC-T054-7: push_optimize.txt exists."""
+        from pathlib import Path
+
+        prompt_path = (
+            Path(__file__).resolve().parents[3]
+            / "src"
+            / "intellisource"
+            / "agent"
+            / "prompts"
+            / "push_optimize.txt"
+        )
+        assert prompt_path.exists(), f"Missing {prompt_path}"
+
+    def test_push_optimize_covers_workflow(self) -> None:
+        """AC-T054-7: push_optimize.txt covers push optimization."""
+        from pathlib import Path
+
+        prompt_path = (
+            Path(__file__).resolve().parents[3]
+            / "src"
+            / "intellisource"
+            / "agent"
+            / "prompts"
+            / "push_optimize.txt"
+        )
+        content = prompt_path.read_text(encoding="utf-8").lower()
+        assert "push" in content or "truncate" in content

@@ -21,7 +21,7 @@ import jsonschema
 import litellm
 
 from intellisource.core.errors import ErrorCategory, LLMError
-from intellisource.llm.model_config import load_model_config
+from intellisource.llm.model_config import ModelRoutingConfig, load_model_config
 from intellisource.llm.prompt_builder import PromptBuilder
 
 logger = logging.getLogger(__name__)
@@ -115,6 +115,7 @@ class LLMGateway:
         self._default_temperature: float = 0.7
         self._default_max_tokens: int = 4096
         self._routing_config: dict[str, Any] = _load_routing_config()
+        self._model_routing = ModelRoutingConfig(self._routing_config)
         self._cache: LLMCache | None = cache
 
     async def complete(
@@ -197,22 +198,37 @@ class LLMGateway:
                 prompt, effective_limit, resolved_model
             )
 
+        # Resolve temperature/max_tokens from profile or gateway defaults
+        profile = self._model_routing.get_profile(resolved_model)
+        resolved_temperature = temperature
+        if resolved_temperature is None:
+            resolved_temperature = (
+                profile.temperature
+                if profile is not None
+                else self._default_temperature
+            )
+        resolved_max_tokens = max_tokens
+        if resolved_max_tokens is None:
+            resolved_max_tokens = (
+                profile.max_tokens if profile is not None else self._default_max_tokens
+            )
+
         messages: list[dict[str, str]] = []
         if system_prompt is not None:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
 
+        call_kwargs: dict[str, Any] = {
+            "model": resolved_model,
+            "messages": messages,
+            "temperature": resolved_temperature,
+            "max_tokens": resolved_max_tokens,
+        }
+        if profile is not None:
+            call_kwargs["timeout"] = profile.timeout_seconds
+
         start_time = time.monotonic()
-        response = await litellm.acompletion(
-            model=resolved_model,
-            messages=messages,
-            temperature=temperature
-            if temperature is not None
-            else self._default_temperature,
-            max_tokens=max_tokens
-            if max_tokens is not None
-            else self._default_max_tokens,
-        )
+        response = await litellm.acompletion(**call_kwargs)
         elapsed_ms = (time.monotonic() - start_time) * 1000
 
         content: str = response.choices[0].message.content

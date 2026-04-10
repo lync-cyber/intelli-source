@@ -25,6 +25,7 @@ class PipelineConfig:
         on_failure: str,
         tools_allowed: list[str] | None = None,
         tools_denied: list[str] | None = None,
+        system_prompt: str | None = None,
     ) -> None:
         self._name = name
         self._mode = mode
@@ -33,6 +34,7 @@ class PipelineConfig:
         self._on_failure = on_failure
         self._tools_allowed = tools_allowed or []
         self._tools_denied = tools_denied or []
+        self._system_prompt = system_prompt
 
     # -- properties --------------------------------------------------
 
@@ -64,6 +66,10 @@ class PipelineConfig:
     def tools_denied(self) -> list[str]:
         return self._tools_denied
 
+    @property
+    def system_prompt(self) -> str | None:
+        return self._system_prompt
+
     # -- factory methods ---------------------------------------------
 
     @classmethod
@@ -90,6 +96,7 @@ class PipelineConfig:
             on_failure=on_failure,
             tools_allowed=data.get("tools_allowed"),
             tools_denied=data.get("tools_denied"),
+            system_prompt=data.get("system_prompt"),
         )
 
     @classmethod

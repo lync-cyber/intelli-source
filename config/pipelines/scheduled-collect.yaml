@@ -4,8 +4,14 @@ max_steps: 20
 on_failure: retry
 tools_allowed:
   - collect
-  - process
   - distribute
+  - regex_extract
+  - fingerprint_generate
+  - fingerprint_dedup
+  - tfidf_keywords
+  - truncate_summary
+  - keyword_tag
+  - filter_sensitive
 tools_denied: []
 steps:
   - tool: collect

@@ -10,6 +10,7 @@ import logging
 import uuid
 from typing import Any
 
+from intellisource.agent.tools import ToolDefinition
 from intellisource.core.errors import ErrorCategory, IntelliSourceError
 
 logger = logging.getLogger(__name__)
@@ -57,7 +58,8 @@ class AgentRunner:
         for step in config.steps:
             tool_name: str = step["tool"]
             step_params: dict[str, Any] = {**step.get("params", {})}
-            tool_fn = self._tool_registry.get(tool_name)
+            tool_raw = self._tool_registry.get(tool_name)
+            tool_fn = self._resolve_callable(tool_raw)
 
             try:
                 result = await tool_fn(**step_params)
@@ -73,7 +75,7 @@ class AgentRunner:
                     )
                 if config.on_failure == "retry":
                     retry_result = await self._retry_step(
-                        tool_fn,
+                        self._resolve_callable(tool_raw),
                         step_params,
                         tool_name,
                     )
@@ -96,15 +98,32 @@ class AgentRunner:
         config: Any,
         user_message: str,
         session: dict[str, Any],
+        *,
+        max_tokens_budget: int | None = None,
     ) -> dict[str, Any]:
-        """Run LLM agent loop with tool access."""
+        """Run LLM agent loop with tool access.
+
+        Args:
+            config: Pipeline configuration.
+            user_message: User input message.
+            session: Session state dict.
+            max_tokens_budget: Optional total token budget. When exceeded
+                the loop stops and returns with budget_exhausted=True.
+        """
         available_tools = self._filter_tools(config)
         tool_descriptors = [{"name": t} for t in available_tools]
 
         steps_executed = 0
-        messages: list[dict[str, Any]] = [
-            {"role": "user", "content": user_message},
-        ]
+        tokens_used = 0
+        budget_exhausted = False
+        messages: list[dict[str, Any]] = []
+
+        # Add system prompt if configured
+        sys_prompt = getattr(config, "system_prompt", None)
+        if sys_prompt:
+            messages.append({"role": "system", "content": sys_prompt})
+
+        messages.append({"role": "user", "content": user_message})
 
         if self._llm_gateway is None:
             msg = "LLM gateway is required for flexible mode"
@@ -116,14 +135,31 @@ class AgentRunner:
             )
             steps_executed += 1
 
+            # Track token budget
+            usage = response.get("usage", {})
+            tokens_used += usage.get("total_tokens", 0)
+            if max_tokens_budget is not None and tokens_used >= max_tokens_budget:
+                budget_exhausted = True
+                break
+
             if response.get("done") or not response.get("tool_calls"):
                 break
 
             for tc in response["tool_calls"]:
-                tool_fn = self._tool_registry.get(tc["name"])
-                if tool_fn is not None:
+                tool_raw = self._tool_registry.get(tc["name"])
+                if tool_raw is not None:
+                    tool_fn = self._resolve_callable(tool_raw)
                     try:
-                        await tool_fn(**tc.get("arguments", {}))
+                        result = await tool_fn(**tc.get("arguments", {}))
+                        import json as _json
+
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "content": _json.dumps(result, default=str),
+                                "tool_call_id": tc.get("id", ""),
+                            }
+                        )
                     except Exception as exc:
                         logger.warning(
                             "Tool %s failed: %s",
@@ -138,14 +174,24 @@ class AgentRunner:
                             }
                         )
 
-        return self._persist(
+        persist_result = self._persist(
             status="success",
             steps_executed=steps_executed,
             results=[],
             pipeline_name=config.name,
         )
+        if budget_exhausted:
+            persist_result["budget_exhausted"] = True
+        return persist_result
 
     # -- private helpers ---------------------------------------------
+
+    @staticmethod
+    def _resolve_callable(tool: Any) -> Any:
+        """Unwrap ToolDefinition to its execute callable if needed."""
+        if isinstance(tool, ToolDefinition):
+            return tool.execute
+        return tool
 
     async def _retry_step(
         self,

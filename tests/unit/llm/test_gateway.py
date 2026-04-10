@@ -496,3 +496,142 @@ class TestTaskTypeModelRouting:
             )
             call_kwargs = mock_litellm.acompletion.call_args.kwargs
             assert call_kwargs["model"] == "claude-3-haiku-20240307"
+
+
+# ===================================================================
+# T-053: ModelProfile defaults applied in LLMGateway
+# ===================================================================
+
+_PROFILE_CONFIG = {
+    "models": {
+        "extract": {"model": "gpt-4o-mini", "provider": "openai"},
+    },
+    "default_model": {"model": "gpt-4o-mini", "provider": "openai"},
+    "profiles": {
+        "gpt-4o-mini": {
+            "temperature": 0.1,
+            "max_tokens": 2048,
+            "context_window": 128000,
+            "prompt_style": "structured",
+            "timeout_seconds": 30,
+        },
+    },
+}
+
+
+class TestModelProfileGatewayIntegration:
+    """AC-T053-3/4/5/7: LLMGateway applies ModelProfile defaults."""
+
+    @pytest.mark.asyncio
+    async def test_profile_temperature_used_when_no_explicit(
+        self, mock_litellm_response: MagicMock
+    ) -> None:
+        """AC-T053-3: Gateway uses profile temperature when none given."""
+        with (
+            patch("intellisource.llm.gateway.litellm") as mock_litellm,
+            patch(
+                "intellisource.llm.gateway._load_routing_config",
+                return_value=_PROFILE_CONFIG,
+            ),
+        ):
+            mock_litellm.acompletion = AsyncMock(return_value=mock_litellm_response)
+            gw = LLMGateway()
+            await gw.complete(prompt="test", model="gpt-4o-mini")
+            call_kwargs = mock_litellm.acompletion.call_args.kwargs
+            assert call_kwargs["temperature"] == 0.1
+
+    @pytest.mark.asyncio
+    async def test_profile_max_tokens_used_when_no_explicit(
+        self, mock_litellm_response: MagicMock
+    ) -> None:
+        """AC-T053-4: Gateway uses profile max_tokens when none given."""
+        with (
+            patch("intellisource.llm.gateway.litellm") as mock_litellm,
+            patch(
+                "intellisource.llm.gateway._load_routing_config",
+                return_value=_PROFILE_CONFIG,
+            ),
+        ):
+            mock_litellm.acompletion = AsyncMock(return_value=mock_litellm_response)
+            gw = LLMGateway()
+            await gw.complete(prompt="test", model="gpt-4o-mini")
+            call_kwargs = mock_litellm.acompletion.call_args.kwargs
+            assert call_kwargs["max_tokens"] == 2048
+
+    @pytest.mark.asyncio
+    async def test_explicit_temperature_overrides_profile(
+        self, mock_litellm_response: MagicMock
+    ) -> None:
+        """AC-T053-3: Explicit temperature overrides profile default."""
+        with (
+            patch("intellisource.llm.gateway.litellm") as mock_litellm,
+            patch(
+                "intellisource.llm.gateway._load_routing_config",
+                return_value=_PROFILE_CONFIG,
+            ),
+        ):
+            mock_litellm.acompletion = AsyncMock(return_value=mock_litellm_response)
+            gw = LLMGateway()
+            await gw.complete(prompt="test", model="gpt-4o-mini", temperature=0.9)
+            call_kwargs = mock_litellm.acompletion.call_args.kwargs
+            assert call_kwargs["temperature"] == 0.9
+
+    @pytest.mark.asyncio
+    async def test_unknown_model_fallback_to_gateway_defaults(
+        self, mock_litellm_response: MagicMock
+    ) -> None:
+        """AC-T053-5: Unknown model uses gateway built-in defaults."""
+        with (
+            patch("intellisource.llm.gateway.litellm") as mock_litellm,
+            patch(
+                "intellisource.llm.gateway._load_routing_config",
+                return_value=_PROFILE_CONFIG,
+            ),
+        ):
+            mock_litellm.acompletion = AsyncMock(return_value=mock_litellm_response)
+            gw = LLMGateway()
+            await gw.complete(prompt="test", model="some-unknown-model")
+            call_kwargs = mock_litellm.acompletion.call_args.kwargs
+            # Should use gateway built-in defaults, not profile
+            assert call_kwargs["temperature"] == gw._default_temperature
+            assert call_kwargs["max_tokens"] == gw._default_max_tokens
+
+    @pytest.mark.asyncio
+    async def test_profile_timeout_applied_to_acompletion(
+        self, mock_litellm_response: MagicMock
+    ) -> None:
+        """AC-T053-7: Gateway passes timeout from profile to acompletion."""
+        with (
+            patch("intellisource.llm.gateway.litellm") as mock_litellm,
+            patch(
+                "intellisource.llm.gateway._load_routing_config",
+                return_value=_PROFILE_CONFIG,
+            ),
+        ):
+            mock_litellm.acompletion = AsyncMock(return_value=mock_litellm_response)
+            gw = LLMGateway()
+            await gw.complete(prompt="test", model="gpt-4o-mini")
+            call_kwargs = mock_litellm.acompletion.call_args.kwargs
+            assert call_kwargs.get("timeout") == 30
+
+    @pytest.mark.asyncio
+    async def test_no_profile_no_timeout(
+        self, mock_litellm_response: MagicMock
+    ) -> None:
+        """AC-T053-7: No profile means no explicit timeout in call."""
+        config_no_profiles = {
+            "models": {},
+            "default_model": {"model": "gpt-4o-mini", "provider": "openai"},
+        }
+        with (
+            patch("intellisource.llm.gateway.litellm") as mock_litellm,
+            patch(
+                "intellisource.llm.gateway._load_routing_config",
+                return_value=config_no_profiles,
+            ),
+        ):
+            mock_litellm.acompletion = AsyncMock(return_value=mock_litellm_response)
+            gw = LLMGateway()
+            await gw.complete(prompt="test", model="gpt-4o-mini")
+            call_kwargs = mock_litellm.acompletion.call_args.kwargs
+            assert "timeout" not in call_kwargs
