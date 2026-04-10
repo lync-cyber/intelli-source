@@ -6,6 +6,8 @@ tools_allowed:
   - search
   - get_content_detail
   - summarize_for_user
+  - tfidf_keywords
+  - truncate_summary
 tools_denied:
   - collect
   - process

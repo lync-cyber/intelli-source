@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+
 from intellisource.llm.model_config import (
     ModelConfig,
     ModelRoutingConfig,
@@ -229,3 +230,163 @@ class TestModelConfig:
         config = ModelConfig(model="gpt-4o-mini", provider="openai")
 
         assert config.max_tokens is None or isinstance(config.max_tokens, int)
+
+
+# ===========================================================================
+# T-053: ModelProfile + get_profile()
+# ===========================================================================
+
+SAMPLE_CONFIG_WITH_PROFILES = {
+    "default_model": {
+        "model": "gpt-4o-mini",
+        "provider": "openai",
+    },
+    "models": {
+        "extract": {
+            "model": "gpt-4o-mini",
+            "provider": "openai",
+            "temperature": 0.0,
+            "max_tokens": 4096,
+        },
+    },
+    "profiles": {
+        "gpt-4o-mini": {
+            "temperature": 0.1,
+            "max_tokens": 4096,
+            "context_window": 128000,
+            "prompt_style": "structured",
+            "timeout_seconds": 30,
+        },
+        "claude-3-haiku-20240307": {
+            "temperature": 0.3,
+            "max_tokens": 2048,
+            "context_window": 200000,
+            "prompt_style": "concise",
+            "timeout_seconds": 90,
+        },
+    },
+}
+
+
+class TestModelProfile:
+    """AC-T053-1: ModelProfile dataclass."""
+
+    def test_model_profile_has_temperature(self) -> None:
+        """AC-T053-1: ModelProfile contains temperature."""
+        from intellisource.llm.model_config import ModelProfile
+
+        profile = ModelProfile(
+            temperature=0.1,
+            max_tokens=4096,
+            context_window=128000,
+        )
+        assert profile.temperature == 0.1
+
+    def test_model_profile_has_max_tokens(self) -> None:
+        """AC-T053-1: ModelProfile contains max_tokens."""
+        from intellisource.llm.model_config import ModelProfile
+
+        profile = ModelProfile(
+            temperature=0.1,
+            max_tokens=4096,
+            context_window=128000,
+        )
+        assert profile.max_tokens == 4096
+
+    def test_model_profile_has_context_window(self) -> None:
+        """AC-T053-1: ModelProfile contains context_window."""
+        from intellisource.llm.model_config import ModelProfile
+
+        profile = ModelProfile(
+            temperature=0.1,
+            max_tokens=4096,
+            context_window=128000,
+        )
+        assert profile.context_window == 128000
+
+    def test_model_profile_prompt_style_default(self) -> None:
+        """AC-T053-6: prompt_style defaults to 'default'."""
+        from intellisource.llm.model_config import ModelProfile
+
+        profile = ModelProfile(
+            temperature=0.1,
+            max_tokens=4096,
+            context_window=128000,
+        )
+        assert profile.prompt_style == "default"
+
+    def test_model_profile_prompt_style_configurable(self) -> None:
+        """AC-T053-6: prompt_style can be set to structured/concise."""
+        from intellisource.llm.model_config import ModelProfile
+
+        profile = ModelProfile(
+            temperature=0.1,
+            max_tokens=4096,
+            context_window=128000,
+            prompt_style="structured",
+        )
+        assert profile.prompt_style == "structured"
+
+    def test_model_profile_timeout_default(self) -> None:
+        """AC-T053-7: timeout_seconds defaults to 60."""
+        from intellisource.llm.model_config import ModelProfile
+
+        profile = ModelProfile(
+            temperature=0.1,
+            max_tokens=4096,
+            context_window=128000,
+        )
+        assert profile.timeout_seconds == 60
+
+    def test_model_profile_timeout_configurable(self) -> None:
+        """AC-T053-7: timeout_seconds can be set."""
+        from intellisource.llm.model_config import ModelProfile
+
+        profile = ModelProfile(
+            temperature=0.1,
+            max_tokens=4096,
+            context_window=128000,
+            timeout_seconds=90,
+        )
+        assert profile.timeout_seconds == 90
+
+
+class TestGetProfile:
+    """AC-T053-2: ModelRoutingConfig.get_profile()."""
+
+    def test_get_profile_known_model(self) -> None:
+        """AC-T053-2: get_profile returns ModelProfile for known model."""
+        from intellisource.llm.model_config import ModelProfile
+
+        routing = ModelRoutingConfig(SAMPLE_CONFIG_WITH_PROFILES)
+        profile = routing.get_profile("gpt-4o-mini")
+        assert profile is not None
+        assert isinstance(profile, ModelProfile)
+        assert profile.temperature == 0.1
+        assert profile.context_window == 128000
+
+    def test_get_profile_unknown_model_returns_none(self) -> None:
+        """AC-T053-5: get_profile returns None for unknown model."""
+        routing = ModelRoutingConfig(SAMPLE_CONFIG_WITH_PROFILES)
+        profile = routing.get_profile("unknown-model-xyz")
+        assert profile is None
+
+    def test_get_profile_no_profiles_section(self) -> None:
+        """AC-T053-5: get_profile returns None when config has no profiles."""
+        routing = ModelRoutingConfig(SAMPLE_CONFIG_DICT)
+        profile = routing.get_profile("gpt-4o-mini")
+        assert profile is None
+
+    def test_get_profile_prompt_style_loaded(self) -> None:
+        """AC-T053-6: profile loads prompt_style from config."""
+        routing = ModelRoutingConfig(SAMPLE_CONFIG_WITH_PROFILES)
+        profile = routing.get_profile("gpt-4o-mini")
+        assert profile is not None
+        assert profile.prompt_style == "structured"
+
+    def test_get_profile_timeout_loaded(self) -> None:
+        """AC-T053-7: profile loads timeout_seconds from config."""
+        routing = ModelRoutingConfig(SAMPLE_CONFIG_WITH_PROFILES)
+        profile = routing.get_profile("claude-3-haiku-20240307")
+        assert profile is not None
+        assert profile.timeout_seconds == 90

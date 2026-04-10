@@ -290,13 +290,12 @@ class TestScheduledCollectPipeline:
         assert config.mode == "strict"
 
     def test_scheduled_collect_tools_allowed(self, tools_mod: Any) -> None:
-        """AC-T036-7: tools_allowed = [collect, process, distribute]."""
+        """AC-T036-7: tools_allowed includes collect, distribute, and atomic tools."""
         config = tools_mod.load_pipeline_config("scheduled-collect")
-        assert set(config.tools_allowed) == {
-            "collect",
-            "process",
-            "distribute",
-        }
+        allowed = set(config.tools_allowed)
+        assert "collect" in allowed
+        assert "distribute" in allowed
+        assert "regex_extract" in allowed
 
     def test_scheduled_collect_has_steps(self, tools_mod: Any) -> None:
         """AC-T036-7: scheduled-collect defines at least 1 step."""
@@ -324,14 +323,12 @@ class TestInstantSearchPipeline:
 
     def test_instant_search_tools_allowed(self, tools_mod: Any) -> None:
         """AC-T036-8: tools_allowed includes search, get_content_detail,
-        summarize_for_user."""
+        summarize_for_user, and atomic tools."""
         config = tools_mod.load_pipeline_config("instant-search")
-        expected = {
-            "search",
-            "get_content_detail",
-            "summarize_for_user",
-        }
-        assert set(config.tools_allowed) == expected
+        allowed = set(config.tools_allowed)
+        assert "search" in allowed
+        assert "get_content_detail" in allowed
+        assert "summarize_for_user" in allowed
 
     def test_instant_search_has_steps(self, tools_mod: Any) -> None:
         """AC-T036-8: instant-search defines at least 1 step."""
@@ -381,3 +378,127 @@ class TestRegistryEdgeCases:
             assert len(filtered) == 0
         else:
             assert len(filtered.list_tools()) == 0
+
+
+# ==================================================================
+# T-050: Atomic tool registration + llm_complete meta-tool
+# ==================================================================
+
+_ATOMIC_TOOL_NAMES = [
+    "regex_extract",
+    "fingerprint_generate",
+    "vector_search_similar",
+    "fingerprint_dedup",
+    "find_nearest_cluster",
+    "tfidf_keywords",
+    "truncate_summary",
+    "keyword_tag",
+    "filter_sensitive",
+    "truncate_for_push",
+]
+
+
+@pytest.fixture()
+def full_registry(tools_mod: Any) -> Any:
+    """Registry with defaults + atomic tools registered."""
+    reg = tools_mod.AgentToolRegistry()
+    reg.register_defaults()
+    reg.register_atomic_tools()
+    return reg
+
+
+class TestRegisterAtomicTools:
+    """AC-T050-1: register_atomic_tools() registers all 10 atomic tools."""
+
+    @pytest.mark.parametrize("tool_name", _ATOMIC_TOOL_NAMES)
+    def test_atomic_tool_registered(self, full_registry: Any, tool_name: str) -> None:
+        """AC-T050-1: each atomic tool is present after registration."""
+        tool = full_registry.get(tool_name)
+        assert tool is not None, f"Tool {tool_name!r} not found in registry"
+        assert tool.name == tool_name
+
+
+class TestAtomicToolDefinitions:
+    """AC-T050-2: Each atomic tool has name/description/parameters/execute."""
+
+    @pytest.mark.parametrize("tool_name", _ATOMIC_TOOL_NAMES)
+    def test_has_description(self, full_registry: Any, tool_name: str) -> None:
+        """AC-T050-2: atomic tool has non-empty description."""
+        tool = full_registry.get(tool_name)
+        assert isinstance(tool.description, str)
+        assert len(tool.description) > 0
+
+    @pytest.mark.parametrize("tool_name", _ATOMIC_TOOL_NAMES)
+    def test_has_json_schema_params(self, full_registry: Any, tool_name: str) -> None:
+        """AC-T050-2: atomic tool parameters is a JSON Schema dict."""
+        tool = full_registry.get(tool_name)
+        assert isinstance(tool.parameters, dict)
+        assert "type" in tool.parameters
+
+    @pytest.mark.parametrize("tool_name", _ATOMIC_TOOL_NAMES)
+    def test_has_async_execute(self, full_registry: Any, tool_name: str) -> None:
+        """AC-T050-2: atomic tool execute is an async callable."""
+        tool = full_registry.get(tool_name)
+        assert callable(tool.execute)
+        assert inspect.iscoroutinefunction(tool.execute)
+
+
+class TestLLMCompleteTool:
+    """AC-T050-3: llm_complete meta-tool registration."""
+
+    def test_llm_complete_registered(self, full_registry: Any) -> None:
+        """AC-T050-3: llm_complete tool exists after register_atomic_tools."""
+        tool = full_registry.get("llm_complete")
+        assert tool is not None
+        assert tool.name == "llm_complete"
+
+    def test_llm_complete_has_call_type_param(self, full_registry: Any) -> None:
+        """AC-T050-3: llm_complete parameters include call_type."""
+        tool = full_registry.get("llm_complete")
+        props = tool.parameters.get("properties", {})
+        assert "call_type" in props
+        assert props["call_type"]["type"] == "string"
+
+    def test_llm_complete_has_prompt_vars_param(self, full_registry: Any) -> None:
+        """AC-T050-3: llm_complete parameters include prompt_vars."""
+        tool = full_registry.get("llm_complete")
+        props = tool.parameters.get("properties", {})
+        assert "prompt_vars" in props
+        assert props["prompt_vars"]["type"] == "object"
+
+    def test_llm_complete_is_async(self, full_registry: Any) -> None:
+        """AC-T050-3: llm_complete execute is async."""
+        tool = full_registry.get("llm_complete")
+        assert inspect.iscoroutinefunction(tool.execute)
+
+
+class TestListToolsWithAtomics:
+    """AC-T050-4: list_tools() returns atomic + llm_complete + high-level."""
+
+    def test_list_includes_all_tool_types(self, full_registry: Any) -> None:
+        """AC-T050-4: list_tools includes atomics + llm_complete + defaults."""
+        names = set(full_registry.list_tools())
+        # 6 defaults + 10 atomics + 1 llm_complete = 17
+        assert len(names) == 17
+        for atomic in _ATOMIC_TOOL_NAMES:
+            assert atomic in names, f"{atomic!r} missing from list_tools()"
+        assert "llm_complete" in names
+        assert "collect" in names  # one of the defaults
+
+
+class TestFilterWithAtomics:
+    """AC-T050-5: filter(allowed/denied) works for new tools."""
+
+    def test_filter_allows_atomic_tool(self, full_registry: Any) -> None:
+        """AC-T050-5: filter(allowed=...) includes an atomic tool."""
+        filtered = full_registry.filter(allowed=["regex_extract", "collect"])
+        assert "regex_extract" in filtered
+        assert "collect" in filtered
+        assert len(filtered) == 2
+
+    def test_filter_denies_atomic_tool(self, full_registry: Any) -> None:
+        """AC-T050-5: filter(denied=...) excludes atomic tools."""
+        filtered = full_registry.filter(denied=["regex_extract", "llm_complete"])
+        assert "regex_extract" not in filtered
+        assert "llm_complete" not in filtered
+        assert "collect" in filtered  # defaults still present

@@ -1,0 +1,18 @@
+name: content-process
+mode: flexible
+system_prompt: content_process
+max_steps: 20
+on_failure: skip
+tools_allowed:
+  - regex_extract
+  - fingerprint_generate
+  - fingerprint_dedup
+  - vector_search_similar
+  - find_nearest_cluster
+  - tfidf_keywords
+  - truncate_summary
+  - keyword_tag
+  - filter_sensitive
+  - llm_complete
+tools_denied: []
+steps: []

@@ -16,6 +16,17 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class ModelProfile:
+    """Per-model default parameters."""
+
+    temperature: float
+    max_tokens: int
+    context_window: int
+    prompt_style: str = "default"
+    timeout_seconds: int = 60
+
+
+@dataclass
 class ModelConfig:
     """Individual model configuration."""
 
@@ -45,6 +56,20 @@ class ModelRoutingConfig:
     def available_task_types(self) -> list[str]:
         """Return list of configured task types."""
         return list(self._config.get("models", {}).keys())
+
+    def get_profile(self, model: str) -> ModelProfile | None:
+        """Return ModelProfile for a model ID, or None if not configured."""
+        profiles: dict[str, Any] = self._config.get("profiles", {})
+        if model not in profiles:
+            return None
+        p = profiles[model]
+        return ModelProfile(
+            temperature=p["temperature"],
+            max_tokens=p["max_tokens"],
+            context_window=p["context_window"],
+            prompt_style=p.get("prompt_style", "default"),
+            timeout_seconds=p.get("timeout_seconds", 60),
+        )
 
     @property
     def default_model(self) -> dict[str, Any]:

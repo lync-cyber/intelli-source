@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Callable, Coroutine
 
 from intellisource.agent.pipeline import PipelineConfig
+from intellisource.pipeline.processors import tools as atomic_tools
 
 _PIPELINES_DIR = Path(__file__).resolve().parents[3] / "config" / "pipelines"
 
@@ -60,6 +61,12 @@ class AgentToolRegistry:
     def list_tools(self) -> list[str]:
         """Return names of all registered tools."""
         return list(self._tools.keys())
+
+    def register_atomic_tools(self) -> None:
+        """Register all 10 atomic processing tools + llm_complete meta-tool."""
+        defs = _atomic_tool_defs()
+        for defn in defs:
+            self._tools[defn.name] = defn
 
     def filter(
         self,
@@ -117,6 +124,180 @@ async def _get_content_detail_execute(**kwargs: Any) -> dict[str, Any]:
 async def _summarize_for_user_execute(**kwargs: Any) -> dict[str, Any]:
     """Placeholder: summarize content for user in flexible mode."""
     return {"status": "ok", "tool": "summarize_for_user", **kwargs}
+
+
+async def _llm_complete_execute(**kwargs: Any) -> dict[str, Any]:
+    """Placeholder: invoke LLMGateway for a specific call_type."""
+    return {"status": "ok", "tool": "llm_complete", **kwargs}
+
+
+def _atomic_tool_defs() -> list[ToolDefinition]:
+    """Return the 10 atomic tool definitions + llm_complete meta-tool."""
+    return [
+        ToolDefinition(
+            name="regex_extract",
+            description="Extract structured data from text using regex patterns.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "body_text": {"type": "string"},
+                    "patterns": {
+                        "type": "array",
+                        "items": {"type": "object"},
+                    },
+                },
+                "required": ["body_text"],
+            },
+            execute=atomic_tools.regex_extract,
+        ),
+        ToolDefinition(
+            name="fingerprint_generate",
+            description="Generate a SHA-256 fingerprint from title and body text.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "body_text": {"type": "string"},
+                },
+                "required": ["title", "body_text"],
+            },
+            execute=atomic_tools.fingerprint_generate,
+        ),
+        ToolDefinition(
+            name="vector_search_similar",
+            description="Search for similar content via vector store.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "embedding": {"type": "array", "items": {"type": "number"}},
+                    "threshold": {"type": "number"},
+                    "vector_store": {"type": "object"},
+                },
+                "required": ["embedding", "threshold", "vector_store"],
+            },
+            execute=atomic_tools.vector_search_similar,
+        ),
+        ToolDefinition(
+            name="fingerprint_dedup",
+            description="Check if content is a duplicate by SHA-256 fingerprint.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "body_text": {"type": "string"},
+                    "known_fingerprints": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                },
+                "required": ["title", "body_text", "known_fingerprints"],
+            },
+            execute=atomic_tools.fingerprint_dedup,
+        ),
+        ToolDefinition(
+            name="find_nearest_cluster",
+            description="Find the nearest existing cluster for an embedding.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "embedding": {"type": "array", "items": {"type": "number"}},
+                    "threshold": {"type": "number"},
+                    "vector_store": {"type": "object"},
+                },
+                "required": ["embedding", "threshold", "vector_store"],
+            },
+            execute=atomic_tools.find_nearest_cluster,
+        ),
+        ToolDefinition(
+            name="tfidf_keywords",
+            description="Extract TF-IDF-like top-5 keywords from title and body.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "body_text": {"type": "string"},
+                },
+                "required": ["title", "body_text"],
+            },
+            execute=atomic_tools.tfidf_keywords,
+        ),
+        ToolDefinition(
+            name="truncate_summary",
+            description="Generate a digest from clustered documents via truncation.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "cluster_contents": {
+                        "type": "array",
+                        "items": {"type": "object"},
+                    },
+                },
+                "required": ["cluster_contents"],
+            },
+            execute=atomic_tools.truncate_summary,
+        ),
+        ToolDefinition(
+            name="keyword_tag",
+            description="Tag content by matching keywords from a tag library.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "body_text": {"type": "string"},
+                    "title": {"type": "string"},
+                    "tag_library": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                },
+                "required": ["body_text", "title", "tag_library"],
+            },
+            execute=atomic_tools.keyword_tag,
+        ),
+        ToolDefinition(
+            name="filter_sensitive",
+            description="Find sensitive words present in text.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string"},
+                    "sensitive_words": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                },
+                "required": ["text", "sensitive_words"],
+            },
+            execute=atomic_tools.filter_sensitive,
+        ),
+        ToolDefinition(
+            name="truncate_for_push",
+            description="Truncate content to push distribution lengths.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "body_text": {"type": "string"},
+                },
+                "required": ["title", "body_text"],
+            },
+            execute=atomic_tools.truncate_for_push,
+        ),
+        ToolDefinition(
+            name="llm_complete",
+            description=(
+                "Meta-tool: invoke LLM for a specific call_type with prompt variables."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "call_type": {"type": "string"},
+                    "prompt_vars": {"type": "object"},
+                },
+                "required": ["call_type", "prompt_vars"],
+            },
+            execute=_llm_complete_execute,
+        ),
+    ]
 
 
 def _default_tool_defs() -> list[ToolDefinition]:
