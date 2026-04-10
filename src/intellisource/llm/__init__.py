@@ -1,5 +1,6 @@
 """LLM integration module for IntelliSource."""
 
+from intellisource.llm.cache import LLMCache
 from intellisource.llm.gateway import (
     LLMGateway,
     LLMResult,
@@ -13,6 +14,7 @@ from intellisource.llm.model_config import (
 )
 
 __all__ = [
+    "LLMCache",
     "LLMGateway",
     "LLMResult",
     "ModelConfig",
