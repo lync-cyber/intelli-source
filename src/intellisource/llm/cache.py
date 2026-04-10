@@ -24,7 +24,8 @@ class LLMCache:
         """Initialize cache.
 
         Args:
-            redis: Async Redis client (or any object with get/setex/keys/delete methods).
+            redis: Async Redis client (or any object with
+                get/setex/keys/delete methods).
             ttl: Cache entry time-to-live in seconds (default 24h).
         """
         self._redis: Any = redis

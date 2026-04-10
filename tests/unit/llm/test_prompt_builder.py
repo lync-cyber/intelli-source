@@ -18,8 +18,8 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from intellisource.llm.prompt_builder import PromptBuilder
 
+from intellisource.llm.prompt_builder import PromptBuilder
 from intellisource.llm.prompts import load_prompt
 
 # ---------------------------------------------------------------------------
@@ -359,10 +359,14 @@ class TestGatewayTruncationIntegration:
         from intellisource.llm.gateway import LLMGateway
 
         prompt = "word " * 50000
-        with patch("intellisource.llm.gateway.litellm") as mock_litellm:
+        with (
+            patch("intellisource.llm.gateway.litellm") as mock_litellm,
+            patch("intellisource.llm.prompt_builder.litellm") as mock_pb_litellm,
+        ):
             mock_litellm.acompletion = AsyncMock(return_value=mock_litellm_response)
             # 110000 > 80% of 128000 (=102400) for gpt-4o-mini
             mock_litellm.token_counter = MagicMock(return_value=110000)
+            mock_pb_litellm.token_counter = MagicMock(return_value=110000)
             gw = LLMGateway()
             result = await gw.complete(prompt=prompt, model="gpt-4o-mini")
         assert result.content is not None

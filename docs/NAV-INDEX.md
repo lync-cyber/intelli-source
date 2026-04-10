@@ -22,12 +22,13 @@
 
 | Doc ID | 文件路径 | 状态 | 分卷 | 章节数 |
 |--------|----------|------|------|--------|
-| dev-plan-intellisource-v1 | docs/dev-plan/dev-plan-intellisource-v1.md | approved | 6 (main + s1 + s2 + s3 + s4 + s5) | 5 |
+| dev-plan-intellisource-v1 | docs/dev-plan/dev-plan-intellisource-v1.md | approved | 7 (main + s1 + s2 + s3 + s4 + s5 + s6) | 5 |
 | dev-plan-intellisource-v1-s1 | docs/dev-plan/dev-plan-intellisource-v1-s1.md | approved | sprint (split-from: dev-plan-intellisource-v1) | 1 |
 | dev-plan-intellisource-v1-s2 | docs/dev-plan/dev-plan-intellisource-v1-s2.md | approved | sprint (split-from: dev-plan-intellisource-v1) | 1 |
 | dev-plan-intellisource-v1-s3 | docs/dev-plan/dev-plan-intellisource-v1-s3.md | approved | sprint (split-from: dev-plan-intellisource-v1) | 1 |
 | dev-plan-intellisource-v1-s4 | docs/dev-plan/dev-plan-intellisource-v1-s4.md | approved | sprint (split-from: dev-plan-intellisource-v1) | 1 |
 | dev-plan-intellisource-v1-s5 | docs/dev-plan/dev-plan-intellisource-v1-s5.md | approved | sprint (split-from: dev-plan-intellisource-v1) | 1 |
+| dev-plan-intellisource-v1-s6 | docs/dev-plan/dev-plan-intellisource-v1-s6.md | draft | sprint (split-from: dev-plan-intellisource-v1) | 1 |
 
 ## 测试报告
 <!-- test-report 文档注册后在此添加 -->

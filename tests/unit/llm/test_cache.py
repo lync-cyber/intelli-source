@@ -375,6 +375,7 @@ class TestLLMGatewayWithCache:
 
         with patch("intellisource.llm.gateway.litellm") as mock_litellm:
             mock_litellm.acompletion = AsyncMock(return_value=mock_litellm_response)
+            mock_litellm.token_counter = MagicMock(return_value=10)
             gw = LLMGateway(cache=llm_cache)
             result = await gw.complete(
                 prompt="test",
@@ -398,6 +399,7 @@ class TestLLMGatewayWithCache:
         """Gateway works normally when no cache is configured."""
         with patch("intellisource.llm.gateway.litellm") as mock_litellm:
             mock_litellm.acompletion = AsyncMock(return_value=mock_litellm_response)
+            mock_litellm.token_counter = MagicMock(return_value=10)
             gw = LLMGateway()
             result = await gw.complete(prompt="test", model="gpt-4o-mini")
 
@@ -413,6 +415,7 @@ class TestLLMGatewayWithCache:
 
         with patch("intellisource.llm.gateway.litellm") as mock_litellm:
             mock_litellm.acompletion = AsyncMock(return_value=mock_litellm_response)
+            mock_litellm.token_counter = MagicMock(return_value=10)
             gw = LLMGateway(cache=llm_cache)
             result = await gw.complete(prompt="test", model="gpt-4o-mini")
             mock_litellm.acompletion.assert_awaited_once()

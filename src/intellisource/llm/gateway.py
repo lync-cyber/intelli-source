@@ -249,7 +249,9 @@ class LLMGateway:
             Estimated token count.
         """
         try:
-            count: int = litellm.token_counter(model=model, text=text)
-            return count
+            count = litellm.token_counter(model=model, text=text)
+            if isinstance(count, int):
+                return count
+            return len(text) // 4
         except Exception:
             return len(text) // 4
