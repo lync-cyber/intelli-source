@@ -17,6 +17,7 @@ from intellisource.llm.prompts import _read_template
 logger = logging.getLogger(__name__)
 
 _DEFAULT_MODEL = "gpt-4o-mini"
+_DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant."
 
 
 class PromptBuilder:
@@ -26,12 +27,20 @@ class PromptBuilder:
     fluent method chaining for adding content, schema, and context variables.
     """
 
-    def __init__(self, call_type: str, model: str | None = None) -> None:
+    def __init__(
+        self,
+        call_type: str,
+        model: str | None = None,
+        system_prompt: str | None = None,
+    ) -> None:
         """Load template for call_type from prompts/ directory.
 
         Args:
             call_type: Template name (without .txt extension).
             model: Model identifier for token counting. Defaults to gpt-4o-mini.
+            system_prompt: Optional system prompt override for build_messages().
+                If None, tries to load a sibling '{call_type}.system.txt'
+                template; falls back to a generic default when absent.
 
         Raises:
             FileNotFoundError: If template file does not exist.
@@ -43,6 +52,17 @@ class PromptBuilder:
         self._model: str = model if model is not None else _DEFAULT_MODEL
         self._content: str = ""
         self._context: dict[str, str] = {}
+        self._system_prompt: str = self._resolve_system_prompt(call_type, system_prompt)
+
+    @staticmethod
+    def _resolve_system_prompt(call_type: str, override: str | None) -> str:
+        """Resolve system prompt: explicit override > sidecar template > default."""
+        if override is not None:
+            return override
+        try:
+            return _read_template(f"{call_type}.system")
+        except FileNotFoundError:
+            return _DEFAULT_SYSTEM_PROMPT
 
     def add_content(self, content: str, max_tokens: int | None = None) -> PromptBuilder:
         """Add content with optional token truncation.
@@ -106,7 +126,7 @@ class PromptBuilder:
         """
         prompt = self.build()
         return [
-            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "system", "content": self._system_prompt},
             {"role": "user", "content": prompt},
         ]
 
@@ -125,22 +145,38 @@ class PromptBuilder:
         Returns:
             Original text if under limit, otherwise truncated text.
         """
-        try:
-            token_count: int = litellm.token_counter(model=model, text=text)
-        except Exception:
-            token_count = len(text) // 4
 
-        if token_count <= max_tokens:
+        def _count(s: str) -> int:
+            try:
+                c = litellm.token_counter(model=model, text=s)
+                return int(c) if isinstance(c, int) else len(s) // 4
+            except Exception:
+                return len(s) // 4
+
+        if _count(text) <= max_tokens:
             return text
 
-        # Truncate by character ratio: keep first 40% + last 10%
+        # SR-007: iteratively shrink character window until the resulting
+        # string (including the marker) is actually under the token limit.
+        # CJK-dense text has a character:token ratio close to 1:1, so the
+        # initial 40%+10% cut is not always sufficient.
         total_len = len(text)
-        start_len = int(total_len * 0.4)
-        end_len = int(total_len * 0.1)
-        truncated_chars = total_len - start_len - end_len
+        start_ratio = 0.4
+        end_ratio = 0.1
 
-        start_part = text[:start_len]
-        end_part = text[total_len - end_len :] if end_len > 0 else ""
-        marker = f"[...已截断 {truncated_chars} 字符...]"
+        # Shrink loop: at most 8 iterations (each halving the window).
+        for _ in range(8):
+            start_len = int(total_len * start_ratio)
+            end_len = int(total_len * end_ratio)
+            truncated_chars = total_len - start_len - end_len
+            start_part = text[:start_len]
+            end_part = text[total_len - end_len :] if end_len > 0 else ""
+            marker = f"[...已截断 {truncated_chars} 字符...]"
+            candidate = start_part + marker + end_part
+            if _count(candidate) <= max_tokens:
+                return candidate
+            start_ratio /= 2
+            end_ratio /= 2
 
-        return start_part + marker + end_part
+        # Final safety fallback: hard char slice (avoid unbounded loop).
+        return text[: max(1, max_tokens * 2)] + "[...已截断...]"

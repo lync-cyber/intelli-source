@@ -47,6 +47,18 @@ class FakeRedis:
 
         return [k for k in self._store if fnmatch.fnmatch(k, pattern)]
 
+    async def scan_iter(self, match: str, count: int = 100):  # noqa: ARG002
+        """Async generator mimicking redis.asyncio scan_iter.
+
+        Yields keys matching the glob pattern. `count` is accepted to
+        match the real API but does not affect behavior in the fake.
+        """
+        import fnmatch
+
+        for key in list(self._store.keys()):
+            if fnmatch.fnmatch(key, match):
+                yield key
+
     async def delete(self, *keys: str) -> int:
         count = 0
         for k in keys:
@@ -307,12 +319,36 @@ class TestCacheInvalidate:
 
     async def test_invalidate_handles_redis_error(self) -> None:
         """invalidate() returns 0 when Redis raises an exception."""
-        broken_redis = AsyncMock()
-        broken_redis.keys = AsyncMock(side_effect=ConnectionError("connection lost"))
-        error_cache = LLMCache(redis=broken_redis, ttl=3600)
+
+        class BrokenRedis:
+            def scan_iter(self, match: str, count: int = 100):  # noqa: ARG002
+                raise ConnectionError("connection lost")
+
+        error_cache = LLMCache(redis=BrokenRedis(), ttl=3600)
 
         deleted = await error_cache.invalidate("extract", "v1")
         assert deleted == 0
+
+    async def test_invalidate_uses_scan_iter_not_keys(
+        self,
+        cache: LLMCache,
+        fake_redis: FakeRedis,
+        sample_result: LLMResult,
+    ) -> None:
+        """invalidate() must use non-blocking scan_iter, never the blocking KEYS command.
+
+        SR-003 regression guard: prior implementation used redis.keys() which
+        blocks the Redis event loop O(N) in production.
+        """
+        await cache.set("fp1", "extract", "v1", sample_result)
+        await cache.set("fp2", "extract", "v1", sample_result)
+
+        with patch.object(
+            fake_redis, "keys", side_effect=AssertionError("must not call keys()")
+        ):
+            deleted = await cache.invalidate("extract", "v1")
+
+        assert deleted == 2
 
 
 # ===================================================================
@@ -423,3 +459,104 @@ class TestLLMGatewayWithCache:
         assert result.content == "LLM generated text"
         # Nothing should be cached
         assert len(fake_redis._store) == 0
+
+
+# ===================================================================
+# AC-T052-4: Cache hit logging to LLMCallLog
+# ===================================================================
+
+
+class TestCacheHitLogging:
+    """AC-T052-4: Gateway records cache hits to LLMCallLog via CostTracker.
+
+    status='cached', input_tokens=0.
+    """
+
+    async def test_cache_hit_logs_with_status_cached_and_zero_input_tokens(
+        self, fake_redis: FakeRedis
+    ) -> None:
+        """Cache hit triggers log_call with status=cached, input_tokens=0."""
+        llm_cache = LLMCache(redis=fake_redis, ttl=3600)
+        cached_result = LLMResult(
+            content="cached content",
+            metadata={"model": "gpt-4o-mini", "output_tokens": 42},
+        )
+        await llm_cache.set("fp1", "extract", "v1", cached_result)
+
+        tracker = AsyncMock()
+        tracker.log_call = AsyncMock()
+
+        gw = LLMGateway(cache=llm_cache, cost_tracker=tracker)
+        result = await gw.complete(
+            prompt="test prompt body",
+            model="gpt-4o-mini",
+            cache_key_parts={
+                "content_fingerprint": "fp1",
+                "call_type": "extract",
+                "prompt_version": "v1",
+            },
+        )
+
+        assert result.content == "cached content"
+        tracker.log_call.assert_awaited_once()
+        record = tracker.log_call.await_args.args[0]
+        assert record.status == "cached"
+        assert record.input_tokens == 0
+        assert record.output_tokens == 42
+        assert record.call_type == "extract"
+        assert record.model == "gpt-4o-mini"
+        assert record.latency_ms == 0
+
+    async def test_cache_miss_does_not_trigger_cache_hit_log(
+        self, fake_redis: FakeRedis
+    ) -> None:
+        """On cache miss, _log_cache_hit is not invoked."""
+        llm_cache = LLMCache(redis=fake_redis, ttl=3600)
+        tracker = AsyncMock()
+        tracker.log_call = AsyncMock()
+
+        response = MagicMock()
+        response.choices = [MagicMock()]
+        response.choices[0].message.content = "fresh"
+        response.usage.prompt_tokens = 10
+        response.usage.completion_tokens = 5
+        response.model = "gpt-4o-mini"
+
+        with patch("intellisource.llm.gateway.litellm") as mock_litellm:
+            mock_litellm.acompletion = AsyncMock(return_value=response)
+            mock_litellm.token_counter = MagicMock(return_value=5)
+            gw = LLMGateway(cache=llm_cache, cost_tracker=tracker)
+            await gw.complete(
+                prompt="fresh prompt",
+                model="gpt-4o-mini",
+                cache_key_parts={
+                    "content_fingerprint": "fp-miss",
+                    "call_type": "extract",
+                    "prompt_version": "v1",
+                },
+            )
+
+        tracker.log_call.assert_not_awaited()
+
+    async def test_cache_hit_without_cost_tracker_does_not_raise(
+        self, fake_redis: FakeRedis
+    ) -> None:
+        """Gateway with cache but no cost_tracker returns cached result silently."""
+        llm_cache = LLMCache(redis=fake_redis, ttl=3600)
+        cached_result = LLMResult(
+            content="cached content",
+            metadata={"model": "gpt-4o-mini"},
+        )
+        await llm_cache.set("fp1", "extract", "v1", cached_result)
+
+        gw = LLMGateway(cache=llm_cache, cost_tracker=None)
+        result = await gw.complete(
+            prompt="x",
+            model="gpt-4o-mini",
+            cache_key_parts={
+                "content_fingerprint": "fp1",
+                "call_type": "extract",
+                "prompt_version": "v1",
+            },
+        )
+        assert result.content == "cached content"

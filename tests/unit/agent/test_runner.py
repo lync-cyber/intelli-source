@@ -558,6 +558,114 @@ class TestToolResultSerialization:
         assert len(tool_msgs) >= 1
 
 
+class TestFlexibleResultsAccumulation:
+    """SR-004: run_flexible() returns tool outputs via persist_result['results'].
+
+    Regression guard: prior implementation passed results=[] to _persist(),
+    discarding all tool call outputs.
+    """
+
+    async def test_flexible_results_contain_tool_outputs(
+        self,
+        tool_registry: MagicMock,
+    ) -> None:
+        """Tool outputs from flexible loop appear in the returned results list."""
+        call_count = 0
+        llm_gw = AsyncMock()
+
+        async def _chat_side_effect(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return {
+                    "tool_calls": [
+                        {
+                            "name": "web_search",
+                            "arguments": {"q": "hello"},
+                            "id": "tc-1",
+                        }
+                    ],
+                    "content": "",
+                    "done": False,
+                }
+            return {"tool_calls": [], "content": "done", "done": True}
+
+        llm_gw.chat.side_effect = _chat_side_effect
+        runner = AgentRunner(tool_registry=tool_registry, llm_gateway=llm_gw)
+        config = PipelineConfig.from_dict(
+            {
+                "name": "results-accum-test",
+                "mode": "flexible",
+                "tools_allowed": ["web_search"],
+                "steps": [],
+                "max_steps": 5,
+                "on_failure": "skip",
+            }
+        )
+        result = await runner.run_flexible(config, user_message="search", session={})
+
+        assert result["status"] == "success"
+        assert isinstance(result["results"], list)
+        assert len(result["results"]) == 1
+        entry = result["results"][0]
+        assert entry["tool"] == "web_search"
+        assert entry["output"] == {"results": [{"url": "https://example.com"}]}
+
+    async def test_flexible_results_record_tool_errors(
+        self,
+        tool_registry: MagicMock,
+    ) -> None:
+        """Failed tool calls appear in results with error field, not silently dropped."""
+        # Override web_search to raise
+        tool_registry.get = MagicMock(
+            side_effect=lambda name: {
+                "web_search": AsyncMock(side_effect=RuntimeError("boom")),
+            }.get(name)
+        )
+        tool_registry.list_tools = MagicMock(return_value=["web_search"])
+
+        call_count = 0
+        llm_gw = AsyncMock()
+
+        async def _chat_side_effect(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return {
+                    "tool_calls": [
+                        {
+                            "name": "web_search",
+                            "arguments": {},
+                            "id": "tc-1",
+                        }
+                    ],
+                    "content": "",
+                    "done": False,
+                }
+            return {"tool_calls": [], "content": "done", "done": True}
+
+        llm_gw.chat.side_effect = _chat_side_effect
+        runner = AgentRunner(tool_registry=tool_registry, llm_gateway=llm_gw)
+        config = PipelineConfig.from_dict(
+            {
+                "name": "results-error-test",
+                "mode": "flexible",
+                "tools_allowed": ["web_search"],
+                "steps": [],
+                "max_steps": 5,
+                "on_failure": "skip",
+            }
+        )
+        result = await runner.run_flexible(config, user_message="fail", session={})
+
+        assert result["status"] == "success"
+        assert len(result["results"]) == 1
+        entry = result["results"][0]
+        assert entry["tool"] == "web_search"
+        assert entry["output"] is None
+        assert "boom" in entry["error"]
+
+
 class TestMaxTokensBudget:
     """AC-T054-8: run_flexible() supports max_tokens_budget."""
 

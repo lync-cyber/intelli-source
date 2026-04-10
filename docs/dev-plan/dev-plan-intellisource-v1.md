@@ -91,16 +91,16 @@
 
 | 任务ID | 任务名 | 模块 | 复杂度 | 依赖 | TDD测试点 | 状态 |
 |--------|--------|------|--------|------|-----------|------|
-| T-047 | 架构文档修订与Sprint 6 dev-plan | docs | S | — | — | todo |
-| T-048 | 原子化工具函数模块 | M-004→M-003 | M | — | AC-018~AC-025 降级路径 | todo |
-| T-049 | 删除旧LLM处理器 + 重写测试 | M-004 | L | T-048 | 无import残留, mypy零错误 | todo |
-| T-050 | Agent工具注册增强 | M-006 | M | T-048 | AC-066 | todo |
-| T-051 | PromptBuilder与Token截断 | M-005 | M | — | AC-T051 | todo |
-| T-052 | LLM调用结果缓存 | M-005 | M | — | AC-T052 | todo |
-| T-053 | 模型参数配置增强 | M-005 | S | T-051 | AC-T053 | todo |
-| T-054 | Agent处理编排引擎 | M-006 | L | T-048,T-050,T-051 | AC-066,AC-067 | todo |
-| T-055 | 管道配置更新 | M-006 | S | T-050,T-054 | AC-T055 | todo |
-| T-056 | 集成测试与全量回归 | 全模块 | L | ALL | 全量pytest+mypy | todo |
+| T-047 | 架构文档修订与Sprint 6 dev-plan | docs | S | — | — | done |
+| T-048 | 原子化工具函数模块 | M-004→M-003 | M | — | AC-018~AC-025 降级路径 | done |
+| T-049 | 删除旧LLM处理器 + 重写测试 | M-004 | L | T-048 | 无import残留, mypy零错误 | done |
+| T-050 | Agent工具注册增强 | M-006 | M | T-048 | AC-066 | done |
+| T-051 | PromptBuilder与Token截断 | M-005 | M | — | AC-T051 | done |
+| T-052 | LLM调用结果缓存 | M-005 | M | — | AC-T052 | done |
+| T-053 | 模型参数配置增强 | M-005 | S | T-051 | AC-T053 | done |
+| T-054 | Agent处理编排引擎 | M-006 | L | T-048,T-050,T-051 | AC-066,AC-067 | done |
+| T-055 | 管道配置更新 | M-006 | S | T-050,T-054 | AC-T055 | done |
+| T-056 | 集成测试与全量回归 | 全模块 | L | ALL | 全量pytest+mypy | done |
 
 ### Sprint 7: LLM 韧性增强与配置治理
 

@@ -246,9 +246,12 @@ class TestTruncateContent:
         # Create text where we can verify start/end preservation
         text = "START" + "x" * 1000 + "END"
         with patch("intellisource.llm.prompt_builder.litellm") as mock_litellm:
-            # Make it think the text is over the limit
-            mock_litellm.token_counter = MagicMock(return_value=500)
-            result = PromptBuilder.truncate_content(text, max_tokens=100)
+            # Length-sensitive counter: SR-007 iterative loop re-checks
+            # candidate length, so the mock must respond to shrinking.
+            mock_litellm.token_counter = MagicMock(
+                side_effect=lambda model, text: len(text) // 2
+            )
+            result = PromptBuilder.truncate_content(text, max_tokens=300)
         assert result.startswith("START")
         assert result.endswith("END")
         assert "[..." in result
@@ -257,8 +260,10 @@ class TestTruncateContent:
         """truncate_content marker shows number of truncated characters."""
         text = "A" * 1000
         with patch("intellisource.llm.prompt_builder.litellm") as mock_litellm:
-            mock_litellm.token_counter = MagicMock(return_value=500)
-            result = PromptBuilder.truncate_content(text, max_tokens=100)
+            mock_litellm.token_counter = MagicMock(
+                side_effect=lambda model, text: len(text) // 2
+            )
+            result = PromptBuilder.truncate_content(text, max_tokens=300)
         # Should contain the truncation marker with char count
         assert "..." in result
         assert "截断" in result or "已截断" in result
@@ -275,8 +280,12 @@ class TestTruncateContent:
         """truncate_content keeps ~40% from start and ~10% from end."""
         text = "A" * 1000
         with patch("intellisource.llm.prompt_builder.litellm") as mock_litellm:
-            mock_litellm.token_counter = MagicMock(return_value=500)
-            result = PromptBuilder.truncate_content(text, max_tokens=100)
+            # Length-sensitive mock so the first 40%+10% cut passes the
+            # re-verification step added in SR-007.
+            mock_litellm.token_counter = MagicMock(
+                side_effect=lambda model, text: len(text) // 2
+            )
+            result = PromptBuilder.truncate_content(text, max_tokens=300)
         # The start portion should be ~400 chars (40% of 1000)
         # The end portion should be ~100 chars (10% of 1000)
         parts = result.split("[...")

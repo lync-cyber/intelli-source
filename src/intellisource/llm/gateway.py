@@ -16,11 +16,13 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from intellisource.llm.cache import LLMCache
+    from intellisource.llm.cost_tracker import CostTracker
 
 import jsonschema
 import litellm
 
 from intellisource.core.errors import ErrorCategory, LLMError
+from intellisource.llm.cost_tracker import LLMCallRecord
 from intellisource.llm.model_config import ModelRoutingConfig, load_model_config
 from intellisource.llm.prompt_builder import PromptBuilder
 
@@ -111,12 +113,17 @@ class LLMGateway:
     }
     _DEFAULT_CONTEXT_WINDOW = 128000
 
-    def __init__(self, cache: LLMCache | None = None) -> None:
+    def __init__(
+        self,
+        cache: LLMCache | None = None,
+        cost_tracker: CostTracker | None = None,
+    ) -> None:
         self._default_temperature: float = 0.7
         self._default_max_tokens: int = 4096
         self._routing_config: dict[str, Any] = _load_routing_config()
         self._model_routing = ModelRoutingConfig(self._routing_config)
         self._cache: LLMCache | None = cache
+        self._cost_tracker: CostTracker | None = cost_tracker
 
     async def complete(
         self,
@@ -155,6 +162,13 @@ class LLMGateway:
                 prompt_version=cache_key_parts["prompt_version"],
             )
             if cached is not None:
+                # AC-T052-4: record cache hit to LLMCallLog with
+                # status=cached, input_tokens=0
+                await self._log_cache_hit(
+                    cached=cached,
+                    call_type=cache_key_parts["call_type"],
+                    input_text=prompt,
+                )
                 return cached
 
         resolved_model = model
@@ -251,6 +265,39 @@ class LLMGateway:
             )
 
         return result
+
+    async def _log_cache_hit(
+        self,
+        cached: LLMResult,
+        call_type: str,
+        input_text: str,
+    ) -> None:
+        """Persist a cache-hit event to LLMCallLog (AC-T052-4).
+
+        Records status='cached' with input_tokens=0 to indicate no tokens
+        were consumed by the LLM provider on this request. Skipped silently
+        when no cost_tracker is configured or when persistence fails, so
+        cache lookups never block the request path.
+        """
+        if self._cost_tracker is None:
+            return
+        model_name = str(cached.metadata.get("model", "unknown"))
+        output_tokens = int(cached.metadata.get("output_tokens", 0))
+        record = LLMCallRecord(
+            model=model_name,
+            provider=model_name.split("/")[0] if "/" in model_name else "unknown",
+            call_type=call_type,
+            input_tokens=0,
+            output_tokens=output_tokens,
+            latency_ms=0,
+            input_length=len(input_text),
+            output_length=len(cached.content),
+            status="cached",
+        )
+        try:
+            await self._cost_tracker.log_call(record)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("Failed to log cache-hit to LLMCallLog: %s", exc)
 
     def estimate_tokens(self, text: str, model: str) -> int:
         """Estimate token count for text.

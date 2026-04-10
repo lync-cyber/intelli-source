@@ -140,7 +140,11 @@ class LLMCache:
         """
         pattern = f"{self._KEY_PREFIX}:{call_type}:{prompt_version}:*"
         try:
-            keys: list[Any] = await self._redis.keys(pattern)
+            # SR-003: use non-blocking SCAN iteration instead of KEYS to
+            # avoid O(N) blocking on large keyspaces in production.
+            keys: list[Any] = []
+            async for key in self._redis.scan_iter(match=pattern, count=100):
+                keys.append(key)
             if not keys:
                 return 0
             deleted: int = await self._redis.delete(*keys)

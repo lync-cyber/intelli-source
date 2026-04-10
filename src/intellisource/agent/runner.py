@@ -117,6 +117,7 @@ class AgentRunner:
         tokens_used = 0
         budget_exhausted = False
         messages: list[dict[str, Any]] = []
+        tool_results: list[dict[str, Any]] = []
 
         # Add system prompt if configured
         sys_prompt = getattr(config, "system_prompt", None)
@@ -160,6 +161,7 @@ class AgentRunner:
                                 "tool_call_id": tc.get("id", ""),
                             }
                         )
+                        tool_results.append({"tool": tc["name"], "output": result})
                     except Exception as exc:
                         logger.warning(
                             "Tool %s failed: %s",
@@ -173,11 +175,18 @@ class AgentRunner:
                                 "tool_call_id": tc.get("id", ""),
                             }
                         )
+                        tool_results.append(
+                            {
+                                "tool": tc["name"],
+                                "output": None,
+                                "error": str(exc),
+                            }
+                        )
 
         persist_result = self._persist(
             status="success",
             steps_executed=steps_executed,
-            results=[],
+            results=tool_results,
             pipeline_name=config.name,
         )
         if budget_exhausted:
