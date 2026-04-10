@@ -58,47 +58,60 @@
   - `BatchProcessor` — 批处理模式适配器（AC-017）
   - 内置处理器: `HTMLParser`, `ContentDedup`（指纹去重）, `KeywordTagger`, `FormatConverter`
 
-### M-004: LLM 智能处理模块 (llm.processors)
+### M-004: 原子化处理工具模块 (pipeline.processors.tools)
 
-- **职责**: 基于 LLM 实现结构化提取、语义去重、聚类、摘要和打标等高级内容处理，同时作为 Agent 可调用的工具注册到 Agent 调度层
+> **[Sprint 6 变更]** 原 "LLM 智能处理模块" 重构为纯原子操作工具。LLM 调用逻辑移至 M-006 Agent 编排层，处理器不再直接调用 LLMGateway。
+
+- **职责**: 提供底层原子化的内容处理操作（不含 LLM 调用），作为工具暴露给 LLM 和智能体。包括正则提取、指纹生成、向量搜索、TF-IDF 关键词、截断摘要、关键词打标、敏感词过滤等
 - **映射功能**: F-005（结构化提取/语义去重/聚类）, F-006（摘要/打标）
-- **对外接口**: 无直接对外 API（作为 M-003 管道处理器运行，同时注册为 Agent 工具）
-- **依赖模块**: M-003（注册为管道处理器）, M-005（LLM 调用网关）, M-009（向量检索/存储）
+- **对外接口**: 无直接对外 API（通过 M-006 AgentToolRegistry 注册为 Agent 工具）
+- **依赖模块**: M-009（向量检索/存储）。**不再依赖 M-005（LLM 网关）**
 - **内部关键组件**:
-  - `LLMExtractor` — LLM 结构化提取处理器，按 JSON Schema 提取数据（AC-018）
-  - `SemanticDedup` — 语义去重处理器，向量检索 + LLM 判定（AC-019）
-  - `ContentClusterer` — 内容聚类处理器，同主题多源内容分组（AC-020）
-  - `DigestGenerator` — 综合简报生成器，多篇文档聚合摘要（AC-023）
-  - `SemanticTagger` — 语义打标处理器（AC-024）
-  - `ContentFilter` — 敏感词过滤与合规检查（AC-025）
-  - `FingerprintGenerator` — 内容指纹生成器（AC-022）
-  - 每个 LLM 处理器均实现降级逻辑（AC-021, AC-026），降级映射见 arch#§5.3
+  - `regex_extract()` — 正则提取结构化数据（AC-018 降级路径）
+  - `fingerprint_generate()` — SHA-256 内容指纹生成（AC-022）
+  - `vector_search_similar()` — 向量相似度搜索（AC-019 原子操作）
+  - `fingerprint_dedup()` — 指纹比对去重（AC-019 降级路径）
+  - `find_nearest_cluster()` — 最近聚类搜索（AC-020 原子操作）
+  - `tfidf_keywords()` — TF-IDF 关键词提取（AC-020 降级路径）
+  - `truncate_summary()` — 截断式摘要生成（AC-023 降级路径）
+  - `keyword_tag()` — 关键词匹配打标（AC-024 降级路径）
+  - `ContentFilter` — 敏感词过滤与合规检查（AC-025），纯字符串匹配
+  - `truncate_for_push()` — 推送内容截断优化
+  - LLM 增强处理（结构化提取、语义去重判定、聚类主题生成、摘要生成、语义打标）由 M-006 Agent 编排层通过 `llm_complete` 元工具按需调用
 
 ### M-005: LLM 服务治理模块 (llm.gateway)
 
-- **职责**: 提供统一的 LLM 调用接口，管理多模型提供商，实现重试、熔断、降级和成本监控
+> **[Sprint 6 变更]** 新增 PromptBuilder（统一提示词组装与 token 截断）、LLMCache（Redis 结果缓存）、ModelProfile（模型参数配置）。
+
+- **职责**: 提供统一的 LLM 调用接口，管理多模型提供商，实现重试、熔断、降级和成本监控。Sprint 6 新增提示词管理、token 截断和结果缓存能力
 - **映射功能**: F-007（LLM 服务治理）
 - **对外接口**: API-017（LLM 用量统计）
 - **依赖模块**: M-009（调用日志持久化）, M-010（指标上报）
 - **内部关键组件**:
-  - `LLMGateway` — 统一 LLM 调用接口，基于 litellm 封装，屏蔽提供商差异（AC-028）
+  - `LLMGateway` — 统一 LLM 调用接口，基于 litellm 封装，屏蔽提供商差异（AC-028）。Sprint 6 增强: 支持 max_input_tokens 参数自动截断、可选 LLMCache 集成、模型参数 profile 默认值
+  - `PromptBuilder` — **[新增]** 统一提示词组装器（借鉴 OpenCode §3.5），加载 .txt 模板 → 变量替换 → 内容 token 截断 → 构建 messages 列表
+  - `LLMCache` — **[新增]** Redis LLM 结果缓存（借鉴 OpenCode §3.3），key = fingerprint + call_type + prompt_version，TTL 24h，仅缓存 success 结果
+  - `ModelProfile` — **[新增]** 模型参数配置（借鉴 OpenCode §3.4），按模型 ID 配置 temperature/max_tokens/context_window
   - `CircuitBreaker` — 熔断器实现（AC-029），连续失败 5 次触发，60s 恢复探测
   - `FallbackManager` — 降级管理器，LLM 失败时自动切换（AC-030，<500ms）
   - `PriorityQueue` — 优先级队列，隔离用户交互请求和后台处理请求（AC-032）
   - `CostTracker` — 成本追踪器，记录 Token 消耗/延迟/IO 长度，支持聚合统计（AC-033）
-  - 模型路由通过 YAML 配置文件 (`config/llm_models.yaml`) 声明 task_type → model 映射（如 extraction → gpt-4o, embedding → text-embedding-ada-002），LLMGateway 根据 task_type 参数查找配置选择模型；无匹配时使用 default_model 并记录 WARNING 日志
+  - 模型路由通过 YAML 配置文件 (`config/llm_models.yaml`) 声明 task_type → model 映射 + profiles 区段声明模型默认参数
   - `SchemaEnforcer` — JSON Mode / Function Calling 输出格式强制器（AC-031）
 
 ### M-006: 任务编排与 Agent 调度模块 (scheduler + agent)
 
-- **职责**: 统一管理定时任务和即时查询的调度与执行。Celery 负责触发层（定时/手动/消息触发），AgentRunner 负责执行层，通过管道配置文件（Pipeline Config）定义任务行为边界。双模式执行：定时任务采用 strict 模式按配置步骤直接调用函数（零 LLM 开销），即时查询采用 flexible 模式由 LLM Agent Loop 自主编排工具调用
+> **[Sprint 6 变更]** Agent 成为 LLM 编排层。所有 LLM 处理（提取、去重、聚类、摘要、打标）由 Agent 通过 `llm_complete` 元工具按需调用，不再由 M-004 处理器内部调用。新增 system_prompt 管道配置和处理编排提示词。
+
+- **职责**: 统一管理定时任务和即时查询的调度与执行。Celery 负责触发层（定时/手动/消息触发），AgentRunner 负责执行层，通过管道配置文件（Pipeline Config）定义任务行为边界。双模式执行：定时任务采用 strict 模式按配置步骤直接调用原子工具函数（零 LLM 开销），即时查询和内容处理采用 flexible 模式由 LLM Agent Loop 自主编排原子工具 + LLM 调用。**Agent 是系统中唯一发起 LLM 调用的编排层**
 - **映射功能**: F-008（任务编排与调度）, F-011（即时检索的 Agent 调度部分）
 - **对外接口**: API-006, API-007, API-008, API-009
-- **依赖模块**: M-001（获取调度配置）, M-002（触发采集）, M-003（触发处理）, M-004（LLM 处理器作为 Agent 工具）, M-005（LLM 网关，flexible 模式使用）, M-007（触发分发）, M-008（检索工具）, M-009（任务状态持久化）
+- **依赖模块**: M-001（获取调度配置）, M-002（触发采集）, M-003（触发处理）, M-004（原子化处理工具）, M-005（LLM 网关 + PromptBuilder + LLMCache，flexible 模式使用）, M-007（触发分发）, M-008（检索工具）, M-009（任务状态持久化）
 - **内部关键组件**:
-  - `AgentRunner` — 双模式执行引擎（AC-066, AC-067）：strict 模式按管道配置顺序直接调用工具函数；flexible 模式运行 LLM Agent Loop，LLM 自主选择工具调用
-  - `PipelineConfig` — 管道配置加载器，解析 YAML 管道配置文件（tools_allowed/denied, steps, mode, max_steps）
-  - `AgentToolRegistry` — Agent 工具注册中心，将 M-002/M-003/M-004/M-007/M-008 的功能包装为 Agent 可调用的工具函数
+  - `AgentRunner` — 双模式执行引擎（AC-066, AC-067）：strict 模式按管道配置顺序直接调用原子工具函数；flexible 模式运行 LLM Agent Loop，LLM 自主编排原子工具调用 + 通过 `llm_complete` 元工具发起 LLM 处理
+  - `PipelineConfig` — 管道配置加载器，解析 YAML 管道配置文件（tools_allowed/denied, steps, mode, max_steps, **system_prompt**）
+  - `AgentToolRegistry` — Agent 工具注册中心，注册 M-004 原子工具 + M-002/M-003/M-007/M-008 功能 + `llm_complete` 元工具
+  - `llm_complete` — **[新增]** LLM 调用元工具，包装 M-005 LLMGateway + PromptBuilder，由 Agent 在 flexible 模式中按需调用
   - `CeleryTasks` — Celery 任务定义，触发 AgentRunner 执行对应管道
   - `TaskStateMachine` — 统一任务状态机：pending → running → success/failed，支持 pause/resume/timeout（AC-038）
   - `SchedulerManager` — 定时调度管理器，支持 Celery Beat 定时触发（AC-039）

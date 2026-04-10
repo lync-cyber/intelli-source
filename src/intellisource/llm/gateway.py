@@ -12,13 +12,17 @@ import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from intellisource.llm.cache import LLMCache
 
 import jsonschema
 import litellm
 
 from intellisource.core.errors import ErrorCategory, LLMError
 from intellisource.llm.model_config import load_model_config
+from intellisource.llm.prompt_builder import PromptBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -99,10 +103,19 @@ class SchemaEnforcer:
 class LLMGateway:
     """Unified LLM calling interface built on litellm."""
 
-    def __init__(self) -> None:
+    _CONTEXT_WINDOWS: dict[str, int] = {
+        "gpt-4o-mini": 128000,
+        "gpt-4o": 128000,
+        "claude-3-haiku-20240307": 200000,
+        "claude-sonnet-4-20250514": 200000,
+    }
+    _DEFAULT_CONTEXT_WINDOW = 128000
+
+    def __init__(self, cache: LLMCache | None = None) -> None:
         self._default_temperature: float = 0.7
         self._default_max_tokens: int = 4096
         self._routing_config: dict[str, Any] = _load_routing_config()
+        self._cache: LLMCache | None = cache
 
     async def complete(
         self,
@@ -112,6 +125,8 @@ class LLMGateway:
         temperature: float | None = None,
         max_tokens: int | None = None,
         task_type: str | None = None,
+        cache_key_parts: dict[str, str] | None = None,
+        max_input_tokens: int | None = None,
     ) -> LLMResult:
         """Call an LLM with standardized parameters.
 
@@ -122,10 +137,25 @@ class LLMGateway:
             temperature: Sampling temperature.
             max_tokens: Maximum tokens to generate.
             task_type: Task type for automatic model routing.
+            cache_key_parts: Optional dict with keys content_fingerprint,
+                call_type, prompt_version for cache lookup/storage.
+            max_input_tokens: Optional max input token limit. If set or if
+                estimated tokens exceed 80% of model context window, the
+                user prompt is truncated.
 
         Returns:
             LLMResult with content and metadata.
         """
+        # Check cache before calling LLM
+        if self._cache is not None and cache_key_parts is not None:
+            cached = await self._cache.get(
+                content_fingerprint=cache_key_parts["content_fingerprint"],
+                call_type=cache_key_parts["call_type"],
+                prompt_version=cache_key_parts["prompt_version"],
+            )
+            if cached is not None:
+                return cached
+
         resolved_model = model
 
         if resolved_model is None and task_type is not None:
@@ -141,6 +171,31 @@ class LLMGateway:
 
         if resolved_model is None:
             resolved_model = "gpt-4o-mini"
+
+        # Token truncation: apply if max_input_tokens is set or if
+        # estimated tokens exceed 80% of the model context window.
+        estimated = self.estimate_tokens(prompt, resolved_model)
+        context_window = self._CONTEXT_WINDOWS.get(
+            resolved_model, self._DEFAULT_CONTEXT_WINDOW
+        )
+        threshold = int(context_window * 0.8)
+        effective_limit: int | None = None
+
+        if max_input_tokens is not None and estimated > max_input_tokens:
+            effective_limit = max_input_tokens
+        elif estimated > threshold:
+            effective_limit = threshold
+
+        if effective_limit is not None:
+            logger.warning(
+                "Prompt tokens (%d) exceed limit (%d) for model '%s', truncating",
+                estimated,
+                effective_limit,
+                resolved_model,
+            )
+            prompt = PromptBuilder.truncate_content(
+                prompt, effective_limit, resolved_model
+            )
 
         messages: list[dict[str, str]] = []
         if system_prompt is not None:
@@ -168,7 +223,18 @@ class LLMGateway:
             "model": response.model,
         }
 
-        return LLMResult(content=content, metadata=metadata)
+        result = LLMResult(content=content, metadata=metadata)
+
+        # Cache the result after successful LLM call
+        if self._cache is not None and cache_key_parts is not None:
+            await self._cache.set(
+                content_fingerprint=cache_key_parts["content_fingerprint"],
+                call_type=cache_key_parts["call_type"],
+                prompt_version=cache_key_parts["prompt_version"],
+                result=result,
+            )
+
+        return result
 
     def estimate_tokens(self, text: str, model: str) -> int:
         """Estimate token count for text.
