@@ -164,6 +164,8 @@
   - [ ] AC-T053-3: LLMGateway 在无显式 temperature 时使用 profile 默认值
   - [ ] AC-T053-4: LLMGateway 在无显式 max_tokens 时使用 profile 默认值
   - [ ] AC-T053-5: 未知模型 fallback 到 gateway 内置默认值
+  - [ ] AC-T053-6: `ModelProfile.prompt_style` 可配置（`default` | `structured` | `concise`），默认 `default`
+  - [ ] AC-T053-7: `ModelProfile.timeout_seconds` 可配置，默认 60，LLMGateway 在 `litellm.acompletion()` 中应用此超时
 - **deliverables**:
   - [ ] `src/intellisource/llm/model_config.py` -- ModelProfile + get_profile()
   - [ ] `config/llm_models.example.yaml` -- profiles 区段
@@ -189,6 +191,7 @@
   - [ ] AC-T054-5: max_steps 限制仍然生效
   - [ ] AC-T054-6: content_process.txt 提示词覆盖提取→去重→聚类→打标→摘要完整工作流
   - [ ] AC-T054-7: push_optimize.txt 提示词覆盖推送优化工作流
+  - [ ] AC-T054-8: `run_flexible()` 支持 `max_tokens_budget` 参数，超预算时中止循环并返回已有结果（status=success, budget_exhausted=true）
 - **deliverables**:
   - [ ] `src/intellisource/agent/runner.py` -- run_flexible() 增强
   - [ ] `src/intellisource/agent/pipeline.py` -- PipelineConfig 新增 system_prompt

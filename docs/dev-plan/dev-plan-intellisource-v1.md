@@ -6,9 +6,9 @@
 
 [NAV]
 
-- §1 迭代规划 → Sprint 1..6 (总览表)
+- §1 迭代规划 → Sprint 1..8 (总览表)
 - §2 依赖图
-- §3 任务卡详细 → 见Sprint分卷 (dev-plan-intellisource-v1-s1 ~ s6)
+- §3 任务卡详细 → 见Sprint分卷 (dev-plan-intellisource-v1-s1 ~ s8)
 - §4 关键路径
 - §5 风险项
 [/NAV]
@@ -102,6 +102,35 @@
 | T-055 | 管道配置更新 | M-006 | S | T-050,T-054 | AC-T055 | todo |
 | T-056 | 集成测试与全量回归 | 全模块 | L | ALL | 全量pytest+mypy | todo |
 
+### Sprint 7: LLM 韧性增强与配置治理
+
+> 源自 OpenCode 对标架构评审（docs/research/architecture-review-opencode-benchmark.md）P1 改进项
+
+| 任务ID | 任务名 | 模块 | 复杂度 | 依赖 | TDD测试点 | 状态 |
+|--------|--------|------|--------|------|-----------|------|
+| T-057 | LLM调用指数退避重试 | M-005 | S | T-053 | AC-T057 | todo |
+| T-058 | 上下文压缩增强 | M-006,M-005 | M | T-051 | AC-T058 | todo |
+| T-059 | 配置分层合并机制 | M-001 | M | T-053 | AC-T059 | todo |
+| T-060 | LLM统计仪表盘API | M-011,M-010 | S | T-056 | AC-T060 | todo |
+| T-061 | LLM配置Pydantic验证 | M-001,M-005 | S | T-059 | AC-T061 | todo |
+| T-062 | 模型特化Prompt变体 | M-005 | S | T-051,T-053 | AC-T062 | todo |
+| T-063 | Sprint 7集成测试与回归 | 全模块 | M | T-057~T-062 | 全量pytest+mypy | todo |
+
+### Sprint 8: Agent 模式系统、工具治理与运行时增强
+
+> 源自 OpenCode 对标架构评审 P2 改进项
+
+| 任务ID | 任务名 | 模块 | 复杂度 | 依赖 | TDD测试点 | 状态 |
+|--------|--------|------|--------|------|-----------|------|
+| T-064 | Agent模式系统 | M-006 | M | T-054 | AC-T064 | todo |
+| T-065 | 工具权限分级 | M-006 | M | T-050 | AC-T065 | todo |
+| T-066 | 工具自动发现机制 | M-006 | S | T-050 | AC-T066 | todo |
+| T-067 | Pipeline执行事件日志 | M-006,M-010 | M | T-054 | AC-T067 | todo |
+| T-068 | 外部API熔断器实现 | M-005 | M | T-057 | AC-T068 | todo |
+| T-069 | Prompt版本自动计算 | M-005 | S | T-051,T-052 | AC-T069 | todo |
+| T-070 | Chat API SSE流式输出 | M-011,M-005 | M | T-057 | AC-T070 | todo |
+| T-071 | Sprint 8集成测试与回归 | 全模块 | M | T-064~T-070 | 全量pytest+mypy | todo |
+
 ## 2. 依赖图
 
 <!-- 依赖图由 dep-analysis 脚本生成，环检测通过（无循环依赖） -->
@@ -190,6 +219,38 @@ graph LR
     T-055 --> T-056
     style T-001,T-002,T-003,T-004,T-019,T-020,T-022,T-025,T-030,T-031,T-042,T-045 fill:#f96,stroke:#333,stroke-width:2px
     style T-048,T-054,T-056 fill:#69f,stroke:#333,stroke-width:2px
+    %% Sprint 7 dependencies
+    T-053 --> T-057
+    T-051 --> T-058
+    T-053 --> T-059
+    T-056 --> T-060
+    T-059 --> T-061
+    T-051 --> T-062
+    T-053 --> T-062
+    T-057 --> T-063
+    T-058 --> T-063
+    T-059 --> T-063
+    T-060 --> T-063
+    T-061 --> T-063
+    T-062 --> T-063
+    %% Sprint 8 dependencies
+    T-054 --> T-064
+    T-050 --> T-065
+    T-050 --> T-066
+    T-054 --> T-067
+    T-057 --> T-068
+    T-051 --> T-069
+    T-052 --> T-069
+    T-057 --> T-070
+    T-064 --> T-071
+    T-065 --> T-071
+    T-066 --> T-071
+    T-067 --> T-071
+    T-068 --> T-071
+    T-069 --> T-071
+    T-070 --> T-071
+    style T-057,T-058,T-059 fill:#9c6,stroke:#333,stroke-width:2px
+    style T-064,T-065,T-068 fill:#c96,stroke:#333,stroke-width:2px
 ```
 
 ## 3. 任务卡详细
@@ -202,6 +263,8 @@ graph LR
 > - Sprint 4: [dev-plan-intellisource-v1-s4](dev-plan-intellisource-v1-s4.md) (T-027 ~ T-036)
 > - Sprint 5: [dev-plan-intellisource-v1-s5](dev-plan-intellisource-v1-s5.md) (T-037 ~ T-046)
 > - Sprint 6: [dev-plan-intellisource-v1-s6](dev-plan-intellisource-v1-s6.md) (T-047 ~ T-056)
+> - Sprint 7: [dev-plan-intellisource-v1-s7](dev-plan-intellisource-v1-s7.md) (T-057 ~ T-063)
+> - Sprint 8: [dev-plan-intellisource-v1-s8](dev-plan-intellisource-v1-s8.md) (T-064 ~ T-071)
 
 ## 4. 关键路径
 
@@ -224,6 +287,16 @@ graph LR
 
 **Sprint 6 关键路径说明**: Sprint 6 为独立重构阶段，不依赖 Sprint 1-5 的关键路径。核心链路从原子工具提取(T-048)出发，经过 Agent 工具注册增强(T-050)，到 Agent 编排引擎(T-054)，最终经管道配置更新(T-055)汇入全量回归测试(T-056)。T-051(PromptBuilder) 与 T-052(LLM缓存) 可与 T-048/T-050 并行推进。
 
+**Sprint 7 关键路径**: T-053(S) → T-059(M) → T-061(S) → T-063(M) = 权重 6
+
+**Sprint 7 次关键路径**: T-051(M) → T-058(M) → T-063(M) = 权重 6
+
+**Sprint 7 关键路径说明**: Sprint 7 主要为 P1 韧性增强，依赖 Sprint 6 的 T-051/T-053。两条等权路径：配置治理链（ModelProfile → ConfigResolver → Schema 验证）和上下文压缩链（PromptBuilder → 压缩增强）。T-057(重试)/T-060(统计)/T-062(Prompt变体) 可与主链并行。
+
+**Sprint 8 关键路径**: T-054(L) → T-064(M) → T-071(M) = 权重 7
+
+**Sprint 8 关键路径说明**: Sprint 8 核心为 Agent 模式系统(T-064)，依赖 Sprint 6 的 T-054。熔断器(T-068)和流式输出(T-070)依赖 Sprint 7 的 T-057。工具权限(T-065)和自动发现(T-066)可并行推进。
+
 ## 5. 风险项
 
 | 风险 | 影响 | 缓解措施 |
@@ -234,3 +307,7 @@ graph LR
 | AgentRunner flexible 模式 LLM 行为不确定性 | 即时检索结果质量波动 | 通过管道配置约束工具集和 max_steps；编写全面的 Agent 行为测试用例；strict 模式作为降级方案 |
 | Celery 任务链异常处理复杂度高 | 任务编排稳定性风险 | T-027 中充分覆盖异常场景 TDD 用例；引入任务状态持久化确保故障恢复 |
 | 中文全文检索依赖 zhparser 扩展 | Docker 镜像构建和部署复杂度增加 | T-046 中使用包含 zhparser 的 PostgreSQL Docker 镜像；提供备选方案（jieba + 应用层分词） |
+| tenacity 重试与熔断器交互复杂度 | 重试耗尽 → 降级 → 熔断计数链路可能出现边界条件 | T-057/T-068 中充分覆盖边界条件 TDD 用例；分层测试（单独重试、单独熔断、组合场景） |
+| 配置分层合并可能引入优先级歧义 | 环境变量与 YAML 配置覆盖关系不直观 | T-059 中提供 `ConfigResolver.explain()` 调试方法，显示每个配置项的最终来源 |
+| 模型特化 Prompt 变体维护成本 | 每新增模型家族需维护额外 prompt 文件 | 仅为高频使用的模型家族（Claude/GPT）提供变体，其他 fallback 到 default |
+| SSE 流式输出在反向代理后可能出现缓冲问题 | 用户体验延迟增大 | 文档说明 Nginx/Caddy 反向代理的 SSE 配置（disable buffering） |
