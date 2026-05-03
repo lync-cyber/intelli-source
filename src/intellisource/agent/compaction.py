@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from intellisource.core.errors import LLMError
 from intellisource.llm.model_config import ModelProfile
 from intellisource.llm.prompt_builder import PromptBuilder
 
@@ -92,11 +93,6 @@ def _build_summary_prompt(messages: list[dict[str, Any]]) -> str:
         f"{m.get('role', 'unknown')}: {m.get('content', '')}" for m in messages
     )
     builder = PromptBuilder("compaction_summary")
-    builder.add_context("goal_section", "[Summarize from conversation]")
-    builder.add_context("context_section", "[Summarize from conversation]")
-    builder.add_context("changes_section", "[Summarize from conversation]")
-    builder.add_context("state_section", "[Summarize from conversation]")
-    builder.add_context("next_steps_section", "[Summarize from conversation]")
     builder.add_context("conversation_history", conversation_history)
     return builder.build()
 
@@ -167,16 +163,21 @@ async def compact_messages(
     if not messages:
         return []
 
-    if not needs_compaction(messages, gateway, profile, context_token_budget, model):
+    total = _total_tokens(messages, gateway, model)
+    threshold = min(int(profile.context_window * 0.8), context_token_budget)
+    if total <= threshold:
         return list(messages)
 
     # Step 1: prune old tool messages
     pruned = _prune_old_tool_messages(messages)
 
     # Step 2: attempt LLM summarization
+    # Build prompt outside try-block so infrastructure failures (e.g.
+    # FileNotFoundError from a missing template) propagate rather than
+    # silently falling back to truncation.
     target_tokens = int(profile.context_window * 0.6)
+    prompt = _build_summary_prompt(pruned)
     try:
-        prompt = _build_summary_prompt(pruned)
         llm_result = await gateway.complete(prompt)
         summary_text = str(llm_result.content)
 
@@ -198,6 +199,9 @@ async def compact_messages(
 
         return [summary_msg, *recent]
 
-    except Exception as exc:
+    except LLMError as exc:
+        logger.warning("LLM summarization failed, using truncation fallback: %s", exc)
+        return _truncation_fallback(messages, gateway, profile, model)
+    except RuntimeError as exc:
         logger.warning("LLM summarization failed, using truncation fallback: %s", exc)
         return _truncation_fallback(messages, gateway, profile, model)

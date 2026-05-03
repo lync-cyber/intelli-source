@@ -145,7 +145,7 @@ class TestStructuredSummaryTemplate:
         assert template_path.exists(), f"Template not found: {template_path}"
 
     def test_compaction_summary_txt_has_five_sections(self) -> None:
-        """Template must contain all 5 required section placeholders."""
+        """Template must have 5 section headings and {conversation_history}."""
         from pathlib import Path
 
         template_path = (
@@ -157,10 +157,13 @@ class TestStructuredSummaryTemplate:
             / "compaction_summary.txt"
         )
         content = template_path.read_text(encoding="utf-8")
-        for section in ("goal", "context", "changes", "state", "next_steps"):
+        for section in ("goal", "context", "changes", "state", "next steps"):
             assert section in content.lower(), (
                 f"Section '{section}' missing from compaction_summary.txt"
             )
+        assert "{conversation_history}" in content, (
+            "Placeholder '{conversation_history}' missing from compaction_summary.txt"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -171,36 +174,25 @@ class TestStructuredSummaryTemplate:
 class TestToolOutputPruning:
     """role=tool messages are pruned before user/assistant; last 3 are protected."""
 
-    @pytest.mark.asyncio
-    async def test_tool_messages_pruned_before_user_messages(self) -> None:
-        """Old tool messages should be removed before old user messages."""
-        gateway = _make_gateway()
-        # Build a list where tool messages appear early but user messages also exist
+    def test_tool_messages_pruned_before_user_messages(self) -> None:
+        """Old tool messages are removed; user/assistant messages are preserved."""
         messages: list[dict[str, str]] = [
-            {"role": "tool", "content": "tool result 0"},
-            {"role": "tool", "content": "tool result 1"},
+            {"role": "tool", "content": "old tool result 0"},
+            {"role": "tool", "content": "old tool result 1"},
             {"role": "user", "content": "user query"},
             {"role": "assistant", "content": "assistant response"},
-            {"role": "tool", "content": "tool result 2"},
-            {"role": "tool", "content": "tool result 3"},
-            {"role": "tool", "content": "tool result 4"},
+            {"role": "tool", "content": "recent tool A"},
+            {"role": "tool", "content": "recent tool B"},
+            {"role": "tool", "content": "recent tool C"},
         ]
-        # Trigger pruning with very tight budget
-        result = await compact_messages(
-            messages,
-            gateway,
-            profile=_SMALL_PROFILE,
-            context_token_budget=10,
-        )
-        # The returned messages should not contain pruned early tool results
-        # but user/assistant messages should be better preserved
-        result_roles = [m["role"] for m in result]
-        # user and assistant roles must survive longer than early tool messages
-        assert (
-            "user" in result_roles
-            or "assistant" in result_roles
-            or len(result) < len(messages)
-        )
+        pruned = _prune_tool_messages(messages)
+        contents = [m["content"] for m in pruned]
+        # Old tool messages are pruned
+        assert "old tool result 0" not in contents
+        assert "old tool result 1" not in contents
+        # user/assistant messages are preserved
+        assert "user query" in contents
+        assert "assistant response" in contents
 
     @pytest.mark.asyncio
     async def test_last_three_tool_messages_protected(self) -> None:
@@ -234,6 +226,31 @@ class TestToolOutputPruning:
         contents = [m["content"] for m in pruned]
         assert "old tool 0" not in contents
         assert "old tool 1" not in contents
+
+    def test_single_tool_message_not_pruned(self) -> None:
+        """When only 1 tool message exists, it must not be pruned."""
+        messages: list[dict[str, str]] = [
+            {"role": "user", "content": "hello"},
+            {"role": "tool", "content": "only tool result"},
+        ]
+        pruned = _prune_tool_messages(messages)
+        contents = [m["content"] for m in pruned]
+        assert "only tool result" in contents
+        assert len(pruned) == len(messages)
+
+    def test_exactly_three_tool_messages_all_protected(self) -> None:
+        """When exactly 3 tool messages exist, all 3 must be protected from pruning."""
+        messages: list[dict[str, str]] = [
+            {"role": "tool", "content": "tool alpha"},
+            {"role": "tool", "content": "tool beta"},
+            {"role": "tool", "content": "tool gamma"},
+        ]
+        pruned = _prune_tool_messages(messages)
+        contents = [m["content"] for m in pruned]
+        assert "tool alpha" in contents
+        assert "tool beta" in contents
+        assert "tool gamma" in contents
+        assert len(pruned) == len(messages)
 
 
 # ---------------------------------------------------------------------------
