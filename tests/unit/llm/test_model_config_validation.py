@@ -17,11 +17,8 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from intellisource.llm.model_config import (
-    LLMModelsConfig,
-    ModelTaskConfig,
-    load_model_config,
-)
+from intellisource.config.llm_schema import LLMModelsConfig, ModelTaskConfig
+from intellisource.llm.model_config import load_model_config
 
 # ---------------------------------------------------------------------------
 # Fixture data
@@ -222,3 +219,34 @@ class TestLoadModelConfigValidation:
 
         with pytest.raises(ValidationError):
             load_model_config(str(config_file))
+
+
+# ===========================================================================
+# R-004: ValidationError wrapped as LLMError in LLMGateway init path
+# ===========================================================================
+
+
+class TestGatewayValidationErrorWrapping:
+    """R-004: pydantic.ValidationError 在 LLMGateway 初始化路径被包装为 LLMError。"""
+
+    def test_gateway_init_with_invalid_schema_raises_llm_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """LLMGateway 初始化时 schema 无效，抛出 LLMError 而非裸 ValidationError。"""
+        from intellisource.core.errors import LLMError
+        from intellisource.llm.gateway import LLMGateway
+
+        invalid_config = {
+            "default_model": {
+                "model": "gpt-4o-mini",
+                # 缺少 provider — DefaultModelConfig 要求必填，触发 ValidationError
+            },
+            "models": {},
+        }
+        config_file = tmp_path / "bad_config.yaml"
+        config_file.write_text(yaml.dump(invalid_config))
+
+        monkeypatch.setenv("IS_LLM_CONFIG_PATH", str(config_file))
+
+        with pytest.raises(LLMError):
+            LLMGateway()

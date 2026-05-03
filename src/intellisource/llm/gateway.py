@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 
 import jsonschema
 import litellm
+from pydantic import ValidationError as PydanticValidationError
 from tenacity import (
     AsyncRetrying,
     retry_if_exception,
@@ -92,8 +93,18 @@ def _load_routing_config() -> dict[str, Any]:
             "LLM routing config not found at '%s', using empty config",
             config_path,
         )
-        return {"default_model": {"model": "gpt-4o-mini"}, "models": {}}
-    return load_model_config(config_path)
+        return {
+            "default_model": {"model": "gpt-4o-mini", "provider": "openai"},
+            "models": {},
+            "profiles": {},
+        }
+    try:
+        return load_model_config(config_path)
+    except PydanticValidationError as exc:
+        raise LLMError(
+            f"LLM config validation failed: {exc}",
+            category=ErrorCategory.UNRECOVERABLE,
+        ) from exc
 
 
 class SchemaValidationError(LLMError):

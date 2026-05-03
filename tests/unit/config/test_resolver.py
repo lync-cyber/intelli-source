@@ -450,3 +450,218 @@ class TestMissingDefaults:
         result = resolver.resolve()
 
         assert result.get("default_model", {}).get("model") == "env-only-model"
+
+
+# ===========================================================================
+# R-001 回归: IS_LLM_* 前缀支持 (AC-T059-3 原文路径)
+# ===========================================================================
+
+
+class TestEnvVarLLMPrefixSupport:
+    """R-001: IS_LLM_* 前缀与 IS_* 前缀均可映射到同一配置路径。"""
+
+    def test_is_llm_default_model_maps_to_default_model_model(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """IS_LLM_DEFAULT_MODEL=foo → config['default_model']['model'] == 'foo'。"""
+        defaults_path = tmp_path / "defaults.yaml"
+        write_yaml(defaults_path, DEFAULTS_CONFIG)
+        monkeypatch.setenv("IS_LLM_DEFAULT_MODEL", "foo")
+
+        resolver = ConfigResolver(
+            defaults_path=str(defaults_path),
+            project_path=str(tmp_path / "nonexistent.yaml"),
+        )
+        result = resolver.resolve()
+
+        assert result["default_model"]["model"] == "foo"
+
+    def test_is_default_model_model_maps_to_default_model_model(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """IS_DEFAULT_MODEL_MODEL=bar → default_model.model（既有路径）。"""
+        defaults_path = tmp_path / "defaults.yaml"
+        write_yaml(defaults_path, DEFAULTS_CONFIG)
+        monkeypatch.setenv("IS_DEFAULT_MODEL_MODEL", "bar")
+
+        resolver = ConfigResolver(
+            defaults_path=str(defaults_path),
+            project_path=str(tmp_path / "nonexistent.yaml"),
+        )
+        result = resolver.resolve()
+
+        assert result["default_model"]["model"] == "bar"
+
+    def test_is_llm_models_extract_model_maps_to_models_extract_model(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """IS_LLM_MODELS_EXTRACT_MODEL=baz → models.extract.model。"""
+        defaults_path = tmp_path / "defaults.yaml"
+        write_yaml(defaults_path, DEFAULTS_CONFIG)
+        monkeypatch.setenv("IS_LLM_MODELS_EXTRACT_MODEL", "baz")
+
+        resolver = ConfigResolver(
+            defaults_path=str(defaults_path),
+            project_path=str(tmp_path / "nonexistent.yaml"),
+        )
+        result = resolver.resolve()
+
+        assert result["models"]["extract"]["model"] == "baz"
+
+
+# ===========================================================================
+# R-002 回归: 非 dict leaf 覆盖防护（env var 白名单 + 安全拒绝）
+# ===========================================================================
+
+
+class TestEnvVarOverwriteProtection:
+    """R-002: 贪婪前缀匹配碰撞到非 dict leaf 时拒绝覆盖并记录 warning。"""
+
+    def test_env_var_collision_does_not_overwrite_non_dict_leaf(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """IS_DEFAULT_MODEL_PROVIDER_API_KEY 不修改 default_model.provider。"""
+        import logging
+
+        defaults_path = tmp_path / "defaults.yaml"
+        write_yaml(defaults_path, DEFAULTS_CONFIG)
+        monkeypatch.setenv("IS_DEFAULT_MODEL_PROVIDER_API_KEY", "sk-secret")
+
+        resolver = ConfigResolver(
+            defaults_path=str(defaults_path),
+            project_path=str(tmp_path / "nonexistent.yaml"),
+        )
+        with caplog.at_level(logging.WARNING, logger="intellisource.config.resolver"):
+            result = resolver.resolve()
+
+        # provider 字段不被覆盖
+        assert result["default_model"]["provider"] == "openai"
+        # 记录了 warning
+        assert any("skipped" in record.message.lower() for record in caplog.records)
+
+    def test_unknown_is_prefix_env_var_is_ignored(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """不以已知顶层 key 开头的 IS_* 变量被静默忽略，不写入 config。"""
+        defaults_path = tmp_path / "defaults.yaml"
+        write_yaml(defaults_path, DEFAULTS_CONFIG)
+        monkeypatch.setenv("IS_UNKNOWN_SECTION_VALUE", "should_not_appear")
+
+        resolver = ConfigResolver(
+            defaults_path=str(defaults_path),
+            project_path=str(tmp_path / "nonexistent.yaml"),
+        )
+        result = resolver.resolve()
+
+        assert "unknown_section" not in result
+
+
+# ===========================================================================
+# R-003 回归: 畸形 YAML 抛出 ValueError
+# ===========================================================================
+
+
+class TestMalformedYamlError:
+    """R-003: 畸形 YAML 文件使 resolve() 抛出 ValueError。"""
+
+    def test_malformed_defaults_yaml_raises_value_error(self, tmp_path: Path) -> None:
+        """defaults.yaml 内容格式错误时 resolve() 抛出 ValueError。"""
+        defaults_path = tmp_path / "defaults.yaml"
+        defaults_path.write_text("key: [unclosed")
+
+        resolver = ConfigResolver(
+            defaults_path=str(defaults_path),
+            project_path=str(tmp_path / "nonexistent.yaml"),
+        )
+        with pytest.raises(ValueError, match="Malformed YAML"):
+            resolver.resolve()
+
+    def test_malformed_project_yaml_raises_value_error(self, tmp_path: Path) -> None:
+        """project config YAML 内容格式错误时 resolve() 抛出 ValueError。"""
+        defaults_path = tmp_path / "defaults.yaml"
+        project_path = tmp_path / "project.yaml"
+        write_yaml(defaults_path, DEFAULTS_CONFIG)
+        project_path.write_text("models: {bad: [unclosed")
+
+        resolver = ConfigResolver(
+            defaults_path=str(defaults_path),
+            project_path=str(project_path),
+        )
+        with pytest.raises(ValueError, match="Malformed YAML"):
+            resolver.resolve()
+
+
+# ===========================================================================
+# R-005 回归: ConfigResolver validator 参数
+# ===========================================================================
+
+
+class TestResolverValidatorParameter:
+    """R-005: ConfigResolver.validator 参数允许调用方注入 Pydantic 验证。"""
+
+    def test_validator_none_returns_dict_unchanged(self, tmp_path: Path) -> None:
+        """validator=None 时 resolve() 正常返回合并 dict。"""
+        defaults_path = tmp_path / "defaults.yaml"
+        write_yaml(defaults_path, DEFAULTS_CONFIG)
+
+        resolver = ConfigResolver(
+            defaults_path=str(defaults_path),
+            project_path=str(tmp_path / "nonexistent.yaml"),
+            validator=None,
+        )
+        result = resolver.resolve()
+
+        assert isinstance(result, dict)
+
+    def test_validator_called_with_merged_dict(self, tmp_path: Path) -> None:
+        """提供 validator 时，resolve() 在返回前调用 validator(merged_dict)。"""
+        defaults_path = tmp_path / "defaults.yaml"
+        write_yaml(defaults_path, DEFAULTS_CONFIG)
+
+        captured: list[Any] = []
+        resolver = ConfigResolver(
+            defaults_path=str(defaults_path),
+            project_path=str(tmp_path / "nonexistent.yaml"),
+            validator=lambda d: captured.append(d),
+        )
+        result = resolver.resolve()
+
+        assert len(captured) == 1
+        assert captured[0] == result
+
+    def test_validator_exception_propagates(self, tmp_path: Path) -> None:
+        """validator 抛出的异常从 resolve() 透传给调用方。"""
+        defaults_path = tmp_path / "defaults.yaml"
+        write_yaml(defaults_path, DEFAULTS_CONFIG)
+
+        def failing_validator(d: Any) -> None:
+            raise ValueError("schema invalid")
+
+        resolver = ConfigResolver(
+            defaults_path=str(defaults_path),
+            project_path=str(tmp_path / "nonexistent.yaml"),
+            validator=failing_validator,
+        )
+        with pytest.raises(ValueError, match="schema invalid"):
+            resolver.resolve()
+
+    def test_validator_with_pydantic_llm_schema(self, tmp_path: Path) -> None:
+        """validator 注入 LLMModelsConfig 的集成场景（T-061 AC-T059-6）。"""
+        from intellisource.config.llm_schema import LLMModelsConfig
+
+        defaults_path = tmp_path / "defaults.yaml"
+        project_path = tmp_path / "project.yaml"
+        write_yaml(defaults_path, DEFAULTS_CONFIG)
+        write_yaml(project_path, PROJECT_CONFIG)
+
+        resolver = ConfigResolver(
+            defaults_path=str(defaults_path),
+            project_path=str(project_path),
+            validator=lambda d: LLMModelsConfig.model_validate(d),
+        )
+        result = resolver.resolve()
+
+        assert result["default_model"]["model"] == "claude-3-haiku-20240307"
