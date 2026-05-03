@@ -51,3 +51,5 @@
 {"ts": "2026-05-03T11:40:50+00:00", "event": "correction", "phase": "development", "detail": "T-058 N-001 主线直改闭环：except RuntimeError → except Exception；删除 LLMError 未用 import；新增 test_fallback_triggered_by_litellm_style_exception 回归测试", "agent": "orchestrator"}
 {"ts": "2026-05-03T11:40:50+00:00", "event": "state_change", "phase": "development", "detail": "T-058 status: draft → done; CLAUDE.md sync; Sprint 7 进度 2/7 (T-057, T-058 done)"}
 {"ts": "2026-05-03T11:44:06+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD LIGHT-DISPATCH: T-059 (含 T-061 minimal schema prerequisite)"}
+{"ts": "2026-05-03T11:55:44+00:00", "event": "state_change", "phase": "development", "detail": "skill-run: code-review Layer 1 passed", "agent": "reviewer", "status": "completed", "ref": "skill:code-review/code_lint"}
+{"ts": "2026-05-03T12:01:47+00:00", "event": "review_verdict", "phase": "development", "detail": "CODE-REVIEW-T-059-T-061-r1: needs_revision (4 HIGH + 3 MEDIUM + 2 LOW; T-058-style except errors recurring)", "agent": "reviewer", "status": "needs_revision"}
