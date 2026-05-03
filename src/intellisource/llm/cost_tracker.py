@@ -37,6 +37,7 @@ class LLMCallRecord:
     input_length: int
     output_length: int
     status: str
+    retry_attempt: int | None = None
 
 
 class CostTracker:
@@ -57,6 +58,7 @@ class CostTracker:
             input_length=record.input_length,
             output_length=record.output_length,
             status=record.status,
+            retry_attempt=record.retry_attempt,
         )
         self._session.add(orm_obj)
         await self._session.commit()

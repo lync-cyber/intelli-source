@@ -18,24 +18,26 @@ volume: s7
 
 ## 3. 任务卡详细
 
-### T-057: LLM 调用指数退避重试
+### T-057: LLM 调用指数退避重试 ✅ done
 
 - **目标**: 为 `LLMGateway.complete()` 增加 tenacity 指数退避重试，仅对 `RECOVERABLE_TRANSIENT` 错误重试，耗尽后降级到 FallbackManager
 - **模块**: M-005
 - **接口**: internal
 - **复杂度**: S
 - **依赖**: T-053（ModelProfile.timeout_seconds）
+- **status**: done（2026-05-03，code-review-T-057-r2 approved）
 - **tdd_acceptance**:
-  - [ ] AC-T057-1: RECOVERABLE_TRANSIENT 错误自动重试最多 3 次
-  - [ ] AC-T057-2: 退避策略为 exponential(min=1s, max=30s)
-  - [ ] AC-T057-3: UNRECOVERABLE/RECOVERABLE_DEGRADED 错误不重试，直接降级
-  - [ ] AC-T057-4: 重试耗尽后调用 FallbackManager.execute_fallback()
-  - [ ] AC-T057-5: 每次重试记录到 LLMCallLog（status=retry, retry_attempt=N）
-  - [ ] AC-T057-6: `litellm.acompletion()` 调用使用 `ModelProfile.timeout_seconds` 作为 timeout 参数
-  - [ ] AC-T057-7: mypy --strict 零错误
+  - [x] AC-T057-1: RECOVERABLE_TRANSIENT 错误自动重试最多 3 次
+  - [x] AC-T057-2: 退避策略为 exponential(min=1s, max=30s)
+  - [x] AC-T057-3: UNRECOVERABLE/RECOVERABLE_DEGRADED 错误不重试，直接降级
+  - [x] AC-T057-4: 重试耗尽后调用 FallbackManager.execute_fallback()
+  - [x] AC-T057-5: 每次重试记录到 LLMCallLog（status=retry, retry_attempt=N，call_type 透传业务 task_type）
+  - [x] AC-T057-6: `litellm.acompletion()` 调用使用 `ModelProfile.timeout_seconds` 作为 timeout 参数
+  - [x] AC-T057-7: mypy --strict 零错误
 - **deliverables**:
-  - [ ] `src/intellisource/llm/gateway.py` — retry 逻辑（tenacity 装饰器）
-  - [ ] `tests/unit/llm/test_gateway_retry.py` — retry 行为测试（≥8 tests）
+  - [x] `src/intellisource/llm/gateway.py` — retry 逻辑（tenacity AsyncRetrying + _classify_error / _call_with_retry / _try_fallback / _log_retry）
+  - [x] `tests/unit/llm/test_gateway_retry.py` — retry 行为测试（16 tests）
+  - [x] 配套：`pyproject.toml`(+tenacity)、`cost_tracker.py`(LLMCallRecord.retry_attempt)、`storage/models.py`+`alembic/versions/001_initial_schema.py`(LLMCallLog.retry_attempt 列)
 - **context_load**:
   - src/intellisource/llm/gateway.py (LLMGateway.complete)
   - src/intellisource/llm/fallback.py (FallbackManager)

@@ -12,16 +12,18 @@ import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from intellisource.llm.cache import LLMCache
     from intellisource.llm.cost_tracker import CostTracker
+    from intellisource.llm.fallback import FallbackManager
 
 import jsonschema
 import litellm
+from tenacity import AsyncRetrying, RetryCallState, retry_if_exception, stop_after_attempt, wait_exponential
 
-from intellisource.core.errors import ErrorCategory, LLMError
+from intellisource.core.errors import ErrorCategory, IntelliSourceError, LLMError
 from intellisource.llm.cost_tracker import LLMCallRecord
 from intellisource.llm.model_config import ModelRoutingConfig, load_model_config
 from intellisource.llm.prompt_builder import PromptBuilder
@@ -31,6 +33,46 @@ logger = logging.getLogger(__name__)
 _DEFAULT_CONFIG_PATH = str(
     Path(__file__).resolve().parents[3] / "config" / "llm_models.yaml"
 )
+
+_TRANSIENT_EXCEPTION_NAMES = frozenset(
+    [
+        "Timeout",
+        "APIConnectionError",
+        "RateLimitError",
+        "ServiceUnavailableError",
+        "InternalServerError",
+    ]
+)
+
+_UNRECOVERABLE_EXCEPTION_NAMES = frozenset(
+    [
+        "BadRequestError",
+        "AuthenticationError",
+        "PermissionDeniedError",
+        "NotFoundError",
+        "UnsupportedParamsError",
+        "ContextWindowExceededError",
+        "ContentPolicyViolationError",
+    ]
+)
+
+
+def _classify_error(exc: BaseException) -> ErrorCategory:
+    """Map an exception to an ErrorCategory for retry decisions.
+
+    IntelliSourceError subclasses are classified by their own .category.
+    litellm exceptions are classified by class name. Unknown exceptions
+    default to RECOVERABLE_DEGRADED.
+    """
+    if isinstance(exc, IntelliSourceError):
+        return exc.category
+
+    exc_type_name = type(exc).__name__
+    if exc_type_name in _TRANSIENT_EXCEPTION_NAMES:
+        return ErrorCategory.RECOVERABLE_TRANSIENT
+    if exc_type_name in _UNRECOVERABLE_EXCEPTION_NAMES:
+        return ErrorCategory.UNRECOVERABLE
+    return ErrorCategory.RECOVERABLE_DEGRADED
 
 
 def _load_routing_config() -> dict[str, Any]:
@@ -117,6 +159,8 @@ class LLMGateway:
         self,
         cache: LLMCache | None = None,
         cost_tracker: CostTracker | None = None,
+        fallback_manager: FallbackManager | None = None,
+        _retry_wait: Any = None,
     ) -> None:
         self._default_temperature: float = 0.7
         self._default_max_tokens: int = 4096
@@ -124,6 +168,12 @@ class LLMGateway:
         self._model_routing = ModelRoutingConfig(self._routing_config)
         self._cache: LLMCache | None = cache
         self._cost_tracker: CostTracker | None = cost_tracker
+        self._fallback_manager: FallbackManager | None = fallback_manager
+        self._retry_wait: Any = (
+            _retry_wait
+            if _retry_wait is not None
+            else wait_exponential(multiplier=1, min=1, max=30)
+        )
 
     async def complete(
         self,
@@ -242,7 +292,14 @@ class LLMGateway:
             call_kwargs["timeout"] = profile.timeout_seconds
 
         start_time = time.monotonic()
-        response = await litellm.acompletion(**call_kwargs)
+        try:
+            response = await self._call_with_retry(
+                call_kwargs=call_kwargs,
+                prompt=prompt,
+                task_type=task_type,
+            )
+        except BaseException as exc:
+            return cast(LLMResult, await self._try_fallback(exc, task_type, prompt))
         elapsed_ms = (time.monotonic() - start_time) * 1000
 
         content: str = response.choices[0].message.content
@@ -265,6 +322,84 @@ class LLMGateway:
             )
 
         return result
+
+    async def _call_with_retry(
+        self,
+        call_kwargs: dict[str, Any],
+        prompt: str,
+        task_type: str | None = None,
+    ) -> Any:
+        """Invoke litellm.acompletion with exponential backoff retry.
+
+        Retries only RECOVERABLE_TRANSIENT errors, up to 3 times (4 total calls).
+        Logs each retry attempt via cost_tracker when available.
+        Raises on exhaustion; caller handles fallback.
+        """
+        async for attempt in AsyncRetrying(
+            stop=stop_after_attempt(4),
+            wait=self._retry_wait,
+            retry=retry_if_exception(
+                lambda e: _classify_error(e) is ErrorCategory.RECOVERABLE_TRANSIENT
+            ),
+            reraise=True,
+        ):
+            with attempt:
+                attempt_num = attempt.retry_state.attempt_number
+                if attempt_num > 1:
+                    await self._log_retry(
+                        model=str(call_kwargs.get("model", "unknown")),
+                        retry_attempt=attempt_num - 1,
+                        call_type=task_type or "unknown",
+                    )
+                return await litellm.acompletion(**call_kwargs)
+        return None  # unreachable; satisfies mypy
+
+    async def _try_fallback(
+        self,
+        exc: BaseException,
+        task_type: str | None,
+        prompt: str,
+    ) -> Any:
+        """Attempt fallback execution; re-raise original exc when not possible.
+
+        Behavior contract:
+        - fallback_manager is None → re-raise original exc
+        - task_type not registered (KeyError from execute_fallback) → re-raise original exc
+        - fallback function itself raises → that exception propagates (the original
+          transient exc is intentionally lost; the more recent fallback failure is
+          more diagnostic for operators).
+        """
+        if self._fallback_manager is not None and task_type is not None:
+            try:
+                return await self._fallback_manager.execute_fallback(
+                    task_type=task_type,
+                    input_data=prompt,
+                )
+            except KeyError:
+                raise exc
+        raise exc
+
+    async def _log_retry(self, model: str, retry_attempt: int, call_type: str) -> None:
+        """Write a retry record to LLMCallLog when cost_tracker is available."""
+        if self._cost_tracker is None:
+            logger.warning("LLM call retry attempt %d for model '%s'", retry_attempt, model)
+            return
+        record = LLMCallRecord(
+            model=model,
+            provider=model.split("/")[0] if "/" in model else "unknown",
+            call_type=call_type,
+            input_tokens=0,
+            output_tokens=0,
+            latency_ms=0,
+            input_length=0,
+            output_length=0,
+            status="retry",
+            retry_attempt=retry_attempt,
+        )
+        try:
+            await self._cost_tracker.log_call(record)
+        except Exception as log_exc:
+            logger.warning("Failed to log retry to LLMCallLog: %s", log_exc)
 
     async def _log_cache_hit(
         self,

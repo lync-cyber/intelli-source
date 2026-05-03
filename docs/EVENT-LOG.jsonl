@@ -20,3 +20,6 @@
 {"ts": "2026-05-03T04:57:48.724083+00:00", "event": "session_start", "phase": "development", "detail": "会话启动 — 检测到 Sprint 6 已 approved 但 CLAUDE.md/NAV-INDEX 滞后"}
 {"ts": "2026-05-03T04:58:22.147652+00:00", "event": "review_verdict", "phase": "development", "detail": "SPRINT-REVIEW-s6-r2 approved (Sprint 6 完结)", "agent": "reviewer", "status": "approved"}
 {"ts": "2026-05-03T04:58:22.178081+00:00", "event": "state_change", "phase": "development", "detail": "CLAUDE.md 同步: Sprint 6 → Sprint 7，s6 dev-plan draft → approved"}
+{"ts": "2026-05-03T10:16:27+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD LIGHT-DISPATCH: T-057"}
+{"ts": "2026-05-03T10:35:42+00:00", "event": "review_verdict", "phase": "development", "detail": "T-057 code-review-r2 approved (R-001~R-004 closed)"}
+{"ts": "2026-05-03T10:35:42+00:00", "event": "state_change", "phase": "development", "detail": "T-057 status: draft → done"}
