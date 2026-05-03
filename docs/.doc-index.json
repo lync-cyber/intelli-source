@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-05-03T05:09:41.501389+00:00",
+  "generated_at": "2026-05-03T10:44:43.577399+00:00",
   "documents": {
     "arch-intellisource-v1-api": {
       "file_path": "docs/arch/arch-intellisource-v1-api.md",
@@ -1072,78 +1072,6 @@
         "arch-intellisource-v1"
       ]
     },
-    "dev-plan-intellisource-v1-s7": {
-      "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7.md",
-      "doc_type": "dev-plan",
-      "volume": "s7",
-      "status": "draft",
-      "total_lines": 192,
-      "est_tokens": 2595,
-      "sections": {
-        "3": {
-          "heading": "## 3. 任务卡详细",
-          "level": 2,
-          "line_start": 19,
-          "line_end": 192,
-          "est_tokens": 2411,
-          "deps": [],
-          "items": {
-            "T-057": {
-              "heading": "### T-057: LLM 调用指数退避重试",
-              "line_start": 21,
-              "line_end": 45,
-              "est_tokens": 345,
-              "deps": []
-            },
-            "T-058": {
-              "heading": "### T-058: 上下文压缩增强",
-              "line_start": 46,
-              "line_end": 71,
-              "est_tokens": 377,
-              "deps": []
-            },
-            "T-059": {
-              "heading": "### T-059: 配置分层合并机制",
-              "line_start": 72,
-              "line_end": 98,
-              "est_tokens": 379,
-              "deps": []
-            },
-            "T-060": {
-              "heading": "### T-060: LLM 统计仪表盘 API",
-              "line_start": 99,
-              "line_end": 123,
-              "est_tokens": 320,
-              "deps": []
-            },
-            "T-061": {
-              "heading": "### T-061: LLM 配置 Pydantic Schema 验证",
-              "line_start": 124,
-              "line_end": 146,
-              "est_tokens": 318,
-              "deps": []
-            },
-            "T-062": {
-              "heading": "### T-062: 模型特化 Prompt 变体",
-              "line_start": 147,
-              "line_end": 173,
-              "est_tokens": 436,
-              "deps": []
-            },
-            "T-063": {
-              "heading": "### T-063: Sprint 7 集成测试与回归",
-              "line_start": 174,
-              "line_end": 192,
-              "est_tokens": 229,
-              "deps": []
-            }
-          }
-        }
-      },
-      "deps": [
-        "arch-intellisource-v1"
-      ]
-    },
     "dev-plan-intellisource-v1-s8": {
       "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8.md",
       "doc_type": "dev-plan",
@@ -2084,6 +2012,79 @@
       "total_lines": 146,
       "est_tokens": 2028,
       "sections": {}
+    },
+    "dev-plan-intellisource-v1-s7": {
+      "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7.md",
+      "doc_type": "dev-plan",
+      "volume": "s7",
+      "status": "draft",
+      "total_lines": 208,
+      "est_tokens": 2791,
+      "sections": {
+        "3": {
+          "heading": "## 3. 任务卡详细",
+          "level": 2,
+          "line_start": 33,
+          "line_end": 208,
+          "est_tokens": 2526,
+          "deps": [],
+          "items": {
+            "T-057": {
+              "heading": "### T-057: LLM 调用指数退避重试 ✅ done",
+              "line_start": 35,
+              "line_end": 61,
+              "est_tokens": 460,
+              "deps": []
+            },
+            "T-058": {
+              "heading": "### T-058: 上下文压缩增强",
+              "line_start": 62,
+              "line_end": 87,
+              "est_tokens": 377,
+              "deps": []
+            },
+            "T-059": {
+              "heading": "### T-059: 配置分层合并机制",
+              "line_start": 88,
+              "line_end": 114,
+              "est_tokens": 379,
+              "deps": []
+            },
+            "T-060": {
+              "heading": "### T-060: LLM 统计仪表盘 API",
+              "line_start": 115,
+              "line_end": 139,
+              "est_tokens": 320,
+              "deps": []
+            },
+            "T-061": {
+              "heading": "### T-061: LLM 配置 Pydantic Schema 验证",
+              "line_start": 140,
+              "line_end": 162,
+              "est_tokens": 318,
+              "deps": []
+            },
+            "T-062": {
+              "heading": "### T-062: 模型特化 Prompt 变体",
+              "line_start": 163,
+              "line_end": 189,
+              "est_tokens": 436,
+              "deps": []
+            },
+            "T-063": {
+              "heading": "### T-063: Sprint 7 集成测试与回归",
+              "line_start": 190,
+              "line_end": 208,
+              "est_tokens": 229,
+              "deps": []
+            }
+          }
+        }
+      },
+      "split_from": "dev-plan-intellisource-v1",
+      "deps": [
+        "arch-intellisource-v1"
+      ]
     }
   },
   "xref": {
@@ -2794,85 +2795,6 @@
         "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s6.md"
       }
     ],
-    "T-057": [
-      {
-        "doc_id": "dev-plan-intellisource-v1-s7",
-        "section": "3",
-        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7.md"
-      },
-      {
-        "doc_id": "architecture-review-opencode-benchmark",
-        "section": "4",
-        "file_path": "docs/research/architecture-review-opencode-benchmark.md"
-      }
-    ],
-    "T-058": [
-      {
-        "doc_id": "dev-plan-intellisource-v1-s7",
-        "section": "3",
-        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7.md"
-      },
-      {
-        "doc_id": "architecture-review-opencode-benchmark",
-        "section": "4",
-        "file_path": "docs/research/architecture-review-opencode-benchmark.md"
-      }
-    ],
-    "T-059": [
-      {
-        "doc_id": "dev-plan-intellisource-v1-s7",
-        "section": "3",
-        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7.md"
-      },
-      {
-        "doc_id": "architecture-review-opencode-benchmark",
-        "section": "4",
-        "file_path": "docs/research/architecture-review-opencode-benchmark.md"
-      }
-    ],
-    "T-060": [
-      {
-        "doc_id": "dev-plan-intellisource-v1-s7",
-        "section": "3",
-        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7.md"
-      },
-      {
-        "doc_id": "architecture-review-opencode-benchmark",
-        "section": "4",
-        "file_path": "docs/research/architecture-review-opencode-benchmark.md"
-      }
-    ],
-    "T-061": [
-      {
-        "doc_id": "dev-plan-intellisource-v1-s7",
-        "section": "3",
-        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7.md"
-      },
-      {
-        "doc_id": "architecture-review-opencode-benchmark",
-        "section": "4",
-        "file_path": "docs/research/architecture-review-opencode-benchmark.md"
-      }
-    ],
-    "T-062": [
-      {
-        "doc_id": "dev-plan-intellisource-v1-s7",
-        "section": "3",
-        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7.md"
-      },
-      {
-        "doc_id": "architecture-review-opencode-benchmark",
-        "section": "4",
-        "file_path": "docs/research/architecture-review-opencode-benchmark.md"
-      }
-    ],
-    "T-063": [
-      {
-        "doc_id": "dev-plan-intellisource-v1-s7",
-        "section": "3",
-        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7.md"
-      }
-    ],
     "T-064": [
       {
         "doc_id": "dev-plan-intellisource-v1-s8",
@@ -3025,6 +2947,85 @@
         "doc_id": "prd-intellisource-v1",
         "section": "2",
         "file_path": "docs/prd/prd-intellisource-v1.md"
+      }
+    ],
+    "T-057": [
+      {
+        "doc_id": "architecture-review-opencode-benchmark",
+        "section": "4",
+        "file_path": "docs/research/architecture-review-opencode-benchmark.md"
+      },
+      {
+        "doc_id": "dev-plan-intellisource-v1-s7",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7.md"
+      }
+    ],
+    "T-058": [
+      {
+        "doc_id": "architecture-review-opencode-benchmark",
+        "section": "4",
+        "file_path": "docs/research/architecture-review-opencode-benchmark.md"
+      },
+      {
+        "doc_id": "dev-plan-intellisource-v1-s7",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7.md"
+      }
+    ],
+    "T-059": [
+      {
+        "doc_id": "architecture-review-opencode-benchmark",
+        "section": "4",
+        "file_path": "docs/research/architecture-review-opencode-benchmark.md"
+      },
+      {
+        "doc_id": "dev-plan-intellisource-v1-s7",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7.md"
+      }
+    ],
+    "T-060": [
+      {
+        "doc_id": "architecture-review-opencode-benchmark",
+        "section": "4",
+        "file_path": "docs/research/architecture-review-opencode-benchmark.md"
+      },
+      {
+        "doc_id": "dev-plan-intellisource-v1-s7",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7.md"
+      }
+    ],
+    "T-061": [
+      {
+        "doc_id": "architecture-review-opencode-benchmark",
+        "section": "4",
+        "file_path": "docs/research/architecture-review-opencode-benchmark.md"
+      },
+      {
+        "doc_id": "dev-plan-intellisource-v1-s7",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7.md"
+      }
+    ],
+    "T-062": [
+      {
+        "doc_id": "architecture-review-opencode-benchmark",
+        "section": "4",
+        "file_path": "docs/research/architecture-review-opencode-benchmark.md"
+      },
+      {
+        "doc_id": "dev-plan-intellisource-v1-s7",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7.md"
+      }
+    ],
+    "T-063": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s7",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7.md"
       }
     ]
   },

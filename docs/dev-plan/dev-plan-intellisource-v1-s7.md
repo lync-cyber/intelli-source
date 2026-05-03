@@ -6,6 +6,7 @@ status: draft
 deps: [arch-intellisource-v1]
 consumers: [developer, qa-engineer]
 volume: s7
+split_from: dev-plan-intellisource-v1
 ---
 # Development Plan: IntelliSource — Sprint 7
 <!-- id: dev-plan-intellisource-v1-s7 | author: tech-lead | status: draft -->
@@ -15,6 +16,19 @@ volume: s7
 > **Sprint 主题**: LLM 韧性增强与配置治理（P1 改进项，源自 OpenCode 对标架构评审）
 > **前置依赖**: Sprint 6 全部完成（T-047~T-056）
 > **参考**: docs/research/architecture-review-opencode-benchmark.md
+
+[NAV]
+
+- §3 任务卡详细
+  - T-057 LLM 调用指数退避重试 ✅ done
+  - T-058 上下文压缩增强
+  - T-059 配置分层合并机制
+  - T-060 LLM 统计仪表盘 API
+  - T-061 LLM 配置 Pydantic Schema 验证
+  - T-062 模型特化 Prompt 变体
+  - T-063 Sprint 7 集成测试与回归
+
+[/NAV]
 
 ## 3. 任务卡详细
 

@@ -23,3 +23,11 @@
 {"ts": "2026-05-03T10:16:27+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD LIGHT-DISPATCH: T-057"}
 {"ts": "2026-05-03T10:35:42+00:00", "event": "review_verdict", "phase": "development", "detail": "T-057 code-review-r2 approved (R-001~R-004 closed)"}
 {"ts": "2026-05-03T10:35:42+00:00", "event": "state_change", "phase": "development", "detail": "T-057 status: draft → done"}
+{"ts": "2026-05-03T10:41:15+00:00", "event": "state_change", "phase": "development", "detail": "skill-run: doc-review Layer 1 exit=2 (unreachable or runtime error)", "agent": "reviewer", "status": "blocked", "ref": "skill:doc-review/doc_check"}
+{"ts": "2026-05-03T10:41:18+00:00", "event": "state_change", "phase": "development", "detail": "skill-run: doc-review Layer 1 reported issues", "agent": "reviewer", "status": "needs_revision", "ref": "skill:doc-review/doc_check"}
+{"ts": "2026-05-03T10:41:33+00:00", "event": "state_change", "phase": "development", "detail": "skill-run: doc-review Layer 1 reported issues", "agent": "reviewer", "status": "needs_revision", "ref": "skill:doc-review/doc_check"}
+{"ts": "2026-05-03T10:42:48+00:00", "event": "state_change", "phase": "development", "detail": "skill-run: doc-review Layer 1 reported issues", "agent": "reviewer", "status": "needs_revision", "ref": "skill:doc-review/doc_check"}
+{"ts": "2026-05-03T10:44:49+00:00", "event": "doc_finalize", "phase": "development", "detail": "文档finalize: dev-plan-intellisource-v1-s7 (revision r2 修订: 补充 split_from 字段 + 插入 [NAV] 块)", "ref": "dev-plan-intellisource-v1-s7"}
+{"ts": "2026-05-03T10:45:01+00:00", "event": "state_change", "phase": "development", "detail": "skill-run: doc-review Layer 1 passed", "agent": "reviewer", "status": "completed", "ref": "skill:doc-review/doc_check"}
+{"ts": "2026-05-03T10:47:38+00:00", "event": "state_change", "phase": "development", "detail": "dev-plan-s7 revised: NAV block + split_from added (R-001/R-002 closed)"}
+{"ts": "2026-05-03T10:47:43+00:00", "event": "review_verdict", "phase": "development", "detail": "REVIEW-dev-plan-intellisource-v1-s7-r1: needs_revision (HIGH×2: NAV/split_from)", "agent": "reviewer", "status": "needs_revision"}
