@@ -144,7 +144,9 @@ volume: main
 | T-075 | Agent工具层接驳真实模块 | M-006 | L | T-064,T-072 | AC-T075 | todo |
 | T-076 | 健康检查与指标端点完善 | M-010,M-011 | M | T-007,T-072 | AC-T076 | todo |
 | T-077 | 信源重载与代码质量清理 | M-001,M-006,M-011 | S | T-072 | AC-T077 | todo |
-| T-071 | Sprint 8集成测试与回归 | 全模块 | M | T-064~T-070,T-075~T-077 | 全量pytest+mypy | todo |
+| T-078 | 应用组合根 (Celery app + Agent 工厂 + Lifespan) | M-006,M-011 | M | T-072,T-074,T-075 | AC-T078 | todo |
+| T-079 | 上下文压缩策略统一 | M-005,M-006,M-008 | S | T-058 | AC-T079 | todo |
+| T-071 | Sprint 8集成测试与回归 | 全模块 | M | T-064~T-070,T-075~T-079 | 全量pytest+mypy | todo |
 
 ## 2. 依赖图
 
@@ -270,6 +272,10 @@ graph LR
     T-007 --> T-076
     T-072 --> T-076
     T-072 --> T-077
+    T-072 --> T-078
+    T-074 --> T-078
+    T-075 --> T-078
+    T-058 --> T-079
     T-064 --> T-071
     T-065 --> T-071
     T-066 --> T-071
@@ -280,8 +286,11 @@ graph LR
     T-075 --> T-071
     T-076 --> T-071
     T-077 --> T-071
+    T-078 --> T-071
+    T-079 --> T-071
     style T-057,T-058,T-059 fill:#9c6,stroke:#333,stroke-width:2px
     style T-064,T-065,T-068 fill:#c96,stroke:#333,stroke-width:2px
+    style T-078 fill:#f66,stroke:#333,stroke-width:2px
 ```
 
 ## 3. 任务卡详细
@@ -295,7 +304,7 @@ graph LR
 > - Sprint 5: [dev-plan-intellisource-v1-s5](dev-plan-intellisource-v1-s5.md) (T-037 ~ T-046)
 > - Sprint 6: [dev-plan-intellisource-v1-s6](dev-plan-intellisource-v1-s6.md) (T-047 ~ T-056)
 > - Sprint 7: [dev-plan-intellisource-v1-s7](dev-plan-intellisource-v1-s7.md) (T-057 ~ T-063)
-> - Sprint 8: [dev-plan-intellisource-v1-s8](dev-plan-intellisource-v1-s8.md) (T-064 ~ T-071)
+> - Sprint 8: [dev-plan-intellisource-v1-s8](dev-plan-intellisource-v1-s8.md) (T-064 ~ T-071, T-075 ~ T-079)
 
 ## 4. 关键路径
 
@@ -324,9 +333,9 @@ graph LR
 
 **Sprint 7 关键路径说明**: Sprint 7 主要为 P1 韧性增强，依赖 Sprint 6 的 T-051/T-053。两条等权路径：配置治理链（ModelProfile → ConfigResolver → Schema 验证）和上下文压缩链（PromptBuilder → 压缩增强）。T-057(重试)/T-060(统计)/T-062(Prompt变体) 可与主链并行。
 
-**Sprint 8 关键路径**: T-054(L) → T-064(M) → T-071(M) = 权重 7
+**Sprint 8 关键路径**: T-072(M) → T-075(L) → T-078(M) → T-071(M) = 权重 9
 
-**Sprint 8 关键路径说明**: Sprint 8 核心为 Agent 模式系统(T-064)，依赖 Sprint 6 的 T-054。熔断器(T-068)和流式输出(T-070)依赖 Sprint 7 的 T-057。工具权限(T-065)和自动发现(T-066)可并行推进。
+**Sprint 8 关键路径说明**: Sprint 8 核心由"系统可冷启动"目标驱动 — 关键路径从 Sprint 7 的 DB session DI(T-072) 开始，经过 Agent 工具层接驳真实模块(T-075)，到应用组合根(T-078: Celery app + Agent 工厂 + Lifespan 真实化)，最终汇入集成测试(T-071)。**T-078 是 Sprint 8 的最后一公里**：没有它，T-075 替换的真实工具仍无法在生产中被实例化与调度。Agent 模式系统(T-064)、熔断器(T-068)、流式输出(T-070) 与该主链并行；压缩策略统一(T-079)依赖 Sprint 7 已完成的 T-058，可与主链并行推进。
 
 ## 5. 风险项
 
@@ -345,3 +354,5 @@ graph LR
 | 数据库会话未接入 DI 导致生产崩溃（CODE-SCAN R-001） | 所有 API 路由在真实部署时因 `None.execute()` 崩溃 | T-072 在 Sprint 7 内接驳 `DatabaseManager` 至 `main.py` lifespan 和 `api/deps.py`；T-063 增加集成层测试覆盖会话链路 |
 | Agent 工具层全为占位导致 flexible 模式失效（CODE-SCAN R-002） | M-006 编排路径在生产中无法采集/处理/分发数据 | T-075 在 Sprint 8 接驳真实模块依赖；T-064 Agent 模式系统完成后优先解决 |
 | `/api/v1/clusters` 端点与 `TaskChainRepository` 缺失（CODE-SCAN R-003, R-006） | API 契约对外承诺功能无法使用；TaskChain 持久化数据丢失 | T-073/T-074 在 Sprint 7 T-063 前完成；`ClusterRepository` 参照现有 `ContentRepository` 模式实现 |
+| 应用组合根缺失：Celery app / AgentRunner / AgentToolRegistry 在 src/ 内零实例化（CODE-SCAN R2-001） | 即便 T-072/T-074/T-075 全部完成，仍无生产代码构造 `AgentToolRegistry → AgentRunner → CeleryTasks` 调用链；系统无法冷启动 | T-078 在 Sprint 8 内新增 `scheduler/celery_app.py` + `agent/factory.py`，并把 `main.py:init_celery / init_redis` 从空函数升级为真实初始化；T-071 集成测试新增 cold-start e2e 用例兜底 |
+| Chat 会话与 Agent 流压缩策略漂移（CODE-SCAN R2-002） | 同一对话历史在 chat_session 端摘要保真度显著低于 agent 端（前者仍用 string-concat + 消息数百分比） | T-079 在 Sprint 8 内将 `search/chat_session.py:compact_context()` 委托给 T-058 升级的 `agent/compaction.py`，删除本地实现 |

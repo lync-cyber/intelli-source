@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-05-03T12:34:43.713080+00:00",
+  "generated_at": "2026-05-03T14:03:08.263002+00:00",
   "documents": {
     "arch-intellisource-v1-api": {
       "file_path": "docs/arch/arch-intellisource-v1-api.md",
@@ -1077,64 +1077,85 @@
       "doc_type": "dev-plan",
       "volume": "s7",
       "status": "approved",
-      "total_lines": 215,
-      "est_tokens": 3228,
+      "total_lines": 314,
+      "est_tokens": 5252,
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
           "level": 2,
-          "line_start": 33,
-          "line_end": 215,
-          "est_tokens": 2961,
+          "line_start": 36,
+          "line_end": 314,
+          "est_tokens": 4923,
           "deps": [],
           "items": {
             "T-057": {
               "heading": "### T-057: LLM 调用指数退避重试 ✅ done",
-              "line_start": 35,
-              "line_end": 61,
+              "line_start": 38,
+              "line_end": 64,
               "est_tokens": 460,
               "deps": []
             },
             "T-058": {
               "heading": "### T-058: 上下文压缩增强 ✅ done",
-              "line_start": 62,
-              "line_end": 88,
+              "line_start": 65,
+              "line_end": 91,
               "est_tokens": 472,
               "deps": []
             },
             "T-059": {
               "heading": "### T-059: 配置分层合并机制 ✅ done",
-              "line_start": 89,
-              "line_end": 118,
+              "line_start": 92,
+              "line_end": 121,
               "est_tokens": 593,
               "deps": []
             },
             "T-060": {
               "heading": "### T-060: LLM 统计仪表盘 API",
-              "line_start": 119,
-              "line_end": 144,
-              "est_tokens": 349,
+              "line_start": 122,
+              "line_end": 151,
+              "est_tokens": 637,
               "deps": []
             },
             "T-061": {
               "heading": "### T-061: LLM 配置 Pydantic Schema 验证 ✅ done",
-              "line_start": 145,
-              "line_end": 169,
+              "line_start": 152,
+              "line_end": 176,
               "est_tokens": 416,
               "deps": []
             },
             "T-062": {
               "heading": "### T-062: 模型特化 Prompt 变体",
-              "line_start": 170,
-              "line_end": 196,
+              "line_start": 177,
+              "line_end": 203,
               "est_tokens": 436,
               "deps": []
             },
             "T-063": {
               "heading": "### T-063: Sprint 7 集成测试与回归",
-              "line_start": 197,
-              "line_end": 215,
-              "est_tokens": 227,
+              "line_start": 204,
+              "line_end": 228,
+              "est_tokens": 312,
+              "deps": []
+            },
+            "T-072": {
+              "heading": "### T-072: 数据库会话 DI 接驳",
+              "line_start": 229,
+              "line_end": 256,
+              "est_tokens": 512,
+              "deps": []
+            },
+            "T-073": {
+              "heading": "### T-073: GET /api/v1/clusters 端点",
+              "line_start": 257,
+              "line_end": 285,
+              "est_tokens": 453,
+              "deps": []
+            },
+            "T-074": {
+              "heading": "### T-074: TaskChainRepository 实现",
+              "line_start": 286,
+              "line_end": 314,
+              "est_tokens": 622,
               "deps": []
             }
           }
@@ -1150,76 +1171,112 @@
       "doc_type": "dev-plan",
       "volume": "s8",
       "status": "draft",
-      "total_lines": 214,
-      "est_tokens": 2877,
+      "total_lines": 388,
+      "est_tokens": 6269,
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
           "level": 2,
-          "line_start": 19,
-          "line_end": 214,
-          "est_tokens": 2691,
+          "line_start": 39,
+          "line_end": 388,
+          "est_tokens": 5835,
           "deps": [],
           "items": {
             "T-064": {
               "heading": "### T-064: Agent 模式系统",
-              "line_start": 21,
-              "line_end": 45,
+              "line_start": 41,
+              "line_end": 65,
               "est_tokens": 380,
               "deps": []
             },
             "T-065": {
               "heading": "### T-065: 工具权限分级",
-              "line_start": 46,
-              "line_end": 70,
+              "line_start": 66,
+              "line_end": 90,
               "est_tokens": 365,
               "deps": []
             },
             "T-066": {
               "heading": "### T-066: 工具自动发现机制",
-              "line_start": 71,
-              "line_end": 94,
+              "line_start": 91,
+              "line_end": 114,
               "est_tokens": 313,
               "deps": []
             },
             "T-067": {
               "heading": "### T-067: Pipeline 执行事件日志",
-              "line_start": 95,
-              "line_end": 119,
+              "line_start": 115,
+              "line_end": 139,
               "est_tokens": 380,
               "deps": []
             },
             "T-068": {
               "heading": "### T-068: 外部 API 熔断器实现",
-              "line_start": 120,
-              "line_end": 145,
+              "line_start": 140,
+              "line_end": 165,
               "est_tokens": 348,
               "deps": []
             },
             "T-069": {
               "heading": "### T-069: Prompt 版本自动计算",
-              "line_start": 146,
-              "line_end": 168,
+              "line_start": 166,
+              "line_end": 188,
               "est_tokens": 302,
               "deps": []
             },
             "T-070": {
               "heading": "### T-070: Chat API SSE 流式输出",
-              "line_start": 169,
-              "line_end": 194,
+              "line_start": 189,
+              "line_end": 214,
               "est_tokens": 372,
+              "deps": []
+            },
+            "T-075": {
+              "heading": "### T-075: Agent 工具层接驳真实模块",
+              "line_start": 215,
+              "line_end": 246,
+              "est_tokens": 526,
+              "deps": []
+            },
+            "T-076": {
+              "heading": "### T-076: 健康检查与指标端点完善",
+              "line_start": 247,
+              "line_end": 275,
+              "est_tokens": 460,
+              "deps": []
+            },
+            "T-077": {
+              "heading": "### T-077: 信源重载与代码质量清理",
+              "line_start": 276,
+              "line_end": 303,
+              "est_tokens": 479,
+              "deps": []
+            },
+            "T-078": {
+              "heading": "### T-078: 应用组合根 (composition root) — Celery app + Agent 工厂 + Lifespan 真实化",
+              "line_start": 304,
+              "line_end": 336,
+              "est_tokens": 924,
+              "deps": []
+            },
+            "T-079": {
+              "heading": "### T-079: 上下文压缩策略统一 — `search/chat_session.py` 委托 `agent/compaction.py`",
+              "line_start": 337,
+              "line_end": 364,
+              "est_tokens": 606,
               "deps": []
             },
             "T-071": {
               "heading": "### T-071: Sprint 8 集成测试与回归",
-              "line_start": 195,
-              "line_end": 214,
-              "est_tokens": 222,
+              "line_start": 365,
+              "line_end": 388,
+              "est_tokens": 368,
               "deps": []
             }
           }
         }
       },
+      "split_from": "dev-plan-intellisource-v1",
       "deps": [
         "arch-intellisource-v1"
       ]
@@ -1229,51 +1286,51 @@
       "doc_type": "dev-plan",
       "volume": "main",
       "status": "approved",
-      "total_lines": 322,
-      "est_tokens": 4255,
+      "total_lines": 358,
+      "est_tokens": 5067,
       "sections": {
         "1": {
           "heading": "## 1. 迭代规划",
           "level": 2,
           "line_start": 25,
-          "line_end": 142,
-          "est_tokens": 2077,
+          "line_end": 150,
+          "est_tokens": 2294,
           "deps": [],
           "items": {}
         },
         "2": {
           "heading": "## 2. 依赖图",
           "level": 2,
-          "line_start": 143,
-          "line_end": 264,
-          "est_tokens": 877,
+          "line_start": 151,
+          "line_end": 295,
+          "est_tokens": 1042,
           "deps": [],
           "items": {}
         },
         "3": {
           "heading": "## 3. 任务卡详细",
           "level": 2,
-          "line_start": 265,
-          "line_end": 277,
-          "est_tokens": 264,
+          "line_start": 296,
+          "line_end": 308,
+          "est_tokens": 269,
           "deps": [],
           "items": {}
         },
         "4": {
           "heading": "## 4. 关键路径",
           "level": 2,
-          "line_start": 278,
-          "line_end": 308,
-          "est_tokens": 505,
+          "line_start": 309,
+          "line_end": 339,
+          "est_tokens": 573,
           "deps": [],
           "items": {}
         },
         "5": {
           "heading": "## 5. 风险项",
           "level": 2,
-          "line_start": 309,
-          "line_end": 322,
-          "est_tokens": 335,
+          "line_start": 340,
+          "line_end": 358,
+          "est_tokens": 692,
           "deps": [],
           "items": {}
         }
@@ -1970,6 +2027,24 @@
       "deps": [
         "sprint5"
       ]
+    },
+    "code-scan-20260503-r1": {
+      "file_path": "docs/reviews/code/CODE-SCAN-20260503-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 182,
+      "est_tokens": 3223,
+      "sections": {}
+    },
+    "code-scan-20260503-r2": {
+      "file_path": "docs/reviews/code/CODE-SCAN-20260503-r2.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 175,
+      "est_tokens": 3425,
+      "sections": {}
     },
     "review-arch-intellisource-v1-r1": {
       "file_path": "docs/reviews/doc/REVIEW-arch-intellisource-v1-r1.md",
@@ -3014,6 +3089,27 @@
         "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7.md"
       }
     ],
+    "T-072": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s7",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7.md"
+      }
+    ],
+    "T-073": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s7",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7.md"
+      }
+    ],
+    "T-074": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s7",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7.md"
+      }
+    ],
     "T-064": [
       {
         "doc_id": "dev-plan-intellisource-v1-s8",
@@ -3057,6 +3153,41 @@
       }
     ],
     "T-070": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s8",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8.md"
+      }
+    ],
+    "T-075": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s8",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8.md"
+      }
+    ],
+    "T-076": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s8",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8.md"
+      }
+    ],
+    "T-077": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s8",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8.md"
+      }
+    ],
+    "T-078": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s8",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8.md"
+      }
+    ],
+    "T-079": [
       {
         "doc_id": "dev-plan-intellisource-v1-s8",
         "section": "3",
