@@ -44,3 +44,5 @@
 {"ts": "2026-05-03T11:04:35+00:00", "event": "state_change", "phase": "development", "detail": "Sprint 7 启动：dev-plan-s7 approved，准备调度 T-058 (tdd_mode=light)"}
 {"ts": "2026-05-03T11:05:19+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD LIGHT-DISPATCH: T-058"}
 {"ts": "2026-05-03T11:16:41+00:00", "event": "correction", "phase": "development", "detail": "T-058 lint cleanup: implementer self-report 'no new ruff failures' was inaccurate—6 errors in T-058 files; also retroactively fixed 5 errors in gateway.py (T-057 introduced via a9802d6, slipped past code-review-T-057-r2). Both files now clean. Audit gap candidate for retrospective.", "agent": "orchestrator"}
+{"ts": "2026-05-03T11:19:25+00:00", "event": "state_change", "phase": "development", "detail": "skill-run: code-review Layer 1 exit=2 (unreachable or runtime error)", "agent": "reviewer", "status": "blocked", "ref": "skill:code-review/code_lint"}
+{"ts": "2026-05-03T11:19:30+00:00", "event": "state_change", "phase": "development", "detail": "skill-run: code-review Layer 1 passed", "agent": "reviewer", "status": "completed", "ref": "skill:code-review/code_lint"}
