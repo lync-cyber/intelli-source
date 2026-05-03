@@ -53,3 +53,4 @@
 {"ts": "2026-05-03T11:44:06+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD LIGHT-DISPATCH: T-059 (含 T-061 minimal schema prerequisite)"}
 {"ts": "2026-05-03T11:55:44+00:00", "event": "state_change", "phase": "development", "detail": "skill-run: code-review Layer 1 passed", "agent": "reviewer", "status": "completed", "ref": "skill:code-review/code_lint"}
 {"ts": "2026-05-03T12:01:47+00:00", "event": "review_verdict", "phase": "development", "detail": "CODE-REVIEW-T-059-T-061-r1: needs_revision (4 HIGH + 3 MEDIUM + 2 LOW; T-058-style except errors recurring)", "agent": "reviewer", "status": "needs_revision"}
+{"ts": "2026-05-03T12:21:16+00:00", "event": "review_verdict", "phase": "development", "detail": "CODE-REVIEW-T-059-T-061-r2: needs_revision (R-010 HIGH ValueError 漏捕第三次同模式; R-011/R-013 cleanup; R-012 doc-only)", "agent": "reviewer", "status": "needs_revision"}
