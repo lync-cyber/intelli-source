@@ -305,8 +305,10 @@ split_from: dev-plan-intellisource-v1
   - [ ] `src/intellisource/scheduler/tasks.py` — 移除 `Any = None` 占位，注入真实 repository
   - [ ] `src/intellisource/agent/runner.py` — 替换注释占位为 `TaskChainRepository` 写入
   - [ ] `tests/unit/storage/test_task_chain_repository.py` — ≥5 tests
+  - [ ] (R2-004 顺手) `src/intellisource/storage/models.py` — 抽出 `TimestampMixin`（含 `created_at` / `updated_at`）与可选的 `ExecutionTimingMixin`（含 `started_at` / `finished_at`），消除 jscpd 报告的 7 处列模板内部克隆。要求：现有 ORM 表结构与迁移产物 (`alembic/versions/`) 不变
 - **context_load**:
   - src/intellisource/storage/models.py (TaskChain E-008，lines 99~)
   - src/intellisource/scheduler/tasks.py (TaskChainRepository 占位，line 28)
   - src/intellisource/agent/runner.py (注释占位，line 250)
   - src/intellisource/storage/repositories/task.py (参照 TaskRepository 模式)
+  - docs/reviews/code/CODE-SCAN-20260503-r2.md#R2-004 (TimestampMixin 顺手清理)

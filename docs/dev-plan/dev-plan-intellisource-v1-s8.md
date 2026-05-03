@@ -6,15 +6,35 @@ status: draft
 deps: [arch-intellisource-v1]
 consumers: [developer, qa-engineer]
 volume: s8
+split_from: dev-plan-intellisource-v1
 ---
 # Development Plan: IntelliSource — Sprint 8
 <!-- id: dev-plan-intellisource-v1-s8 | author: tech-lead | status: draft -->
 <!-- deps: arch-intellisource-v1 | consumers: developer, qa-engineer -->
 <!-- volume: s8 -->
 
-> **Sprint 主题**: Agent 模式系统、工具治理与运行时增强（P2 改进项，源自 OpenCode 对标架构评审；新增 T-075~T-077 修复 CODE-SCAN HIGH/MEDIUM 问题）
+> **Sprint 主题**: Agent 模式系统、工具治理与运行时增强（P2 改进项，源自 OpenCode 对标架构评审；新增 T-075~T-079 修复 CODE-SCAN HIGH/MEDIUM 问题）
 > **前置依赖**: Sprint 7 全部完成（T-057~T-063, T-072~T-074）
-> **参考**: docs/research/architecture-review-opencode-benchmark.md；docs/reviews/code/CODE-SCAN-20260503-r1.md（R-002/R-008/R-010/R-011/R-012）
+> **参考**: docs/research/architecture-review-opencode-benchmark.md；docs/reviews/code/CODE-SCAN-20260503-r1.md（R-002/R-008/R-010/R-011/R-012）；docs/reviews/code/CODE-SCAN-20260503-r2.md（R2-001 应用组合根 / R2-002 压缩策略统一）
+
+[NAV]
+
+- §3 任务卡详细
+  - T-064 Agent 模式系统
+  - T-065 工具权限分级
+  - T-066 工具自动发现机制
+  - T-067 Pipeline 执行事件日志
+  - T-068 外部 API 熔断器实现
+  - T-069 Prompt 版本自动计算
+  - T-070 Chat API SSE 流式输出
+  - T-075 Agent 工具层接驳真实模块（源自 CODE-SCAN-r1 R-002）
+  - T-076 健康检查与指标端点完善（源自 CODE-SCAN-r1 R-008/R-010）
+  - T-077 信源重载与代码质量清理（源自 CODE-SCAN-r1 R-011/R-012 + r2 R2-005）
+  - T-078 应用组合根 — Celery app + Agent 工厂 + Lifespan 真实化（新增，源自 CODE-SCAN-r2 R2-001）
+  - T-079 上下文压缩策略统一（新增，源自 CODE-SCAN-r2 R2-002）
+  - T-071 Sprint 8 集成测试与回归
+
+[/NAV]
 
 ## 3. 任务卡详细
 
@@ -266,24 +286,89 @@ volume: s8
   - [ ] AC-T077-1: `POST /api/v1/sources/reload` 调用 `ConfigLoader.reload()`，返回真实 `{"loaded_count": N, "errors": [...]}`
   - [ ] AC-T077-2: `agent/runner.py` 文件顶层统一 `import json`，循环体内的 `import json as _json` 删除
   - [ ] AC-T077-3: mypy --strict 零错误，ruff check 无新 warning
+  - [ ] AC-T077-4 (R2-005): `pyproject.toml` 增加 `[tool.vulture]` 配置（`ignore_names = ["names", "a", "kw"]` 或将 `circuit_breaker.py:19` / `database.py:75` 的参数加 `_` 前缀），消除 vulture 假阳性
 - **deliverables**:
   - [ ] `src/intellisource/api/routers/sources.py` — `reload_source_configs()` 接入 `ConfigLoader`
   - [ ] `src/intellisource/agent/runner.py` — 顶层 `import json`
+  - [ ] `pyproject.toml` — vulture 白名单配置（或对应源文件参数前缀化）
   - [ ] `tests/unit/api/test_sources_routes.py` — reload 端点测试更新（≥2 tests）
 - **context_load**:
   - src/intellisource/api/routers/sources.py (reload_source_configs stub)
   - src/intellisource/config/loader.py (ConfigLoader)
   - src/intellisource/agent/runner.py (import json at line 155)
+  - src/intellisource/llm/circuit_breaker.py (Protocol 方法 `*names` 参数)
+  - src/intellisource/storage/database.py (`_closed_creator(*a, **kw)` 闭包)
+
+---
+
+### T-078: 应用组合根 (composition root) — Celery app + Agent 工厂 + Lifespan 真实化
+
+> **来源**: CODE-SCAN-20260503-r2 R2-001（HIGH）
+
+- **目标**: 在 `src/` 内首次构造 Celery app singleton 与 AgentRunner 工厂，使整套 `M-006 编排 → M-002 采集 → M-003 处理 → M-007 分发` 链路在生产部署时可冷启动；与 T-072（DB session DI）、T-074（TaskChainRepository）、T-075（Agent 工具接驳真实模块）一同收口"系统可端到端运行"目标
+- **模块**: M-006, M-011
+- **接口**: internal（启动链路）
+- **复杂度**: M
+- **依赖**: T-072（DB session DI）、T-074（TaskChainRepository）、T-075（Agent 工具接驳）
+- **扫描背景**: CODE-SCAN R2-001 — 全仓 `grep` 验证 `Celery(` / `celery_app` / `AgentRunner(` / `AgentToolRegistry()` 在 `src/` 内零命中；`CeleryTasks` 类仅由测试 fixture 实例化；`main.py:init_celery()` 函数体为空。即便 T-075 把 6 个工具替换为真实实现，也没有任何代码会构造 `AgentToolRegistry → AgentRunner → CeleryTasks` 调用链
+- **tdd_acceptance**:
+  - [ ] AC-T078-1: 新增 `src/intellisource/scheduler/celery_app.py`，按 `config/defaults.yaml` 的 `celery.broker_url` / `celery.result_backend` 配置创建模块级 `celery_app: Celery` 实例
+  - [ ] AC-T078-2: 新增 `src/intellisource/agent/factory.py:build_agent_runner(session_factory, llm_gateway) -> AgentRunner`，内部构造 `AgentToolRegistry`、调用 `register_defaults() + register_atomic_tools()`、注入 LLM gateway 与工具依赖
+  - [ ] AC-T078-3: `CeleryTasks.run_pipeline` 改为 `@celery_app.task(name="run_pipeline")` 装饰的具名任务；从 `current_app.state.agent_runner`（或 lazy module-level singleton）取实例
+  - [ ] AC-T078-4: `main.py:init_celery()` import `scheduler.celery_app` 并在 lifespan 中存入 `app.state.celery_app`；`init_redis()` 使用 `aioredis.from_url(config.redis.url)` 创建连接并存入 `app.state.redis`（与 T-072 AC-T072-4 协同）
+  - [ ] AC-T078-5: 新增端到端冷启动集成测试：FastAPI lifespan startup 完成后，`celery_app.send_task("run_pipeline", ["test_pipeline", {}])` 能跑通一个 stub pipeline（in-memory eager 模式即可，不要求真实 broker）
+  - [ ] AC-T078-6: mypy --strict 零错误
+- **deliverables**:
+  - [ ] `src/intellisource/scheduler/celery_app.py` — Celery app singleton + `@celery_app.task` 装饰的 run_pipeline
+  - [ ] `src/intellisource/agent/factory.py` — `build_agent_runner` 工厂函数
+  - [ ] `src/intellisource/scheduler/tasks.py` — 移除 `TaskChainRepository: Any = None` 全局占位（与 T-074 同步），改为 factory 返回的真实 repository
+  - [ ] `src/intellisource/main.py` — `init_celery / init_redis` 真实化，`app.state.celery_app / redis / agent_runner` 在 lifespan 中赋值
+  - [ ] `config/defaults.yaml` — 新增 `celery` 与 `redis` 顶层段
+  - [ ] `tests/integration/test_cold_start.py` — 端到端冷启动测试（≥4 tests，含 lifespan startup/shutdown、Celery eager 任务调度）
+- **context_load**:
+  - src/intellisource/main.py (init_celery / init_redis 空实现)
+  - src/intellisource/scheduler/tasks.py (CeleryTasks 类，TaskChainRepository 占位)
+  - src/intellisource/agent/runner.py (AgentRunner 构造签名)
+  - src/intellisource/agent/tools.py (AgentToolRegistry, register_defaults / register_atomic_tools)
+  - src/intellisource/llm/gateway.py (LLMGateway 构造签名)
+
+---
+
+### T-079: 上下文压缩策略统一 — `search/chat_session.py` 委托 `agent/compaction.py`
+
+> **来源**: CODE-SCAN-20260503-r2 R2-002（MEDIUM）
+
+- **目标**: 消除 chat 会话与 Agent 流之间两套压缩逻辑的质量差距，使 `search/chat_session.py:compact_context()` 委托 T-058 已升级的 `agent/compaction.py`（token-based 保留 + 结构化 LLM 摘要 + 失败回退 truncation）
+- **模块**: M-005, M-006, M-008
+- **接口**: internal
+- **复杂度**: S
+- **依赖**: T-058（compact_messages token-based 升级，已 done）
+- **扫描背景**: CODE-SCAN R2-002 — `search/chat_session.py:67 compact_context()` 仍是 string-concat 摘要 + "消息数量除以 10"保留窗口，与 T-058 AC-T058-1 显式禁止的"消息数量百分比"策略一致；docstring 自承 `[ASSUMPTION] Future versions should integrate an LLM-based compactor`
+- **tdd_acceptance**:
+  - [ ] AC-T079-1: 在 `agent/compaction.py` 暴露 `compact_messages_for_chat(messages, max_tokens, gateway) -> list[dict]` 不依赖 PipelineConfig 的纯函数（或 `CompactionService` 类），保持原有 `compact_messages` 签名兼容
+  - [ ] AC-T079-2: `search/chat_session.py:compact_context()` 改为委托 AC-T079-1 暴露的接口；删除本地 `summary_parts` / `summary_text` string-concat 路径与 `[ASSUMPTION]` docstring
+  - [ ] AC-T079-3: 保留窗口策略对齐 T-058（token-based，role=tool 优先裁剪）；删除 `keep_count = min(max(2, len(messages) // 10), len(messages))` 计算
+  - [ ] AC-T079-4: LLM 摘要失败时回退 truncation（与 T-058 AC-T058-6 一致）
+  - [ ] AC-T079-5: `tests/unit/search/test_chat_session.py` 增加压缩回归用例（≥4 tests，含 LLM 摘要失败回退、role=tool 优先裁剪）
+  - [ ] AC-T079-6: mypy --strict 零错误
+- **deliverables**:
+  - [ ] `src/intellisource/agent/compaction.py` — 暴露 chat 友好接口
+  - [ ] `src/intellisource/search/chat_session.py` — 删除本地实现，委托上述接口
+  - [ ] `tests/unit/search/test_chat_session.py` — 压缩回归用例
+- **context_load**:
+  - src/intellisource/search/chat_session.py (compact_context 现有实现，line 67)
+  - src/intellisource/agent/compaction.py (compact_messages T-058 升级版本)
+  - src/intellisource/llm/prompts/compaction_summary.txt (T-058 模板)
 
 ---
 
 ### T-071: Sprint 8 集成测试与回归
 
-- **目标**: 验证 Sprint 8 所有改进（含 T-075~T-077 基础设施修复）在集成场景下正常工作，全量 pytest + mypy 通过
+- **目标**: 验证 Sprint 8 所有改进（含 T-075~T-079 基础设施修复）在集成场景下正常工作，全量 pytest + mypy 通过
 - **模块**: 全模块
 - **接口**: internal
 - **复杂度**: M
-- **依赖**: T-064~T-070, T-075~T-077
+- **依赖**: T-064~T-070, T-075~T-079
 - **tdd_acceptance**:
   - [ ] AC-T071-1: Agent 模式系统 + 工具权限分级联合测试（analyze 模式 + confirm 权限）
   - [ ] AC-T071-2: 工具自动发现 + 手动注册优先级测试
@@ -292,10 +377,12 @@ volume: s8
   - [ ] AC-T071-5: SSE 流式输出 + token 统计集成测试
   - [ ] AC-T071-6: Agent 工具接驳真实模块的端到端编排测试（collect → process → distribute 链路）
   - [ ] AC-T071-7: 健康检查 degraded 场景集成测试（模拟 DB/Redis 不可达）
-  - [ ] AC-T071-8: 全量 `pytest` 通过
-  - [ ] AC-T071-9: `mypy --strict src/` 零错误
+  - [ ] AC-T071-8 (R2-001): 应用冷启动 e2e — FastAPI lifespan startup 后，`celery_app.send_task("run_pipeline", ...)` 完成 stub pipeline 全流程并写入 TaskChain
+  - [ ] AC-T071-9 (R2-002): chat_session 与 agent flexible 模式压缩策略行为一致性测试（同一对话历史在两端压缩后的保留窗口应等价）
+  - [ ] AC-T071-10: 全量 `pytest` 通过
+  - [ ] AC-T071-11: `mypy --strict src/` 零错误
 - **deliverables**:
-  - [ ] `tests/unit/integration/test_sprint8_integration.py` — 集成测试（含 T-075~T-077 场景）
+  - [ ] `tests/integration/test_sprint8_integration.py` — 集成测试（含 T-075~T-079 场景）
   - [ ] 全量 pytest + mypy 通过报告
 - **context_load**:
-  - 所有 T-064 ~ T-070, T-075 ~ T-077 deliverables
+  - 所有 T-064 ~ T-070, T-075 ~ T-079 deliverables
