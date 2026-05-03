@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-05-03T11:03:31.317368+00:00",
+  "generated_at": "2026-05-03T11:40:54.162609+00:00",
   "documents": {
     "arch-intellisource-v1-api": {
       "file_path": "docs/arch/arch-intellisource-v1-api.md",
@@ -1077,15 +1077,15 @@
       "doc_type": "dev-plan",
       "volume": "s7",
       "status": "approved",
-      "total_lines": 210,
-      "est_tokens": 2971,
+      "total_lines": 211,
+      "est_tokens": 3021,
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
           "level": 2,
           "line_start": 33,
-          "line_end": 210,
-          "est_tokens": 2704,
+          "line_end": 211,
+          "est_tokens": 2754,
           "deps": [],
           "items": {
             "T-057": {
@@ -1096,44 +1096,44 @@
               "deps": []
             },
             "T-058": {
-              "heading": "### T-058: 上下文压缩增强",
+              "heading": "### T-058: 上下文压缩增强 ✅ done",
               "line_start": 62,
-              "line_end": 87,
-              "est_tokens": 422,
+              "line_end": 88,
+              "est_tokens": 472,
               "deps": []
             },
             "T-059": {
               "heading": "### T-059: 配置分层合并机制",
-              "line_start": 88,
-              "line_end": 115,
+              "line_start": 89,
+              "line_end": 116,
               "est_tokens": 484,
               "deps": []
             },
             "T-060": {
               "heading": "### T-060: LLM 统计仪表盘 API",
-              "line_start": 116,
-              "line_end": 141,
+              "line_start": 117,
+              "line_end": 142,
               "est_tokens": 349,
               "deps": []
             },
             "T-061": {
               "heading": "### T-061: LLM 配置 Pydantic Schema 验证",
-              "line_start": 142,
-              "line_end": 164,
+              "line_start": 143,
+              "line_end": 165,
               "est_tokens": 318,
               "deps": []
             },
             "T-062": {
               "heading": "### T-062: 模型特化 Prompt 变体",
-              "line_start": 165,
-              "line_end": 191,
+              "line_start": 166,
+              "line_end": 192,
               "est_tokens": 436,
               "deps": []
             },
             "T-063": {
               "heading": "### T-063: Sprint 7 集成测试与回归",
-              "line_start": 192,
-              "line_end": 210,
+              "line_start": 193,
+              "line_end": 211,
               "est_tokens": 227,
               "deps": []
             }
@@ -1810,6 +1810,30 @@
         "code-review-T-057-r1",
         "dev-plan-intellisource-v1-s7",
         "arch-intellisource-v1"
+      ]
+    },
+    "code-review-T-058-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-058-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 133,
+      "est_tokens": 2055,
+      "sections": {},
+      "deps": [
+        "T-058"
+      ]
+    },
+    "code-review-T-058-r2": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-058-r2.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 78,
+      "est_tokens": 1393,
+      "sections": {},
+      "deps": [
+        "T-058"
       ]
     },
     "code-review-deliverable-compliance-r1": {

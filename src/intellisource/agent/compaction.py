@@ -10,7 +10,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from intellisource.core.errors import LLMError
 from intellisource.llm.model_config import ModelProfile
 from intellisource.llm.prompt_builder import PromptBuilder
 
@@ -199,9 +198,11 @@ async def compact_messages(
 
         return [summary_msg, *recent]
 
-    except LLMError as exc:
-        logger.warning("LLM summarization failed, using truncation fallback: %s", exc)
-        return _truncation_fallback(messages, gateway, profile, model)
-    except RuntimeError as exc:
+    except Exception as exc:
+        # Catch-all for LLM-side failures: LLMError (intellisource-wrapped),
+        # litellm-native exceptions (RateLimitError, APIConnectionError, etc.
+        # which subclass OpenAIError → Exception, not LLMError/RuntimeError),
+        # plus malformed responses. Infrastructure failures from prompt build
+        # (e.g. missing template) already propagate from outside the try block.
         logger.warning("LLM summarization failed, using truncation fallback: %s", exc)
         return _truncation_fallback(messages, gateway, profile, model)

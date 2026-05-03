@@ -30,10 +30,10 @@
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 
 - 当前阶段: development
-- 上次完成: reviewer — REVIEW-dev-plan-intellisource-v1-s7-r4 approved_with_notes (R-007 LOW 余量，T-063 缺 T-061 专项 AC，可在实施时补)
-- 下一步行动: tdd-engine 调度 T-058 上下文压缩增强 (tdd_mode=light, 复杂度 M, 7 ACs, 依赖 T-051)
+- 上次完成: orchestrator — T-058 上下文压缩增强 done (CODE-REVIEW-T-058-r2 approved_with_notes + N-001 主线直改闭环，20 tests，1672 全量回归 PASSED, mypy strict + ruff clean)
+- 下一步行动: tdd-engine 调度 T-059 配置分层合并机制 (tdd_mode=light, 复杂度 M, 依赖 T-053)
 - 已完成阶段: [bootstrap, requirements, architecture, ui_design(跳过-backend-only), dev_planning, sprint-1, sprint-2, sprint-3, sprint-4, sprint-5, sprint-6]
-- 当前Sprint: sprint-7 (approved, 1/7 done: T-057 ✅；下一: T-058)
+- 当前Sprint: sprint-7 (approved, 2/7 done: T-057 ✅, T-058 ✅；下一: T-059)
 - 文档状态:
   - prd: approved
   - arch: approved

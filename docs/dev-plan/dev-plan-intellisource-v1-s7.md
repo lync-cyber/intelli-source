@@ -59,25 +59,26 @@ split_from: dev-plan-intellisource-v1
 
 ---
 
-### T-058: 上下文压缩增强
+### T-058: 上下文压缩增强 ✅ done
 
 - **目标**: 重构 `compact_messages()` 为 token-based 保留策略 + 结构化摘要模板，替代当前的固定百分比消息截断
 - **模块**: M-006, M-005
 - **接口**: internal
 - **复杂度**: M
 - **依赖**: T-051（PromptBuilder）
+- **status**: done（2026-05-03，code-review-T-058-r2 approved_with_notes，N-001 主线直改闭环；20 tests, 1672 全量回归 PASSED）
 - **tdd_acceptance**:
-  - [ ] AC-T058-1: 保留策略基于 token 计数（使用 `LLMGateway.estimate_tokens()`）而非消息数量百分比
-  - [ ] AC-T058-2: 摘要使用结构化模板 `compaction_summary.txt`（包含 Goal/Context/Changes/State/Next Steps 五段）
-  - [ ] AC-T058-3: 工具输出优先裁剪 — role=tool 消息按时间从旧到新裁剪，保护最近 3 条工具结果
-  - [ ] AC-T058-4: 自动触发阈值：当 estimated tokens > min(context_window * 0.8, context_token_budget) 时自动压缩（`context_window * 0.8` 为模型容量层上限，`context_token_budget`（arch §5.1 [chat] 配置，默认 2000）为系统配置层上限，取较小值保证两层约束均满足）
-  - [ ] AC-T058-5: 压缩后消息列表 token 数 ≤ context_window * 0.6（留足生成空间）
-  - [ ] AC-T058-6: LLM 摘要失败时 fallback 到 truncation 策略（保留最近 N 条原文，N 由 token budget 决定）
-  - [ ] AC-T058-7: mypy --strict 零错误
+  - [x] AC-T058-1: 保留策略基于 token 计数（使用 `LLMGateway.estimate_tokens()`）而非消息数量百分比
+  - [x] AC-T058-2: 摘要使用结构化模板 `compaction_summary.txt`（包含 Goal/Context/Changes/State/Next Steps 五段）
+  - [x] AC-T058-3: 工具输出优先裁剪 — role=tool 消息按时间从旧到新裁剪，保护最近 3 条工具结果
+  - [x] AC-T058-4: 自动触发阈值：当 estimated tokens > min(context_window * 0.8, context_token_budget) 时自动压缩（`context_window * 0.8` 为模型容量层上限，`context_token_budget`（arch §5.1 [chat] 配置，默认 2000）为系统配置层上限，取较小值保证两层约束均满足）
+  - [x] AC-T058-5: 压缩后消息列表 token 数 ≤ context_window * 0.6（留足生成空间）
+  - [x] AC-T058-6: LLM 摘要失败时 fallback 到 truncation 策略（保留最近 N 条原文，N 由 token budget 决定）
+  - [x] AC-T058-7: mypy --strict 零错误
 - **deliverables**:
-  - [ ] `src/intellisource/agent/compaction.py` — 重构
-  - [ ] `src/intellisource/llm/prompts/compaction_summary.txt` — 结构化摘要模板
-  - [ ] `tests/unit/agent/test_compaction.py` — 更新（≥10 tests）
+  - [x] `src/intellisource/agent/compaction.py` — 重构
+  - [x] `src/intellisource/llm/prompts/compaction_summary.txt` — 结构化摘要模板
+  - [x] `tests/unit/agent/test_compaction.py` — 更新（20 tests，含 R-001 边界 + N-001 litellm 风格异常回归）
 - **context_load**:
   - src/intellisource/agent/compaction.py (现有 compact_messages)
   - src/intellisource/llm/gateway.py (estimate_tokens)

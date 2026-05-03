@@ -380,6 +380,32 @@ class TestFallbackToTruncation:
         # At minimum, the very last message should be retained
         assert "recent answer" in contents
 
+    @pytest.mark.asyncio
+    async def test_fallback_triggered_by_litellm_style_exception(self) -> None:
+        """Production litellm exceptions don't subclass LLMError or RuntimeError;
+        fallback must still trigger.
+        """
+
+        class _FakeOpenAIError(Exception):
+            """Mimics litellm's OpenAIError-derived exceptions (RateLimitError,
+            APIConnectionError, etc.) which subclass Exception directly.
+            """
+
+        gateway = MagicMock()
+        gateway.estimate_tokens = MagicMock(
+            side_effect=lambda text, model: len(text) // 4
+        )
+        gateway.complete = AsyncMock(side_effect=_FakeOpenAIError("rate limit"))
+        messages = [{"role": "user", "content": "A" * 400}]
+        result = await compact_messages(
+            messages,
+            gateway,
+            profile=_SMALL_PROFILE,
+            context_token_budget=_DEFAULT_BUDGET,
+        )
+        assert isinstance(result, list)
+        assert len(result) >= 1
+
 
 # ---------------------------------------------------------------------------
 # Backward-compatible edge cases (kept from original tests)
