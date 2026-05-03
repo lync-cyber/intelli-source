@@ -397,6 +397,7 @@ class LLMCallLog(Base):
     output_length: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(VARCHAR(20), nullable=False)
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    retry_attempt: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )

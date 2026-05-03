@@ -285,6 +285,7 @@ def upgrade() -> None:
             output_length INTEGER NOT NULL,
             status VARCHAR(20) NOT NULL,
             error_message TEXT,
+            retry_attempt INTEGER,
             created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
             PRIMARY KEY (id, created_at),
             FOREIGN KEY (content_id) REFERENCES processed_contents(id)
