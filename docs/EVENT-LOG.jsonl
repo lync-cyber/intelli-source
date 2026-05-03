@@ -42,3 +42,4 @@
 {"ts": "2026-05-03T11:01:38+00:00", "event": "state_change", "phase": "development", "detail": "skill-run: doc-review Layer 1 passed", "agent": "reviewer", "status": "completed", "ref": "skill:doc-review/doc_check"}
 {"ts": "2026-05-03T11:04:35+00:00", "event": "review_verdict", "phase": "development", "detail": "REVIEW-dev-plan-intellisource-v1-s7-r4 approved_with_notes; dev-plan-s7 finalize: draft → approved", "agent": "reviewer", "status": "approved_with_notes"}
 {"ts": "2026-05-03T11:04:35+00:00", "event": "state_change", "phase": "development", "detail": "Sprint 7 启动：dev-plan-s7 approved，准备调度 T-058 (tdd_mode=light)"}
+{"ts": "2026-05-03T11:05:19+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD LIGHT-DISPATCH: T-058"}
