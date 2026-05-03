@@ -30,10 +30,11 @@
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 
 - 当前阶段: development
-- 上次完成: orchestrator — T-058 上下文压缩增强 done (CODE-REVIEW-T-058-r2 approved_with_notes + N-001 主线直改闭环，20 tests，1672 全量回归 PASSED, mypy strict + ruff clean)
-- 下一步行动: tdd-engine 调度 T-059 配置分层合并机制 (tdd_mode=light, 复杂度 M, 依赖 T-053)
+- 上次完成: orchestrator — T-059 + T-061 bundle done (CODE-REVIEW-T-059-T-061-r3 approved_with_notes，R-001~R-013 全闭环，R-014 LOW chore 余量；48 target tests + 1720 全量回归 PASSED, mypy strict + ruff clean across 101 source files)
+- 下一步行动: tdd-engine 调度 T-060 LLM 统计仪表盘 API (tdd_mode=light, 复杂度 S, 依赖 T-053；接口已对齐 API-017)
 - 已完成阶段: [bootstrap, requirements, architecture, ui_design(跳过-backend-only), dev_planning, sprint-1, sprint-2, sprint-3, sprint-4, sprint-5, sprint-6]
-- 当前Sprint: sprint-7 (approved, 2/7 done: T-057 ✅, T-058 ✅；下一: T-059)
+- 当前Sprint: sprint-7 (approved, 4/7 done: T-057 ✅, T-058 ✅, T-059 ✅, T-061 ✅；下一: T-060)
+- Retrospective 阈值监控: 本会话累计 self-caused review 问题 ≥4 起（T-058 N-001 + T-059 r1 R-003/R-004 + r2 R-010，三连同模式 except 漏覆盖；及 T-058 implementer self-report 失真），逼近 RETRO_TRIGGER_SELF_CAUSED=5
 - 文档状态:
   - prd: approved
   - arch: approved
