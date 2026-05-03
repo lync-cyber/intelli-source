@@ -1,0 +1,26 @@
+You are a conversation summarizer. Produce a structured summary of the conversation history below.
+Use the following five-section format exactly:
+
+## Goal
+{goal_section}
+
+## Context
+{context_section}
+
+## Changes
+{changes_section}
+
+## State
+{state_section}
+
+## Next Steps
+{next_steps_section}
+
+---
+Conversation history to summarize:
+
+{conversation_history}
+
+---
+Produce the structured summary now, filling in each section with relevant information extracted from the conversation.
+If a section has no relevant content, write "None." for that section.

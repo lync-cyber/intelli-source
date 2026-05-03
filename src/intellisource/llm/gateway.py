@@ -21,7 +21,12 @@ if TYPE_CHECKING:
 
 import jsonschema
 import litellm
-from tenacity import AsyncRetrying, RetryCallState, retry_if_exception, stop_after_attempt, wait_exponential
+from tenacity import (
+    AsyncRetrying,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from intellisource.core.errors import ErrorCategory, IntelliSourceError, LLMError
 from intellisource.llm.cost_tracker import LLMCallRecord
@@ -364,7 +369,8 @@ class LLMGateway:
 
         Behavior contract:
         - fallback_manager is None → re-raise original exc
-        - task_type not registered (KeyError from execute_fallback) → re-raise original exc
+        - task_type not registered (KeyError from execute_fallback) → re-raise
+          original exc
         - fallback function itself raises → that exception propagates (the original
           transient exc is intentionally lost; the more recent fallback failure is
           more diagnostic for operators).
@@ -382,7 +388,9 @@ class LLMGateway:
     async def _log_retry(self, model: str, retry_attempt: int, call_type: str) -> None:
         """Write a retry record to LLMCallLog when cost_tracker is available."""
         if self._cost_tracker is None:
-            logger.warning("LLM call retry attempt %d for model '%s'", retry_attempt, model)
+            logger.warning(
+                "LLM call retry attempt %d for model '%s'", retry_attempt, model
+            )
             return
         record = LLMCallRecord(
             model=model,
