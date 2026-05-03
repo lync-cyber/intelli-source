@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-05-03T05:09:41.501389+00:00",
+  "generated_at": "2026-05-03T12:34:43.713080+00:00",
   "documents": {
     "arch-intellisource-v1-api": {
       "file_path": "docs/arch/arch-intellisource-v1-api.md",
@@ -1076,70 +1076,71 @@
       "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7.md",
       "doc_type": "dev-plan",
       "volume": "s7",
-      "status": "draft",
-      "total_lines": 192,
-      "est_tokens": 2595,
+      "status": "approved",
+      "total_lines": 215,
+      "est_tokens": 3228,
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
           "level": 2,
-          "line_start": 19,
-          "line_end": 192,
-          "est_tokens": 2411,
+          "line_start": 33,
+          "line_end": 215,
+          "est_tokens": 2961,
           "deps": [],
           "items": {
             "T-057": {
-              "heading": "### T-057: LLM 调用指数退避重试",
-              "line_start": 21,
-              "line_end": 45,
-              "est_tokens": 345,
+              "heading": "### T-057: LLM 调用指数退避重试 ✅ done",
+              "line_start": 35,
+              "line_end": 61,
+              "est_tokens": 460,
               "deps": []
             },
             "T-058": {
-              "heading": "### T-058: 上下文压缩增强",
-              "line_start": 46,
-              "line_end": 71,
-              "est_tokens": 377,
+              "heading": "### T-058: 上下文压缩增强 ✅ done",
+              "line_start": 62,
+              "line_end": 88,
+              "est_tokens": 472,
               "deps": []
             },
             "T-059": {
-              "heading": "### T-059: 配置分层合并机制",
-              "line_start": 72,
-              "line_end": 98,
-              "est_tokens": 379,
+              "heading": "### T-059: 配置分层合并机制 ✅ done",
+              "line_start": 89,
+              "line_end": 118,
+              "est_tokens": 593,
               "deps": []
             },
             "T-060": {
               "heading": "### T-060: LLM 统计仪表盘 API",
-              "line_start": 99,
-              "line_end": 123,
-              "est_tokens": 320,
+              "line_start": 119,
+              "line_end": 144,
+              "est_tokens": 349,
               "deps": []
             },
             "T-061": {
-              "heading": "### T-061: LLM 配置 Pydantic Schema 验证",
-              "line_start": 124,
-              "line_end": 146,
-              "est_tokens": 318,
+              "heading": "### T-061: LLM 配置 Pydantic Schema 验证 ✅ done",
+              "line_start": 145,
+              "line_end": 169,
+              "est_tokens": 416,
               "deps": []
             },
             "T-062": {
               "heading": "### T-062: 模型特化 Prompt 变体",
-              "line_start": 147,
-              "line_end": 173,
+              "line_start": 170,
+              "line_end": 196,
               "est_tokens": 436,
               "deps": []
             },
             "T-063": {
               "heading": "### T-063: Sprint 7 集成测试与回归",
-              "line_start": 174,
-              "line_end": 192,
-              "est_tokens": 229,
+              "line_start": 197,
+              "line_end": 215,
+              "est_tokens": 227,
               "deps": []
             }
           }
         }
       },
+      "split_from": "dev-plan-intellisource-v1",
       "deps": [
         "arch-intellisource-v1"
       ]
@@ -1782,6 +1783,98 @@
         }
       }
     },
+    "code-review-T-057-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-057-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 96,
+      "est_tokens": 1768,
+      "sections": {},
+      "deps": [
+        "T-057",
+        "dev-plan-intellisource-v1-s7",
+        "arch-intellisource-v1"
+      ]
+    },
+    "code-review-T-057-r2": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-057-r2.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 46,
+      "est_tokens": 743,
+      "sections": {},
+      "deps": [
+        "T-057",
+        "code-review-T-057-r1",
+        "dev-plan-intellisource-v1-s7",
+        "arch-intellisource-v1"
+      ]
+    },
+    "code-review-T-058-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-058-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 133,
+      "est_tokens": 2055,
+      "sections": {},
+      "deps": [
+        "T-058"
+      ]
+    },
+    "code-review-T-058-r2": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-058-r2.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 78,
+      "est_tokens": 1393,
+      "sections": {},
+      "deps": [
+        "T-058"
+      ]
+    },
+    "code-review-T-059-T-061-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-059-T-061-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 172,
+      "est_tokens": 3583,
+      "sections": {},
+      "deps": [
+        "T-059",
+        "T-061"
+      ]
+    },
+    "code-review-T-059-T-061-r2": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-059-T-061-r2.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 127,
+      "est_tokens": 2327,
+      "sections": {},
+      "deps": [
+        "T-059",
+        "T-061"
+      ]
+    },
+    "code-review-T-059-T-061-r3": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-059-T-061-r3.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 113,
+      "est_tokens": 2056,
+      "sections": {},
+      "deps": [
+        "T-059",
+        "T-061"
+      ]
+    },
     "code-review-deliverable-compliance-r1": {
       "file_path": "docs/reviews/code/CODE-REVIEW-deliverable-compliance-r1.md",
       "doc_type": "code-review",
@@ -1960,6 +2053,54 @@
       "sections": {},
       "deps": [
         "dev-plan-intellisource-v1"
+      ]
+    },
+    "review-dev-plan-intellisource-v1-s7-r1": {
+      "file_path": "docs/reviews/doc/REVIEW-dev-plan-intellisource-v1-s7-r1.md",
+      "doc_type": "review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 82,
+      "est_tokens": 788,
+      "sections": {},
+      "deps": [
+        "dev-plan-intellisource-v1-s7"
+      ]
+    },
+    "review-dev-plan-intellisource-v1-s7-r2": {
+      "file_path": "docs/reviews/doc/REVIEW-dev-plan-intellisource-v1-s7-r2.md",
+      "doc_type": "review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 95,
+      "est_tokens": 1616,
+      "sections": {},
+      "deps": [
+        "dev-plan-intellisource-v1-s7"
+      ]
+    },
+    "review-dev-plan-intellisource-v1-s7-r3": {
+      "file_path": "docs/reviews/doc/REVIEW-dev-plan-intellisource-v1-s7-r3.md",
+      "doc_type": "review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 67,
+      "est_tokens": 1020,
+      "sections": {},
+      "deps": [
+        "dev-plan-intellisource-v1-s7"
+      ]
+    },
+    "review-dev-plan-intellisource-v1-s7-r4": {
+      "file_path": "docs/reviews/doc/REVIEW-dev-plan-intellisource-v1-s7-r4.md",
+      "doc_type": "review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 53,
+      "est_tokens": 497,
+      "sections": {},
+      "deps": [
+        "dev-plan-intellisource-v1-s7"
       ]
     },
     "review-prd-intellisource-v1-r1": {

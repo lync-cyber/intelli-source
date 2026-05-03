@@ -2,19 +2,33 @@
 id: dev-plan-intellisource-v1-s7
 doc_type: dev-plan
 author: tech-lead
-status: draft
+status: approved
 deps: [arch-intellisource-v1]
 consumers: [developer, qa-engineer]
 volume: s7
+split_from: dev-plan-intellisource-v1
 ---
 # Development Plan: IntelliSource — Sprint 7
-<!-- id: dev-plan-intellisource-v1-s7 | author: tech-lead | status: draft -->
+<!-- id: dev-plan-intellisource-v1-s7 | author: tech-lead | status: approved -->
 <!-- deps: arch-intellisource-v1 | consumers: developer, qa-engineer -->
 <!-- volume: s7 -->
 
 > **Sprint 主题**: LLM 韧性增强与配置治理（P1 改进项，源自 OpenCode 对标架构评审）
 > **前置依赖**: Sprint 6 全部完成（T-047~T-056）
 > **参考**: docs/research/architecture-review-opencode-benchmark.md
+
+[NAV]
+
+- §3 任务卡详细
+  - T-057 LLM 调用指数退避重试 ✅ done
+  - T-058 上下文压缩增强
+  - T-059 配置分层合并机制
+  - T-060 LLM 统计仪表盘 API
+  - T-061 LLM 配置 Pydantic Schema 验证
+  - T-062 模型特化 Prompt 变体
+  - T-063 Sprint 7 集成测试与回归
+
+[/NAV]
 
 ## 3. 任务卡详细
 
@@ -45,25 +59,26 @@ volume: s7
 
 ---
 
-### T-058: 上下文压缩增强
+### T-058: 上下文压缩增强 ✅ done
 
 - **目标**: 重构 `compact_messages()` 为 token-based 保留策略 + 结构化摘要模板，替代当前的固定百分比消息截断
 - **模块**: M-006, M-005
 - **接口**: internal
 - **复杂度**: M
 - **依赖**: T-051（PromptBuilder）
+- **status**: done（2026-05-03，code-review-T-058-r2 approved_with_notes，N-001 主线直改闭环；20 tests, 1672 全量回归 PASSED）
 - **tdd_acceptance**:
-  - [ ] AC-T058-1: 保留策略基于 token 计数（使用 `LLMGateway.estimate_tokens()`）而非消息数量百分比
-  - [ ] AC-T058-2: 摘要使用结构化模板 `compaction_summary.txt`（包含 Goal/Context/Changes/State/Next Steps 五段）
-  - [ ] AC-T058-3: 工具输出优先裁剪 — role=tool 消息按时间从旧到新裁剪，保护最近 3 条工具结果
-  - [ ] AC-T058-4: 自动触发阈值：当 estimated tokens > context_window * 0.8 时自动压缩
-  - [ ] AC-T058-5: 压缩后消息列表 token 数 ≤ context_window * 0.6（留足生成空间）
-  - [ ] AC-T058-6: LLM 摘要失败时 fallback 到 truncation 策略（保留最近 N 条原文，N 由 token budget 决定）
-  - [ ] AC-T058-7: mypy --strict 零错误
+  - [x] AC-T058-1: 保留策略基于 token 计数（使用 `LLMGateway.estimate_tokens()`）而非消息数量百分比
+  - [x] AC-T058-2: 摘要使用结构化模板 `compaction_summary.txt`（包含 Goal/Context/Changes/State/Next Steps 五段）
+  - [x] AC-T058-3: 工具输出优先裁剪 — role=tool 消息按时间从旧到新裁剪，保护最近 3 条工具结果
+  - [x] AC-T058-4: 自动触发阈值：当 estimated tokens > min(context_window * 0.8, context_token_budget) 时自动压缩（`context_window * 0.8` 为模型容量层上限，`context_token_budget`（arch §5.1 [chat] 配置，默认 2000）为系统配置层上限，取较小值保证两层约束均满足）
+  - [x] AC-T058-5: 压缩后消息列表 token 数 ≤ context_window * 0.6（留足生成空间）
+  - [x] AC-T058-6: LLM 摘要失败时 fallback 到 truncation 策略（保留最近 N 条原文，N 由 token budget 决定）
+  - [x] AC-T058-7: mypy --strict 零错误
 - **deliverables**:
-  - [ ] `src/intellisource/agent/compaction.py` — 重构
-  - [ ] `src/intellisource/llm/prompts/compaction_summary.txt` — 结构化摘要模板
-  - [ ] `tests/unit/agent/test_compaction.py` — 更新（≥10 tests）
+  - [x] `src/intellisource/agent/compaction.py` — 重构
+  - [x] `src/intellisource/llm/prompts/compaction_summary.txt` — 结构化摘要模板
+  - [x] `tests/unit/agent/test_compaction.py` — 更新（20 tests，含 R-001 边界 + N-001 litellm 风格异常回归）
 - **context_load**:
   - src/intellisource/agent/compaction.py (现有 compact_messages)
   - src/intellisource/llm/gateway.py (estimate_tokens)
@@ -71,26 +86,29 @@ volume: s7
 
 ---
 
-### T-059: 配置分层合并机制
+### T-059: 配置分层合并机制 ✅ done
 
 - **目标**: 实现 `ConfigResolver` 支持 defaults → project → env vars 三层配置深度合并，供 LLM 配置和源配置统一使用
 - **模块**: M-001
 - **接口**: internal
 - **复杂度**: M
 - **依赖**: T-053（ModelProfile YAML 配置）
+- **status**: done（2026-05-03，与 T-061 合并 dispatch；CODE-REVIEW-T-059-T-061-r3 approved_with_notes，R-001~R-013 全闭环，R-014 LOW chore 余量）
 - **tdd_acceptance**:
-  - [ ] AC-T059-1: `config/defaults.yaml` 作为全局默认值层（版本控制内，提供所有配置项的合理默认值）
-  - [ ] AC-T059-2: `config/llm_models.yaml` 作为项目覆盖层，覆盖 defaults.yaml 中的同名配置
-  - [ ] AC-T059-3: `IS_*` 前缀环境变量作为最高优先级覆盖（`IS_LLM_DEFAULT_MODEL` → `default_model.model`）
-  - [ ] AC-T059-4: 深度合并策略 — nested dict recursive merge，list 覆盖不合并
-  - [ ] AC-T059-5: `ConfigResolver.resolve()` 返回最终合并后的 config dict
-  - [ ] AC-T059-6: 合并结果通过 Pydantic model 验证（复用 T-061 的 LLMModelsConfig）
-  - [ ] AC-T059-7: 缺少 defaults.yaml 时仅使用 project config + env vars（不报错）
-  - [ ] AC-T059-8: mypy --strict 零错误
+  - [x] AC-T059-1: `config/defaults.yaml` 作为全局默认值层（版本控制内，提供所有配置项的合理默认值）
+  - [x] AC-T059-2: `config/llm_models.yaml` 作为项目覆盖层，覆盖 defaults.yaml 中的同名配置
+  - [x] AC-T059-3: `IS_*` 前缀环境变量作为最高优先级覆盖（`IS_LLM_DEFAULT_MODEL` → `default_model.model`，含 `IS_LLM_*` 域前缀剥离 + 白名单防注入）
+  - [x] AC-T059-4: 深度合并策略 — nested dict recursive merge，list 覆盖不合并
+  - [x] AC-T059-5: `ConfigResolver.resolve()` 返回最终合并后的 config dict
+  - [x] AC-T059-6: 合并结果通过可注入的 Pydantic validator 验证（resolver 接受 `validator: Callable | None`；调用方注入 `LLMModelsConfig.model_validate`）
+  - [x] AC-T059-7: 缺少 defaults.yaml 时仅使用 project config + env vars（不报错）
+  - [x] AC-T059-8: mypy --strict 零错误
+- **实现顺序**: T-059 与 T-061 存在双向引用（T-061 的 ConfigResolver 集成依赖 T-059；T-059 的 AC-T059-6 依赖 T-061 的 LLMModelsConfig）。推荐执行顺序：① 先完成 T-061 的 Pydantic model 定义部分（LLMModelsConfig + ModelTaskConfig 最小字段集）→ ② 实现 T-059 ConfigResolver 并在 AC-T059-6 中复用上述 schema → ③ T-061 完成剩余的 load_model_config() 集成与验证规则扩充。
 - **deliverables**:
-  - [ ] `src/intellisource/config/resolver.py` — ConfigResolver 类
-  - [ ] `config/defaults.yaml` — 全局默认值文件
-  - [ ] `tests/unit/config/test_resolver.py` — 分层合并测试（≥12 tests）
+  - [x] `src/intellisource/config/resolver.py` — ConfigResolver 类（含贪婪前缀匹配 + 白名单 + validator 注入）
+  - [x] `src/intellisource/config/llm_schema.py` — Pydantic schema 迁移到 M-001（R-006 修订）
+  - [x] `config/defaults.yaml` — 全局默认值文件
+  - [x] `tests/unit/config/test_resolver.py` — 分层合并测试（30+ tests）
 - **context_load**:
   - src/intellisource/config/loader.py (ConfigLoader)
   - src/intellisource/llm/model_config.py (load_model_config)
@@ -100,13 +118,13 @@ volume: s7
 
 ### T-060: LLM 统计仪表盘 API
 
-- **目标**: 新增 `/api/v1/system/llm-stats` 端点，聚合 LLMCallLog 数据提供 token 消耗和成本统计
-- **模块**: M-011, M-010
-- **接口**: API-019 增强
+- **目标**: 新增 `GET /api/v1/llm/stats` 端点，聚合 LLMCallLog 数据提供 token 消耗和成本统计
+- **模块**: M-005, M-011
+- **接口**: API-017（已定义）
 - **复杂度**: S
 - **依赖**: T-056（Sprint 6 全量回归确认 LLMCallLog 正常工作）
 - **tdd_acceptance**:
-  - [ ] AC-T060-1: GET `/api/v1/system/llm-stats?start=&end=` 按时间范围查询
+  - [ ] AC-T060-1: GET `/api/v1/llm/stats?start=&end=` 按时间范围查询
   - [ ] AC-T060-2: 响应包含按模型维度聚合的 input_tokens/output_tokens/call_count
   - [ ] AC-T060-3: 响应包含按 task_type 维度聚合的 token 消耗
   - [ ] AC-T060-4: 响应包含 cached_calls/total_calls 比例
@@ -114,32 +132,35 @@ volume: s7
   - [ ] AC-T060-6: 无数据时返回空聚合结果（不报错）
   - [ ] AC-T060-7: mypy --strict 零错误
 - **deliverables**:
-  - [ ] `src/intellisource/api/routers/system.py` — llm-stats 端点
+  - [ ] `src/intellisource/api/routers/llm.py` — llm-stats 端点（复用已有 stub，URL: `/api/v1/llm/stats`）
   - [ ] `src/intellisource/storage/repositories/llm_call_log.py` — 聚合查询方法
-  - [ ] `tests/unit/api/test_system_routes.py` — 更新（≥6 tests）
+  - [ ] `tests/unit/api/test_llm_routes.py` — 新增或更新（≥6 tests）
 - **context_load**:
-  - src/intellisource/api/routers/system.py (现有端点)
+  - src/intellisource/api/routers/llm.py (已有 stub)
   - src/intellisource/storage/models.py (LLMCallLog E-011)
+  - arch-intellisource-v1-modules#§2.M-005 (LLMStatsAggregator)
 
 ---
 
-### T-061: LLM 配置 Pydantic Schema 验证
+### T-061: LLM 配置 Pydantic Schema 验证 ✅ done
 
 - **目标**: 为 `config/llm_models.yaml` 创建 Pydantic 验证模型，在 `load_model_config()` 中自动验证
 - **模块**: M-001, M-005
 - **接口**: internal
 - **复杂度**: S
 - **依赖**: T-059（ConfigResolver 集成）
+- **status**: done（2026-05-03，与 T-059 合并 dispatch；CODE-REVIEW-T-059-T-061-r3 approved_with_notes）
 - **tdd_acceptance**:
-  - [ ] AC-T061-1: `LLMModelsConfig` Pydantic model 覆盖所有 YAML 字段（default_model, models, profiles）
-  - [ ] AC-T061-2: `ModelTaskConfig` 子模型验证 model/provider/temperature/max_tokens
-  - [ ] AC-T061-3: `load_model_config()` 加载后自动通过 LLMModelsConfig 验证
-  - [ ] AC-T061-4: 无效配置抛出 `ValidationError` 并指明具体字段（如 `temperature 必须在 0.0~2.0 之间`）
-  - [ ] AC-T061-5: 缺少可选字段时使用 Pydantic 默认值（不报错）
-  - [ ] AC-T061-6: mypy --strict 零错误
+  - [x] AC-T061-1: `LLMModelsConfig` Pydantic model 覆盖所有 YAML 字段（default_model, models, profiles）
+  - [x] AC-T061-2: `ModelTaskConfig` 子模型验证 model/provider/temperature/max_tokens
+  - [x] AC-T061-3: `load_model_config()` 加载后自动通过 LLMModelsConfig 验证
+  - [x] AC-T061-4: 无效配置抛出 `ValidationError` 并指明具体字段（如 `temperature 必须在 0.0~2.0 之间`）
+  - [x] AC-T061-5: 缺少可选字段时使用 Pydantic 默认值（不报错）
+  - [x] AC-T061-6: mypy --strict 零错误
 - **deliverables**:
-  - [ ] `src/intellisource/llm/model_config.py` — LLMModelsConfig + ModelTaskConfig Pydantic models
-  - [ ] `tests/unit/llm/test_model_config.py` — 验证测试（≥8 tests）
+  - [x] `src/intellisource/config/llm_schema.py` — LLMModelsConfig + ModelTaskConfig + DefaultModelConfig + ModelProfileConfig Pydantic models（R-006 迁移到 M-001）
+  - [x] `src/intellisource/llm/model_config.py` — re-export 保持向后兼容；`load_model_config()` 自动校验
+  - [x] `tests/unit/llm/test_model_config_validation.py` — 验证测试（17 tests，含 R-010 LLMGateway 包装回归）
 - **context_load**:
   - src/intellisource/llm/model_config.py (load_model_config)
   - config/llm_models.example.yaml
@@ -188,7 +209,7 @@ volume: s7
   - [ ] AC-T063-5: 全量 `pytest` 通过（无 import 错误、无残留引用）
   - [ ] AC-T063-6: `mypy --strict src/` 零错误
 - **deliverables**:
-  - [ ] `tests/unit/integration/test_sprint7_integration.py` — 集成测试
+  - [ ] `tests/integration/test_sprint7_integration.py` — 集成测试
   - [ ] 全量 pytest + mypy 通过报告
 - **context_load**:
   - 所有 T-057 ~ T-062 deliverables
