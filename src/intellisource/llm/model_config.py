@@ -11,8 +11,62 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Pydantic schema models (T-061)
+# ---------------------------------------------------------------------------
+
+
+class ModelTaskConfig(BaseModel):
+    """Pydantic model for a single task-type model configuration."""
+
+    model: str
+    provider: str
+    temperature: float | None = None
+    max_tokens: int | None = None
+
+    @field_validator("temperature")
+    @classmethod
+    def temperature_in_range(cls, v: float | None) -> float | None:
+        if v is not None and not (0.0 <= v <= 2.0):
+            raise ValueError("temperature 必须在 0.0~2.0 之间")
+        return v
+
+    @field_validator("max_tokens")
+    @classmethod
+    def max_tokens_positive(cls, v: int | None) -> int | None:
+        if v is not None and v <= 0:
+            raise ValueError("max_tokens 必须大于 0")
+        return v
+
+
+class ModelProfileConfig(BaseModel):
+    """Pydantic model for a per-model profile configuration."""
+
+    temperature: float
+    max_tokens: int
+    context_window: int
+    prompt_style: str = "default"
+    timeout_seconds: int = 60
+
+
+class DefaultModelConfig(BaseModel):
+    """Pydantic model for the default_model section."""
+
+    model: str
+    provider: str
+
+
+class LLMModelsConfig(BaseModel):
+    """Pydantic schema for the full llm_models.yaml configuration."""
+
+    default_model: DefaultModelConfig
+    models: dict[str, ModelTaskConfig] = Field(default_factory=dict)
+    profiles: dict[str, ModelProfileConfig] = Field(default_factory=dict)
 
 
 @dataclass
@@ -106,5 +160,8 @@ def load_model_config(path: str) -> dict[str, Any]:
 
     if "default_model" not in data:
         raise ValueError(f"Config file missing required key 'default_model': {path}")
+
+    # Validate schema via Pydantic (raises ValidationError on invalid data).
+    LLMModelsConfig.model_validate(data)
 
     return dict(data)
