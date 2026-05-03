@@ -2,14 +2,14 @@
 id: dev-plan-intellisource-v1-s7
 doc_type: dev-plan
 author: tech-lead
-status: draft
+status: approved
 deps: [arch-intellisource-v1]
 consumers: [developer, qa-engineer]
 volume: s7
 split_from: dev-plan-intellisource-v1
 ---
 # Development Plan: IntelliSource — Sprint 7
-<!-- id: dev-plan-intellisource-v1-s7 | author: tech-lead | status: draft -->
+<!-- id: dev-plan-intellisource-v1-s7 | author: tech-lead | status: approved -->
 <!-- deps: arch-intellisource-v1 | consumers: developer, qa-engineer -->
 <!-- volume: s7 -->
 
@@ -117,7 +117,7 @@ split_from: dev-plan-intellisource-v1
 
 - **目标**: 新增 `GET /api/v1/llm/stats` 端点，聚合 LLMCallLog 数据提供 token 消耗和成本统计
 - **模块**: M-005, M-011
-- **接口**: API-026（新增；[ASSUMPTION] arch 待新增 API-026: GET /api/v1/llm/stats，由后续 arch 修订承接。arch M-005 中 LLMStatsAggregator 注释"供 API-019 增强端点使用"与 API-019 Prometheus text 格式不符，故新增独立接口编号）
+- **接口**: API-017（已定义）
 - **复杂度**: S
 - **依赖**: T-056（Sprint 6 全量回归确认 LLMCallLog 正常工作）
 - **tdd_acceptance**:

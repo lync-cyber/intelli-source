@@ -30,10 +30,10 @@
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 
 - 当前阶段: development
-- 上次完成: reviewer — Sprint 6 Review approved (SPRINT-REVIEW-s6-r2, 1642 tests passed, mypy strict 零错误，SR-001~SR-008 全部闭环)
-- 下一步行动: Sprint 7 LLM 韧性增强与配置治理 (T-057 ~ T-063)，需先对 dev-plan-s7 执行 doc-review
+- 上次完成: reviewer — REVIEW-dev-plan-intellisource-v1-s7-r4 approved_with_notes (R-007 LOW 余量，T-063 缺 T-061 专项 AC，可在实施时补)
+- 下一步行动: tdd-engine 调度 T-058 上下文压缩增强 (tdd_mode=light, 复杂度 M, 7 ACs, 依赖 T-051)
 - 已完成阶段: [bootstrap, requirements, architecture, ui_design(跳过-backend-only), dev_planning, sprint-1, sprint-2, sprint-3, sprint-4, sprint-5, sprint-6]
-- 当前Sprint: sprint-7 (draft, 7 tasks: T-057~T-063)
+- 当前Sprint: sprint-7 (approved, 1/7 done: T-057 ✅；下一: T-058)
 - 文档状态:
   - prd: approved
   - arch: approved
