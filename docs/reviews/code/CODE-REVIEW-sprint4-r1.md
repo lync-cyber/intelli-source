@@ -1,3 +1,10 @@
+---
+id: "code-review-sprint4-r1"
+doc_type: code-review
+author: reviewer
+status: approved
+deps: ["sprint4"]
+---
 # CODE-REVIEW: Sprint 4 (T-027 ~ T-036)
 <!-- date: 2026-04-08 | sprint: 4 | scope: src/intellisource/scheduler/, src/intellisource/agent/, src/intellisource/distributor/, config/pipelines/ -->
 <!-- layer1: skipped (lint hook configured in PostToolUse) -->

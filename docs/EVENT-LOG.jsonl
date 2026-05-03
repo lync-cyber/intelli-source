@@ -16,3 +16,7 @@
 {"ts":"2026-04-10T04:00:00+00:00","event":"review_completed","phase":"development","detail":"SPRINT-REVIEW-s6-r1 written: 1H+4M+3L, initial verdict needs_revision (SR-002 AC-T052-4 gap)","agent":"sprint-review"}
 {"ts": "2026-04-10T03:53:57.244756+00:00", "event": "session_start", "phase": "development", "detail": "会话启动"}
 {"ts": "2026-04-10T03:57:56.074480+00:00", "event": "session_start", "phase": "development", "detail": "会话启动"}
+{"ts": "2026-05-03T04:56:36.978869+00:00", "event": "session_start", "phase": "development", "detail": "会话启动"}
+{"ts": "2026-05-03T04:57:48.724083+00:00", "event": "session_start", "phase": "development", "detail": "会话启动 — 检测到 Sprint 6 已 approved 但 CLAUDE.md/NAV-INDEX 滞后"}
+{"ts": "2026-05-03T04:58:22.147652+00:00", "event": "review_verdict", "phase": "development", "detail": "SPRINT-REVIEW-s6-r2 approved (Sprint 6 完结)", "agent": "reviewer", "status": "approved"}
+{"ts": "2026-05-03T04:58:22.178081+00:00", "event": "state_change", "phase": "development", "detail": "CLAUDE.md 同步: Sprint 6 → Sprint 7，s6 dev-plan draft → approved"}

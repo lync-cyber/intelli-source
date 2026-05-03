@@ -1,3 +1,10 @@
+---
+id: "code-review-sprint2-r1"
+doc_type: code-review
+author: reviewer
+status: approved
+deps: ["sprint2"]
+---
 # Sprint 2 Code Review
 <!-- id: CODE-REVIEW-sprint2-r1 | reviewer: code-review | date: 2026-04-05 -->
 

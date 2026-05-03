@@ -1,3 +1,9 @@
+---
+id: sprint-review-s3-r1
+doc_type: sprint-review
+author: reviewer
+status: approved
+---
 # SPRINT-REVIEW: Sprint 3 (LLM 智能处理)
 <!-- date: 2026-04-07 | sprint: 3 | tasks: T-019..T-026 | reviewer: sprint-review -->
 <!-- layer1: degraded (CODE-REVIEW uses sprint-level naming, not per-task) -->

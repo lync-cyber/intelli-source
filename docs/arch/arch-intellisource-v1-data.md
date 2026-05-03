@@ -1,3 +1,11 @@
+---
+id: arch-intellisource-v1-data
+doc_type: arch
+author: architect
+status: approved
+deps: [prd-intellisource-v1]
+consumers: [tech-lead, developer, devops]
+---
 # Architecture 分卷 -- 数据模型: IntelliSource
 <!-- required_sections: ["## 4. 数据模型"] -->
 <!-- volume_type: data -->

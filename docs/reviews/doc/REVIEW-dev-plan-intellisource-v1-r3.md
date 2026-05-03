@@ -1,3 +1,10 @@
+---
+id: "review-dev-plan-intellisource-v1-r3"
+doc_type: review
+author: reviewer
+status: approved
+deps: ["dev-plan-intellisource-v1"]
+---
 # REVIEW: dev-plan-intellisource-v1 (r3)
 <!-- date: 2026-04-02 | reviewer: reviewer | doc_type: dev-plan -->
 <!-- Layer 1: PASS (主卷+全部5个Sprint分卷) | Layer 2: 已执行 -->

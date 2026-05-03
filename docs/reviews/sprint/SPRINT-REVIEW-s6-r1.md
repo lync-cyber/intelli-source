@@ -1,3 +1,9 @@
+---
+id: sprint-review-s6-r1
+doc_type: sprint-review
+author: reviewer
+status: approved
+---
 # SPRINT-REVIEW: Sprint 6 (处理器/智能体架构重构) -- r1
 <!-- date: 2026-04-10 | sprint: 6 | tasks: T-047..T-056 | reviewer: sprint-review -->
 <!-- layer1: fail (降级入 Layer 2) -->

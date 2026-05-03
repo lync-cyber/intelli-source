@@ -1,3 +1,11 @@
+---
+id: dev-plan-intellisource-v1-s4
+doc_type: dev-plan
+author: tech-lead
+status: approved
+deps: [arch-intellisource-v1]
+consumers: [developer, qa-engineer]
+---
 # Development Plan 分卷 -- Sprint 4: IntelliSource
 <!-- required_sections: ["## 3. 任务卡详细"] -->
 <!-- volume_type: sprint -->

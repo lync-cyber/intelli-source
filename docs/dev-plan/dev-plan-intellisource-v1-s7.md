@@ -1,3 +1,12 @@
+---
+id: dev-plan-intellisource-v1-s7
+doc_type: dev-plan
+author: tech-lead
+status: draft
+deps: [arch-intellisource-v1]
+consumers: [developer, qa-engineer]
+volume: s7
+---
 # Development Plan: IntelliSource — Sprint 7
 <!-- id: dev-plan-intellisource-v1-s7 | author: tech-lead | status: draft -->
 <!-- deps: arch-intellisource-v1 | consumers: developer, qa-engineer -->

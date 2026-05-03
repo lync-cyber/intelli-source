@@ -1,3 +1,11 @@
+---
+id: arch-intellisource-v1-modules
+doc_type: arch
+author: architect
+status: approved
+deps: [prd-intellisource-v1]
+consumers: [tech-lead, developer, devops]
+---
 # Architecture 分卷 -- 模块划分: IntelliSource
 <!-- required_sections: ["## 2. 模块划分"] -->
 <!-- volume_type: modules -->

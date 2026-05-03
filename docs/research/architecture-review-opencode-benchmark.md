@@ -1,3 +1,10 @@
+---
+id: "architecture-review-opencode-benchmark"
+doc_type: research
+author: user
+status: approved
+deps: []
+---
 # IntelliSource 深度架构评审报告 — 以 OpenCode 为对标
 
 > 评审范围: src/intellisource/, .claude/, config/, docs/, tests/

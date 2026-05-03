@@ -1,3 +1,9 @@
+---
+id: sprint-review-s1-r2
+doc_type: sprint-review
+author: reviewer
+status: approved
+---
 # Sprint 1 复审报告
 <!-- id: SPRINT-REVIEW-s1-r2 | reviewer: sprint-review | date: 2026-04-04 -->
 <!-- sprint: 1 | layer1: passed | layer2: completed -->

@@ -1,3 +1,10 @@
+---
+id: "code-review-deliverable-compliance-r2"
+doc_type: code-review
+author: reviewer
+status: approved
+deps: ["deliverable-compliance"]
+---
 # CODE-REVIEW: 交付物合规性审查（深度审查） — r2
 <!-- date: 2026-04-09 | scope: 全量合规审查 — Sprint 1-5 遗留问题 + 交付物偏离 | reviewer: orchestrator -->
 

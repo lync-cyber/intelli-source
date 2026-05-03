@@ -1,3 +1,10 @@
+---
+id: "prompt-management-analysis"
+doc_type: research
+author: user
+status: approved
+deps: []
+---
 # IntelliSource 提示词管理分析报告
 
 > 对比分析对象: OpenCode (github.com/sst/opencode)

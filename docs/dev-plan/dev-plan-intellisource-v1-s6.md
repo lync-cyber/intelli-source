@@ -1,3 +1,12 @@
+---
+id: dev-plan-intellisource-v1-s6
+doc_type: dev-plan
+author: tech-lead
+status: approved
+deps: [arch-intellisource-v1]
+consumers: [developer, qa-engineer]
+volume: s6
+---
 # Development Plan: IntelliSource — Sprint 6
 <!-- id: dev-plan-intellisource-v1-s6 | author: tech-lead | status: approved -->
 <!-- deps: arch-intellisource-v1 | consumers: developer, qa-engineer -->

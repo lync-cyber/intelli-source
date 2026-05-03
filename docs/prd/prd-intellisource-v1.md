@@ -1,3 +1,12 @@
+---
+id: prd-intellisource-v1
+doc_type: prd
+author: product-manager
+status: approved
+deps: []
+consumers: [architect, ui-designer, tech-lead]
+volume: main
+---
 # PRD: IntelliSource
 <!-- required_sections: ["## 1. 概述", "## 2. 功能需求", "## 3. 非功能需求"] -->
 <!-- id: prd-intellisource-v1 | author: product-manager | status: approved -->

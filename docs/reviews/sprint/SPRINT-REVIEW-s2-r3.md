@@ -1,3 +1,9 @@
+---
+id: sprint-review-s2-r3
+doc_type: sprint-review
+author: reviewer
+status: approved
+---
 # Sprint 2 终审报告
 <!-- id: SPRINT-REVIEW-s2-r3 | reviewer: sprint-review | date: 2026-04-05 -->
 <!-- sprint: 2 | layer1: degraded(9 FAIL script-level, see notes) | layer2: completed -->

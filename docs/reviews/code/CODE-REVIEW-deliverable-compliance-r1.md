@@ -1,3 +1,10 @@
+---
+id: "code-review-deliverable-compliance-r1"
+doc_type: code-review
+author: reviewer
+status: approved
+deps: ["deliverable-compliance"]
+---
 # CODE-REVIEW: 交付物合规性审查 — r1
 <!-- date: 2026-04-09 | scope: arch目录结构 vs 实际文件 | reviewer: manual -->
 

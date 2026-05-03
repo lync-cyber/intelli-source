@@ -1,3 +1,9 @@
+---
+id: sprint-review-s4-r1
+doc_type: sprint-review
+author: reviewer
+status: approved
+---
 # SPRINT-REVIEW: Sprint 4 (任务编排与分发) -- r1
 <!-- date: 2026-04-08 | sprint: 4 | tasks: T-027..T-036 | reviewer: sprint-review -->
 <!-- layer1: pass -->
