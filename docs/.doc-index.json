@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-05-03T10:44:43.577399+00:00",
+  "generated_at": "2026-05-03T10:54:43.828598+00:00",
   "documents": {
     "arch-intellisource-v1-api": {
       "file_path": "docs/arch/arch-intellisource-v1-api.md",
@@ -2018,15 +2018,15 @@
       "doc_type": "dev-plan",
       "volume": "s7",
       "status": "draft",
-      "total_lines": 208,
-      "est_tokens": 2791,
+      "total_lines": 210,
+      "est_tokens": 3022,
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
           "level": 2,
           "line_start": 33,
-          "line_end": 208,
-          "est_tokens": 2526,
+          "line_end": 210,
+          "est_tokens": 2757,
           "deps": [],
           "items": {
             "T-057": {
@@ -2040,42 +2040,42 @@
               "heading": "### T-058: 上下文压缩增强",
               "line_start": 62,
               "line_end": 87,
-              "est_tokens": 377,
+              "est_tokens": 422,
               "deps": []
             },
             "T-059": {
               "heading": "### T-059: 配置分层合并机制",
               "line_start": 88,
-              "line_end": 114,
-              "est_tokens": 379,
+              "line_end": 115,
+              "est_tokens": 484,
               "deps": []
             },
             "T-060": {
               "heading": "### T-060: LLM 统计仪表盘 API",
-              "line_start": 115,
-              "line_end": 139,
-              "est_tokens": 320,
+              "line_start": 116,
+              "line_end": 141,
+              "est_tokens": 402,
               "deps": []
             },
             "T-061": {
               "heading": "### T-061: LLM 配置 Pydantic Schema 验证",
-              "line_start": 140,
-              "line_end": 162,
+              "line_start": 142,
+              "line_end": 164,
               "est_tokens": 318,
               "deps": []
             },
             "T-062": {
               "heading": "### T-062: 模型特化 Prompt 变体",
-              "line_start": 163,
-              "line_end": 189,
+              "line_start": 165,
+              "line_end": 191,
               "est_tokens": 436,
               "deps": []
             },
             "T-063": {
               "heading": "### T-063: Sprint 7 集成测试与回归",
-              "line_start": 190,
-              "line_end": 208,
-              "est_tokens": 229,
+              "line_start": 192,
+              "line_end": 210,
+              "est_tokens": 227,
               "deps": []
             }
           }
