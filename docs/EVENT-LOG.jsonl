@@ -50,3 +50,4 @@
 {"ts": "2026-05-03T11:40:50+00:00", "event": "review_verdict", "phase": "development", "detail": "CODE-REVIEW-T-058-r2: approved_with_notes (R-001~R-006 全闭环，新增 N-001 MEDIUM litellm 异常覆盖)", "agent": "reviewer", "status": "approved_with_notes"}
 {"ts": "2026-05-03T11:40:50+00:00", "event": "correction", "phase": "development", "detail": "T-058 N-001 主线直改闭环：except RuntimeError → except Exception；删除 LLMError 未用 import；新增 test_fallback_triggered_by_litellm_style_exception 回归测试", "agent": "orchestrator"}
 {"ts": "2026-05-03T11:40:50+00:00", "event": "state_change", "phase": "development", "detail": "T-058 status: draft → done; CLAUDE.md sync; Sprint 7 进度 2/7 (T-057, T-058 done)"}
+{"ts": "2026-05-03T11:44:06+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD LIGHT-DISPATCH: T-059 (含 T-061 minimal schema prerequisite)"}
