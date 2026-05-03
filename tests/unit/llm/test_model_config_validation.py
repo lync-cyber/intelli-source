@@ -250,3 +250,18 @@ class TestGatewayValidationErrorWrapping:
 
         with pytest.raises(LLMError):
             LLMGateway()
+
+    def test_gateway_init_with_malformed_yaml_raises_llm_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """LLMGateway 初始化时 YAML 语法错误，抛出 LLMError 而非裸 ValueError。"""
+        from intellisource.core.errors import LLMError
+        from intellisource.llm.gateway import LLMGateway
+
+        malformed_yaml_file = tmp_path / "malformed.yaml"
+        malformed_yaml_file.write_text("key: [unclosed bracket")
+
+        monkeypatch.setenv("IS_LLM_CONFIG_PATH", str(malformed_yaml_file))
+
+        with pytest.raises(LLMError):
+            LLMGateway()

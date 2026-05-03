@@ -386,7 +386,7 @@ class TestPydanticValidation:
 
     def test_resolve_result_validates_with_pydantic(self, tmp_path: Path) -> None:
         """resolve() 返回的 dict 可通过 LLMModelsConfig.model_validate() 验证。"""
-        from intellisource.llm.model_config import LLMModelsConfig
+        from intellisource.config.llm_schema import LLMModelsConfig
 
         defaults_path = tmp_path / "defaults.yaml"
         project_path = tmp_path / "project.yaml"
@@ -507,6 +507,22 @@ class TestEnvVarLLMPrefixSupport:
         result = resolver.resolve()
 
         assert result["models"]["extract"]["model"] == "baz"
+
+    def test_is_llm_default_model_provider_maps_to_provider_field(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """IS_LLM_DEFAULT_MODEL_PROVIDER=anthropic maps to default_model.provider。"""
+        defaults_path = tmp_path / "defaults.yaml"
+        write_yaml(defaults_path, DEFAULTS_CONFIG)
+        monkeypatch.setenv("IS_LLM_DEFAULT_MODEL_PROVIDER", "anthropic")
+
+        resolver = ConfigResolver(
+            defaults_path=str(defaults_path),
+            project_path=str(tmp_path / "nonexistent.yaml"),
+        )
+        result = resolver.resolve()
+
+        assert result["default_model"]["provider"] == "anthropic"
 
 
 # ===========================================================================

@@ -112,6 +112,12 @@ def _apply_env_vars(config: dict[str, Any], prefix: str) -> dict[str, Any]:
 
     Only env vars whose names (after prefix stripping) map to a known top-level
     key (default_model, models, profiles) are processed; all others are ignored.
+
+    Limitations:
+        Environment variables cannot reference profile keys containing
+        hyphens (e.g. profiles for model 'gpt-4o-mini' cannot be overridden
+        via env vars because hyphens are illegal in env var names). For
+        such overrides, edit the project YAML directly.
     """
     result: dict[str, Any] = dict(config)
     prefix_upper = prefix.upper()

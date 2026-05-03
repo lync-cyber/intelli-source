@@ -105,6 +105,11 @@ def _load_routing_config() -> dict[str, Any]:
             f"LLM config validation failed: {exc}",
             category=ErrorCategory.UNRECOVERABLE,
         ) from exc
+    except ValueError as exc:
+        raise LLMError(
+            f"LLM config file error: {exc}",
+            category=ErrorCategory.UNRECOVERABLE,
+        ) from exc
 
 
 class SchemaValidationError(LLMError):
