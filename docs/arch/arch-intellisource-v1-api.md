@@ -444,8 +444,7 @@ request:
   query:
     period: { type: string, required: false, desc: "统计周期: day | week | month，默认 day" }
     model: { type: string, required: false, desc: "模型名称过滤" }
-    date_from: { type: datetime, required: false, desc: "起始时间" }
-    date_to: { type: datetime, required: false, desc: "结束时间" }
+    call_type: { type: string, required: false, desc: "调用类型过滤（structured_extraction / summary_generation 等）" }
 response:
   200:
     schema: "LLMStatsResponse"
@@ -461,17 +460,18 @@ response:
         desc: "按模型分组统计"
         item_fields:
           model: { type: string, desc: "模型名称" }
-          calls: { type: integer, desc: "调用次数" }
-          tokens: { type: integer, desc: "Token 消耗" }
-          avg_latency_ms: { type: number, desc: "平均延迟" }
-          error_rate: { type: number, desc: "错误率（0-1）" }
+          call_count: { type: integer, desc: "调用次数" }
+          input_tokens: { type: integer, desc: "输入 Token 消耗" }
+          output_tokens: { type: integer, desc: "输出 Token 消耗" }
+          error_rate: { type: number, desc: "错误率（0-1，AVG over CASE WHEN status=error）" }
       by_date:
         type: "array[DateStats]"
         desc: "按日期分组统计"
         item_fields:
-          date: { type: string, desc: "日期" }
-          calls: { type: integer, desc: "调用次数" }
-          tokens: { type: integer, desc: "Token 消耗" }
+          date: { type: string, desc: "日期 (YYYY-MM-DD)" }
+          call_count: { type: integer, desc: "调用次数" }
+          total_tokens: { type: integer, desc: "总 Token 消耗 (input + output)" }
+  400: { schema: "ErrorResponse", desc: "无效 period 值（必须为 day/week/month）" }
   401: { schema: "ErrorResponse", desc: "认证失败" }
 ```
 

@@ -23,7 +23,7 @@ split_from: dev-plan-intellisource-v1
   - T-057 LLM 调用指数退避重试 ✅ done
   - T-058 上下文压缩增强 ✅ done
   - T-059 配置分层合并机制 ✅ done
-  - T-060 LLM 统计仪表盘 API
+  - T-060 LLM 统计仪表盘 API ✅ done
   - T-061 LLM 配置 Pydantic Schema 验证 ✅ done
   - T-062 模型特化 Prompt 变体
   - T-063 Sprint 7 集成测试与回归
@@ -119,23 +119,24 @@ split_from: dev-plan-intellisource-v1
 
 ---
 
-### T-060: LLM 统计仪表盘 API
+### T-060: LLM 统计仪表盘 API ✅ done
 
 - **目标**: 实现 `GET /api/v1/llm/stats` 端点，聚合 LLMCallLog 数据，响应结构完整对齐 API-017 规范
 - **模块**: M-005, M-009, M-011
-- **接口**: API-017（已定义）
+- **接口**: API-017（已定义；本任务期间通过 architect amendment 更新字段命名以对齐 AC，闭环 R-005）
 - **复杂度**: S
 - **依赖**: T-021（LLMCallLog 模型与成本追踪）、T-056（Sprint 6 全量回归）
 - **扫描背景**: CODE-SCAN R-004/R-005/R-013 — `api/routers/llm.py` 中的 stub `LLMCallLogRepository` 永远返回 `{}`；`CostTracker.get_stats()` 仅有 3 个字段，缺少 `avg_latency_ms`/`by_model`/`by_date`/`total_tokens`；Repository 类错误地定义在路由文件而非存储层
+- **status**: done（2026-05-03，CODE-REVIEW-T-060-r3 approved_with_notes；r1 needs_revision → r2 approved_with_notes → r3 approved_with_notes 共 3 轮修订；R-001/R-002/R-003/R-004/R-005/R-007 全闭环；R-006 MEDIUM 升级 → sprint-7 retrospective EXP；19 target tests + 1739 全量回归 PASSED；mypy strict src/ + ruff clean）
 - **tdd_acceptance**:
-  - [ ] AC-T060-1: `GET /api/v1/llm/stats?period=day` 支持 `period` 参数（day/week/month）查询时间窗口
-  - [ ] AC-T060-2: 响应字段包含 `period`、`total_calls`、`total_tokens`（input+output 之和）、`total_input_tokens`、`total_output_tokens`（对齐 API-017）
-  - [ ] AC-T060-3: 响应字段包含 `avg_latency_ms`（`AVG(latency_ms)` 全局聚合，`LLMCallLog.latency_ms` 列已存在）
-  - [ ] AC-T060-4: 响应字段包含 `by_model[]`（`GROUP BY model`，每项含 `model`/`call_count`/`input_tokens`/`output_tokens`/`error_rate`）
-  - [ ] AC-T060-5: 响应字段包含 `by_date[]`（`GROUP BY DATE(created_at)`，每项含 `date`/`call_count`/`total_tokens`）
-  - [ ] AC-T060-6: 无数据时返回空聚合结果（`total_calls=0`，`by_model=[]`，`by_date=[]`，不报错）
-  - [ ] AC-T060-7: 支持可选 `model` 和 `call_type` 过滤参数
-  - [ ] AC-T060-8: mypy --strict 零错误
+  - [x] AC-T060-1: `GET /api/v1/llm/stats?period=day` 支持 `period` 参数（day/week/month）查询时间窗口
+  - [x] AC-T060-2: 响应字段包含 `period`、`total_calls`、`total_tokens`（input+output 之和）、`total_input_tokens`、`total_output_tokens`（对齐 API-017）
+  - [x] AC-T060-3: 响应字段包含 `avg_latency_ms`（`AVG(latency_ms)` 全局聚合，`LLMCallLog.latency_ms` 列已存在）
+  - [x] AC-T060-4: 响应字段包含 `by_model[]`（`GROUP BY model`，每项含 `model`/`call_count`/`input_tokens`/`output_tokens`/`error_rate`）
+  - [x] AC-T060-5: 响应字段包含 `by_date[]`（`GROUP BY DATE(created_at)`，每项含 `date`/`call_count`/`total_tokens`）
+  - [x] AC-T060-6: 无数据时返回空聚合结果（`total_calls=0`，`by_model=[]`，`by_date=[]`，不报错）
+  - [x] AC-T060-7: 支持可选 `model` 和 `call_type` 过滤参数
+  - [x] AC-T060-8: mypy --strict 零错误
 - **deliverables**:
   - [ ] `src/intellisource/storage/repositories/llm_call_log.py` — `LLMCallLogRepository` 含 `get_stats()` 多维 SQL 聚合（移出路由文件）
   - [ ] `src/intellisource/api/routers/llm.py` — 替换内联 stub，改为 `Depends(get_db_session)` + 真实 `LLMCallLogRepository`

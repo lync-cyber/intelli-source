@@ -729,13 +729,13 @@ class TestLLMStatsEndpoint:
         assert isinstance(body["by_model"], list)
 
     @pytest.mark.asyncio
-    async def test_llm_stats_filter_by_date_range(
+    async def test_llm_stats_period_filter(
         self, llm_client: AsyncClient
     ) -> None:
-        """GET /api/v1/llm/stats with date_from and date_to filters."""
+        """GET /api/v1/llm/stats with period filter returns 200."""
         mock_repo = AsyncMock()
         mock_repo.get_stats.return_value = {
-            "period": "day",
+            "period": "month",
             "total_calls": 50,
             "total_tokens": 10000,
             "total_input_tokens": 6000,
@@ -751,16 +751,13 @@ class TestLLMStatsEndpoint:
         ):
             resp = await llm_client.get(
                 "/api/v1/llm/stats",
-                params={
-                    "date_from": "2025-06-01T00:00:00Z",
-                    "date_to": "2025-06-30T23:59:59Z",
-                },
+                params={"period": "month"},
             )
 
         assert resp.status_code == 200
         mock_repo.get_stats.assert_called_once()
         call_kwargs = mock_repo.get_stats.call_args
-        assert "2025-06" in str(call_kwargs)
+        assert call_kwargs.kwargs.get("period") == "month"
 
 
 # ===========================================================================

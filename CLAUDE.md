@@ -30,11 +30,11 @@
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 
 - 当前阶段: development
-- 上次完成: orchestrator — T-059 + T-061 bundle done (CODE-REVIEW-T-059-T-061-r3 approved_with_notes，R-001~R-013 全闭环，R-014 LOW chore 余量；48 target tests + 1720 全量回归 PASSED, mypy strict + ruff clean across 101 source files)
-- 下一步行动: tdd-engine 调度 T-060 LLM 统计仪表盘 API (tdd_mode=light, 复杂度 S, 依赖 T-053；接口已对齐 API-017)
+- 上次完成: orchestrator — T-060 done (CODE-REVIEW-T-060-r3 approved_with_notes，r1 needs_revision → r2 approved_with_notes → r3 approved_with_notes 三轮修订；R-001/R-002/R-003/R-004/R-005/R-007 全闭环；R-006 MEDIUM 升级 → retrospective EXP；架构 amendment 已闭环 arch#API-017 字段命名偏差；19 target tests + 1739 全量回归 PASSED；mypy strict src/ + ruff clean across 6 changed files)
+- 下一步行动: tdd-engine 调度 T-062 模型特化 Prompt 变体 (tdd_mode 待 tech-lead 任务卡确认)
 - 已完成阶段: [bootstrap, requirements, architecture, ui_design(跳过-backend-only), dev_planning, sprint-1, sprint-2, sprint-3, sprint-4, sprint-5, sprint-6]
-- 当前Sprint: sprint-7 (approved, 4/7 done: T-057 ✅, T-058 ✅, T-059 ✅, T-061 ✅；下一: T-060)
-- Retrospective 阈值监控: 本会话累计 self-caused review 问题 ≥4 起（T-058 N-001 + T-059 r1 R-003/R-004 + r2 R-010，三连同模式 except 漏覆盖；及 T-058 implementer self-report 失真），逼近 RETRO_TRIGGER_SELF_CAUSED=5
+- 当前Sprint: sprint-7 (approved, 5/7 done: T-057 ✅, T-058 ✅, T-059 ✅, T-060 ✅, T-061 ✅；下一: T-062)
+- Retrospective 阈值监控: 已达 RETRO_TRIGGER_SELF_CAUSED=5（T-060 r1 R-001+R-002+R-003+R-004+R-006，r2 R-006 升级 MEDIUM；外加历史 T-058 N-001 + T-059 r1 R-003/R-004 + r2 R-010）。新增 EXP 候选: implementer self-report 范围与实际范围错位（连续两轮：r1 router self-report "无需变更" 但 git diff 实有改动；r2 ruff scope 声称 src/ clean 但 tests/ 含 16 处 E501）。Sprint-7 末尾 retrospective 必须激活 reflector 提炼对应 EXP。
 - 文档状态:
   - prd: approved
   - arch: approved
