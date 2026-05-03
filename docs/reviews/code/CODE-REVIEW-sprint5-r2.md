@@ -1,3 +1,10 @@
+---
+id: "code-review-sprint5-r2"
+doc_type: code-review
+author: reviewer
+status: approved
+deps: ["sprint5"]
+---
 # CODE-REVIEW-sprint5-r2
 
 - **Sprint**: Sprint 5

@@ -1,3 +1,10 @@
+---
+id: "review-dev-plan-intellisource-v1-r4"
+doc_type: review
+author: reviewer
+status: approved
+deps: ["dev-plan-intellisource-v1"]
+---
 # REVIEW: dev-plan-intellisource-v1 (r4)
 <!-- date: 2026-04-03 | reviewer: reviewer | doc_type: dev-plan -->
 <!-- Layer 1: 跳过（增量变更审查） | Layer 2: 已执行 -->

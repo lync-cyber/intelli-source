@@ -1,3 +1,10 @@
+---
+id: "review-prd-intellisource-v1-r2"
+doc_type: review
+author: reviewer
+status: approved
+deps: ["prd-intellisource-v1"]
+---
 # REVIEW: prd-intellisource-v1 (r2)
 <!-- date: 2026-04-02 | reviewer: reviewer | doc: docs/prd/prd-intellisource-v1.md -->
 <!-- layer1: PASS | layer2: completed -->

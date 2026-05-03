@@ -1,3 +1,10 @@
+---
+id: "review-arch-intellisource-v1-r2"
+doc_type: review
+author: reviewer
+status: approved
+deps: ["arch-intellisource-v1"]
+---
 # REVIEW: arch-intellisource-v1 (r2)
 <!-- date: 2026-04-02 | reviewer: reviewer | doc_id: arch-intellisource-v1 -->
 <!-- scope: main + modules + api + data volumes -->

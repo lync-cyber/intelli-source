@@ -1,3 +1,9 @@
+---
+id: sprint-review-s5-r1
+doc_type: sprint-review
+author: reviewer
+status: approved
+---
 # SPRINT-REVIEW: Sprint 5 (检索/Agent集成/API/CLI) -- r1
 <!-- date: 2026-04-09 | sprint: 5 | tasks: T-037..T-046 | reviewer: sprint-review -->
 <!-- layer1: pass -->

@@ -1,3 +1,9 @@
+---
+id: sprint-review-s1-r1
+doc_type: sprint-review
+author: reviewer
+status: approved
+---
 # Sprint 1 审查报告
 <!-- id: SPRINT-REVIEW-s1-r1 | reviewer: sprint-review | date: 2026-04-04 -->
 <!-- sprint: 1 | layer1: degraded (脚本解析缺陷) | layer2: completed -->

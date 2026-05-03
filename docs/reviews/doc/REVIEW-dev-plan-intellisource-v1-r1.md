@@ -1,3 +1,10 @@
+---
+id: "review-dev-plan-intellisource-v1-r1"
+doc_type: review
+author: reviewer
+status: approved
+deps: ["dev-plan-intellisource-v1"]
+---
 # REVIEW: dev-plan-intellisource-v1 (r1)
 <!-- date: 2026-04-02 | reviewer: reviewer | doc_type: dev-plan -->
 <!-- Layer 1: FAIL (分卷 s1~s5 交叉引用不通过) | Layer 2: 未执行 (Layer 1 未通过) -->

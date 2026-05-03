@@ -1,3 +1,10 @@
+---
+id: "review-arch-intellisource-v1-r3"
+doc_type: review
+author: reviewer
+status: approved
+deps: ["arch-intellisource-v1"]
+---
 # REVIEW: arch-intellisource-v1 (r3)
 <!-- date: 2026-04-03 | reviewer: reviewer | scope: incremental-change -->
 <!-- focus: 多轮对话上下文压缩设计改进 -->

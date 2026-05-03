@@ -1,3 +1,12 @@
+---
+id: dev-plan-intellisource-v1
+doc_type: dev-plan
+author: tech-lead
+status: approved
+deps: [arch-intellisource-v1]
+consumers: [developer, qa-engineer]
+volume: main
+---
 # Development Plan: IntelliSource
 <!-- required_sections: ["## 1. 迭代规划", "## 2. 依赖图", "## 3. 任务卡详细"] -->
 <!-- id: dev-plan-intellisource-v1 | author: tech-lead | status: approved -->

@@ -1,3 +1,12 @@
+---
+id: arch-intellisource-v1
+doc_type: arch
+author: architect
+status: approved
+deps: [prd-intellisource-v1]
+consumers: [tech-lead, developer, devops]
+volume: main
+---
 # Architecture: IntelliSource
 <!-- required_sections: ["## 1. 架构概览", "## 2. 模块划分", "## 3. 接口契约", "## 4. 数据模型"] -->
 <!-- id: arch-intellisource-v1 | author: architect | status: approved -->

@@ -1,3 +1,11 @@
+---
+id: arch-intellisource-v1-api
+doc_type: arch
+author: architect
+status: approved
+deps: [prd-intellisource-v1]
+consumers: [tech-lead, developer, devops]
+---
 # Architecture 分卷 -- 接口契约: IntelliSource
 <!-- required_sections: ["## 3. 接口契约"] -->
 <!-- volume_type: api -->
