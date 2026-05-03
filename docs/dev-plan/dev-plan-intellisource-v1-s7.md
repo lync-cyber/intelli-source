@@ -21,12 +21,15 @@ split_from: dev-plan-intellisource-v1
 
 - §3 任务卡详细
   - T-057 LLM 调用指数退避重试 ✅ done
-  - T-058 上下文压缩增强
-  - T-059 配置分层合并机制
+  - T-058 上下文压缩增强 ✅ done
+  - T-059 配置分层合并机制 ✅ done
   - T-060 LLM 统计仪表盘 API
-  - T-061 LLM 配置 Pydantic Schema 验证
+  - T-061 LLM 配置 Pydantic Schema 验证 ✅ done
   - T-062 模型特化 Prompt 变体
   - T-063 Sprint 7 集成测试与回归
+  - T-072 数据库会话 DI 接驳（新增，源自 CODE-SCAN R-001/R-007）
+  - T-073 GET /api/v1/clusters 端点（新增，源自 CODE-SCAN R-003）
+  - T-074 TaskChainRepository 实现（新增，源自 CODE-SCAN R-006）
 
 [/NAV]
 
@@ -118,27 +121,31 @@ split_from: dev-plan-intellisource-v1
 
 ### T-060: LLM 统计仪表盘 API
 
-- **目标**: 新增 `GET /api/v1/llm/stats` 端点，聚合 LLMCallLog 数据提供 token 消耗和成本统计
-- **模块**: M-005, M-011
+- **目标**: 实现 `GET /api/v1/llm/stats` 端点，聚合 LLMCallLog 数据，响应结构完整对齐 API-017 规范
+- **模块**: M-005, M-009, M-011
 - **接口**: API-017（已定义）
 - **复杂度**: S
-- **依赖**: T-056（Sprint 6 全量回归确认 LLMCallLog 正常工作）
+- **依赖**: T-021（LLMCallLog 模型与成本追踪）、T-056（Sprint 6 全量回归）
+- **扫描背景**: CODE-SCAN R-004/R-005/R-013 — `api/routers/llm.py` 中的 stub `LLMCallLogRepository` 永远返回 `{}`；`CostTracker.get_stats()` 仅有 3 个字段，缺少 `avg_latency_ms`/`by_model`/`by_date`/`total_tokens`；Repository 类错误地定义在路由文件而非存储层
 - **tdd_acceptance**:
-  - [ ] AC-T060-1: GET `/api/v1/llm/stats?start=&end=` 按时间范围查询
-  - [ ] AC-T060-2: 响应包含按模型维度聚合的 input_tokens/output_tokens/call_count
-  - [ ] AC-T060-3: 响应包含按 task_type 维度聚合的 token 消耗
-  - [ ] AC-T060-4: 响应包含 cached_calls/total_calls 比例
-  - [ ] AC-T060-5: 响应包含 avg_latency_ms/p95_latency_ms 延迟统计
-  - [ ] AC-T060-6: 无数据时返回空聚合结果（不报错）
-  - [ ] AC-T060-7: mypy --strict 零错误
+  - [ ] AC-T060-1: `GET /api/v1/llm/stats?period=day` 支持 `period` 参数（day/week/month）查询时间窗口
+  - [ ] AC-T060-2: 响应字段包含 `period`、`total_calls`、`total_tokens`（input+output 之和）、`total_input_tokens`、`total_output_tokens`（对齐 API-017）
+  - [ ] AC-T060-3: 响应字段包含 `avg_latency_ms`（`AVG(latency_ms)` 全局聚合，`LLMCallLog.latency_ms` 列已存在）
+  - [ ] AC-T060-4: 响应字段包含 `by_model[]`（`GROUP BY model`，每项含 `model`/`call_count`/`input_tokens`/`output_tokens`/`error_rate`）
+  - [ ] AC-T060-5: 响应字段包含 `by_date[]`（`GROUP BY DATE(created_at)`，每项含 `date`/`call_count`/`total_tokens`）
+  - [ ] AC-T060-6: 无数据时返回空聚合结果（`total_calls=0`，`by_model=[]`，`by_date=[]`，不报错）
+  - [ ] AC-T060-7: 支持可选 `model` 和 `call_type` 过滤参数
+  - [ ] AC-T060-8: mypy --strict 零错误
 - **deliverables**:
-  - [ ] `src/intellisource/api/routers/llm.py` — llm-stats 端点（复用已有 stub，URL: `/api/v1/llm/stats`）
-  - [ ] `src/intellisource/storage/repositories/llm_call_log.py` — 聚合查询方法
-  - [ ] `tests/unit/api/test_llm_routes.py` — 新增或更新（≥6 tests）
+  - [ ] `src/intellisource/storage/repositories/llm_call_log.py` — `LLMCallLogRepository` 含 `get_stats()` 多维 SQL 聚合（移出路由文件）
+  - [ ] `src/intellisource/api/routers/llm.py` — 替换内联 stub，改为 `Depends(get_db_session)` + 真实 `LLMCallLogRepository`
+  - [ ] `src/intellisource/storage/repositories/__init__.py` — 导出 `LLMCallLogRepository`
+  - [ ] `tests/unit/api/test_llm_routes.py` — ≥8 tests（覆盖各字段、空数据、过滤参数）
 - **context_load**:
-  - src/intellisource/api/routers/llm.py (已有 stub)
-  - src/intellisource/storage/models.py (LLMCallLog E-011)
-  - arch-intellisource-v1-modules#§2.M-005 (LLMStatsAggregator)
+  - src/intellisource/api/routers/llm.py (现有 stub)
+  - src/intellisource/storage/models.py (LLMCallLog E-011，含 latency_ms/model/call_type/created_at 列)
+  - src/intellisource/llm/cost_tracker.py (CostTracker 现有聚合参考)
+  - docs/arch/arch-intellisource-v1-api.md#API-017 (响应字段规范)
 
 ---
 
@@ -196,20 +203,110 @@ split_from: dev-plan-intellisource-v1
 
 ### T-063: Sprint 7 集成测试与回归
 
-- **目标**: 验证 Sprint 7 所有改进在集成场景下正常工作，全量 pytest + mypy 通过
+- **目标**: 验证 Sprint 7 所有改进（含新增基础设施任务 T-072~T-074）在集成场景下正常工作，全量 pytest + mypy 通过
 - **模块**: 全模块
 - **接口**: internal
 - **复杂度**: M
-- **依赖**: T-057~T-062
+- **依赖**: T-057~T-062, T-072~T-074
 - **tdd_acceptance**:
   - [ ] AC-T063-1: LLM 重试 + fallback 端到端测试（模拟连续失败 → 重试 → 降级）
   - [ ] AC-T063-2: ConfigResolver 三层合并集成测试（defaults + project + env）
   - [ ] AC-T063-3: PromptBuilder 变体加载 + ModelProfile 集成测试
   - [ ] AC-T063-4: 上下文压缩在 AgentRunner flexible 模式中正确触发
-  - [ ] AC-T063-5: 全量 `pytest` 通过（无 import 错误、无残留引用）
-  - [ ] AC-T063-6: `mypy --strict src/` 零错误
+  - [ ] AC-T063-5: `GET /api/v1/llm/stats` 集成测试（含真实 DB session，验证聚合字段）
+  - [ ] AC-T063-6: `GET /api/v1/clusters` 集成测试（分页、tag 过滤）
+  - [ ] AC-T063-7: TaskChainRepository 写入 + 读取集成测试
+  - [ ] AC-T063-8: 全量 `pytest` 通过（无 import 错误、无残留引用）
+  - [ ] AC-T063-9: `mypy --strict src/` 零错误
 - **deliverables**:
-  - [ ] `tests/integration/test_sprint7_integration.py` — 集成测试
+  - [ ] `tests/integration/test_sprint7_integration.py` — 集成测试（含 T-072~T-074 场景）
   - [ ] 全量 pytest + mypy 通过报告
 - **context_load**:
-  - 所有 T-057 ~ T-062 deliverables
+  - 所有 T-057 ~ T-062, T-072 ~ T-074 deliverables
+
+---
+
+### T-072: 数据库会话 DI 接驳
+
+> **来源**: CODE-SCAN-20260503-r1 R-001/R-007（HIGH）
+
+- **目标**: 将 `DatabaseManager` 接入 FastAPI lifespan 和依赖注入体系，消除所有路由的 `yield None` 占位，统一通过 `api/deps.py:get_db_session()` 注入真实会话
+- **模块**: M-009, M-011
+- **接口**: internal（DI 配置）
+- **复杂度**: M
+- **依赖**: T-002（DatabaseManager 已实现）
+- **tdd_acceptance**:
+  - [ ] AC-T072-1: `main.py` lifespan 在 startup 阶段实例化 `DatabaseManager` 并存入 `app.state.db`，shutdown 阶段调用 `db.close()`
+  - [ ] AC-T072-2: `api/deps.py:get_db_session()` 从 `request.app.state.db.get_session()` yield 真实 `AsyncSession`
+  - [ ] AC-T072-3: 6 个路由文件（sources/contents/tasks/subscriptions/search/llm）中的局部 `get_session()` 定义全部删除，替换为 `Depends(get_db_session)` from `api.deps`
+  - [ ] AC-T072-4: `main.py` 的 `init_redis()` 补充真实 Redis 连接初始化逻辑（`aioredis.from_url`）；`init_celery()` 补充 Celery app 初始化
+  - [ ] AC-T072-5: 全量测试仍通过（现有 mock-based 测试不因此破坏，session 注入层由 conftest 覆写）
+  - [ ] AC-T072-6: mypy --strict 零错误
+- **deliverables**:
+  - [ ] `src/intellisource/main.py` — lifespan 补充 DatabaseManager/Redis/Celery 真实初始化
+  - [ ] `src/intellisource/api/deps.py` — `get_db_session()` 接驳 `app.state.db`
+  - [ ] `src/intellisource/api/routers/{sources,contents,tasks,subscriptions,search,llm}.py` — 删除局部 `get_session()`，改用 `from intellisource.api.deps import get_db_session`
+  - [ ] `tests/conftest.py` — 确保 DB session fixture 覆写路径正确（`app.dependency_overrides`）
+- **context_load**:
+  - src/intellisource/storage/database.py (DatabaseManager.get_session)
+  - src/intellisource/api/deps.py
+  - src/intellisource/main.py
+
+---
+
+### T-073: GET /api/v1/clusters 端点
+
+> **来源**: CODE-SCAN-20260503-r1 R-003（HIGH）
+
+- **目标**: 新增 `GET /api/v1/clusters` 端点，对齐 API-016 契约，补充 `ClusterRepository`
+- **模块**: M-009, M-011
+- **接口**: API-016（已定义）
+- **复杂度**: M
+- **依赖**: T-003（ContentCluster ORM 模型已存在）、T-005（pgvector，clusters 含向量相关字段）
+- **tdd_acceptance**:
+  - [ ] AC-T073-1: `GET /api/v1/clusters` 返回集群列表，支持 cursor 分页（`cursor` + `limit` 参数，默认 `limit=20`）
+  - [ ] AC-T073-2: 支持 `tag` 过滤参数（按 `ContentCluster.tags` 字段）
+  - [ ] AC-T073-3: 支持 `date_from` / `date_to` 过滤参数（按 `ContentCluster.created_at`）
+  - [ ] AC-T073-4: 每条集群响应包含 `id`/`label`/`tags`/`item_count`/`created_at` 字段
+  - [ ] AC-T073-5: 无集群时返回 `{"items": [], "next_cursor": null}`
+  - [ ] AC-T073-6: mypy --strict 零错误
+- **deliverables**:
+  - [ ] `src/intellisource/storage/repositories/cluster.py` — `ClusterRepository`（`list_clusters` 含分页/过滤）
+  - [ ] `src/intellisource/api/routers/clusters.py` — GET /api/v1/clusters 端点
+  - [ ] `src/intellisource/storage/repositories/__init__.py` — 导出 `ClusterRepository`
+  - [ ] `src/intellisource/main.py` — 注册 clusters router
+  - [ ] `tests/unit/api/test_clusters_routes.py` — ≥6 tests
+- **context_load**:
+  - src/intellisource/storage/models.py (ContentCluster E-007)
+  - src/intellisource/storage/repositories/content.py (参照 ContentRepository 分页模式)
+  - docs/arch/arch-intellisource-v1-api.md#API-016
+
+---
+
+### T-074: TaskChainRepository 实现
+
+> **来源**: CODE-SCAN-20260503-r1 R-006（MEDIUM）
+
+- **目标**: 补充 `TaskChainRepository`，接入 `scheduler/tasks.py` 和 `agent/runner.py` 的占位路径，使 TaskChain 记录正常写入数据库
+- **模块**: M-009
+- **接口**: internal
+- **复杂度**: S
+- **依赖**: T-003（TaskChain ORM 模型已存在于 `storage/models.py:99`）
+- **tdd_acceptance**:
+  - [ ] AC-T074-1: `TaskChainRepository.create(task_chain: TaskChain) -> TaskChain` — 持久化一条 TaskChain 记录
+  - [ ] AC-T074-2: `TaskChainRepository.get(chain_id: str) -> TaskChain | None` — 按 ID 查询
+  - [ ] AC-T074-3: `TaskChainRepository.update_status(chain_id: str, status: str) -> None` — 更新状态字段
+  - [ ] AC-T074-4: `scheduler/tasks.py` 中移除 `TaskChainRepository: Any = None` 全局占位，改为运行时从 DI/session 获取实例
+  - [ ] AC-T074-5: `agent/runner.py:250` 的注释占位替换为真实 `TaskChainRepository` 写入调用
+  - [ ] AC-T074-6: mypy --strict 零错误
+- **deliverables**:
+  - [ ] `src/intellisource/storage/repositories/task_chain.py` — `TaskChainRepository`
+  - [ ] `src/intellisource/storage/repositories/__init__.py` — 导出 `TaskChainRepository`
+  - [ ] `src/intellisource/scheduler/tasks.py` — 移除 `Any = None` 占位，注入真实 repository
+  - [ ] `src/intellisource/agent/runner.py` — 替换注释占位为 `TaskChainRepository` 写入
+  - [ ] `tests/unit/storage/test_task_chain_repository.py` — ≥5 tests
+- **context_load**:
+  - src/intellisource/storage/models.py (TaskChain E-008，lines 99~)
+  - src/intellisource/scheduler/tasks.py (TaskChainRepository 占位，line 28)
+  - src/intellisource/agent/runner.py (注释占位，line 250)
+  - src/intellisource/storage/repositories/task.py (参照 TaskRepository 模式)

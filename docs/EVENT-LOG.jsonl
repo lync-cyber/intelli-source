@@ -56,3 +56,5 @@
 {"ts": "2026-05-03T12:21:16+00:00", "event": "review_verdict", "phase": "development", "detail": "CODE-REVIEW-T-059-T-061-r2: needs_revision (R-010 HIGH ValueError 漏捕第三次同模式; R-011/R-013 cleanup; R-012 doc-only)", "agent": "reviewer", "status": "needs_revision"}
 {"ts": "2026-05-03T12:34:43+00:00", "event": "review_verdict", "phase": "development", "detail": "CODE-REVIEW-T-059-T-061-r3 approved_with_notes; R-014 LOW deferred to chore", "agent": "reviewer", "status": "approved_with_notes"}
 {"ts": "2026-05-03T12:34:43+00:00", "event": "state_change", "phase": "development", "detail": "T-059 + T-061 status: draft → done; CLAUDE.md sync; Sprint 7 进度 4/7"}
+{"ts": "2026-05-03T13:29:54+00:00", "event": "state_change", "phase": "development", "detail": "skill-run: code-review Layer 1 passed", "agent": "reviewer", "status": "completed", "ref": "skill:code-review/code_lint"}
+{"ts": "2026-05-03T13:31:38+00:00", "event": "state_change", "phase": "development", "detail": "skill-run: code-review Layer 1 passed", "agent": "reviewer", "status": "completed", "ref": "skill:code-review/code_lint"}

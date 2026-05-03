@@ -117,13 +117,16 @@ volume: main
 
 | 任务ID | 任务名 | 模块 | 复杂度 | 依赖 | TDD测试点 | 状态 |
 |--------|--------|------|--------|------|-----------|------|
-| T-057 | LLM调用指数退避重试 | M-005 | S | T-053 | AC-T057 | todo |
-| T-058 | 上下文压缩增强 | M-006,M-005 | M | T-051 | AC-T058 | todo |
-| T-059 | 配置分层合并机制 | M-001 | M | T-053 | AC-T059 | todo |
-| T-060 | LLM统计仪表盘API | M-011,M-010 | S | T-056 | AC-T060 | todo |
-| T-061 | LLM配置Pydantic验证 | M-001,M-005 | S | T-059 | AC-T061 | todo |
+| T-057 | LLM调用指数退避重试 | M-005 | S | T-053 | AC-T057 | done |
+| T-058 | 上下文压缩增强 | M-006,M-005 | M | T-051 | AC-T058 | done |
+| T-059 | 配置分层合并机制 | M-001 | M | T-053 | AC-T059 | done |
+| T-060 | LLM统计仪表盘API | M-005,M-009,M-011 | S | T-021,T-056 | AC-T060 | todo |
+| T-061 | LLM配置Pydantic验证 | M-001,M-005 | S | T-059 | AC-T061 | done |
 | T-062 | 模型特化Prompt变体 | M-005 | S | T-051,T-053 | AC-T062 | todo |
-| T-063 | Sprint 7集成测试与回归 | 全模块 | M | T-057~T-062 | 全量pytest+mypy | todo |
+| T-063 | Sprint 7集成测试与回归 | 全模块 | M | T-057~T-062,T-072~T-074 | 全量pytest+mypy | todo |
+| T-072 | 数据库会话DI接驳 | M-009,M-011 | M | T-002 | AC-T072 | todo |
+| T-073 | GET /api/v1/clusters端点 | M-009,M-011 | M | T-003,T-005 | AC-T073 | todo |
+| T-074 | TaskChainRepository实现 | M-009 | S | T-003 | AC-T074 | todo |
 
 ### Sprint 8: Agent 模式系统、工具治理与运行时增强
 
@@ -138,7 +141,10 @@ volume: main
 | T-068 | 外部API熔断器实现 | M-005 | M | T-057 | AC-T068 | todo |
 | T-069 | Prompt版本自动计算 | M-005 | S | T-051,T-052 | AC-T069 | todo |
 | T-070 | Chat API SSE流式输出 | M-011,M-005 | M | T-057 | AC-T070 | todo |
-| T-071 | Sprint 8集成测试与回归 | 全模块 | M | T-064~T-070 | 全量pytest+mypy | todo |
+| T-075 | Agent工具层接驳真实模块 | M-006 | L | T-064,T-072 | AC-T075 | todo |
+| T-076 | 健康检查与指标端点完善 | M-010,M-011 | M | T-007,T-072 | AC-T076 | todo |
+| T-077 | 信源重载与代码质量清理 | M-001,M-006,M-011 | S | T-072 | AC-T077 | todo |
+| T-071 | Sprint 8集成测试与回归 | 全模块 | M | T-064~T-070,T-075~T-077 | 全量pytest+mypy | todo |
 
 ## 2. 依赖图
 
@@ -232,6 +238,7 @@ graph LR
     T-053 --> T-057
     T-051 --> T-058
     T-053 --> T-059
+    T-021 --> T-060
     T-056 --> T-060
     T-059 --> T-061
     T-051 --> T-062
@@ -242,6 +249,13 @@ graph LR
     T-060 --> T-063
     T-061 --> T-063
     T-062 --> T-063
+    T-072 --> T-063
+    T-073 --> T-063
+    T-074 --> T-063
+    T-002 --> T-072
+    T-003 --> T-073
+    T-005 --> T-073
+    T-003 --> T-074
     %% Sprint 8 dependencies
     T-054 --> T-064
     T-050 --> T-065
@@ -251,6 +265,11 @@ graph LR
     T-051 --> T-069
     T-052 --> T-069
     T-057 --> T-070
+    T-064 --> T-075
+    T-072 --> T-075
+    T-007 --> T-076
+    T-072 --> T-076
+    T-072 --> T-077
     T-064 --> T-071
     T-065 --> T-071
     T-066 --> T-071
@@ -258,6 +277,9 @@ graph LR
     T-068 --> T-071
     T-069 --> T-071
     T-070 --> T-071
+    T-075 --> T-071
+    T-076 --> T-071
+    T-077 --> T-071
     style T-057,T-058,T-059 fill:#9c6,stroke:#333,stroke-width:2px
     style T-064,T-065,T-068 fill:#c96,stroke:#333,stroke-width:2px
 ```
@@ -320,3 +342,6 @@ graph LR
 | 配置分层合并可能引入优先级歧义 | 环境变量与 YAML 配置覆盖关系不直观 | T-059 中提供 `ConfigResolver.explain()` 调试方法，显示每个配置项的最终来源 |
 | 模型特化 Prompt 变体维护成本 | 每新增模型家族需维护额外 prompt 文件 | 仅为高频使用的模型家族（Claude/GPT）提供变体，其他 fallback 到 default |
 | SSE 流式输出在反向代理后可能出现缓冲问题 | 用户体验延迟增大 | 文档说明 Nginx/Caddy 反向代理的 SSE 配置（disable buffering） |
+| 数据库会话未接入 DI 导致生产崩溃（CODE-SCAN R-001） | 所有 API 路由在真实部署时因 `None.execute()` 崩溃 | T-072 在 Sprint 7 内接驳 `DatabaseManager` 至 `main.py` lifespan 和 `api/deps.py`；T-063 增加集成层测试覆盖会话链路 |
+| Agent 工具层全为占位导致 flexible 模式失效（CODE-SCAN R-002） | M-006 编排路径在生产中无法采集/处理/分发数据 | T-075 在 Sprint 8 接驳真实模块依赖；T-064 Agent 模式系统完成后优先解决 |
+| `/api/v1/clusters` 端点与 `TaskChainRepository` 缺失（CODE-SCAN R-003, R-006） | API 契约对外承诺功能无法使用；TaskChain 持久化数据丢失 | T-073/T-074 在 Sprint 7 T-063 前完成；`ClusterRepository` 参照现有 `ContentRepository` 模式实现 |
