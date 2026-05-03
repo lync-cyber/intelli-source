@@ -12,9 +12,9 @@ volume: s8
 <!-- deps: arch-intellisource-v1 | consumers: developer, qa-engineer -->
 <!-- volume: s8 -->
 
-> **Sprint 主题**: Agent 模式系统、工具治理与运行时增强（P2 改进项，源自 OpenCode 对标架构评审）
-> **前置依赖**: Sprint 7 全部完成（T-057~T-063）
-> **参考**: docs/research/architecture-review-opencode-benchmark.md
+> **Sprint 主题**: Agent 模式系统、工具治理与运行时增强（P2 改进项，源自 OpenCode 对标架构评审；新增 T-075~T-077 修复 CODE-SCAN HIGH/MEDIUM 问题）
+> **前置依赖**: Sprint 7 全部完成（T-057~T-063, T-072~T-074）
+> **参考**: docs/research/architecture-review-opencode-benchmark.md；docs/reviews/code/CODE-SCAN-20260503-r1.md（R-002/R-008/R-010/R-011/R-012）
 
 ## 3. 任务卡详细
 
@@ -192,23 +192,110 @@ volume: s8
 
 ---
 
+### T-075: Agent 工具层接驳真实模块
+
+> **来源**: CODE-SCAN-20260503-r1 R-002（HIGH）
+
+- **目标**: 将 `agent/tools.py` 中 6 个默认工具的占位 `execute` 函数替换为对真实模块的调用，使 AgentRunner flexible 模式具备真实编排能力
+- **模块**: M-006
+- **接口**: internal
+- **复杂度**: L
+- **依赖**: T-064（Agent 模式系统，提供工具访问控制框架）、T-072（DB session DI，工具需通过 session 访问数据）
+- **扫描背景**: CODE-SCAN R-002 — 6 个默认工具均返回 `{"status": "ok", "tool": "<name>", **kwargs}`；`llm_complete` 元工具不调用 `LLMGateway`；flexible 模式等效于"空转"
+- **tdd_acceptance**:
+  - [ ] AC-T075-1: `collect` 工具调用 `CollectorRegistry.run_collector()` 执行真实采集
+  - [ ] AC-T075-2: `process` 工具调用 `PipelineEngine.run()` 执行真实处理管道
+  - [ ] AC-T075-3: `distribute` 工具调用 `DistributorBase.dispatch()` 执行真实分发
+  - [ ] AC-T075-4: `search` 工具调用 `HybridIndex.search()` 执行真实检索
+  - [ ] AC-T075-5: `get_content_detail` 工具调用 `ContentRepository.get_by_id()` 查询真实内容
+  - [ ] AC-T075-6: `llm_complete` 元工具调用 `LLMGateway.complete()`，gateway 实例从 `AgentRunner._llm_gateway` 取得
+  - [ ] AC-T075-7: 工具依赖（CollectorRegistry/PipelineEngine 等）通过工厂函数或构造时注入，不使用全局单例
+  - [ ] AC-T075-8: mypy --strict 零错误
+- **deliverables**:
+  - [ ] `src/intellisource/agent/tools.py` — 6 个默认工具替换为真实实现
+  - [ ] `src/intellisource/agent/runner.py` — 工具工厂注入逻辑
+  - [ ] `tests/unit/agent/test_tools_integration.py` — 工具接驳测试（≥10 tests，mock 上游模块边界）
+- **context_load**:
+  - src/intellisource/agent/tools.py (默认工具占位)
+  - src/intellisource/collector/registry.py (CollectorRegistry)
+  - src/intellisource/processing/pipeline.py (PipelineEngine)
+  - src/intellisource/distributor/base.py (DistributorBase)
+  - src/intellisource/search/hybrid.py (HybridIndex)
+
+---
+
+### T-076: 健康检查与指标端点完善
+
+> **来源**: CODE-SCAN-20260503-r1 R-008/R-010（MEDIUM）
+
+- **目标**: 将 `system.py` 的 `check_health()` 和 `get_metrics()` 从硬编码 stub 替换为真实检查逻辑，对齐 API-018/019 规范
+- **模块**: M-010, M-011
+- **接口**: API-018（健康检查）、API-019（指标）
+- **复杂度**: M
+- **依赖**: T-007（现有健康检查/指标模块）、T-072（DB session DI，健康检查需 ping DB）
+- **tdd_acceptance**:
+  - [ ] AC-T076-1: `check_health()` 响应包含 `status`（healthy/degraded/unhealthy）、`version`、`uptime_seconds`、`checks`（db/redis/celery 三子项）
+  - [ ] AC-T076-2: `checks.db` 通过 `app.state.db` ping 数据库得出状态
+  - [ ] AC-T076-3: `checks.redis` ping Redis 连接得出状态；任一组件不可达时整体 `status=degraded`
+  - [ ] AC-T076-4: `uptime_seconds` 以启动时间戳计算（lifespan startup 时记录）
+  - [ ] AC-T076-5: `get_metrics()` 调用 `observability/metrics.py` 导出 Prometheus 格式文本（`text/plain; version=0.0.4`）
+  - [ ] AC-T076-6: 移除 `# pragma: no cover` 并补充单元测试（mock ping 调用）
+  - [ ] AC-T076-7: mypy --strict 零错误
+- **deliverables**:
+  - [ ] `src/intellisource/api/routers/system.py` — check_health / get_metrics 替换为真实逻辑
+  - [ ] `src/intellisource/main.py` — startup 时记录 `app.state.start_time`
+  - [ ] `tests/unit/api/test_system_routes.py` — ≥8 tests（含组件 degraded 场景）
+- **context_load**:
+  - src/intellisource/api/routers/system.py (现有 stub)
+  - src/intellisource/observability/health.py
+  - src/intellisource/observability/metrics.py
+  - docs/arch/arch-intellisource-v1-api.md#API-018 #API-019
+
+---
+
+### T-077: 信源重载与代码质量清理
+
+> **来源**: CODE-SCAN-20260503-r1 R-011/R-012（LOW）
+
+- **目标**: 修复 `reload_source_configs()` stub 使其返回真实结果；将 `agent/runner.py` 中循环体内的 `import json` 移至顶层；合并 `import json` 分散引用
+- **模块**: M-001, M-006, M-011
+- **接口**: API-005（信源配置重载）
+- **复杂度**: S
+- **依赖**: T-072（DB session DI）
+- **tdd_acceptance**:
+  - [ ] AC-T077-1: `POST /api/v1/sources/reload` 调用 `ConfigLoader.reload()`，返回真实 `{"loaded_count": N, "errors": [...]}`
+  - [ ] AC-T077-2: `agent/runner.py` 文件顶层统一 `import json`，循环体内的 `import json as _json` 删除
+  - [ ] AC-T077-3: mypy --strict 零错误，ruff check 无新 warning
+- **deliverables**:
+  - [ ] `src/intellisource/api/routers/sources.py` — `reload_source_configs()` 接入 `ConfigLoader`
+  - [ ] `src/intellisource/agent/runner.py` — 顶层 `import json`
+  - [ ] `tests/unit/api/test_sources_routes.py` — reload 端点测试更新（≥2 tests）
+- **context_load**:
+  - src/intellisource/api/routers/sources.py (reload_source_configs stub)
+  - src/intellisource/config/loader.py (ConfigLoader)
+  - src/intellisource/agent/runner.py (import json at line 155)
+
+---
+
 ### T-071: Sprint 8 集成测试与回归
 
-- **目标**: 验证 Sprint 8 所有改进在集成场景下正常工作，全量 pytest + mypy 通过
+- **目标**: 验证 Sprint 8 所有改进（含 T-075~T-077 基础设施修复）在集成场景下正常工作，全量 pytest + mypy 通过
 - **模块**: 全模块
 - **接口**: internal
 - **复杂度**: M
-- **依赖**: T-064~T-070
+- **依赖**: T-064~T-070, T-075~T-077
 - **tdd_acceptance**:
   - [ ] AC-T071-1: Agent 模式系统 + 工具权限分级联合测试（analyze 模式 + confirm 权限）
   - [ ] AC-T071-2: 工具自动发现 + 手动注册优先级测试
   - [ ] AC-T071-3: Pipeline 事件日志在 flexible 模式执行中完整记录
   - [ ] AC-T071-4: 熔断器 + 重试 + 降级端到端链路测试
   - [ ] AC-T071-5: SSE 流式输出 + token 统计集成测试
-  - [ ] AC-T071-6: 全量 `pytest` 通过
-  - [ ] AC-T071-7: `mypy --strict src/` 零错误
+  - [ ] AC-T071-6: Agent 工具接驳真实模块的端到端编排测试（collect → process → distribute 链路）
+  - [ ] AC-T071-7: 健康检查 degraded 场景集成测试（模拟 DB/Redis 不可达）
+  - [ ] AC-T071-8: 全量 `pytest` 通过
+  - [ ] AC-T071-9: `mypy --strict src/` 零错误
 - **deliverables**:
-  - [ ] `tests/unit/integration/test_sprint8_integration.py` — 集成测试
+  - [ ] `tests/unit/integration/test_sprint8_integration.py` — 集成测试（含 T-075~T-077 场景）
   - [ ] 全量 pytest + mypy 通过报告
 - **context_load**:
-  - 所有 T-064 ~ T-070 deliverables
+  - 所有 T-064 ~ T-070, T-075 ~ T-077 deliverables
