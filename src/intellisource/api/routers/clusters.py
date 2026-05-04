@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -57,6 +58,11 @@ async def list_clusters(
     session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     limit = max(1, min(limit, 100))
+    if cursor is not None:
+        try:
+            uuid.UUID(cursor)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="invalid cursor") from exc
     repo = ClusterRepository(session)
     try:
         result = await repo.list_clusters(

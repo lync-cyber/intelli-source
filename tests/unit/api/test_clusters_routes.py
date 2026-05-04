@@ -652,11 +652,12 @@ class TestClustersInputBoundaries:
     async def test_t073_ac1_invalid_cursor_returns_400(
         self, clusters_client: AsyncClient
     ) -> None:
-        """A non-UUID cursor string returns HTTP 400."""
+        """Invalid cursor format triggers real uuid.UUID() ValueError → 400.
+
+        Validation occurs in the route layer before ClusterRepository is called;
+        no mock side_effect needed — the real uuid.UUID(cursor) raises ValueError.
+        """
         mock_repo = AsyncMock()
-        mock_repo.list_clusters.side_effect = ValueError(
-            "badly formed hexadecimal UUID"
-        )
 
         with patch(
             "intellisource.api.routers.clusters.ClusterRepository",
@@ -667,7 +668,8 @@ class TestClustersInputBoundaries:
             )
 
         assert resp.status_code == 400
-        assert resp.json()["detail"] == "invalid cursor"
+        assert "invalid cursor" in resp.json()["detail"].lower()
+        mock_repo.list_clusters.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_t073_ac1_limit_zero_clamped_to_one(
