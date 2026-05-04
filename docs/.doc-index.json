@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-05-04T07:03:08.976697+00:00",
+  "generated_at": "2026-05-04T07:35:09.629843+00:00",
   "documents": {
     "arch-intellisource-v1-api": {
       "file_path": "docs/arch/arch-intellisource-v1-api.md",
@@ -2026,6 +2026,18 @@
       "sections": {},
       "deps": [
         "T-072"
+      ]
+    },
+    "code-review-T-074-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-074-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 113,
+      "est_tokens": 2253,
+      "sections": {},
+      "deps": [
+        "T-074"
       ]
     },
     "code-review-deliverable-compliance-r1": {
