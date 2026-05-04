@@ -363,7 +363,7 @@ class TestClustersItemFields:
     async def test_t073_ac4_all_required_fields_present(
         self, clusters_client: AsyncClient
     ) -> None:
-        """Each item contains id/topic/tags/content_count/digest/created_at/updated_at."""
+        """Each item has id/topic/tags/content_count/digest/created_at/updated_at."""
         digest = _make_digest_mock(summary="Latest digest summary")
         cluster = _make_cluster_mock(
             id=CLUSTER_ID_1,
@@ -604,27 +604,30 @@ class TestClusterRepositoryExport:
     def test_t073_ac6_cluster_repository_exported_from_package(self) -> None:
         """ClusterRepository is re-exported from storage.repositories.__init__."""
         try:
-            from intellisource.storage.repositories import (
-                ClusterRepository as _CR,  # type: ignore[attr-defined]
+            from intellisource.storage.repositories import (  # type: ignore[attr-defined]
+                ClusterRepository as ImportedClusterRepository,
             )
         except ImportError as exc:
             pytest.fail(
-                f"ClusterRepository not exported from storage.repositories.__init__: {exc}"
+                "ClusterRepository not exported from "
+                f"storage.repositories.__init__: {exc}"
             )
-        assert _CR is not None
+        assert ImportedClusterRepository is not None
 
     def test_t073_ac6_cluster_repository_has_list_clusters_method(self) -> None:
         """ClusterRepository exposes a list_clusters method."""
         if _CLUSTER_REPO_MISSING:
             pytest.fail("ClusterRepository not implemented")
         assert hasattr(ClusterRepository, "list_clusters"), (
-            "ClusterRepository must define list_clusters(tag, date_from, date_to, limit, cursor)"
+            "ClusterRepository must define "
+            "list_clusters(tag, date_from, date_to, limit, cursor)"
         )
 
     def test_t073_ac6_clusters_router_importable(self) -> None:
         """clusters router module is importable."""
         if _CLUSTERS_ROUTER_MISSING:
             pytest.fail(
-                "intellisource.api.routers.clusters not implemented: cannot import 'router'"
+                "intellisource.api.routers.clusters not implemented: "
+                "cannot import 'router'"
             )
         assert clusters_router is not None

@@ -18,6 +18,7 @@ from intellisource.api.middleware import (
     TracingMiddleware,
 )
 from intellisource.api.routers import (
+    clusters,
     contents,
     llm,
     search,
@@ -164,6 +165,7 @@ def create_app() -> FastAPI:
 
     # Register routers
     app.include_router(sources.router, prefix="/api/v1")
+    app.include_router(clusters.router, prefix="/api/v1")
     app.include_router(contents.router, prefix="/api/v1")
     app.include_router(search.router, prefix="/api/v1")
     app.include_router(tasks.router, prefix="/api/v1")
