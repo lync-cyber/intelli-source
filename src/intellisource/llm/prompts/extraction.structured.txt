@@ -1,0 +1,11 @@
+Extract structured data from the text below and return it as JSON conforming to the provided schema.
+
+<schema>
+{schema}
+</schema>
+
+<document>
+{body_text}
+</document>
+
+Return only valid JSON matching the schema. Do not include any explanation or markdown fences.

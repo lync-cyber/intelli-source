@@ -32,6 +32,8 @@ class PromptBuilder:
         call_type: str,
         model: str | None = None,
         system_prompt: str | None = None,
+        *,
+        prompt_style: str | None = None,
     ) -> None:
         """Load template for call_type from prompts/ directory.
 
@@ -41,12 +43,16 @@ class PromptBuilder:
             system_prompt: Optional system prompt override for build_messages().
                 If None, tries to load a sibling '{call_type}.system.txt'
                 template; falls back to a generic default when absent.
+            prompt_style: Optional variant style (e.g. ``"structured"``,
+                ``"concise"``). When provided, tries
+                ``{call_type}.{prompt_style}.txt`` first and falls back to
+                ``{call_type}.txt`` when the variant is absent.
 
         Raises:
-            FileNotFoundError: If template file does not exist.
+            FileNotFoundError: If the base template file does not exist.
         """
         try:
-            self._template: str = _read_template(call_type)
+            self._template: str = _read_template(call_type, prompt_style)
         except FileNotFoundError:
             raise
         self._model: str = model if model is not None else _DEFAULT_MODEL

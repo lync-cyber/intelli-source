@@ -76,3 +76,4 @@
 {"ts": "2026-05-03T23:23:47+00:00", "event": "review_verdict", "phase": "development", "detail": "T-060 r3: R-003/R-004/R-005 closed; R-006 MEDIUM (self-report 失真模式 → retro EXP); R-007 LOW (dead code orchestrator main-thread cleanup)", "agent": "reviewer", "status": "approved_with_notes"}
 {"ts": "2026-05-03T23:23:47+00:00", "event": "user_decision", "phase": "development", "detail": "T-060 r3: 接受并继续 + R-007 main-thread 快修"}
 {"ts": "2026-05-03T23:24:32+00:00", "event": "state_change", "phase": "development", "detail": "T-060 done; sprint-7 progress 4/7 → 5/7; next T-062; retro_trigger_self_caused=5 reached, EXP candidate: implementer self-report scope drift (consecutive)"}
+{"ts": "2026-05-04T03:49:04+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD LIGHT-DISPATCH: T-062"}
