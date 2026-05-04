@@ -25,7 +25,7 @@ split_from: dev-plan-intellisource-v1
   - T-059 配置分层合并机制 ✅ done
   - T-060 LLM 统计仪表盘 API ✅ done
   - T-061 LLM 配置 Pydantic Schema 验证 ✅ done
-  - T-062 模型特化 Prompt 变体
+  - T-062 模型特化 Prompt 变体 ✅ done
   - T-063 Sprint 7 集成测试与回归
   - T-072 数据库会话 DI 接驳（新增，源自 CODE-SCAN R-001/R-007）
   - T-073 GET /api/v1/clusters 端点（新增，源自 CODE-SCAN R-003）
@@ -175,12 +175,14 @@ split_from: dev-plan-intellisource-v1
 
 ---
 
-### T-062: 模型特化 Prompt 变体
+### T-062: 模型特化 Prompt 变体 ✅ done
 
 - **目标**: PromptBuilder 根据 `ModelProfile.prompt_style` 选择 prompt 模板变体文件，支持不同模型家族使用优化的 prompt 格式
 - **模块**: M-005
 - **接口**: internal
 - **复杂度**: S
+- **tdd_mode**: light（dispatch 模式：执行模式=standard 不走 inline）
+- **status**: done（2026-05-04；CODE-REVIEW-T-062-r1 approved_with_notes → r2 approved；R-001/R-002/R-003 全闭环；55 target tests + 1766 全量回归 PASSED；mypy --strict src/ clean (102 files)；ruff check + format clean。Option A：summarizer.structured.txt 沿用现有命名约定）
 - **依赖**: T-051（PromptBuilder）, T-053（ModelProfile.prompt_style）
 - **tdd_acceptance**:
   - [ ] AC-T062-1: `llm/prompts/` 支持 `{name}.{style}.txt` 变体文件命名（如 `extraction.structured.txt`）
@@ -189,12 +191,13 @@ split_from: dev-plan-intellisource-v1
   - [ ] AC-T062-4: 至少为 `extraction` 提供 `concise` 变体（适合 GPT 系列的简洁直接指令）
   - [ ] AC-T062-5: `load_prompt()` 函数签名不变（向后兼容），style 通过新的可选参数传入
   - [ ] AC-T062-6: mypy --strict 零错误
-- **deliverables**:
-  - [ ] `src/intellisource/llm/prompts/__init__.py` — 变体加载逻辑
-  - [ ] `src/intellisource/llm/prompts/extraction.structured.txt` — 结构化变体
-  - [ ] `src/intellisource/llm/prompts/extraction.concise.txt` — 简洁变体
-  - [ ] `src/intellisource/llm/prompts/summarization.structured.txt` — 摘要结构化变体
-  - [ ] `tests/unit/llm/test_prompt_builder.py` — 变体加载测试（≥6 tests）
+- **deliverables** (Option A 已落地：base 模板沿用现有 `summarizer.txt` 命名，故摘要变体为 `summarizer.structured.txt`):
+  - [x] `src/intellisource/llm/prompts/__init__.py` — 变体加载逻辑
+  - [x] `src/intellisource/llm/prompt_builder.py` — `PromptBuilder.__init__` 接受 `prompt_style`（实现期间补充，CODE-REVIEW-T-062-r1 已确认）
+  - [x] `src/intellisource/llm/prompts/extraction.structured.txt` — 结构化变体
+  - [x] `src/intellisource/llm/prompts/extraction.concise.txt` — 简洁变体
+  - [x] `src/intellisource/llm/prompts/summarizer.structured.txt` — 摘要结构化变体（Option A：与现有 `summarizer.txt` base 配对，原 deliverable 字面 `summarization.structured.txt` 偏离已记录）
+  - [x] `tests/unit/llm/test_prompt_builder.py` — 变体加载测试（实际 +18 tests，含 R-002 路径组件校验）
 - **context_load**:
   - src/intellisource/llm/prompts/__init__.py (load_prompt, _read_template)
   - src/intellisource/llm/prompt_builder.py (PromptBuilder)

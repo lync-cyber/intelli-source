@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-05-03T23:24:32.780230+00:00",
+  "generated_at": "2026-05-04T04:03:13.531912+00:00",
   "documents": {
     "arch-intellisource-v1-api": {
       "file_path": "docs/arch/arch-intellisource-v1-api.md",
@@ -1077,15 +1077,15 @@
       "doc_type": "dev-plan",
       "volume": "s7",
       "status": "approved",
-      "total_lines": 315,
-      "est_tokens": 5372,
+      "total_lines": 318,
+      "est_tokens": 5586,
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
           "level": 2,
           "line_start": 36,
-          "line_end": 315,
-          "est_tokens": 5041,
+          "line_end": 318,
+          "est_tokens": 5253,
           "deps": [],
           "items": {
             "T-057": {
@@ -1124,37 +1124,37 @@
               "deps": []
             },
             "T-062": {
-              "heading": "### T-062: 模型特化 Prompt 变体",
+              "heading": "### T-062: 模型特化 Prompt 变体 ✅ done",
               "line_start": 178,
-              "line_end": 204,
-              "est_tokens": 436,
+              "line_end": 207,
+              "est_tokens": 647,
               "deps": []
             },
             "T-063": {
               "heading": "### T-063: Sprint 7 集成测试与回归",
-              "line_start": 205,
-              "line_end": 229,
+              "line_start": 208,
+              "line_end": 232,
               "est_tokens": 312,
               "deps": []
             },
             "T-072": {
               "heading": "### T-072: 数据库会话 DI 接驳",
-              "line_start": 230,
-              "line_end": 257,
+              "line_start": 233,
+              "line_end": 260,
               "est_tokens": 512,
               "deps": []
             },
             "T-073": {
               "heading": "### T-073: GET /api/v1/clusters 端点",
-              "line_start": 258,
-              "line_end": 286,
+              "line_start": 261,
+              "line_end": 289,
               "est_tokens": 453,
               "deps": []
             },
             "T-074": {
               "heading": "### T-074: TaskChainRepository 实现",
-              "line_start": 287,
-              "line_end": 315,
+              "line_start": 290,
+              "line_end": 318,
               "est_tokens": 622,
               "deps": []
             }
@@ -1966,6 +1966,30 @@
       "sections": {},
       "deps": [
         "T-060"
+      ]
+    },
+    "code-review-t-062-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-062-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 64,
+      "est_tokens": 1148,
+      "sections": {},
+      "deps": [
+        "T-062"
+      ]
+    },
+    "code-review-t-062-r2": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-062-r2.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 48,
+      "est_tokens": 562,
+      "sections": {},
+      "deps": [
+        "T-062"
       ]
     },
     "code-review-deliverable-compliance-r1": {

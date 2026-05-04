@@ -347,7 +347,7 @@ class TestGatewayTruncationIntegration:
     async def test_complete_without_max_input_tokens_no_truncation(
         self, mock_litellm_response: MagicMock
     ) -> None:
-        """complete() does not truncate when max_input_tokens is not set and tokens are low."""
+        """complete() no truncation when max_input_tokens unset and tokens are low."""
         from intellisource.llm.gateway import LLMGateway
 
         prompt = "short prompt"
@@ -425,3 +425,203 @@ class TestGatewayTruncationIntegration:
                 task_type="extract",
             )
         assert result.content is not None
+
+
+# ===================================================================
+# AC-T062: Prompt variant loading (style-based template selection)
+# ===================================================================
+
+
+class TestPromptVariantNaming:
+    """AC-T062-1: Variant files are named {name}.{style}.txt."""
+
+    def test_variant_files_exist_extraction_structured(self) -> None:
+        """`extraction.structured.txt` exists in the prompts directory."""
+        from pathlib import Path
+
+        prompts_dir = (
+            Path(__file__).parent.parent.parent.parent
+            / "src"
+            / "intellisource"
+            / "llm"
+            / "prompts"
+        )
+        assert (prompts_dir / "extraction.structured.txt").exists()
+
+    def test_variant_files_exist_extraction_concise(self) -> None:
+        """`extraction.concise.txt` exists in the prompts directory."""
+        from pathlib import Path
+
+        prompts_dir = (
+            Path(__file__).parent.parent.parent.parent
+            / "src"
+            / "intellisource"
+            / "llm"
+            / "prompts"
+        )
+        assert (prompts_dir / "extraction.concise.txt").exists()
+
+    def test_variant_files_exist_summarizer_structured(self) -> None:
+        """`summarizer.structured.txt` exists in the prompts directory."""
+        from pathlib import Path
+
+        prompts_dir = (
+            Path(__file__).parent.parent.parent.parent
+            / "src"
+            / "intellisource"
+            / "llm"
+            / "prompts"
+        )
+        assert (prompts_dir / "summarizer.structured.txt").exists()
+
+
+class TestLoadPromptVariantStyle:
+    """AC-T062-2 / AC-T062-5: load_prompt() resolves variant with style kwarg."""
+
+    def test_load_prompt_style_loads_variant_content(self) -> None:
+        """load_prompt(name, style=...) returns variant file content when it exists."""
+        from pathlib import Path
+
+        prompts_dir = (
+            Path(__file__).parent.parent.parent.parent
+            / "src"
+            / "intellisource"
+            / "llm"
+            / "prompts"
+        )
+        variant_raw = (prompts_dir / "extraction.structured.txt").read_text(
+            encoding="utf-8"
+        )
+        result = load_prompt(
+            "extraction", style="structured", schema="{}", body_text="text"
+        )
+        expected = variant_raw.format_map({"schema": "{}", "body_text": "text"})
+        assert result == expected
+        # Sanity: variant content also differs from the default template
+        default = load_prompt("extraction", schema="{}", body_text="text")
+        assert result != default
+
+    def test_load_prompt_style_fallback_when_variant_missing(self) -> None:
+        """load_prompt(name, style=...) falls back to base {name}.txt when absent."""
+        result = load_prompt(
+            "extraction",
+            style="nonexistent_style_xyz",
+            schema="{}",
+            body_text="text",
+        )
+        default = load_prompt("extraction", schema="{}", body_text="text")
+        assert result == default
+
+    def test_load_prompt_without_style_unchanged(self) -> None:
+        """load_prompt(name, **kwargs) without style kwarg is backward compatible."""
+        result = load_prompt("extraction", schema="{}", body_text="text")
+        assert result is not None
+        assert len(result) > 0
+
+    def test_load_prompt_style_none_uses_base(self) -> None:
+        """load_prompt(name, style=None) behaves identically to no style argument."""
+        result_none = load_prompt(
+            "extraction", style=None, schema="{}", body_text="text"
+        )
+        result_default = load_prompt("extraction", schema="{}", body_text="text")
+        assert result_none == result_default
+
+
+class TestVariantFilesNonEmpty:
+    """AC-T062-3/AC-T062-4: Variant files are non-empty with expected placeholders."""
+
+    def test_extraction_structured_is_nonempty(self) -> None:
+        """extraction.structured.txt has content and {schema}/{body_text} vars."""
+        result = load_prompt(
+            "extraction",
+            style="structured",
+            schema='{"type":"object"}',
+            body_text="sample",
+        )
+        assert len(result) > 0
+        assert '{"type":"object"}' in result
+        assert "sample" in result
+
+    def test_extraction_concise_is_nonempty(self) -> None:
+        """extraction.concise.txt has content and {schema}/{body_text} placeholders."""
+        result = load_prompt(
+            "extraction",
+            style="concise",
+            schema='{"type":"object"}',
+            body_text="sample",
+        )
+        assert len(result) > 0
+        assert '{"type":"object"}' in result
+        assert "sample" in result
+
+    def test_summarizer_structured_is_nonempty(self) -> None:
+        """summarizer.structured.txt has content and {docs_text} placeholder."""
+        result = load_prompt("summarizer", style="structured", docs_text="sample docs")
+        assert len(result) > 0
+        assert "sample docs" in result
+
+
+class TestPromptBuilderVariantStyle:
+    """AC-T062-2/AC-T062-5: PromptBuilder accepts prompt_style and selects variant."""
+
+    def test_prompt_builder_accepts_prompt_style_kwarg(self) -> None:
+        """PromptBuilder accepts prompt_style keyword argument without raising."""
+        builder = PromptBuilder(call_type="extraction", prompt_style="structured")
+        assert builder._template is not None
+
+    def test_prompt_builder_prompt_style_loads_variant(self) -> None:
+        """PromptBuilder with prompt_style loads the variant template content."""
+        builder_default = PromptBuilder(call_type="extraction")
+        builder_variant = PromptBuilder(
+            call_type="extraction", prompt_style="structured"
+        )
+        assert builder_variant._template != builder_default._template
+
+    def test_prompt_builder_prompt_style_none_loads_base(self) -> None:
+        """PromptBuilder with prompt_style=None loads the base template."""
+        builder_none = PromptBuilder(call_type="extraction", prompt_style=None)
+        builder_default = PromptBuilder(call_type="extraction")
+        assert builder_none._template == builder_default._template
+
+    def test_prompt_builder_missing_variant_falls_back_to_base(self) -> None:
+        """PromptBuilder with unknown prompt_style falls back to base template."""
+        builder_fallback = PromptBuilder(
+            call_type="extraction", prompt_style="no_such_style_xyz"
+        )
+        builder_default = PromptBuilder(call_type="extraction")
+        assert builder_fallback._template == builder_default._template
+
+    def test_prompt_builder_without_prompt_style_backward_compatible(self) -> None:
+        """PromptBuilder called without prompt_style is backward compatible."""
+        builder = PromptBuilder(call_type="extraction")
+        builder.add_context("schema", "{}")
+        builder.add_context("body_text", "hello")
+        result = builder.build()
+        assert "hello" in result
+
+
+class TestPromptPathComponentValidation:
+    """R-002: name/style must be a single filename component (defense-in-depth)."""
+
+    @pytest.mark.parametrize(
+        "bad_name",
+        ["../etc/passwd", "foo/bar", "foo\\bar", "..", "", "with\0null"],
+    )
+    def test_load_prompt_rejects_unsafe_name(self, bad_name: str) -> None:
+        """load_prompt() raises ValueError when name contains path components."""
+        with pytest.raises(ValueError, match="Invalid name"):
+            load_prompt(bad_name)
+
+    @pytest.mark.parametrize(
+        "bad_style",
+        ["../sneak", "structured/oops", "..", "", "with\0null"],
+    )
+    def test_load_prompt_rejects_unsafe_style(self, bad_style: str) -> None:
+        """load_prompt() raises ValueError when style contains path components."""
+        with pytest.raises(ValueError, match="Invalid style"):
+            load_prompt("extraction", style=bad_style, schema="{}", body_text="x")
+
+    def test_prompt_builder_rejects_unsafe_prompt_style(self) -> None:
+        """PromptBuilder propagates the ValueError raised by _read_template."""
+        with pytest.raises(ValueError, match="Invalid style"):
+            PromptBuilder(call_type="extraction", prompt_style="../escape")
