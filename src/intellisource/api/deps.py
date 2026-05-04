@@ -13,13 +13,8 @@ from fastapi import Header, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
-async def get_db_session(
-    request: Request = None,  # type: ignore[assignment]
-) -> AsyncIterator[AsyncSession | None]:
+async def get_db_session(request: Request) -> AsyncIterator[AsyncSession]:
     """Yield a database session from app.state.db for the request scope."""
-    if request is None:
-        yield None
-        return
     async with request.app.state.db.get_session() as session:
         yield session
 

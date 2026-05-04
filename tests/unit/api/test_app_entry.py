@@ -178,15 +178,20 @@ class TestStartupInitialisation:
 
     @pytest.mark.asyncio
     async def test_startup_initialises_db_redis_celery(self) -> None:
-        """AC-T045-2: Startup triggers database pool, Redis, and Celery init."""
+        """AC-T045-2: Startup triggers Redis and Celery init (DB managed by DatabaseManager)."""
         if _MODULE_MISSING:
             pytest.fail(_SKIP_REASON)
+
+        from intellisource.storage.database import DatabaseManager
+
+        mock_db = MagicMock(spec=DatabaseManager)
+        mock_db.close = AsyncMock()
 
         app = create_app()
 
         # Patch the initialisation functions that should be called on startup
         with (
-            patch("intellisource.main.init_db_pool", new_callable=AsyncMock) as mock_db,
+            patch("intellisource.main.DatabaseManager", return_value=mock_db),
             patch(
                 "intellisource.main.init_redis", new_callable=AsyncMock
             ) as mock_redis,
@@ -201,8 +206,7 @@ class TestStartupInitialisation:
             ) as client:
                 await client.get("/health")
 
-            # Verify all init functions were called during startup
-            mock_db.assert_called_once()
+            # Verify init functions were called during startup
             mock_redis.assert_called_once()
             mock_celery.assert_called_once()
 
@@ -217,16 +221,19 @@ class TestShutdownResourceRelease:
 
     @pytest.mark.asyncio
     async def test_shutdown_releases_resources(self) -> None:
-        """AC-T045-3: Shutdown triggers cleanup for db pool, Redis, Celery."""
+        """AC-T045-3: Shutdown triggers cleanup for db, Redis, and Celery."""
         if _MODULE_MISSING:
             pytest.fail(_SKIP_REASON)
+
+        from intellisource.storage.database import DatabaseManager
+
+        mock_db = MagicMock(spec=DatabaseManager)
+        mock_db.close = AsyncMock()
 
         app = create_app()
 
         with (
-            patch(
-                "intellisource.main.close_db_pool", new_callable=AsyncMock
-            ) as mock_close_db,
+            patch("intellisource.main.DatabaseManager", return_value=mock_db),
             patch(
                 "intellisource.main.close_redis", new_callable=AsyncMock
             ) as mock_close_redis,
@@ -234,7 +241,6 @@ class TestShutdownResourceRelease:
                 "intellisource.main.shutdown_celery", new_callable=MagicMock
             ) as mock_shutdown_celery,
             # Also patch startup functions so they don't fail
-            patch("intellisource.main.init_db_pool", new_callable=AsyncMock),
             patch("intellisource.main.init_redis", new_callable=AsyncMock),
             patch("intellisource.main.init_celery", new_callable=MagicMock),
         ):
@@ -249,7 +255,7 @@ class TestShutdownResourceRelease:
             await app.shutdown()
 
             # After shutdown, cleanup should have been called
-            mock_close_db.assert_called_once()
+            mock_db.close.assert_called_once()
             mock_close_redis.assert_called_once()
             mock_shutdown_celery.assert_called_once()
 
@@ -260,16 +266,20 @@ class TestShutdownResourceRelease:
         if _MODULE_MISSING:
             pytest.fail(_SKIP_REASON)
 
+        from intellisource.storage.database import DatabaseManager
+
+        mock_db = MagicMock(spec=DatabaseManager)
+        mock_db.close = AsyncMock()
+
         app = create_app()
         lifespan = getattr(app.router, "lifespan_context", None)
         assert lifespan is not None, "App must have a lifespan context manager"
 
         # Patch all init/close functions to avoid real connections
         with (
-            patch("intellisource.main.init_db_pool", new_callable=AsyncMock),
+            patch("intellisource.main.DatabaseManager", return_value=mock_db),
             patch("intellisource.main.init_redis", new_callable=AsyncMock),
             patch("intellisource.main.init_celery", new_callable=MagicMock),
-            patch("intellisource.main.close_db_pool", new_callable=AsyncMock),
             patch("intellisource.main.close_redis", new_callable=AsyncMock),
             patch("intellisource.main.shutdown_celery", new_callable=MagicMock),
         ):

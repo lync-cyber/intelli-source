@@ -41,10 +41,6 @@ _celery_app: Any = None
 # ---------------------------------------------------------------------------
 
 
-async def init_db_pool() -> None:
-    """Initialise DB pool (no-op; managed by DatabaseManager)."""
-
-
 async def init_redis() -> None:
     """Initialise Redis connection via aioredis.from_url."""
     global _redis_client
@@ -58,10 +54,6 @@ def init_celery() -> Any:
     broker_url = os.environ.get("IS_REDIS_URL", "redis://localhost:6379/0")
     _celery_app = Celery("intellisource", broker=broker_url)
     return _celery_app
-
-
-async def close_db_pool() -> None:
-    """Release DB pool (no-op; managed by DatabaseManager)."""
 
 
 async def close_redis() -> None:
@@ -89,16 +81,14 @@ def shutdown_celery() -> None:
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[dict[str, Any]]:
     """Manage application startup and shutdown."""
-    await init_db_pool()
     db = DatabaseManager()
     app.state.db = db
-    await init_redis()
-    init_celery()
     try:
+        await init_redis()
+        init_celery()
         yield {}
     finally:
         await db.close()
-        await close_db_pool()
         await close_redis()
         shutdown_celery()
 
