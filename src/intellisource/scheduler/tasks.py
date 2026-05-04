@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -86,6 +87,39 @@ class CeleryTasks:
         self._pipeline_config = pipeline_config
         self._session_factory = session_factory
 
+    @asynccontextmanager
+    async def _chain_repo_session(self) -> AsyncIterator[TaskChainRepository]:
+        """Open a session, yield a TaskChainRepository, close on exit."""
+        if self._session_factory is None:
+            raise RuntimeError("session_factory not configured")
+        session = await self._session_factory()
+        try:
+            yield TaskChainRepository(session)
+        finally:
+            await session.close()
+
+    def _create_chain(self, task_chain: TaskChain) -> uuid.UUID | None:
+        """Persist a new TaskChain record and return its assigned ID."""
+        if self._session_factory is None:
+            return None
+
+        async def _do() -> uuid.UUID:
+            async with self._chain_repo_session() as repo:
+                await repo.create(task_chain)
+                return task_chain.id
+
+        result: uuid.UUID = _run_sync(_do())
+        return result
+
+    def _update_chain_status(self, chain_id: uuid.UUID, status: str) -> None:
+        """Update the status of an existing TaskChain record."""
+
+        async def _do() -> None:
+            async with self._chain_repo_session() as repo:
+                await repo.update_status(str(chain_id), status)
+
+        _run_sync(_do())
+
     def run_pipeline(
         self,
         pipeline_name: str,
@@ -112,26 +146,14 @@ class CeleryTasks:
                 total_steps=total_steps,
                 completed_steps=0,
             )
-            session = _run_sync(self._session_factory())
-            try:
-                repo = TaskChainRepository(session)
-                _run_sync(repo.create(task_chain))
-                chain_id = task_chain.id
-            finally:
-                _run_sync(session.close())
+            chain_id = self._create_chain(task_chain)
 
         last_error: Exception | None = None
         for attempt in range(1 + MAX_RETRIES):
             try:
                 result = _run_sync(self._agent_runner.execute(config, params=params))
-                # Success -- update chain status.
-                if chain_id is not None and self._session_factory is not None:
-                    session = _run_sync(self._session_factory())
-                    try:
-                        repo = TaskChainRepository(session)
-                        _run_sync(repo.update_status(str(chain_id), "success"))
-                    finally:
-                        _run_sync(session.close())
+                if chain_id is not None:
+                    self._update_chain_status(chain_id, "success")
                 return dict(result)
             except Exception as exc:
                 last_error = exc
@@ -150,12 +172,7 @@ class CeleryTasks:
                 )
             )
 
-        if chain_id is not None and self._session_factory is not None:
-            session = _run_sync(self._session_factory())
-            try:
-                repo = TaskChainRepository(session)
-                _run_sync(repo.update_status(str(chain_id), "failed"))
-            finally:
-                _run_sync(session.close())
+        if chain_id is not None:
+            self._update_chain_status(chain_id, "failed")
 
         raise last_error  # type: ignore[misc]
