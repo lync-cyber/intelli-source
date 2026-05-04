@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-05-04T07:59:57.318293+00:00",
+  "generated_at": "2026-05-04T13:55:21.485885+00:00",
   "documents": {
     "arch-intellisource-v1-api": {
       "file_path": "docs/arch/arch-intellisource-v1-api.md",
@@ -1077,22 +1077,22 @@
       "doc_type": "dev-plan",
       "volume": "s7",
       "status": "approved",
-      "total_lines": 352,
-      "est_tokens": 6886,
+      "total_lines": 353,
+      "est_tokens": 7139,
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
           "level": 2,
           "line_start": 37,
-          "line_end": 352,
-          "est_tokens": 6516,
+          "line_end": 353,
+          "est_tokens": 6769,
           "deps": [],
           "items": {
             "T-057": {
               "heading": "### T-057: LLM 调用指数退避重试 ✅ done",
               "line_start": 39,
               "line_end": 65,
-              "est_tokens": 460,
+              "est_tokens": 459,
               "deps": []
             },
             "T-058": {
@@ -1147,21 +1147,21 @@
             "T-073": {
               "heading": "### T-073: GET /api/v1/clusters 端点",
               "line_start": 264,
-              "line_end": 292,
-              "est_tokens": 453,
+              "line_end": 293,
+              "est_tokens": 707,
               "deps": []
             },
             "T-074": {
               "heading": "### T-074: TaskChainRepository 实现",
-              "line_start": 293,
-              "line_end": 326,
+              "line_start": 294,
+              "line_end": 327,
               "est_tokens": 967,
               "deps": []
             },
             "T-075": {
               "heading": "### T-075: Celery worker wiring + runner._persist 参数化",
-              "line_start": 327,
-              "line_end": 352,
+              "line_start": 328,
+              "line_end": 353,
               "est_tokens": 765,
               "deps": []
             }
@@ -1847,6 +1847,15 @@
         }
       }
     },
+    "corrections-log": {
+      "file_path": "docs/reviews/CORRECTIONS-LOG.md",
+      "doc_type": "correction-log",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 38,
+      "est_tokens": 556,
+      "sections": {}
+    },
     "code-review-T-057-r1": {
       "file_path": "docs/reviews/code/CODE-REVIEW-T-057-r1.md",
       "doc_type": "code-review",
@@ -2033,6 +2042,42 @@
       "sections": {},
       "deps": [
         "T-072"
+      ]
+    },
+    "code-review-t-073-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-073-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 76,
+      "est_tokens": 1533,
+      "sections": {},
+      "deps": [
+        "T-073"
+      ]
+    },
+    "code-review-t-073-r2": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-073-r2.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 166,
+      "est_tokens": 2261,
+      "sections": {},
+      "deps": [
+        "T-073"
+      ]
+    },
+    "code-review-t-073-r3": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-073-r3.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 32,
+      "est_tokens": 455,
+      "sections": {},
+      "deps": [
+        "T-073"
       ]
     },
     "code-review-T-074-r1": {

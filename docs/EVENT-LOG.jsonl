@@ -126,3 +126,6 @@
 {"ts": "2026-05-04T13:36:49+00:00", "event": "user_decision", "phase": "development", "detail": "T-073 r2: user chose 再修 R-001-r2 后接受 (revision r3 = R-001-r2 fix + CORRECTIONS-LOG carryover for ContentRepository LIKE limitation)"}
 {"ts": "2026-05-04T13:36:49+00:00", "event": "revision_start", "phase": "development", "detail": "T-073 needs_revision(2) → r3: fix R-001-r2 + add CORRECTIONS-LOG entry", "agent": "implementer"}
 {"ts": "2026-05-04T13:43:12+00:00", "event": "review_verdict", "phase": "development", "detail": "T-073 r3: all 4 r3 verification items PASS (cursor validation hoisted to controller; test on real uuid path; CORRECTIONS-LOG carryover; no regression). Final verdict approved.", "agent": "reviewer", "status": "approved"}
+{"ts": "2026-05-04T13:54:39+00:00", "event": "state_change", "phase": "development", "detail": "T-075 dispatch start (sprint-7 10/10 last task; cross-module M-006+M-008; tdd_mode=standard via tdd-engine)"}
+{"ts": "2026-05-04T13:55:49+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD RED: T-075 (cross-module M-006+M-008; standard mode; adaptive-review prompt injected)"}
+{"ts": "2026-05-04T13:59:48+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD RED done: T-075 — 8 failed (5 integration boot ImportError + 3 runner._persist param missing), 3 passed (default values preserved)"}
