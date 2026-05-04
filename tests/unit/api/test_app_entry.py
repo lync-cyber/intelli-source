@@ -178,7 +178,10 @@ class TestStartupInitialisation:
 
     @pytest.mark.asyncio
     async def test_startup_initialises_db_redis_celery(self) -> None:
-        """AC-T045-2: Startup triggers Redis and Celery init (DB managed by DatabaseManager)."""
+        """AC-T045-2: Startup triggers Redis and Celery init.
+
+        DB lifecycle is managed by DatabaseManager.
+        """
         if _MODULE_MISSING:
             pytest.fail(_SKIP_REASON)
 

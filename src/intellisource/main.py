@@ -51,7 +51,9 @@ async def init_redis() -> None:
 def init_celery() -> Any:
     """Instantiate and return a Celery application."""
     global _celery_app
-    broker_url = os.environ.get("IS_REDIS_URL", "redis://localhost:6379/0")
+    broker_url = os.environ.get("IS_CELERY_BROKER_URL") or os.environ.get(
+        "IS_REDIS_URL", "redis://localhost:6379/0"
+    )
     _celery_app = Celery("intellisource", broker=broker_url)
     return _celery_app
 

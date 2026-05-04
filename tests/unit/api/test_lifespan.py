@@ -34,7 +34,7 @@ class TestLifespanDatabaseManagerDI:
         mock_db.close = AsyncMock()
 
         with patch(
-            "intellisource.main.DatabaseManager", return_value=mock_db, create=True
+            "intellisource.main.DatabaseManager", return_value=mock_db
         ):
             app = create_app()
             lifespan = app.router.lifespan_context
@@ -56,7 +56,7 @@ class TestLifespanDatabaseManagerDI:
         mock_db.close = AsyncMock()
 
         with patch(
-            "intellisource.main.DatabaseManager", return_value=mock_db, create=True
+            "intellisource.main.DatabaseManager", return_value=mock_db
         ) as mock_cls:
             app = create_app()
             lifespan = app.router.lifespan_context
@@ -75,7 +75,7 @@ class TestLifespanDatabaseManagerDI:
         mock_db.close = AsyncMock()
 
         with patch(
-            "intellisource.main.DatabaseManager", return_value=mock_db, create=True
+            "intellisource.main.DatabaseManager", return_value=mock_db
         ):
             app = create_app()
             lifespan = app.router.lifespan_context
@@ -94,7 +94,7 @@ class TestLifespanDatabaseManagerDI:
         mock_db.close = AsyncMock()
 
         with patch(
-            "intellisource.main.DatabaseManager", return_value=mock_db, create=True
+            "intellisource.main.DatabaseManager", return_value=mock_db
         ):
             app = create_app()
             lifespan = app.router.lifespan_context
@@ -124,7 +124,7 @@ class TestInitRedis:
 
         mock_redis = AsyncMock()
 
-        with patch("intellisource.main.aioredis", create=True) as mock_aioredis_mod:
+        with patch("intellisource.main.aioredis") as mock_aioredis_mod:
             mock_aioredis_mod.from_url = AsyncMock(return_value=mock_redis)
             await main_module.init_redis()
             mock_aioredis_mod.from_url.assert_called_once()
@@ -136,7 +136,7 @@ class TestInitRedis:
 
         mock_redis = AsyncMock()
 
-        with patch("intellisource.main.aioredis", create=True) as mock_aioredis_mod:
+        with patch("intellisource.main.aioredis") as mock_aioredis_mod:
             mock_aioredis_mod.from_url = AsyncMock(return_value=mock_redis)
             await main_module.init_redis()
             # The redis client returned by from_url must be stored somewhere
@@ -155,7 +155,7 @@ class TestInitCelery:
         mock_celery_instance = MagicMock()
 
         with patch(
-            "intellisource.main.Celery", return_value=mock_celery_instance, create=True
+            "intellisource.main.Celery", return_value=mock_celery_instance
         ) as mock_celery_cls:
             main_module.init_celery()
             mock_celery_cls.assert_called_once()
@@ -167,7 +167,7 @@ class TestInitCelery:
         mock_celery_instance = MagicMock()
 
         with patch(
-            "intellisource.main.Celery", return_value=mock_celery_instance, create=True
+            "intellisource.main.Celery", return_value=mock_celery_instance
         ) as mock_celery_cls:
             result = main_module.init_celery()
             # Celery must have been instantiated — this is the core assertion

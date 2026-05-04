@@ -16,6 +16,7 @@ duration of that test's patch context.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -60,7 +61,7 @@ def _inject_mock_db_into_app_fixtures(request: pytest.FixtureRequest) -> None:
 
 
 @pytest.fixture(autouse=True)
-def _patch_main_database_manager() -> AsyncIterator[None]:  # type: ignore[misc]
+def _patch_main_database_manager() -> Iterator[MagicMock]:
     """Patch intellisource.main.DatabaseManager for the duration of each test.
 
     Tests in test_app_entry.py call create_app() and trigger the lifespan via
