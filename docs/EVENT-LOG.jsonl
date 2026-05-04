@@ -136,3 +136,4 @@
 {"ts": "2026-05-04T14:09:52+00:00", "event": "correction", "phase": "unknown", "detail": "option-override: T-075 code-review r1 verdict 为 approved_with_notes (1 MEDIUM R-001 signal 未连接 + ", "agent": "orchestrator"}
 {"event": "user_decision", "phase": "development", "detail": "T-075 approved_with_notes — user selected: 修复全部 4 个 (R-001~R-004)", "ts": "2026-05-04T14:10:13+00:00"}
 {"event": "revision_start", "phase": "development", "agent": "implementer", "detail": "T-075 revision r2 — fix R-001 MEDIUM (signal connect) + R-002/R-003/R-004 LOW; needs_revision(1)", "ts": "2026-05-04T14:10:13+00:00"}
+{"event": "review_verdict", "phase": "development", "agent": "reviewer", "status": "approved", "detail": "T-075 code-review r2 — approved (R-001~R-004 全闭环 + 2 new LOW R-001-r2/R-002-r2 minor structural)", "ts": "2026-05-04T14:14:41+00:00"}

@@ -36,3 +36,10 @@ deps: []
 - 原因: tests/unit/storage/test_repositories.py 在 SQLite 下运行，SQLite 不支持 JSONB @> 运算符；ContentRepository 已有 SourceRepository 同模式（with SQLite-compat comment），保持一致避免选择性修复
 - carryover: ContentRepository / SourceRepository tag 过滤的 LIKE 通配符副作用为 known limitation，待 storage 单元测试迁移到 Postgres test fixture 后统一改用 .contains() / @> 运算符
 - 关联: commit 3857992, CODE-REVIEW-T-073-r2.md 追加观察
+
+### 2026-05-04 | orchestrator | unknown
+- 触发信号: option-override
+- 问题/假设: T-075 code-review r1 verdict 为 approved_with_notes (1 MEDIUM R-001 signal 未连接 + 3 LOW)。R-001 与 T-074 r2 同模式 carryover，sprint-review 时易被误判为完整闭环。如何处理？
+- 基线/推荐: 立即修复 R-001 + R-002 (Recommended)
+- 实际/选择: 修复全部 4 个 (R-001~R-004)
+- 偏差类型: preference

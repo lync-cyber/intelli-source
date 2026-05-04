@@ -9,11 +9,18 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from celery.signals import worker_process_init, worker_process_shutdown
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from intellisource.scheduler.tasks import CeleryTasks
 
 _celery_tasks: CeleryTasks | None = None
+_worker_engine: AsyncEngine | None = None
 
 
 def init_worker_session_factory() -> async_sessionmaker[AsyncSession]:
@@ -21,9 +28,14 @@ def init_worker_session_factory() -> async_sessionmaker[AsyncSession]:
 
     Does not import or access intellisource.main or app.state.db.
     """
-    url = os.environ["IS_DATABASE_URL"]
-    engine = create_async_engine(url)
-    return async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+    global _worker_engine
+    url = os.environ.get("IS_DATABASE_URL")
+    if not url:
+        raise ValueError("IS_DATABASE_URL must be set for the worker process")
+    _worker_engine = create_async_engine(url)
+    return async_sessionmaker(
+        bind=_worker_engine, class_=AsyncSession, expire_on_commit=False
+    )
 
 
 def build_celery_tasks(
@@ -68,6 +80,27 @@ def worker_init_handler(
     )
 
 
+def worker_shutdown_handler(**_: Any) -> None:
+    """Dispose worker engine on shutdown."""
+    global _worker_engine, _celery_tasks
+    if _worker_engine is not None:
+        import asyncio  # noqa: PLC0415
+
+        try:
+            asyncio.run(_worker_engine.dispose())
+        except RuntimeError:
+            # Already in event loop — best-effort
+            pass
+        _worker_engine = None
+    _celery_tasks = None
+
+
 def get_celery_tasks() -> CeleryTasks | None:
     """Return the initialized CeleryTasks singleton, or None if not yet wired."""
     return _celery_tasks
+
+
+if not getattr(worker_process_init, "_intellisource_connected", False):
+    worker_process_init.connect(worker_init_handler)
+    worker_process_shutdown.connect(worker_shutdown_handler)
+    worker_process_init._intellisource_connected = True

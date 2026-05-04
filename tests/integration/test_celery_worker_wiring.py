@@ -96,6 +96,14 @@ class TestBuildCeleryTasks:
         assert tasks._session_factory is not None, (
             "CeleryTasks._session_factory must be set after build_celery_tasks()"
         )
+        import asyncio  # noqa: PLC0415
+
+        factory_callable = tasks._session_factory
+        assert callable(factory_callable), "_session_factory must be callable"
+        assert asyncio.iscoroutinefunction(factory_callable), (
+            "_session_factory must be an async coroutine function "
+            "(returns an awaitable that yields AsyncSession)"
+        )
 
     def test_build_celery_tasks_registers_run_pipeline_task(
         self, monkeypatch: pytest.MonkeyPatch
