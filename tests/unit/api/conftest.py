@@ -32,6 +32,7 @@ _APP_FIXTURE_NAMES = (
     "subscriptions_app",
     "llm_app",
     "system_app",
+    "clusters_app",
 )
 
 
