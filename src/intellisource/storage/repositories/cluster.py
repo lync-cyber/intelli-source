@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from intellisource.storage.models import ContentCluster
-from intellisource.storage.repositories.base import TEXT_TYPE, BaseRepository
+from intellisource.storage.repositories.base import BaseRepository
 
 
 class ClusterRepository(BaseRepository[ContentCluster]):
@@ -29,7 +29,7 @@ class ClusterRepository(BaseRepository[ContentCluster]):
         stmt = select(ContentCluster).options(selectinload(ContentCluster.digests))
 
         if tag is not None:
-            stmt = stmt.where(ContentCluster.tags.cast(TEXT_TYPE).like(f'%"{tag}"%'))
+            stmt = stmt.where(ContentCluster.tags.contains([tag]))
         if date_from is not None:
             stmt = stmt.where(ContentCluster.created_at >= date_from)
         if date_to is not None:

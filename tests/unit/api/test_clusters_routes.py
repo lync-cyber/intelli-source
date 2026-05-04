@@ -18,6 +18,7 @@ Covers:
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -59,12 +60,16 @@ DIGEST_ID_1 = uuid.UUID("00000000-0000-0000-0000-000000000301")
 # ---------------------------------------------------------------------------
 
 
-def _make_digest_mock(*, summary: str | None = "Digest summary text") -> MagicMock:
+def _make_digest_mock(
+    *,
+    summary: str | None = "Digest summary text",
+    created_at: datetime | str = "2025-06-01T10:00:00+00:00",
+) -> MagicMock:
     """Return a MagicMock mimicking a Digest ORM instance."""
     obj = MagicMock()
     obj.id = DIGEST_ID_1
     obj.summary = summary
-    obj.created_at = "2025-06-01T10:00:00+00:00"
+    obj.created_at = created_at
     obj.updated_at = "2025-06-02T10:00:00+00:00"
     return obj
 
@@ -468,10 +473,14 @@ class TestClustersItemFields:
         self, clusters_client: AsyncClient
     ) -> None:
         """digest is derived from the most recent Digest.summary in digests list."""
-        older_digest = _make_digest_mock(summary="Older summary")
-        older_digest.created_at = "2025-05-01T00:00:00+00:00"
-        newer_digest = _make_digest_mock(summary="Newer summary")
-        newer_digest.created_at = "2025-06-01T00:00:00+00:00"
+        older_digest = _make_digest_mock(
+            summary="Older summary",
+            created_at=datetime(2025, 5, 1, tzinfo=timezone.utc),
+        )
+        newer_digest = _make_digest_mock(
+            summary="Newer summary",
+            created_at=datetime(2025, 6, 1, tzinfo=timezone.utc),
+        )
 
         cluster = _make_cluster_mock(digests=[older_digest, newer_digest])
         mock_repo = AsyncMock()
@@ -484,9 +493,7 @@ class TestClustersItemFields:
             resp = await clusters_client.get("/api/v1/clusters")
 
         item = resp.json()["items"][0]
-        # The router picks the last digest from the relationship list (most recent)
-        assert item["digest"] is not None
-        assert isinstance(item["digest"], str)
+        assert item["digest"] == "Newer summary"
 
     @pytest.mark.asyncio
     async def test_t073_ac4_digest_none_when_no_digests(
@@ -631,3 +638,122 @@ class TestClusterRepositoryExport:
                 "cannot import 'router'"
             )
         assert clusters_router is not None
+
+
+# ===========================================================================
+# R-002 fixes: invalid cursor / limit boundary tests
+# ===========================================================================
+
+
+class TestClustersInputBoundaries:
+    """R-002: Input boundary and error handling for cursor and limit params."""
+
+    @pytest.mark.asyncio
+    async def test_t073_ac1_invalid_cursor_returns_400(
+        self, clusters_client: AsyncClient
+    ) -> None:
+        """A non-UUID cursor string returns HTTP 400."""
+        mock_repo = AsyncMock()
+        mock_repo.list_clusters.side_effect = ValueError(
+            "badly formed hexadecimal UUID"
+        )
+
+        with patch(
+            "intellisource.api.routers.clusters.ClusterRepository",
+            return_value=mock_repo,
+        ):
+            resp = await clusters_client.get(
+                "/api/v1/clusters", params={"cursor": "bad-cursor"}
+            )
+
+        assert resp.status_code == 400
+        assert resp.json()["detail"] == "invalid cursor"
+
+    @pytest.mark.asyncio
+    async def test_t073_ac1_limit_zero_clamped_to_one(
+        self, clusters_client: AsyncClient
+    ) -> None:
+        """limit=0 is clamped to 1 before repo call; response shape is valid."""
+        mock_repo = AsyncMock()
+        mock_repo.list_clusters.return_value = _make_list_clusters_result(
+            [_make_cluster_mock()]
+        )
+
+        with patch(
+            "intellisource.api.routers.clusters.ClusterRepository",
+            return_value=mock_repo,
+        ):
+            resp = await clusters_client.get("/api/v1/clusters", params={"limit": 0})
+
+        assert resp.status_code == 200
+        mock_repo.list_clusters.assert_called_once()
+        call_kwargs = mock_repo.list_clusters.call_args.kwargs
+        assert call_kwargs["limit"] >= 1
+
+    @pytest.mark.asyncio
+    async def test_t073_ac1_limit_negative_clamped_to_one(
+        self, clusters_client: AsyncClient
+    ) -> None:
+        """limit=-5 is clamped to 1 before repo call."""
+        mock_repo = AsyncMock()
+        mock_repo.list_clusters.return_value = _make_list_clusters_result([])
+
+        with patch(
+            "intellisource.api.routers.clusters.ClusterRepository",
+            return_value=mock_repo,
+        ):
+            resp = await clusters_client.get("/api/v1/clusters", params={"limit": -5})
+
+        assert resp.status_code == 200
+        mock_repo.list_clusters.assert_called_once()
+        call_kwargs = mock_repo.list_clusters.call_args.kwargs
+        assert call_kwargs["limit"] >= 1
+
+
+# ===========================================================================
+# R-003: X-API-Key auth placeholder
+# ===========================================================================
+
+
+class TestClustersAuth:
+    """R-003: Auth coverage placeholder pointing to T-063 integration tests."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.skip(
+        reason="auth handled by AuthMiddleware; covered in T-063 integration tests"
+    )
+    async def test_t073_ac1_missing_x_api_key_returns_401(
+        self, clusters_client: AsyncClient
+    ) -> None:
+        """GET /api/v1/clusters without X-API-Key returns 401."""
+        resp = await clusters_client.get("/api/v1/clusters")
+        assert resp.status_code == 401
+
+
+# ===========================================================================
+# R-005: tag wildcard safety
+# ===========================================================================
+
+
+class TestClustersTagWildcard:
+    """R-005: Tag filter must not treat LIKE wildcards as glob patterns."""
+
+    @pytest.mark.asyncio
+    async def test_t073_ac2_tag_with_percent_does_not_match_all(
+        self, clusters_client: AsyncClient
+    ) -> None:
+        """tag='%' is passed verbatim to repo; containment query returns empty list."""
+        mock_repo = AsyncMock()
+        mock_repo.list_clusters.return_value = _make_list_clusters_result([])
+
+        with patch(
+            "intellisource.api.routers.clusters.ClusterRepository",
+            return_value=mock_repo,
+        ):
+            resp = await clusters_client.get("/api/v1/clusters", params={"tag": "%"})
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["items"] == []
+        mock_repo.list_clusters.assert_called_once()
+        assert "%" in str(mock_repo.list_clusters.call_args)

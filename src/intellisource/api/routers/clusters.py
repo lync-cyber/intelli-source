@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session
@@ -19,7 +19,10 @@ router = APIRouter(tags=["clusters"])
 
 
 def _serialize_cluster(obj: Any) -> dict[str, Any]:
-    """Convert a ContentCluster ORM object to a JSON-serializable dict."""
+    """Serialize ContentCluster to API-016 response dict.
+
+    Planned for migration to api/schemas/clusters.py (Pydantic) in a future sprint.
+    """
     latest_digest = (
         max(obj.digests, key=lambda d: d.created_at, default=None)
         if obj.digests
@@ -53,15 +56,18 @@ async def list_clusters(
     cursor: str | None = None,
     session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
-    limit = min(limit, 100)
+    limit = max(1, min(limit, 100))
     repo = ClusterRepository(session)
-    result = await repo.list_clusters(
-        tag=tag,
-        date_from=date_from,
-        date_to=date_to,
-        limit=limit,
-        cursor=cursor,
-    )
+    try:
+        result = await repo.list_clusters(
+            tag=tag,
+            date_from=date_from,
+            date_to=date_to,
+            limit=limit,
+            cursor=cursor,
+        )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid cursor")
     items = [_serialize_cluster(c) for c in result["items"]]
     return {
         "items": items,

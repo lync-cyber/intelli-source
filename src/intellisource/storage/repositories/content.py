@@ -9,7 +9,7 @@ from typing import Any
 from sqlalchemy import select
 
 from intellisource.storage.models import ProcessedContent, RawContent
-from intellisource.storage.repositories.base import TEXT_TYPE, BaseRepository
+from intellisource.storage.repositories.base import BaseRepository
 
 
 class ContentRepository(BaseRepository[ProcessedContent]):
@@ -54,7 +54,7 @@ class ContentRepository(BaseRepository[ProcessedContent]):
                 RawContent, ProcessedContent.raw_content_id == RawContent.id
             ).where(RawContent.source_id == source_id)
         if tag is not None:
-            stmt = stmt.where(ProcessedContent.tags.cast(TEXT_TYPE).like(f'%"{tag}"%'))
+            stmt = stmt.where(ProcessedContent.tags.contains([tag]))
         if cluster_id is not None:
             stmt = stmt.where(ProcessedContent.cluster_id == cluster_id)
         if published_after is not None:
