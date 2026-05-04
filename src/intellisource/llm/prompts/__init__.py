@@ -13,6 +13,14 @@ from typing import Any
 _TEMPLATE_DIR = Path(__file__).parent
 
 
+def _validate_path_component(value: str, field: str) -> None:
+    if not value or "/" in value or "\\" in value or ".." in value or "\0" in value:
+        raise ValueError(
+            f"Invalid {field} for prompt template: {value!r} (must be a single "
+            f"filename component without path separators or '..')"
+        )
+
+
 @lru_cache(maxsize=64)
 def _read_template(name: str, style: str | None = None) -> str:
     """Read and cache a template file, preferring variant over base.
@@ -20,7 +28,9 @@ def _read_template(name: str, style: str | None = None) -> str:
     When style is provided, attempts to load ``{name}.{style}.txt``
     first; falls back to ``{name}.txt`` when the variant is absent.
     """
+    _validate_path_component(name, "name")
     if style is not None:
+        _validate_path_component(style, "style")
         variant_path = _TEMPLATE_DIR / f"{name}.{style}.txt"
         if variant_path.exists():
             return variant_path.read_text(encoding="utf-8")

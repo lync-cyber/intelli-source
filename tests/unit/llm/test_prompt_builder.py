@@ -480,10 +480,24 @@ class TestLoadPromptVariantStyle:
 
     def test_load_prompt_style_loads_variant_content(self) -> None:
         """load_prompt(name, style=...) returns variant file content when it exists."""
+        from pathlib import Path
+
+        prompts_dir = (
+            Path(__file__).parent.parent.parent.parent
+            / "src"
+            / "intellisource"
+            / "llm"
+            / "prompts"
+        )
+        variant_raw = (prompts_dir / "extraction.structured.txt").read_text(
+            encoding="utf-8"
+        )
         result = load_prompt(
             "extraction", style="structured", schema="{}", body_text="text"
         )
-        # Variant content is different from the default template
+        expected = variant_raw.format_map({"schema": "{}", "body_text": "text"})
+        assert result == expected
+        # Sanity: variant content also differs from the default template
         default = load_prompt("extraction", schema="{}", body_text="text")
         assert result != default
 
@@ -584,3 +598,30 @@ class TestPromptBuilderVariantStyle:
         builder.add_context("body_text", "hello")
         result = builder.build()
         assert "hello" in result
+
+
+class TestPromptPathComponentValidation:
+    """R-002: name/style must be a single filename component (defense-in-depth)."""
+
+    @pytest.mark.parametrize(
+        "bad_name",
+        ["../etc/passwd", "foo/bar", "foo\\bar", "..", "", "with\0null"],
+    )
+    def test_load_prompt_rejects_unsafe_name(self, bad_name: str) -> None:
+        """load_prompt() raises ValueError when name contains path components."""
+        with pytest.raises(ValueError, match="Invalid name"):
+            load_prompt(bad_name)
+
+    @pytest.mark.parametrize(
+        "bad_style",
+        ["../sneak", "structured/oops", "..", "", "with\0null"],
+    )
+    def test_load_prompt_rejects_unsafe_style(self, bad_style: str) -> None:
+        """load_prompt() raises ValueError when style contains path components."""
+        with pytest.raises(ValueError, match="Invalid style"):
+            load_prompt("extraction", style=bad_style, schema="{}", body_text="x")
+
+    def test_prompt_builder_rejects_unsafe_prompt_style(self) -> None:
+        """PromptBuilder propagates the ValueError raised by _read_template."""
+        with pytest.raises(ValueError, match="Invalid style"):
+            PromptBuilder(call_type="extraction", prompt_style="../escape")
