@@ -26,7 +26,7 @@ split_from: dev-plan-intellisource-v1
   - T-060 LLM 统计仪表盘 API ✅ done
   - T-061 LLM 配置 Pydantic Schema 验证 ✅ done
   - T-062 模型特化 Prompt 变体 ✅ done
-  - T-063 Sprint 7 集成测试与回归
+  - T-063 Sprint 7 集成测试与回归 ✅ done
   - T-072 数据库会话 DI 接驳 ✅ done（新增，源自 CODE-SCAN R-001/R-007）
   - T-073 GET /api/v1/clusters 端点（新增，源自 CODE-SCAN R-003）
   - T-074 TaskChainRepository 实现 ✅ done（新增，源自 CODE-SCAN R-006）
@@ -213,19 +213,19 @@ split_from: dev-plan-intellisource-v1
 - **接口**: internal
 - **复杂度**: M
 - **依赖**: T-057~T-062, T-072~T-075
+- **status**: done (2026-05-04, r1 approved；3 LOW non-blocking：R-001 模块级 SQLiteTypeCompiler.visit_JSONB monkey-patch 副作用 / R-002 cluster tag filter mock 是 PG @> SQLite 不兼容 carryover (T-073) / R-003 update_status missing-id 弱断言)；22 target integration tests + 1862 全量回归 PASSED + 1 SKIPPED + 0 FAILED；mypy strict + ruff clean
 - **tdd_acceptance**:
-  - [ ] AC-T063-1: LLM 重试 + fallback 端到端测试（模拟连续失败 → 重试 → 降级）
-  - [ ] AC-T063-2: ConfigResolver 三层合并集成测试（defaults + project + env）
-  - [ ] AC-T063-3: PromptBuilder 变体加载 + ModelProfile 集成测试
-  - [ ] AC-T063-4: 上下文压缩在 AgentRunner flexible 模式中正确触发
-  - [ ] AC-T063-5: `GET /api/v1/llm/stats` 集成测试（含真实 DB session，验证聚合字段）
-  - [ ] AC-T063-6: `GET /api/v1/clusters` 集成测试（分页、tag 过滤）
-  - [ ] AC-T063-7: TaskChainRepository 写入 + 读取集成测试
-  - [ ] AC-T063-8: 全量 `pytest` 通过（无 import 错误、无残留引用）
-  - [ ] AC-T063-9: `mypy --strict src/` 零错误
+  - [x] AC-T063-1: LLM 重试 + fallback 端到端测试 (TestLLMRetryFallback × 2)
+  - [x] AC-T063-2: ConfigResolver 三层合并集成测试 (TestConfigResolverMerge × 3)
+  - [x] AC-T063-3: PromptBuilder 变体加载 + ModelProfile 集成测试 (TestPromptBuilderModelProfile × 4)
+  - [x] AC-T063-4: 上下文压缩在 AgentRunner flexible 模式中正确触发 (TestAgentRunnerCompaction × 2)
+  - [x] AC-T063-5: GET /api/v1/llm/stats 集成测试 (TestLLMStatsEndpoint × 2，真 DB session)
+  - [x] AC-T063-6: GET /api/v1/clusters 集成测试 (TestClustersEndpoint × 5，含 4 真 E2E + 1 router-layer mock)
+  - [x] AC-T063-7: TaskChainRepository 写入+读取集成测试 (TestTaskChainRepositoryCRUD × 4，真 SQLite roundtrip)
+  - [x] AC-T063-8: 全量 pytest 通过 — 1862 PASSED + 1 SKIPPED + 0 FAILED
+  - [x] AC-T063-9: mypy --strict src/ — Success: no issues found in 106 source files
 - **deliverables**:
-  - [ ] `tests/integration/test_sprint7_integration.py` — 集成测试（含 T-072~T-075 场景）
-  - [ ] 全量 pytest + mypy 通过报告
+  - [x] `tests/integration/test_sprint7_integration.py` — 857 LOC, 22 tests across 7 TestClasses
 - **context_load**:
   - 所有 T-057 ~ T-062, T-072 ~ T-075 deliverables
 
