@@ -139,3 +139,5 @@
 {"event": "review_verdict", "phase": "development", "agent": "reviewer", "status": "approved", "detail": "T-075 code-review r2 — approved (R-001~R-004 全闭环 + 2 new LOW R-001-r2/R-002-r2 minor structural)", "ts": "2026-05-04T14:14:41+00:00"}
 {"event": "phase_end", "phase": "development", "status": "approved", "detail": "T-075 done — CODE-REVIEW-T-075-r2 approved; sprint-7 10/10 implementation tasks complete; T-063 integration test remains", "ts": "2026-05-04T14:16:14+00:00"}
 {"event": "state_change", "phase": "development", "detail": "CLAUDE.md updated: T-075 done; sprint-7 9/10 → 10/10; next T-063", "ts": "2026-05-04T14:16:14+00:00"}
+{"ts": "2026-05-04T14:17:07+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD LIGHT-DISPATCH: T-063 sprint-7 integration test sweep (9 ACs, cross-module verification)"}
+{"event": "tdd_phase", "phase": "development", "detail": "TDD LIGHT-DISPATCH done: T-063 — 22 new integration tests + 1862 全量 PASSED, refactor_needed=false, no src/ changes (test-side workarounds for SQLite JSONB + cluster tag filter)", "ts": "2026-05-04T14:31:50+00:00"}
