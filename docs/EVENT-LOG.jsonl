@@ -86,3 +86,7 @@
 {"ts": "2026-05-04T05:30:18+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD RED: T-072 (DB session DI wiring)", "agent": "orchestrator"}
 {"ts": "2026-05-04T05:35:44+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD GREEN: T-072 (DB session DI wiring)", "agent": "orchestrator"}
 {"ts": "2026-05-04T05:55:52+00:00", "event": "incident", "phase": "development", "detail": "T-072 GREEN implementer 截断恢复：实际产出 22/22 PASS + 1786/1788 全量；2 处机械残留（deps.py unused type:ignore + main.py 2x E501 docstring）；continuation 让 implementer 自己收尾", "status": "blocked"}
+{"ts": "2026-05-04T05:58:20+00:00", "event": "state_change", "phase": "development", "detail": "skill-run: code-review Layer 1 exit=2 (unreachable or runtime error)", "agent": "reviewer", "status": "blocked", "ref": "skill:code-review/code_lint"}
+{"ts": "2026-05-04T05:58:23+00:00", "event": "state_change", "phase": "development", "detail": "skill-run: code-review Layer 1 exit=2 (unreachable or runtime error)", "agent": "reviewer", "status": "blocked", "ref": "skill:code-review/code_lint"}
+{"ts": "2026-05-04T05:58:30+00:00", "event": "state_change", "phase": "development", "detail": "skill-run: code-review Layer 1 passed", "agent": "reviewer", "status": "completed", "ref": "skill:code-review/code_lint"}
+{"ts": "2026-05-04T05:58:42+00:00", "event": "review_verdict", "phase": "development", "detail": "T-072 code-review Layer 1 passed; proceeding to Layer 2", "agent": "reviewer", "status": "completed"}
