@@ -43,3 +43,10 @@ deps: []
 - 基线/推荐: 立即修复 R-001 + R-002 (Recommended)
 - 实际/选择: 修复全部 4 个 (R-001~R-004)
 - 偏差类型: preference
+
+### 2026-05-04 | orchestrator | unknown
+- 触发信号: option-override
+- 问题/假设: Sprint-7 完整闭环 + RETRO 完成。如何处理 6 条 EXP 的改进应用与下一阶段推进？
+- 基线/推荐: 现在应用 EXP-002 + EXP-005 两条高优先并推进 (Recommended)
+- 实际/选择: 暂停，我要先设读 RETRO 报告
+- 偏差类型: preference

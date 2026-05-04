@@ -1,7 +1,6 @@
 # CataForge
 
 ## 项目信息
-
 - 项目名称: IntelliSource
 - 技术栈: Python 3.11+ / FastAPI / Celery + Redis / PostgreSQL + pgvector / SQLAlchemy 2.0 / litellm
 - 运行时: claude-code
@@ -16,7 +15,6 @@
 - model 继承: AGENT.md 中 `model: inherit` 继承父会话模型；可用 `model: <model-id>` 覆盖
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-
 - 当前阶段: development
 - 上次完成: orchestrator — T-063 done (CODE-REVIEW-T-063-r1 approved；3 LOW non-blocking：R-001 模块级 SQLiteTypeCompiler.visit_JSONB monkey-patch 副作用 / R-002 cluster tag filter mock 为 PG @> SQLite 不兼容 carryover 延续 / R-003 update_status missing-id 弱断言)；22 target integration tests + 1862 全量回归 PASSED + 1 SKIPPED + 0 FAILED；mypy strict + ruff clean；sprint-7 全部 11 任务实施闭环
 - 下一步行动: Sprint-7 sprint-review (sprint-review skill；任务数 11 > SPRINT_REVIEW_MICRO_TASK_COUNT=3 不可短路；全任务 approved/approved_with_notes，需聚合 AC 覆盖 + 范围偏移检测) → reflector retrospective (RETRO 阈值远超，**必须激活**，EXP 候选 a/e/f/h/i 5 组优先) <!-- 用户 /start-orchestrator 选 Option 2 (2026-05-04)：严格按主线箭头 -->
@@ -46,7 +44,6 @@
 - 数据库迁移: `uv run alembic upgrade head`
 
 ## 文档导航
-
 - 导航索引: `docs/.doc-index.json`（机器索引，所有 Agent 通过 `cataforge docs load` 查询；缺失时运行 `cataforge docs index` 重建）
 - 通用规则: .cataforge/rules/COMMON-RULES.md
 - 子代理协议: .cataforge/rules/SUB-AGENT-PROTOCOLS.md
@@ -55,7 +52,6 @@
 - 加载原则: 按任务需要通过 `cataforge docs load` 加载相关章节，不全量加载
 
 ## 全局约定
-
 - 命名: PEP 8（snake_case 函数/变量，PascalCase 类名）
 - Commit: Conventional Commits（feat/fix/docs/chore/refactor/test）
 - 分支: GitHub Flow（main + feature branches）
@@ -71,7 +67,6 @@
   - 长文拆分: 文档超 `DOC_SPLIT_THRESHOLD_LINES` 行时按doc-gen拆分策略分卷
 
 ## 框架机制
-
 - Agent编排: orchestrator 通过 agent-dispatch skill 激活子代理
 - DEV阶段: orchestrator 通过 tdd-engine skill 编排 RED/GREEN/REFACTOR 三个子代理（独立上下文）
 - Skill调用: Agent按SKILL.md步骤式指令执行工作流
