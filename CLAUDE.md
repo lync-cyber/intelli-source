@@ -31,9 +31,10 @@
 
 - 当前阶段: development
 - 上次完成: orchestrator — T-062 done (CODE-REVIEW-T-062-r2 approved；r1 approved_with_notes 三个 LOW notes 全闭环：R-001 dev-plan deliverables 同步 + Option A 说明 / R-002 `_validate_path_component` 输入校验 + 11 新攻击向量测试 / R-003 `test_load_prompt_style_loads_variant_content` 加强为字面比对；55 target tests + 1766 全量回归 PASSED；mypy strict src/ clean (102 files)；ruff check + format clean)
-- 下一步行动: tdd-engine 调度 T-063 (Sprint 7 集成测试与回归) → Sprint-7 末尾 reflector retrospective
+- 下一步行动: tdd-engine 调度 T-072 (DB session DI 接驳) → 完成后并行 T-073+T-074 → 最后 T-063 集成测试 → Sprint-7 sprint-review + reflector retrospective
 - 已完成阶段: [bootstrap, requirements, architecture, ui_design(跳过-backend-only), dev_planning, sprint-1, sprint-2, sprint-3, sprint-4, sprint-5, sprint-6]
-- 当前Sprint: sprint-7 (approved, 6/7 done: T-057 ✅, T-058 ✅, T-059 ✅, T-060 ✅, T-061 ✅, T-062 ✅；下一: T-063)
+- 当前Sprint: sprint-7 (approved, 6/9 done: T-057 ✅, T-058 ✅, T-059 ✅, T-060 ✅, T-061 ✅, T-062 ✅；剩余 T-072 → T-073+T-074(并行) → T-063；下一: T-072) <!-- 2026-05-04 状态订正：CODE-SCAN-20260503-r1 在 commit 1fb3246 引入 T-072~T-074 至 sprint-7，原 6/7 计数未同步刷新，本次根据 dev-plan-s7 §3 NAV 实际任务集回填 6/9 -->
+- 状态订正备注 (2026-05-04): 本次 /start-orchestrator 启动时检测到 CLAUDE.md 与 dev-plan-s7 不一致——T-063 dev-plan 依赖字段写明 `T-057~T-062, T-072~T-074`，但 CLAUDE.md 仍延续 T-072~T-074 插入前的 6/7 视图。按依赖图先行 T-072~T-074；并行规则受 main.py 路径重叠约束（T-072 vs T-073）→ 拆为 "T-072 串行 → T-073+T-074 并行 → T-063"。
 - Retrospective 阈值监控: 已达 RETRO_TRIGGER_SELF_CAUSED=5（T-060 r1 R-001+R-002+R-003+R-004+R-006，r2 R-006 升级 MEDIUM；外加历史 T-058 N-001 + T-059 r1 R-003/R-004 + r2 R-010）。EXP 候选: implementer self-report 范围与实际范围错位（T-060 r1 router self-report "无需变更" 但 git diff 实有改动；r2 ruff scope 声称 src/ clean 但 tests/ 含 16 处 E501）。**新增 orchestrator 时序观察（T-062）**: orchestrator 在 implementer 仍在收尾期间运行验证导致快照不一致——非 implementer self-caused，但表明 orchestrator 应等 completion notification 后再校验。Sprint-7 末尾 retrospective 必须激活 reflector 提炼对应 EXP。
 - 文档状态:
   - prd: approved
