@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import AsyncIterator
 from typing import Any
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from intellisource.api.deps import get_db_session
 from intellisource.storage.repositories.content import ContentRepository
 
 router = APIRouter(tags=["contents"])
@@ -37,11 +37,6 @@ def _serialize_content(obj: Any) -> dict[str, Any]:
     }
 
 
-async def get_session() -> AsyncIterator[AsyncSession]:
-    """Placeholder DB session dependency. Tests mock ContentRepository directly."""
-    yield None  # type: ignore[misc]
-
-
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -54,7 +49,7 @@ async def list_contents(
     cluster_id: uuid.UUID | None = None,
     limit: int = 20,
     cursor: str | None = None,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     limit = min(limit, 100)
     repo = ContentRepository(session)

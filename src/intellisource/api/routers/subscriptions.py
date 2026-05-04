@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import AsyncIterator
 from typing import Any
 
 from fastapi import APIRouter, Depends, Response, status
@@ -11,6 +10,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from intellisource.api.deps import get_db_session
 from intellisource.storage.repositories.subscription import SubscriptionRepository
 
 router = APIRouter(tags=["subscriptions"])
@@ -57,11 +57,6 @@ def _serialize_subscription(obj: Any) -> dict[str, Any]:
     }
 
 
-async def get_session() -> AsyncIterator[AsyncSession]:
-    """Placeholder DB session dependency."""
-    yield None  # type: ignore[misc]
-
-
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -71,7 +66,7 @@ async def get_session() -> AsyncIterator[AsyncSession]:
 async def list_subscriptions(
     limit: int = 20,
     cursor: str | None = None,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     limit = min(limit, 100)
     repo = SubscriptionRepository(session)
@@ -87,7 +82,7 @@ async def list_subscriptions(
 @router.post("/subscriptions", status_code=status.HTTP_201_CREATED)
 async def create_subscription(
     body: SubscriptionCreateRequest,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     repo = SubscriptionRepository(session)
     created = await repo.create(
@@ -103,7 +98,7 @@ async def create_subscription(
 async def update_subscription(
     id: uuid.UUID,
     body: SubscriptionUpdateRequest,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> Any:
     repo = SubscriptionRepository(session)
     fields = body.model_dump(exclude_unset=True)
@@ -116,7 +111,7 @@ async def update_subscription(
 @router.delete("/subscriptions/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_subscription(
     id: uuid.UUID,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> Response:
     repo = SubscriptionRepository(session)
     deleted = await repo.delete(id)

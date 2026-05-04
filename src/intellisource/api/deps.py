@@ -7,23 +7,16 @@ such as database sessions and API key validation.
 from __future__ import annotations
 
 import os
-from typing import Any, AsyncIterator
+from typing import AsyncIterator
 
-from fastapi import Header, HTTPException
+from fastapi import Header, HTTPException, Request
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
-async def get_db_session() -> AsyncIterator[Any]:
-    """Yield a database session for the request scope.
-
-    [ASSUMPTION] Placeholder — actual session factory will be wired
-    during application startup via ``main.py`` lifespan.
-    """
-    session: Any = None
-    try:
+async def get_db_session(request: Request) -> AsyncIterator[AsyncSession]:
+    """Yield a database session from app.state.db for the request scope."""
+    async with request.app.state.db.get_session() as session:
         yield session
-    finally:
-        if session is not None:
-            await session.close()
 
 
 def require_api_key(

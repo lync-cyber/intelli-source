@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
+import redis.asyncio as aioredis
+from celery import Celery
 from fastapi import FastAPI
 from starlette.types import Receive, Scope, Send
 
@@ -23,34 +26,53 @@ from intellisource.api.routers import (
     system,
     tasks,
 )
+from intellisource.storage.database import DatabaseManager
 
 # ---------------------------------------------------------------------------
-# Lifecycle stub functions (tests patch these)
+# Module-level singletons (populated by init_* functions)
 # ---------------------------------------------------------------------------
 
+_redis_client: Any = None
+_celery_app: Any = None
 
-async def init_db_pool() -> None:
-    """Initialise database connection pool."""
+
+# ---------------------------------------------------------------------------
+# Lifecycle functions
+# ---------------------------------------------------------------------------
 
 
 async def init_redis() -> None:
-    """Initialise Redis connection."""
+    """Initialise Redis connection via aioredis.from_url."""
+    global _redis_client
+    redis_url = os.environ.get("IS_REDIS_URL", "redis://localhost:6379/0")
+    _redis_client = await aioredis.from_url(redis_url)
 
 
-def init_celery() -> None:
-    """Initialise Celery application."""
-
-
-async def close_db_pool() -> None:
-    """Close database connection pool."""
+def init_celery() -> Any:
+    """Instantiate and return a Celery application."""
+    global _celery_app
+    broker_url = os.environ.get("IS_CELERY_BROKER_URL") or os.environ.get(
+        "IS_REDIS_URL", "redis://localhost:6379/0"
+    )
+    _celery_app = Celery("intellisource", broker=broker_url)
+    return _celery_app
 
 
 async def close_redis() -> None:
     """Close Redis connection."""
+    global _redis_client
+    if _redis_client is not None:
+        try:
+            await _redis_client.close()
+        except Exception:
+            pass
+        _redis_client = None
 
 
 def shutdown_celery() -> None:
     """Shutdown Celery application."""
+    global _celery_app
+    _celery_app = None
 
 
 # ---------------------------------------------------------------------------
@@ -61,13 +83,16 @@ def shutdown_celery() -> None:
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[dict[str, Any]]:
     """Manage application startup and shutdown."""
-    await init_db_pool()
-    await init_redis()
-    init_celery()
-    yield {}
-    await close_db_pool()
-    await close_redis()
-    shutdown_celery()
+    db = DatabaseManager()
+    app.state.db = db
+    try:
+        await init_redis()
+        init_celery()
+        yield {}
+    finally:
+        await db.close()
+        await close_redis()
+        shutdown_celery()
 
 
 # ---------------------------------------------------------------------------

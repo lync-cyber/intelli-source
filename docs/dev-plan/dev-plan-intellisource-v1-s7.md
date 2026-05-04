@@ -27,9 +27,10 @@ split_from: dev-plan-intellisource-v1
   - T-061 LLM 配置 Pydantic Schema 验证 ✅ done
   - T-062 模型特化 Prompt 变体 ✅ done
   - T-063 Sprint 7 集成测试与回归
-  - T-072 数据库会话 DI 接驳（新增，源自 CODE-SCAN R-001/R-007）
+  - T-072 数据库会话 DI 接驳 ✅ done（新增，源自 CODE-SCAN R-001/R-007）
   - T-073 GET /api/v1/clusters 端点（新增，源自 CODE-SCAN R-003）
-  - T-074 TaskChainRepository 实现（新增，源自 CODE-SCAN R-006）
+  - T-074 TaskChainRepository 实现 ✅ done（新增，源自 CODE-SCAN R-006）
+  - T-075 Celery worker wiring + runner._persist 参数化（新增，源自 CODE-REVIEW-T-074-r2 残留观察 + R-001 LOW）
 
 [/NAV]
 
@@ -207,11 +208,11 @@ split_from: dev-plan-intellisource-v1
 
 ### T-063: Sprint 7 集成测试与回归
 
-- **目标**: 验证 Sprint 7 所有改进（含新增基础设施任务 T-072~T-074）在集成场景下正常工作，全量 pytest + mypy 通过
+- **目标**: 验证 Sprint 7 所有改进（含新增基础设施任务 T-072~T-075）在集成场景下正常工作，全量 pytest + mypy 通过
 - **模块**: 全模块
 - **接口**: internal
 - **复杂度**: M
-- **依赖**: T-057~T-062, T-072~T-074
+- **依赖**: T-057~T-062, T-072~T-075
 - **tdd_acceptance**:
   - [ ] AC-T063-1: LLM 重试 + fallback 端到端测试（模拟连续失败 → 重试 → 降级）
   - [ ] AC-T063-2: ConfigResolver 三层合并集成测试（defaults + project + env）
@@ -223,10 +224,10 @@ split_from: dev-plan-intellisource-v1
   - [ ] AC-T063-8: 全量 `pytest` 通过（无 import 错误、无残留引用）
   - [ ] AC-T063-9: `mypy --strict src/` 零错误
 - **deliverables**:
-  - [ ] `tests/integration/test_sprint7_integration.py` — 集成测试（含 T-072~T-074 场景）
+  - [ ] `tests/integration/test_sprint7_integration.py` — 集成测试（含 T-072~T-075 场景）
   - [ ] 全量 pytest + mypy 通过报告
 - **context_load**:
-  - 所有 T-057 ~ T-062, T-072 ~ T-074 deliverables
+  - 所有 T-057 ~ T-062, T-072 ~ T-075 deliverables
 
 ---
 
@@ -239,18 +240,20 @@ split_from: dev-plan-intellisource-v1
 - **接口**: internal（DI 配置）
 - **复杂度**: M
 - **依赖**: T-002（DatabaseManager 已实现）
+- **status**: done (2026-05-04, r3 approved；review history: r1 needs_revision → r2 approved_with_notes → r3 approved)
 - **tdd_acceptance**:
-  - [ ] AC-T072-1: `main.py` lifespan 在 startup 阶段实例化 `DatabaseManager` 并存入 `app.state.db`，shutdown 阶段调用 `db.close()`
-  - [ ] AC-T072-2: `api/deps.py:get_db_session()` 从 `request.app.state.db.get_session()` yield 真实 `AsyncSession`
-  - [ ] AC-T072-3: 6 个路由文件（sources/contents/tasks/subscriptions/search/llm）中的局部 `get_session()` 定义全部删除，替换为 `Depends(get_db_session)` from `api.deps`
-  - [ ] AC-T072-4: `main.py` 的 `init_redis()` 补充真实 Redis 连接初始化逻辑（`aioredis.from_url`）；`init_celery()` 补充 Celery app 初始化
-  - [ ] AC-T072-5: 全量测试仍通过（现有 mock-based 测试不因此破坏，session 注入层由 conftest 覆写）
-  - [ ] AC-T072-6: mypy --strict 零错误
+  - [x] AC-T072-1: `main.py` lifespan 在 startup 阶段实例化 `DatabaseManager` 并存入 `app.state.db`，shutdown 阶段调用 `db.close()`
+  - [x] AC-T072-2: `api/deps.py:get_db_session()` 从 `request.app.state.db.get_session()` yield 真实 `AsyncSession`
+  - [x] AC-T072-3: 5 个路由文件（sources/contents/tasks/subscriptions/search）中的局部 `get_session()` 定义全部删除，替换为 `Depends(get_db_session)` from `api.deps`；llm.py pre-existing 已是参考形态无需改动
+  - [x] AC-T072-4: `main.py` 的 `init_redis()` 调用 `aioredis.from_url`；`init_celery()` 创建 Celery app 并支持 `IS_CELERY_BROKER_URL` 与 `IS_REDIS_URL` 双环境变量（前者优先，后者兜底）
+  - [x] AC-T072-5: 全量测试 1786 PASS（原 1788 - 删 2 个 placeholder 时代过时测试 `test_yields_session` / `test_generator_completes`）
+  - [x] AC-T072-6: mypy --strict src/ 零错误
 - **deliverables**:
-  - [ ] `src/intellisource/main.py` — lifespan 补充 DatabaseManager/Redis/Celery 真实初始化
-  - [ ] `src/intellisource/api/deps.py` — `get_db_session()` 接驳 `app.state.db`
-  - [ ] `src/intellisource/api/routers/{sources,contents,tasks,subscriptions,search,llm}.py` — 删除局部 `get_session()`，改用 `from intellisource.api.deps import get_db_session`
-  - [ ] `tests/conftest.py` — 确保 DB session fixture 覆写路径正确（`app.dependency_overrides`）
+  - [x] `src/intellisource/main.py` — lifespan 实例化 DatabaseManager/aioredis/Celery；`db.close()` / `close_redis()` / `shutdown_celery()` finally 全覆盖；删除 no-op `init_db_pool` / `close_db_pool`
+  - [x] `src/intellisource/api/deps.py` — `get_db_session(request: Request)` 必传参数，返回 `AsyncIterator[AsyncSession]`
+  - [x] `src/intellisource/api/routers/{sources,contents,tasks,subscriptions,search}.py` — 5 路由迁移完成
+  - [x] `tests/unit/api/conftest.py`（路径调整：从 `tests/conftest.py` 改为 `tests/unit/api/conftest.py`，作用域更精确） — `app.state.db` mock fixture
+  - [x] `tests/unit/api/test_deps.py` — 删除 `TestGetDbSession` 类（placeholder 时代过时测试），保留 `TestRequireApiKey`
 - **context_load**:
   - src/intellisource/storage/database.py (DatabaseManager.get_session)
   - src/intellisource/api/deps.py
@@ -296,23 +299,54 @@ split_from: dev-plan-intellisource-v1
 - **接口**: internal
 - **复杂度**: S
 - **依赖**: T-003（TaskChain ORM 模型已存在于 `storage/models.py:99`）
+- **status**: done (2026-05-04, r2 approved_with_notes；review history: r1 needs_revision (R-001 HIGH isinstance guard 死链 + R-002 MEDIUM 接口签名错位 + 3 LOW) → r2 approved_with_notes (r1 全闭环 + 1 新 LOW R-001-r2 = runner.py 硬编码 carryover 进 T-075))
 - **tdd_acceptance**:
-  - [ ] AC-T074-1: `TaskChainRepository.create(task_chain: TaskChain) -> TaskChain` — 持久化一条 TaskChain 记录
-  - [ ] AC-T074-2: `TaskChainRepository.get(chain_id: str) -> TaskChain | None` — 按 ID 查询
-  - [ ] AC-T074-3: `TaskChainRepository.update_status(chain_id: str, status: str) -> None` — 更新状态字段
-  - [ ] AC-T074-4: `scheduler/tasks.py` 中移除 `TaskChainRepository: Any = None` 全局占位，改为运行时从 DI/session 获取实例
-  - [ ] AC-T074-5: `agent/runner.py:250` 的注释占位替换为真实 `TaskChainRepository` 写入调用
-  - [ ] AC-T074-6: mypy --strict 零错误
+  - [x] AC-T074-1: `TaskChainRepository.create(task_chain: TaskChain) -> TaskChain` — 持久化一条 TaskChain 记录
+  - [x] AC-T074-2: `TaskChainRepository.get(chain_id: str) -> TaskChain | None` — 按 ID 查询；ValueError on bad UUID 静默返回 None
+  - [x] AC-T074-3: `TaskChainRepository.update_status(chain_id: str, status: str) -> None` — 更新状态字段；不存在的 chain_id 静默 no-op
+  - [x] AC-T074-4: `scheduler/tasks.py` 删除 `TaskChainRepository: Any = None` 占位 + isinstance guard hack；CeleryTasks 接受 `session_factory: Callable[[], Awaitable[AsyncSession]] | None` 真实 DI；run_pipeline 通过 `_chain_repo_session` async context manager + `_create_chain` / `_update_chain_status` helper 走真实 production path
+  - [x] AC-T074-5: `agent/runner.py:_persist` 改 async + 接受 `repo: TaskChainRepository | None` 参数；提供时调 repo.create() 真实写入；删除 [ASSUMPTION] 注释占位（**注**: trigger_type/execution_mode 仍硬编码，r2 R-001 LOW carryover 进 T-075）
+  - [x] AC-T074-6: mypy --strict src/ 零错误
 - **deliverables**:
-  - [ ] `src/intellisource/storage/repositories/task_chain.py` — `TaskChainRepository`
-  - [ ] `src/intellisource/storage/repositories/__init__.py` — 导出 `TaskChainRepository`
-  - [ ] `src/intellisource/scheduler/tasks.py` — 移除 `Any = None` 占位，注入真实 repository
-  - [ ] `src/intellisource/agent/runner.py` — 替换注释占位为 `TaskChainRepository` 写入
-  - [ ] `tests/unit/storage/test_task_chain_repository.py` — ≥5 tests
-  - [ ] (R2-004 顺手) `src/intellisource/storage/models.py` — 抽出 `TimestampMixin`（含 `created_at` / `updated_at`）与可选的 `ExecutionTimingMixin`（含 `started_at` / `finished_at`），消除 jscpd 报告的 7 处列模板内部克隆。要求：现有 ORM 表结构与迁移产物 (`alembic/versions/`) 不变
+  - [x] `src/intellisource/storage/repositories/task_chain.py` — `TaskChainRepository`（create/get/update_status；UUID 转换 + 静默处理）
+  - [x] `src/intellisource/storage/repositories/__init__.py` — 导出 `TaskChainRepository`
+  - [x] `src/intellisource/scheduler/tasks.py` — 删除占位 + DI rework；新增 `_chain_repo_session` asynccontextmanager + `_create_chain` / `_update_chain_status` helper（run_pipeline 50 LOC / 嵌套 3）；trigger_type 从 params.get 动态读，execution_mode 从 config 读
+  - [x] `src/intellisource/agent/runner.py` — `_persist` 改 async + 加 repo 参数；删除 [ASSUMPTION]
+  - [x] `tests/unit/storage/test_task_chain_repository.py` — 17 tests（含 R-003 加强：update_status 不存在 chain 的 sibling-untouched 断言）
+  - [x] `tests/unit/scheduler/test_tasks.py` — 5 个 TestTaskChainPersistence 重写为 DI fixture 模式（不再依赖 module-level patch + isinstance）
+  - [x] (R2-004 顺手) `src/intellisource/storage/models.py` — 抽出 `CreatedAtMixin` / `TimestampMixin(CreatedAtMixin)` / `ExecutionTimingMixin`，应用到 11 个 ORM 模型；消除 jscpd 7 处克隆；表 schema 等价性验证通过；alembic/versions/ 未动
 - **context_load**:
   - src/intellisource/storage/models.py (TaskChain E-008，lines 99~)
   - src/intellisource/scheduler/tasks.py (TaskChainRepository 占位，line 28)
   - src/intellisource/agent/runner.py (注释占位，line 250)
   - src/intellisource/storage/repositories/task.py (参照 TaskRepository 模式)
   - docs/reviews/code/CODE-SCAN-20260503-r2.md#R2-004 (TimestampMixin 顺手清理)
+
+---
+
+### T-075: Celery worker wiring + runner._persist 参数化
+
+> **来源**: CODE-REVIEW-T-074-r2 残留观察（CeleryTasks 在 src/ 内无实例化点）+ CODE-REVIEW-T-074-r2 R-001 LOW（runner._persist 硬编码）
+
+- **目标**: 完成 CeleryTasks 在 Celery worker 进程中的真实 wiring（独立 session_factory 初始化，避免与 FastAPI lifespan app.state.db 混淆），消除 T-074 r2 留下的"DI 已改但生产路径无人调用"差距；同时把 `agent/runner.py:_persist` 的 trigger_type / execution_mode 硬编码改为参数化
+- **模块**: M-006 (scheduler) + M-008 (agent)
+- **接口**: internal
+- **复杂度**: M
+- **依赖**: T-074（CeleryTasks DI 接口 + TaskChainRepository 接口 + TimestampMixin 已就位）
+- **tdd_acceptance**:
+  - [ ] AC-T075-1: Celery worker 启动时（`celery_app.signal.worker_init` 或等价 hook）创建独立的 async session_factory（不复用 FastAPI 的 app.state.db；用 `async_sessionmaker(bind=create_async_engine(IS_DATABASE_URL))`）
+  - [ ] AC-T075-2: 实例化 `CeleryTasks(agent_runner=..., pipeline_config=..., session_factory=session_factory)` 并注册为 Celery task；提供 `intellisource.scheduler.boot` 或类似入口模块
+  - [ ] AC-T075-3: `agent/runner.py:_persist` 接受 `trigger_type: str = "manual"` 和 `execution_mode: str = "strict"` 参数；`run_strict` / `run_flexible` 调 `_persist` 时传入对应值（strict 路径传 "strict"，flexible 路径传 "flexible"）
+  - [ ] AC-T075-4: 集成测试 `tests/integration/test_celery_worker_wiring.py`（≥3 tests）验证 worker 启动后 CeleryTasks 实例 `_session_factory is not None`，并在 mock session_factory 下端到端走完 run_pipeline → repo.create
+  - [ ] AC-T075-5: mypy --strict src/ 零错误
+- **deliverables**:
+  - [ ] `src/intellisource/scheduler/boot.py` 或 `src/intellisource/scheduler/__init__.py` — Celery worker 初始化 + CeleryTasks wiring
+  - [ ] `src/intellisource/agent/runner.py` — `_persist` 增加 trigger_type / execution_mode 参数；run_strict / run_flexible 调用点传参
+  - [ ] `tests/integration/test_celery_worker_wiring.py` — worker wiring 集成测试
+  - [ ] `tests/unit/agent/test_runner_persist.py` — 加强 `_persist` 参数化 + repo 路径覆盖（运行 trigger_type/execution_mode 真实传递）
+- **context_load**:
+  - src/intellisource/scheduler/tasks.py (T-074 后形态，CeleryTasks + helper)
+  - src/intellisource/main.py (T-072 lifespan 模式参考，注意 worker 不复用 app.state.db)
+  - src/intellisource/storage/database.py (DatabaseManager 模式，worker 侧应直接用 async_sessionmaker)
+  - src/intellisource/agent/runner.py (_persist + run_strict / run_flexible)
+  - docs/reviews/code/CODE-REVIEW-T-074-r2.md (R-001 LOW + CeleryTasks wiring 观察)
