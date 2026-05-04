@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import AsyncIterator
 from typing import Any
 
 from fastapi import APIRouter, Depends, Response, status
@@ -12,6 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from intellisource.api.deps import get_db_session
 from intellisource.storage.repositories.source import SourceRepository
 
 router = APIRouter(tags=["sources"])
@@ -81,11 +81,6 @@ def _serialize_source(source: Any) -> dict[str, Any]:
     }
 
 
-async def get_session() -> AsyncIterator[AsyncSession]:
-    """Placeholder DB session dependency. Tests mock SourceRepository directly."""
-    yield None  # type: ignore[misc]
-
-
 async def reload_source_configs(*, config_name: str | None = None) -> dict[str, Any]:
     """Stub for reload_source_configs. Tests patch this function."""
     return {"loaded_count": 0, "errors": []}
@@ -103,7 +98,7 @@ async def list_sources(
     status: str | None = None,
     cursor: str | None = None,
     limit: int = 20,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     limit = min(limit, 100)
     repo = SourceRepository(session)
@@ -121,7 +116,7 @@ async def list_sources(
 @router.post("/sources", status_code=status.HTTP_201_CREATED)
 async def create_source(
     body: SourceCreateRequest,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     repo = SourceRepository(session)
     kwargs: dict[str, Any] = {}
@@ -150,7 +145,7 @@ async def create_source(
 async def update_source(
     id: uuid.UUID,
     body: SourceUpdateRequest,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> Any:
     repo = SourceRepository(session)
     fields = body.model_dump(exclude_unset=True)
@@ -163,7 +158,7 @@ async def update_source(
 @router.delete("/sources/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_source(
     id: uuid.UUID,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> Response:
     repo = SourceRepository(session)
     deleted = await repo.delete(id)

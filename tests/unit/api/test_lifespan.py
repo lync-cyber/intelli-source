@@ -31,10 +31,11 @@ class TestLifespanDatabaseManagerDI:
         from intellisource.storage.database import DatabaseManager
 
         mock_db = MagicMock(spec=DatabaseManager)
+        mock_db.close = AsyncMock()
 
         with patch(
-            "intellisource.main.DatabaseManager", return_value=mock_db
-        ) as mock_cls:
+            "intellisource.main.DatabaseManager", return_value=mock_db, create=True
+        ):
             app = create_app()
             lifespan = app.router.lifespan_context
 
@@ -55,7 +56,7 @@ class TestLifespanDatabaseManagerDI:
         mock_db.close = AsyncMock()
 
         with patch(
-            "intellisource.main.DatabaseManager", return_value=mock_db
+            "intellisource.main.DatabaseManager", return_value=mock_db, create=True
         ) as mock_cls:
             app = create_app()
             lifespan = app.router.lifespan_context
@@ -73,7 +74,9 @@ class TestLifespanDatabaseManagerDI:
         mock_db = MagicMock(spec=DatabaseManager)
         mock_db.close = AsyncMock()
 
-        with patch("intellisource.main.DatabaseManager", return_value=mock_db):
+        with patch(
+            "intellisource.main.DatabaseManager", return_value=mock_db, create=True
+        ):
             app = create_app()
             lifespan = app.router.lifespan_context
 
@@ -90,7 +93,9 @@ class TestLifespanDatabaseManagerDI:
         mock_db = MagicMock(spec=DatabaseManager)
         mock_db.close = AsyncMock()
 
-        with patch("intellisource.main.DatabaseManager", return_value=mock_db):
+        with patch(
+            "intellisource.main.DatabaseManager", return_value=mock_db, create=True
+        ):
             app = create_app()
             lifespan = app.router.lifespan_context
 
@@ -119,7 +124,7 @@ class TestInitRedis:
 
         mock_redis = AsyncMock()
 
-        with patch("intellisource.main.aioredis") as mock_aioredis_mod:
+        with patch("intellisource.main.aioredis", create=True) as mock_aioredis_mod:
             mock_aioredis_mod.from_url = AsyncMock(return_value=mock_redis)
             await main_module.init_redis()
             mock_aioredis_mod.from_url.assert_called_once()
@@ -131,7 +136,7 @@ class TestInitRedis:
 
         mock_redis = AsyncMock()
 
-        with patch("intellisource.main.aioredis") as mock_aioredis_mod:
+        with patch("intellisource.main.aioredis", create=True) as mock_aioredis_mod:
             mock_aioredis_mod.from_url = AsyncMock(return_value=mock_redis)
             await main_module.init_redis()
             # The redis client returned by from_url must be stored somewhere
@@ -149,19 +154,26 @@ class TestInitCelery:
 
         mock_celery_instance = MagicMock()
 
-        with patch("intellisource.main.Celery", return_value=mock_celery_instance) as mock_celery_cls:
+        with patch(
+            "intellisource.main.Celery", return_value=mock_celery_instance, create=True
+        ) as mock_celery_cls:
             main_module.init_celery()
             mock_celery_cls.assert_called_once()
 
     def test_init_celery_returns_or_stores_celery_app(self) -> None:
-        """AC-T072-4: init_celery() either returns or stores the Celery app."""
+        """AC-T072-4: init_celery() returns a Celery app or stores it in a module attribute."""
         import intellisource.main as main_module
 
         mock_celery_instance = MagicMock()
 
-        with patch("intellisource.main.Celery", return_value=mock_celery_instance):
+        with patch(
+            "intellisource.main.Celery", return_value=mock_celery_instance, create=True
+        ) as mock_celery_cls:
             result = main_module.init_celery()
-            # Either returns the app or stores it; either way Celery was used
-            # If it returns the app:
+            # Celery must have been instantiated — this is the core assertion
+            mock_celery_cls.assert_called_once()
+            # Additionally: returned value (if any) must be the Celery instance
             if result is not None:
-                assert result is mock_celery_instance
+                assert result is mock_celery_instance, (
+                    "init_celery() must return the Celery instance when it returns a value"
+                )

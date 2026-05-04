@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import AsyncIterator
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -11,6 +10,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from intellisource.api.deps import get_db_session
 from intellisource.storage.repositories.task import TaskRepository
 
 router = APIRouter(tags=["tasks"])
@@ -33,11 +33,6 @@ class TaskUpdateRequest(BaseModel):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-async def get_session() -> AsyncIterator[AsyncSession]:
-    """Placeholder DB session dependency. Tests mock TaskRepository directly."""
-    yield None  # type: ignore[misc]
 
 
 def _serialize_task(task: Any) -> dict[str, Any]:
@@ -72,7 +67,7 @@ async def list_tasks(
     source_id: str | None = None,
     cursor: str | None = None,
     limit: int = 20,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     limit = min(limit, 100)
     repo = TaskRepository(session)
@@ -96,7 +91,7 @@ async def list_tasks(
 @router.post("/tasks/collect", status_code=202)
 async def trigger_collect(
     body: CollectRequest,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> Any:
     repo = TaskRepository(session)
     try:
@@ -112,7 +107,7 @@ async def trigger_collect(
 @router.get("/tasks/{id}")
 async def get_task(
     id: uuid.UUID,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> Any:
     repo = TaskRepository(session)
     task = await repo.get_by_id(id)
@@ -125,7 +120,7 @@ async def get_task(
 async def update_task(
     id: uuid.UUID,
     body: TaskUpdateRequest,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> Any:
     repo = TaskRepository(session)
     fields = body.model_dump(exclude_unset=True)
