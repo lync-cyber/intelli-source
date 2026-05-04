@@ -74,6 +74,7 @@ class AgentRunner:
                         steps_executed=steps_executed,
                         results=results,
                         pipeline_name=config.name,
+                        execution_mode="strict",
                     )
                 if config.on_failure == "retry":
                     retry_result = await self._retry_step(
@@ -93,6 +94,7 @@ class AgentRunner:
             steps_executed=steps_executed,
             results=results,
             pipeline_name=config.name,
+            execution_mode="strict",
         )
 
     async def run_flexible(
@@ -190,6 +192,7 @@ class AgentRunner:
             steps_executed=steps_executed,
             results=tool_results,
             pipeline_name=config.name,
+            execution_mode="flexible",
         )
         if budget_exhausted:
             persist_result["budget_exhausted"] = True
@@ -241,6 +244,8 @@ class AgentRunner:
         pipeline_name: str,
         task_chain_id: str | None = None,
         repo: TaskChainRepository | None = None,
+        trigger_type: str = "manual",
+        execution_mode: str = "strict",
     ) -> dict[str, Any]:
         """Persist result and return with task_chain_id.
 
@@ -249,6 +254,8 @@ class AgentRunner:
                 use it to correlate with the TaskChain DB record.
             repo: When provided and task_chain_id is absent, a new TaskChain
                 record is written via repo.create().
+            trigger_type: How the pipeline was triggered (e.g. 'manual', 'scheduled').
+            execution_mode: Pipeline execution mode (e.g. 'strict', 'flexible').
         """
         if task_chain_id is not None:
             chain_id = task_chain_id
@@ -257,8 +264,8 @@ class AgentRunner:
                 id=uuid.uuid4(),
                 pipeline_name=pipeline_name,
                 status=status,
-                trigger_type="manual",
-                execution_mode="strict",
+                trigger_type=trigger_type,
+                execution_mode=execution_mode,
                 total_steps=steps_executed,
                 completed_steps=steps_executed,
             )

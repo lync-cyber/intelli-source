@@ -26,11 +26,11 @@ split_from: dev-plan-intellisource-v1
   - T-060 LLM 统计仪表盘 API ✅ done
   - T-061 LLM 配置 Pydantic Schema 验证 ✅ done
   - T-062 模型特化 Prompt 变体 ✅ done
-  - T-063 Sprint 7 集成测试与回归
+  - T-063 Sprint 7 集成测试与回归 ✅ done
   - T-072 数据库会话 DI 接驳 ✅ done（新增，源自 CODE-SCAN R-001/R-007）
   - T-073 GET /api/v1/clusters 端点（新增，源自 CODE-SCAN R-003）
   - T-074 TaskChainRepository 实现 ✅ done（新增，源自 CODE-SCAN R-006）
-  - T-075 Celery worker wiring + runner._persist 参数化（新增，源自 CODE-REVIEW-T-074-r2 残留观察 + R-001 LOW）
+  - T-075 Celery worker wiring + runner._persist 参数化 ✅ done
 
 [/NAV]
 
@@ -213,19 +213,19 @@ split_from: dev-plan-intellisource-v1
 - **接口**: internal
 - **复杂度**: M
 - **依赖**: T-057~T-062, T-072~T-075
+- **status**: done (2026-05-04, r1 approved；3 LOW non-blocking：R-001 模块级 SQLiteTypeCompiler.visit_JSONB monkey-patch 副作用 / R-002 cluster tag filter mock 是 PG @> SQLite 不兼容 carryover (T-073) / R-003 update_status missing-id 弱断言)；22 target integration tests + 1862 全量回归 PASSED + 1 SKIPPED + 0 FAILED；mypy strict + ruff clean
 - **tdd_acceptance**:
-  - [ ] AC-T063-1: LLM 重试 + fallback 端到端测试（模拟连续失败 → 重试 → 降级）
-  - [ ] AC-T063-2: ConfigResolver 三层合并集成测试（defaults + project + env）
-  - [ ] AC-T063-3: PromptBuilder 变体加载 + ModelProfile 集成测试
-  - [ ] AC-T063-4: 上下文压缩在 AgentRunner flexible 模式中正确触发
-  - [ ] AC-T063-5: `GET /api/v1/llm/stats` 集成测试（含真实 DB session，验证聚合字段）
-  - [ ] AC-T063-6: `GET /api/v1/clusters` 集成测试（分页、tag 过滤）
-  - [ ] AC-T063-7: TaskChainRepository 写入 + 读取集成测试
-  - [ ] AC-T063-8: 全量 `pytest` 通过（无 import 错误、无残留引用）
-  - [ ] AC-T063-9: `mypy --strict src/` 零错误
+  - [x] AC-T063-1: LLM 重试 + fallback 端到端测试 (TestLLMRetryFallback × 2)
+  - [x] AC-T063-2: ConfigResolver 三层合并集成测试 (TestConfigResolverMerge × 3)
+  - [x] AC-T063-3: PromptBuilder 变体加载 + ModelProfile 集成测试 (TestPromptBuilderModelProfile × 4)
+  - [x] AC-T063-4: 上下文压缩在 AgentRunner flexible 模式中正确触发 (TestAgentRunnerCompaction × 2)
+  - [x] AC-T063-5: GET /api/v1/llm/stats 集成测试 (TestLLMStatsEndpoint × 2，真 DB session)
+  - [x] AC-T063-6: GET /api/v1/clusters 集成测试 (TestClustersEndpoint × 5，含 4 真 E2E + 1 router-layer mock)
+  - [x] AC-T063-7: TaskChainRepository 写入+读取集成测试 (TestTaskChainRepositoryCRUD × 4，真 SQLite roundtrip)
+  - [x] AC-T063-8: 全量 pytest 通过 — 1862 PASSED + 1 SKIPPED + 0 FAILED
+  - [x] AC-T063-9: mypy --strict src/ — Success: no issues found in 106 source files
 - **deliverables**:
-  - [ ] `tests/integration/test_sprint7_integration.py` — 集成测试（含 T-072~T-075 场景）
-  - [ ] 全量 pytest + mypy 通过报告
+  - [x] `tests/integration/test_sprint7_integration.py` — 857 LOC, 22 tests across 7 TestClasses
 - **context_load**:
   - 所有 T-057 ~ T-062, T-072 ~ T-075 deliverables
 
@@ -334,17 +334,18 @@ split_from: dev-plan-intellisource-v1
 - **接口**: internal
 - **复杂度**: M
 - **依赖**: T-074（CeleryTasks DI 接口 + TaskChainRepository 接口 + TimestampMixin 已就位）
+- **status**: done (2026-05-04, r2 approved；review history: r1 approved_with_notes (1 MEDIUM R-001 signal connect 缺失同模式 carryover + 3 LOW R-002 KeyError vs ValueError / R-003 engine dispose 缺失 / R-004 弱断言) → 用户选修全部 4 个 → r2 approved (R-001~R-004 全闭环 + 2 新 LOW R-001-r2 shutdown handler 静默吞 RuntimeError / R-002-r2 signal idempotent guard 用 attribute hack，均不阻塞))
 - **tdd_acceptance**:
-  - [ ] AC-T075-1: Celery worker 启动时（`celery_app.signal.worker_init` 或等价 hook）创建独立的 async session_factory（不复用 FastAPI 的 app.state.db；用 `async_sessionmaker(bind=create_async_engine(IS_DATABASE_URL))`）
-  - [ ] AC-T075-2: 实例化 `CeleryTasks(agent_runner=..., pipeline_config=..., session_factory=session_factory)` 并注册为 Celery task；提供 `intellisource.scheduler.boot` 或类似入口模块
-  - [ ] AC-T075-3: `agent/runner.py:_persist` 接受 `trigger_type: str = "manual"` 和 `execution_mode: str = "strict"` 参数；`run_strict` / `run_flexible` 调 `_persist` 时传入对应值（strict 路径传 "strict"，flexible 路径传 "flexible"）
-  - [ ] AC-T075-4: 集成测试 `tests/integration/test_celery_worker_wiring.py`（≥3 tests）验证 worker 启动后 CeleryTasks 实例 `_session_factory is not None`，并在 mock session_factory 下端到端走完 run_pipeline → repo.create
-  - [ ] AC-T075-5: mypy --strict src/ 零错误
+  - [x] AC-T075-1: Celery worker 启动时（`worker_process_init` signal）创建独立的 async session_factory，不复用 app.state.db；R-001 r2 修复后 signal 已 connect
+  - [x] AC-T075-2: 实例化 CeleryTasks 并注册 `intellisource.scheduler.run_pipeline` task；`intellisource.scheduler.boot` 入口模块已就位
+  - [x] AC-T075-3: `agent/runner.py:_persist` 接受 `trigger_type` / `execution_mode` kwargs（默认 "manual" / "strict"）；run_strict 传 "strict"（2 处调用点），run_flexible 传 "flexible"
+  - [x] AC-T075-4: 5 integration tests（≥3 要求） + 4 unit tests，覆盖 worker wiring + 端到端 repo.create + iscoroutinefunction 协议断言
+  - [x] AC-T075-5: mypy --strict src/ — Success: no issues found in 106 source files
 - **deliverables**:
-  - [ ] `src/intellisource/scheduler/boot.py` 或 `src/intellisource/scheduler/__init__.py` — Celery worker 初始化 + CeleryTasks wiring
-  - [ ] `src/intellisource/agent/runner.py` — `_persist` 增加 trigger_type / execution_mode 参数；run_strict / run_flexible 调用点传参
-  - [ ] `tests/integration/test_celery_worker_wiring.py` — worker wiring 集成测试
-  - [ ] `tests/unit/agent/test_runner_persist.py` — 加强 `_persist` 参数化 + repo 路径覆盖（运行 trigger_type/execution_mode 真实传递）
+  - [x] `src/intellisource/scheduler/boot.py` — 110 LOC: init_worker_session_factory + build_celery_tasks + worker_init_handler + worker_shutdown_handler + get_celery_tasks + signal connect (idempotent)
+  - [x] `src/intellisource/agent/runner.py` — _persist 新增 trigger_type/execution_mode kwargs；run_strict/run_flexible 调用点全部传参
+  - [x] `tests/integration/test_celery_worker_wiring.py` — 7 tests（5 RED 时既有 + 2 后续，含 R-004 协议断言）
+  - [x] `tests/unit/agent/test_runner_persist.py` — 4 tests（默认值保留 + 显式覆盖 + run_strict/run_flexible execution_mode 真实传递）
 - **context_load**:
   - src/intellisource/scheduler/tasks.py (T-074 后形态，CeleryTasks + helper)
   - src/intellisource/main.py (T-072 lifespan 模式参考，注意 worker 不复用 app.state.db)
