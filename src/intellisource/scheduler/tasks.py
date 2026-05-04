@@ -7,8 +7,13 @@ support, priority queues, and task chain persistence.
 from __future__ import annotations
 
 import asyncio
+import uuid
+from collections.abc import Awaitable, Callable
 from typing import Any
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from intellisource.storage.models import TaskChain
 from intellisource.storage.repositories.task_chain import TaskChainRepository
 
 MAX_RETRIES: int = 3
@@ -75,9 +80,11 @@ class CeleryTasks:
         self,
         agent_runner: Any,
         pipeline_config: Any,
+        session_factory: Callable[[], Awaitable[AsyncSession]] | None = None,
     ) -> None:
         self._agent_runner = agent_runner
         self._pipeline_config = pipeline_config
+        self._session_factory = session_factory
 
     def run_pipeline(
         self,
@@ -90,29 +97,41 @@ class CeleryTasks:
         exponential backoff.
         """
         config = self._pipeline_config.load(pipeline_name)
+        trigger_type = params.get("trigger_type", "scheduled")
+        execution_mode = config.get("execution_mode", "strict")
+        total_steps = len(config.get("steps", []))
 
-        # Persist task chain record when a patchable factory is available.
-        # TaskChainRepository is the real class at runtime; tests inject
-        # a mock via patch() — detected here by checking if the current
-        # module-level binding is NOT the canonical class itself.
-        chain_repo = None
-        repo_binding = TaskChainRepository
-        if repo_binding is not None and not isinstance(repo_binding, type):
-            chain_repo = repo_binding()
-            _run_sync(
-                chain_repo.create(
-                    pipeline_name=pipeline_name,
-                    execution_mode=config.get("execution_mode", "strict"),
-                )
+        # Persist TaskChain record via session_factory when wired (production path).
+        chain_id: uuid.UUID | None = None
+        if self._session_factory is not None:
+            task_chain = TaskChain(
+                pipeline_name=pipeline_name,
+                status="pending",
+                trigger_type=trigger_type,
+                execution_mode=execution_mode,
+                total_steps=total_steps,
+                completed_steps=0,
             )
+            session = _run_sync(self._session_factory())
+            try:
+                repo = TaskChainRepository(session)
+                _run_sync(repo.create(task_chain))
+                chain_id = task_chain.id
+            finally:
+                _run_sync(session.close())
 
         last_error: Exception | None = None
         for attempt in range(1 + MAX_RETRIES):
             try:
                 result = _run_sync(self._agent_runner.execute(config, params=params))
                 # Success -- update chain status.
-                if chain_repo is not None:
-                    _run_sync(chain_repo.update(status="success"))
+                if chain_id is not None and self._session_factory is not None:
+                    session = _run_sync(self._session_factory())
+                    try:
+                        repo = TaskChainRepository(session)
+                        _run_sync(repo.update_status(str(chain_id), "success"))
+                    finally:
+                        _run_sync(session.close())
                 return dict(result)
             except Exception as exc:
                 last_error = exc
@@ -131,7 +150,12 @@ class CeleryTasks:
                 )
             )
 
-        if chain_repo is not None:
-            _run_sync(chain_repo.update(status="failed"))
+        if chain_id is not None and self._session_factory is not None:
+            session = _run_sync(self._session_factory())
+            try:
+                repo = TaskChainRepository(session)
+                _run_sync(repo.update_status(str(chain_id), "failed"))
+            finally:
+                _run_sync(session.close())
 
         raise last_error  # type: ignore[misc]

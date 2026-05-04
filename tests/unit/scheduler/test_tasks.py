@@ -34,11 +34,21 @@ def _import_tasks():
 
 
 def _make_celery_tasks(agent_runner, pipeline_config):
-    """Instantiate CeleryTasks with mocked dependencies."""
+    """Instantiate CeleryTasks with mocked dependencies (no session_factory)."""
     mod = _import_tasks()
     return mod.CeleryTasks(
         agent_runner=agent_runner,
         pipeline_config=pipeline_config,
+    )
+
+
+def _make_celery_tasks_with_session_factory(agent_runner, pipeline_config, session_factory):
+    """Instantiate CeleryTasks with a session_factory for persistence tests."""
+    mod = _import_tasks()
+    return mod.CeleryTasks(
+        agent_runner=agent_runner,
+        pipeline_config=pipeline_config,
+        session_factory=session_factory,
     )
 
 
@@ -224,79 +234,179 @@ class TestErrorRecording:
 class TestTaskChainPersistence:
     """AC-T027-3: Execution state persisted to TaskChain (E-008)."""
 
-    def test_run_pipeline_creates_task_chain_record(self, celery_tasks):
-        """run_pipeline should create a TaskChain record before
-        execution starts."""
+    def _make_tasks_with_mock_repo(self, mock_agent_runner, mock_pipeline_config):
+        """Build CeleryTasks with session_factory DI and a patched TaskChainRepository."""
+        mock_repo = AsyncMock()
+
+        mock_session = AsyncMock()
+        mock_session.close = AsyncMock()
+
+        async def fake_session_factory():
+            return mock_session
+
         with patch(
-            "intellisource.scheduler.tasks.TaskChainRepository"
-        ) as mock_repo_cls:
-            mock_repo = AsyncMock()
-            mock_repo_cls.return_value = mock_repo
-
-            celery_tasks.run_pipeline("news_collect", params={})
-            mock_repo.create.assert_called_once()
-
-    def test_task_chain_contains_pipeline_name(self, celery_tasks):
-        """TaskChain record should contain pipeline_name."""
-        with patch(
-            "intellisource.scheduler.tasks.TaskChainRepository"
-        ) as mock_repo_cls:
-            mock_repo = AsyncMock()
-            mock_repo_cls.return_value = mock_repo
-
-            celery_tasks.run_pipeline("news_collect", params={})
-            create_call = mock_repo.create.call_args
-            assert "news_collect" in str(create_call)
-
-    def test_task_chain_contains_execution_mode(self, celery_tasks):
-        """TaskChain record should contain execution_mode from
-        pipeline config."""
-        with patch(
-            "intellisource.scheduler.tasks.TaskChainRepository"
-        ) as mock_repo_cls:
-            mock_repo = AsyncMock()
-            mock_repo_cls.return_value = mock_repo
-
-            celery_tasks.run_pipeline("news_collect", params={})
-            create_call = mock_repo.create.call_args
-            assert "strict" in str(create_call)
-
-    def test_task_chain_status_updated_on_completion(self, celery_tasks):
-        """TaskChain status should be updated to 'success' on
-        successful completion."""
-        with patch(
-            "intellisource.scheduler.tasks.TaskChainRepository"
-        ) as mock_repo_cls:
-            mock_repo = AsyncMock()
-            mock_repo_cls.return_value = mock_repo
-
-            celery_tasks.run_pipeline("news_collect", params={})
-            update_calls = mock_repo.update.call_args_list
-            assert any("success" in str(c) for c in update_calls), (
-                "Expected TaskChain status updated to 'success'"
+            "intellisource.scheduler.tasks.TaskChainRepository",
+            return_value=mock_repo,
+        ):
+            tasks = _make_celery_tasks_with_session_factory(
+                mock_agent_runner,
+                mock_pipeline_config,
+                fake_session_factory,
             )
+            return tasks, mock_repo, fake_session_factory
+
+    def test_run_pipeline_creates_task_chain_record(
+        self, mock_agent_runner, mock_pipeline_config
+    ):
+        """run_pipeline should create a TaskChain record before execution starts."""
+        mock_repo = AsyncMock()
+        mock_session = AsyncMock()
+        mock_session.close = AsyncMock()
+
+        async def fake_session_factory():
+            return mock_session
+
+        with patch(
+            "intellisource.scheduler.tasks.TaskChainRepository",
+            return_value=mock_repo,
+        ):
+            tasks = _make_celery_tasks_with_session_factory(
+                mock_agent_runner, mock_pipeline_config, fake_session_factory
+            )
+            tasks.run_pipeline("news_collect", params={})
+
+        mock_repo.create.assert_called_once()
+
+    def test_task_chain_contains_pipeline_name(
+        self, mock_agent_runner, mock_pipeline_config
+    ):
+        """TaskChain passed to create() must carry pipeline_name."""
+        from intellisource.storage.models import TaskChain
+
+        mock_repo = AsyncMock()
+        mock_session = AsyncMock()
+        mock_session.close = AsyncMock()
+
+        async def fake_session_factory():
+            return mock_session
+
+        with patch(
+            "intellisource.scheduler.tasks.TaskChainRepository",
+            return_value=mock_repo,
+        ):
+            tasks = _make_celery_tasks_with_session_factory(
+                mock_agent_runner, mock_pipeline_config, fake_session_factory
+            )
+            tasks.run_pipeline("news_collect", params={})
+
+        call_args = mock_repo.create.call_args
+        chain_arg = call_args.args[0]
+        assert isinstance(chain_arg, TaskChain), (
+            f"create() must receive a TaskChain instance, got {type(chain_arg)}"
+        )
+        assert chain_arg.pipeline_name == "news_collect"
+
+    def test_task_chain_contains_execution_mode(
+        self, mock_agent_runner, mock_pipeline_config
+    ):
+        """TaskChain passed to create() must carry execution_mode from pipeline config."""
+        from intellisource.storage.models import TaskChain
+
+        mock_repo = AsyncMock()
+        mock_session = AsyncMock()
+        mock_session.close = AsyncMock()
+
+        async def fake_session_factory():
+            return mock_session
+
+        with patch(
+            "intellisource.scheduler.tasks.TaskChainRepository",
+            return_value=mock_repo,
+        ):
+            tasks = _make_celery_tasks_with_session_factory(
+                mock_agent_runner, mock_pipeline_config, fake_session_factory
+            )
+            tasks.run_pipeline("news_collect", params={})
+
+        call_args = mock_repo.create.call_args
+        chain_arg = call_args.args[0]
+        assert isinstance(chain_arg, TaskChain), (
+            f"create() must receive a TaskChain instance, got {type(chain_arg)}"
+        )
+        assert chain_arg.execution_mode == "strict"
+
+    def test_task_chain_status_updated_on_completion(
+        self, mock_agent_runner, mock_pipeline_config
+    ):
+        """update_status() should be called with 'success' on successful completion."""
+        import uuid
+
+        mock_repo = AsyncMock()
+        persisted_id = uuid.uuid4()
+        # Simulate create() setting the id on the TaskChain object
+        async def fake_create(task_chain):
+            task_chain.id = persisted_id
+            return task_chain
+        mock_repo.create = AsyncMock(side_effect=fake_create)
+
+        mock_session = AsyncMock()
+        mock_session.close = AsyncMock()
+
+        async def fake_session_factory():
+            return mock_session
+
+        with patch(
+            "intellisource.scheduler.tasks.TaskChainRepository",
+            return_value=mock_repo,
+        ):
+            tasks = _make_celery_tasks_with_session_factory(
+                mock_agent_runner, mock_pipeline_config, fake_session_factory
+            )
+            tasks.run_pipeline("news_collect", params={})
+
+        update_calls = mock_repo.update_status.call_args_list
+        assert any("success" in str(c) for c in update_calls), (
+            f"Expected update_status(..., 'success') call, got: {update_calls}"
+        )
 
     def test_task_chain_status_updated_on_failure(
-        self, celery_tasks, mock_agent_runner
+        self, mock_agent_runner, mock_pipeline_config
     ):
-        """TaskChain status should be updated to 'failed' when
-        pipeline fails."""
-        mock_agent_runner.execute = AsyncMock(side_effect=RuntimeError("fatal error"))
-        with patch(
-            "intellisource.scheduler.tasks.TaskChainRepository"
-        ) as mock_repo_cls:
-            mock_repo = AsyncMock()
-            mock_repo_cls.return_value = mock_repo
+        """update_status() should be called with 'failed' when pipeline fails."""
+        import uuid
 
+        mock_agent_runner.execute = AsyncMock(side_effect=RuntimeError("fatal error"))
+
+        mock_repo = AsyncMock()
+        persisted_id = uuid.uuid4()
+
+        async def fake_create(task_chain):
+            task_chain.id = persisted_id
+            return task_chain
+        mock_repo.create = AsyncMock(side_effect=fake_create)
+
+        mock_session = AsyncMock()
+        mock_session.close = AsyncMock()
+
+        async def fake_session_factory():
+            return mock_session
+
+        with patch(
+            "intellisource.scheduler.tasks.TaskChainRepository",
+            return_value=mock_repo,
+        ):
+            tasks = _make_celery_tasks_with_session_factory(
+                mock_agent_runner, mock_pipeline_config, fake_session_factory
+            )
             try:
-                celery_tasks.run_pipeline("news_collect", params={})
+                tasks.run_pipeline("news_collect", params={})
             except RuntimeError:
                 pass
 
-            update_calls = mock_repo.update.call_args_list
-            assert any("failed" in str(c) for c in update_calls), (
-                "Expected TaskChain status updated to 'failed'"
-            )
+        update_calls = mock_repo.update_status.call_args_list
+        assert any("failed" in str(c) for c in update_calls), (
+            f"Expected update_status(..., 'failed') call, got: {update_calls}"
+        )
 
 
 # ===================================================================

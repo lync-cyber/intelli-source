@@ -219,14 +219,26 @@ class TestTaskChainRepositoryUpdateStatus:
         assert result.status == "running"
 
     async def test_update_status_nonexistent_id_does_not_raise(self, session: AsyncSession) -> None:
-        """update_status() on a missing chain_id must not raise any exception."""
+        """update_status() on a missing chain_id must not raise and must leave DB unchanged."""
         from intellisource.storage.repositories.task_chain import TaskChainRepository
 
         repo = TaskChainRepository(session)
+        # Create a real chain so we can verify it is not accidentally modified.
+        existing_chain = _make_task_chain(status="pending")
+        await repo.create(existing_chain)
+
         missing_id = str(uuid.uuid4())
 
         # Must complete without raising
         await repo.update_status(missing_id, "failed")
+
+        # The missing id still returns None -- no phantom record created.
+        assert await repo.get(missing_id) is None
+
+        # The pre-existing chain is untouched.
+        refetched = await repo.get(str(existing_chain.id))
+        assert refetched is not None
+        assert refetched.status == "pending"
 
     async def test_update_status_returns_none(self, session: AsyncSession) -> None:
         """update_status() return type must be None (fire-and-forget contract)."""
