@@ -30,12 +30,11 @@
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 
 - 当前阶段: development
-- 上次完成: orchestrator — T-062 done (CODE-REVIEW-T-062-r2 approved；r1 approved_with_notes 三个 LOW notes 全闭环：R-001 dev-plan deliverables 同步 + Option A 说明 / R-002 `_validate_path_component` 输入校验 + 11 新攻击向量测试 / R-003 `test_load_prompt_style_loads_variant_content` 加强为字面比对；55 target tests + 1766 全量回归 PASSED；mypy strict src/ clean (102 files)；ruff check + format clean)
-- 下一步行动: tdd-engine 调度 T-072 (DB session DI 接驳) → 完成后并行 T-073+T-074 → 最后 T-063 集成测试 → Sprint-7 sprint-review + reflector retrospective
+- 上次完成: orchestrator — T-072 done (CODE-REVIEW-T-072-r3 approved；r1 needs_revision (R-001 HIGH `get_db_session` optional-request 契约偏离 + R-002 HIGH lifespan close 失败路径泄漏) → r2 approved_with_notes (r1 HIGH 全闭环 + R-001-r2 LOW + R-004 MEDIUM IS_CELERY_BROKER_URL split + R-005 LOW create=True 冗余 + R-006 LOW conftest 注解错误) → r3 approved (用户选 Option 1 一次修完 4 个 notes)；37 target tests + 1786 全量回归 PASSED (原 1788 - 删 2 placeholder 测试)；mypy strict src/ clean (102 files)；ruff check src/ clean；implementer GREEN 阶段截断 1 次，crash recovery 用 1 次 continuation 收尾)
+- 下一步行动: tdd-engine 并行调度 T-073 (search router clusters 端点) + T-074 (TaskChainRepository) → 完成后串行 T-063 集成测试 → Sprint-7 sprint-review + reflector retrospective
 - 已完成阶段: [bootstrap, requirements, architecture, ui_design(跳过-backend-only), dev_planning, sprint-1, sprint-2, sprint-3, sprint-4, sprint-5, sprint-6]
-- 当前Sprint: sprint-7 (approved, 6/9 done: T-057 ✅, T-058 ✅, T-059 ✅, T-060 ✅, T-061 ✅, T-062 ✅；剩余 T-072 → T-073+T-074(并行) → T-063；下一: T-072) <!-- 2026-05-04 状态订正：CODE-SCAN-20260503-r1 在 commit 1fb3246 引入 T-072~T-074 至 sprint-7，原 6/7 计数未同步刷新，本次根据 dev-plan-s7 §3 NAV 实际任务集回填 6/9 -->
-- 状态订正备注 (2026-05-04): 本次 /start-orchestrator 启动时检测到 CLAUDE.md 与 dev-plan-s7 不一致——T-063 dev-plan 依赖字段写明 `T-057~T-062, T-072~T-074`，但 CLAUDE.md 仍延续 T-072~T-074 插入前的 6/7 视图。按依赖图先行 T-072~T-074；并行规则受 main.py 路径重叠约束（T-072 vs T-073）→ 拆为 "T-072 串行 → T-073+T-074 并行 → T-063"。
-- Retrospective 阈值监控: 已达 RETRO_TRIGGER_SELF_CAUSED=5（T-060 r1 R-001+R-002+R-003+R-004+R-006，r2 R-006 升级 MEDIUM；外加历史 T-058 N-001 + T-059 r1 R-003/R-004 + r2 R-010）。EXP 候选: implementer self-report 范围与实际范围错位（T-060 r1 router self-report "无需变更" 但 git diff 实有改动；r2 ruff scope 声称 src/ clean 但 tests/ 含 16 处 E501）。**新增 orchestrator 时序观察（T-062）**: orchestrator 在 implementer 仍在收尾期间运行验证导致快照不一致——非 implementer self-caused，但表明 orchestrator 应等 completion notification 后再校验。Sprint-7 末尾 retrospective 必须激活 reflector 提炼对应 EXP。
+- 当前Sprint: sprint-7 (approved, 7/9 done: T-057 ✅, T-058 ✅, T-059 ✅, T-060 ✅, T-061 ✅, T-062 ✅, T-072 ✅；剩余 T-073+T-074(并行) → T-063；下一: T-073+T-074 并行)
+- Retrospective 阈值监控: **已严重超过 RETRO_TRIGGER_SELF_CAUSED=5**——T-072 单任务 3 轮 review 累计 7 个 self-caused 问题（r1: R-001 HIGH + R-002 HIGH + R-003 MEDIUM；r2 新增: R-001-r2 LOW；carryover: R-004 MEDIUM + R-005 LOW + R-006 LOW）。叠加历史 T-060 5+ 与 T-058/T-059 3+，T-072 进一步固化 EXP 候选。**强化 EXP 候选**: (a) implementer "make-the-test-pass over update-the-test"——T-072 r1 R-001 保留 None fallback 仅为兼容 placeholder 时代旧测试；(b) implementer "修改文件未运行对应 lint"——T-072 r2 R-001-r2 改 docstring 后未跑 ruff；(c) tests/ 累积 ~166 处 pre-existing ruff 债务（meta-test 仅 src/ scope 故未阻断）— 新发现，建议 retro 评估是否将 tests/ 纳入门禁；(d) orchestrator 时序观察（T-062 旧）：implementer 收尾期间运行验证导致快照不一致。Sprint-7 末尾 retrospective 必须激活 reflector 提炼对应 EXP。
 - 文档状态:
   - prd: approved
   - arch: approved

@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-05-04T06:48:00.303106+00:00",
+  "generated_at": "2026-05-04T07:03:08.976697+00:00",
   "documents": {
     "arch-intellisource-v1-api": {
       "file_path": "docs/arch/arch-intellisource-v1-api.md",
@@ -1077,15 +1077,15 @@
       "doc_type": "dev-plan",
       "volume": "s7",
       "status": "approved",
-      "total_lines": 318,
-      "est_tokens": 5586,
+      "total_lines": 320,
+      "est_tokens": 5739,
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
           "level": 2,
           "line_start": 36,
-          "line_end": 318,
-          "est_tokens": 5253,
+          "line_end": 320,
+          "est_tokens": 5406,
           "deps": [],
           "items": {
             "T-057": {
@@ -1140,21 +1140,21 @@
             "T-072": {
               "heading": "### T-072: 数据库会话 DI 接驳",
               "line_start": 233,
-              "line_end": 260,
-              "est_tokens": 512,
+              "line_end": 262,
+              "est_tokens": 665,
               "deps": []
             },
             "T-073": {
               "heading": "### T-073: GET /api/v1/clusters 端点",
-              "line_start": 261,
-              "line_end": 289,
+              "line_start": 263,
+              "line_end": 291,
               "est_tokens": 453,
               "deps": []
             },
             "T-074": {
               "heading": "### T-074: TaskChainRepository 实现",
-              "line_start": 290,
-              "line_end": 318,
+              "line_start": 292,
+              "line_end": 320,
               "est_tokens": 622,
               "deps": []
             }
@@ -2011,6 +2011,18 @@
       "status": "approved",
       "total_lines": 114,
       "est_tokens": 1490,
+      "sections": {},
+      "deps": [
+        "T-072"
+      ]
+    },
+    "code-review-T-072-r3": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-072-r3.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 157,
+      "est_tokens": 1643,
       "sections": {},
       "deps": [
         "T-072"

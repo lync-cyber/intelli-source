@@ -239,18 +239,20 @@ split_from: dev-plan-intellisource-v1
 - **接口**: internal（DI 配置）
 - **复杂度**: M
 - **依赖**: T-002（DatabaseManager 已实现）
+- **status**: done (2026-05-04, r3 approved；review history: r1 needs_revision → r2 approved_with_notes → r3 approved)
 - **tdd_acceptance**:
-  - [ ] AC-T072-1: `main.py` lifespan 在 startup 阶段实例化 `DatabaseManager` 并存入 `app.state.db`，shutdown 阶段调用 `db.close()`
-  - [ ] AC-T072-2: `api/deps.py:get_db_session()` 从 `request.app.state.db.get_session()` yield 真实 `AsyncSession`
-  - [ ] AC-T072-3: 6 个路由文件（sources/contents/tasks/subscriptions/search/llm）中的局部 `get_session()` 定义全部删除，替换为 `Depends(get_db_session)` from `api.deps`
-  - [ ] AC-T072-4: `main.py` 的 `init_redis()` 补充真实 Redis 连接初始化逻辑（`aioredis.from_url`）；`init_celery()` 补充 Celery app 初始化
-  - [ ] AC-T072-5: 全量测试仍通过（现有 mock-based 测试不因此破坏，session 注入层由 conftest 覆写）
-  - [ ] AC-T072-6: mypy --strict 零错误
+  - [x] AC-T072-1: `main.py` lifespan 在 startup 阶段实例化 `DatabaseManager` 并存入 `app.state.db`，shutdown 阶段调用 `db.close()`
+  - [x] AC-T072-2: `api/deps.py:get_db_session()` 从 `request.app.state.db.get_session()` yield 真实 `AsyncSession`
+  - [x] AC-T072-3: 5 个路由文件（sources/contents/tasks/subscriptions/search）中的局部 `get_session()` 定义全部删除，替换为 `Depends(get_db_session)` from `api.deps`；llm.py pre-existing 已是参考形态无需改动
+  - [x] AC-T072-4: `main.py` 的 `init_redis()` 调用 `aioredis.from_url`；`init_celery()` 创建 Celery app 并支持 `IS_CELERY_BROKER_URL` 与 `IS_REDIS_URL` 双环境变量（前者优先，后者兜底）
+  - [x] AC-T072-5: 全量测试 1786 PASS（原 1788 - 删 2 个 placeholder 时代过时测试 `test_yields_session` / `test_generator_completes`）
+  - [x] AC-T072-6: mypy --strict src/ 零错误
 - **deliverables**:
-  - [ ] `src/intellisource/main.py` — lifespan 补充 DatabaseManager/Redis/Celery 真实初始化
-  - [ ] `src/intellisource/api/deps.py` — `get_db_session()` 接驳 `app.state.db`
-  - [ ] `src/intellisource/api/routers/{sources,contents,tasks,subscriptions,search,llm}.py` — 删除局部 `get_session()`，改用 `from intellisource.api.deps import get_db_session`
-  - [ ] `tests/conftest.py` — 确保 DB session fixture 覆写路径正确（`app.dependency_overrides`）
+  - [x] `src/intellisource/main.py` — lifespan 实例化 DatabaseManager/aioredis/Celery；`db.close()` / `close_redis()` / `shutdown_celery()` finally 全覆盖；删除 no-op `init_db_pool` / `close_db_pool`
+  - [x] `src/intellisource/api/deps.py` — `get_db_session(request: Request)` 必传参数，返回 `AsyncIterator[AsyncSession]`
+  - [x] `src/intellisource/api/routers/{sources,contents,tasks,subscriptions,search}.py` — 5 路由迁移完成
+  - [x] `tests/unit/api/conftest.py`（路径调整：从 `tests/conftest.py` 改为 `tests/unit/api/conftest.py`，作用域更精确） — `app.state.db` mock fixture
+  - [x] `tests/unit/api/test_deps.py` — 删除 `TestGetDbSession` 类（placeholder 时代过时测试），保留 `TestRequireApiKey`
 - **context_load**:
   - src/intellisource/storage/database.py (DatabaseManager.get_session)
   - src/intellisource/api/deps.py
