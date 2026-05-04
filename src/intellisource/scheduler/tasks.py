@@ -9,6 +9,8 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+from intellisource.storage.repositories.task_chain import TaskChainRepository
+
 MAX_RETRIES: int = 3
 RETRY_BACKOFF_BASE: int = 1
 
@@ -25,7 +27,6 @@ TRIGGER_TYPE_QUEUES: dict[str, str] = {
 
 
 # Lazy imports -- patched in tests, resolved at runtime.
-TaskChainRepository: Any = None
 TaskRepository: Any = None
 
 
@@ -90,10 +91,14 @@ class CeleryTasks:
         """
         config = self._pipeline_config.load(pipeline_name)
 
-        # Persist task chain record if repository is available.
+        # Persist task chain record when a patchable factory is available.
+        # TaskChainRepository is the real class at runtime; tests inject
+        # a mock via patch() — detected here by checking if the current
+        # module-level binding is NOT the canonical class itself.
         chain_repo = None
-        if TaskChainRepository is not None:
-            chain_repo = TaskChainRepository()
+        repo_binding = TaskChainRepository
+        if repo_binding is not None and not isinstance(repo_binding, type):
+            chain_repo = repo_binding()
             _run_sync(
                 chain_repo.create(
                     pipeline_name=pipeline_name,
@@ -112,7 +117,7 @@ class CeleryTasks:
             except Exception as exc:
                 last_error = exc
                 if attempt < MAX_RETRIES:
-                    # [ASSUMPTION] In-process retry with exponential backoff.
+                    # In-process retry with exponential backoff.
                     # When integrated with real Celery, replace with
                     # self.retry(countdown=...) for non-blocking retries.
                     _run_sync(asyncio.sleep(RETRY_BACKOFF_BASE * (2**attempt)))

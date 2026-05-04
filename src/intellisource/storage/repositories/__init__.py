@@ -8,6 +8,7 @@ from intellisource.storage.repositories.push import PushRepository
 from intellisource.storage.repositories.source import SourceRepository
 from intellisource.storage.repositories.subscription import SubscriptionRepository
 from intellisource.storage.repositories.task import TaskRepository
+from intellisource.storage.repositories.task_chain import TaskChainRepository
 
 __all__ = [
     "BaseRepository",
@@ -17,5 +18,6 @@ __all__ = [
     "PushRepository",
     "SourceRepository",
     "SubscriptionRepository",
+    "TaskChainRepository",
     "TaskRepository",
 ]

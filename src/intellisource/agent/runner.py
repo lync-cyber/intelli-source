@@ -12,6 +12,8 @@ from typing import Any
 
 from intellisource.agent.tools import ToolDefinition
 from intellisource.core.errors import ErrorCategory, IntelliSourceError
+from intellisource.storage.models import TaskChain
+from intellisource.storage.repositories.task_chain import TaskChainRepository
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +69,7 @@ class AgentRunner:
             except Exception:
                 if config.on_failure == "abort":
                     steps_executed += 1
-                    return self._persist(
+                    return await self._persist(
                         status="failed",
                         steps_executed=steps_executed,
                         results=results,
@@ -86,7 +88,7 @@ class AgentRunner:
 
             steps_executed += 1
 
-        return self._persist(
+        return await self._persist(
             status="success",
             steps_executed=steps_executed,
             results=results,
@@ -183,7 +185,7 @@ class AgentRunner:
                             }
                         )
 
-        persist_result = self._persist(
+        persist_result = await self._persist(
             status="success",
             steps_executed=steps_executed,
             results=tool_results,
@@ -230,7 +232,7 @@ class AgentRunner:
 
         return [t for t in tools if t not in denied]
 
-    def _persist(
+    async def _persist(
         self,
         *,
         status: str,
@@ -238,21 +240,37 @@ class AgentRunner:
         results: list[dict[str, Any]],
         pipeline_name: str,
         task_chain_id: str | None = None,
+        repo: TaskChainRepository | None = None,
     ) -> dict[str, Any]:
         """Persist result and return with task_chain_id.
 
         Args:
             task_chain_id: If provided by the caller (e.g. CeleryTasks),
                 use it to correlate with the TaskChain DB record.
-                Otherwise a transient UUID is generated.
+            repo: When provided and task_chain_id is absent, a new TaskChain
+                record is written via repo.create().
         """
-        # [ASSUMPTION] Generates a local UUID when no upstream id is
-        # provided. Replace with TaskChainRepository write when the
-        # real persistence layer is integrated.
+        if task_chain_id is not None:
+            chain_id = task_chain_id
+        elif repo is not None:
+            task_chain = TaskChain(
+                id=uuid.uuid4(),
+                pipeline_name=pipeline_name,
+                status=status,
+                trigger_type="manual",
+                execution_mode="strict",
+                total_steps=steps_executed,
+                completed_steps=steps_executed,
+            )
+            persisted = await repo.create(task_chain)
+            chain_id = str(persisted.id)
+        else:
+            chain_id = str(uuid.uuid4())
+
         return {
             "status": status,
             "steps_executed": steps_executed,
             "results": results,
             "pipeline_name": pipeline_name,
-            "task_chain_id": task_chain_id or str(uuid.uuid4()),
+            "task_chain_id": chain_id,
         }
