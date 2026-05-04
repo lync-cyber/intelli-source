@@ -125,3 +125,4 @@
 {"ts": "2026-05-04T13:36:33+00:00", "event": "correction", "phase": "unknown", "detail": "option-override: T-073 code-review r2 = approved_with_notes（1 新 LOW + 1 观察）。R-001-r2：invalid curs", "agent": "orchestrator"}
 {"ts": "2026-05-04T13:36:49+00:00", "event": "user_decision", "phase": "development", "detail": "T-073 r2: user chose 再修 R-001-r2 后接受 (revision r3 = R-001-r2 fix + CORRECTIONS-LOG carryover for ContentRepository LIKE limitation)"}
 {"ts": "2026-05-04T13:36:49+00:00", "event": "revision_start", "phase": "development", "detail": "T-073 needs_revision(2) → r3: fix R-001-r2 + add CORRECTIONS-LOG entry", "agent": "implementer"}
+{"ts": "2026-05-04T13:43:12+00:00", "event": "review_verdict", "phase": "development", "detail": "T-073 r3: all 4 r3 verification items PASS (cursor validation hoisted to controller; test on real uuid path; CORRECTIONS-LOG carryover; no regression). Final verdict approved.", "agent": "reviewer", "status": "approved"}

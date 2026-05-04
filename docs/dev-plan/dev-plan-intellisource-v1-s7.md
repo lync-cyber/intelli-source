@@ -53,7 +53,7 @@ split_from: dev-plan-intellisource-v1
   - [x] AC-T057-6: `litellm.acompletion()` 调用使用 `ModelProfile.timeout_seconds` 作为 timeout 参数
   - [x] AC-T057-7: mypy --strict 零错误
 - **deliverables**:
-  - [x] `src/intellisource/llm/gateway.py` — retry 逻辑（tenacity AsyncRetrying + _classify_error / _call_with_retry / _try_fallback / _log_retry）
+  - [x] `src/intellisource/llm/gateway.py` — retry 逻辑（tenacity AsyncRetrying + _classify_error / _call_with_retry /_try_fallback /_log_retry）
   - [x] `tests/unit/llm/test_gateway_retry.py` — retry 行为测试（16 tests）
   - [x] 配套：`pyproject.toml`(+tenacity)、`cost_tracker.py`(LLMCallRecord.retry_attempt)、`storage/models.py`+`alembic/versions/001_initial_schema.py`(LLMCallLog.retry_attempt 列)
 - **context_load**:
@@ -200,7 +200,7 @@ split_from: dev-plan-intellisource-v1
   - [x] `src/intellisource/llm/prompts/summarizer.structured.txt` — 摘要结构化变体（Option A：与现有 `summarizer.txt` base 配对，原 deliverable 字面 `summarization.structured.txt` 偏离已记录）
   - [x] `tests/unit/llm/test_prompt_builder.py` — 变体加载测试（实际 +18 tests，含 R-002 路径组件校验）
 - **context_load**:
-  - src/intellisource/llm/prompts/__init__.py (load_prompt, _read_template)
+  - src/intellisource/llm/prompts/**init**.py (load_prompt,_read_template)
   - src/intellisource/llm/prompt_builder.py (PromptBuilder)
   - docs/research/prompt-management-analysis.md §2.2
 
@@ -270,19 +270,20 @@ split_from: dev-plan-intellisource-v1
 - **接口**: API-016（已定义）
 - **复杂度**: M
 - **依赖**: T-003（ContentCluster ORM 模型已存在）、T-005（pgvector，clusters 含向量相关字段）
-- **tdd_acceptance**:
-  - [ ] AC-T073-1: `GET /api/v1/clusters` 返回集群列表，支持 cursor 分页（`cursor` + `limit` 参数，默认 `limit=20`）
-  - [ ] AC-T073-2: 支持 `tag` 过滤参数（按 `ContentCluster.tags` 字段）
-  - [ ] AC-T073-3: 支持 `date_from` / `date_to` 过滤参数（按 `ContentCluster.created_at`）
-  - [ ] AC-T073-4: 每条集群响应包含 `id`/`label`/`tags`/`item_count`/`created_at` 字段
-  - [ ] AC-T073-5: 无集群时返回 `{"items": [], "next_cursor": null}`
-  - [ ] AC-T073-6: mypy --strict 零错误
+- **status**: done (2026-05-04, r3 approved；review history: r1 needs_revision (2 MEDIUM R-001 弱断言/R-002 cursor→500+limit=0 不一致 + 3 LOW R-003 401 缺测/R-004 序列化职责/R-005 LIKE 通配符) → r2 approved_with_notes (5 全闭环 + 1 新 LOW R-001-r2 = invalid_cursor 用 mock side_effect 而非真实 uuid 路径) → r3 approved (cursor 验证移到 controller 早验证 + 测试走真实 uuid 路径 + CORRECTIONS-LOG 补 ContentRepository LIKE limitation carryover))
+- **tdd_acceptance**（按 arch API-016 权威对齐执行；task card 字面 `label`/`item_count` 实现为 `topic`/`content_count`）:
+  - [x] AC-T073-1: `GET /api/v1/clusters` 返回集群列表，支持 cursor 分页（`cursor` + `limit` 参数，默认 `limit=20`，限 [1,100]，无效 cursor 早验证返回 400）
+  - [x] AC-T073-2: 支持 `tag` 过滤参数（按 `ContentCluster.tags` JSONB；改用 `.contains([tag])` 避免 LIKE 通配符副作用）
+  - [x] AC-T073-3: 支持 `date_from` / `date_to` 过滤参数（按 `ContentCluster.created_at` 前闭后开）
+  - [x] AC-T073-4: 每条集群响应包含 `id`/`topic`/`tags`/`content_count`/`digest`/`created_at`/`updated_at` 字段（按 arch；digest 取最新 Digest.summary，无则 None；selectinload 防 N+1）
+  - [x] AC-T073-5: 无集群时返回 `{"items": [], "next_cursor": null, "has_more": false}`
+  - [x] AC-T073-6: mypy --strict 零错误
 - **deliverables**:
-  - [ ] `src/intellisource/storage/repositories/cluster.py` — `ClusterRepository`（`list_clusters` 含分页/过滤）
-  - [ ] `src/intellisource/api/routers/clusters.py` — GET /api/v1/clusters 端点
-  - [ ] `src/intellisource/storage/repositories/__init__.py` — 导出 `ClusterRepository`
-  - [ ] `src/intellisource/main.py` — 注册 clusters router
-  - [ ] `tests/unit/api/test_clusters_routes.py` — ≥6 tests
+  - [x] `src/intellisource/storage/repositories/cluster.py` — `ClusterRepository`（`list_clusters` 含分页/过滤；JSONB containment）
+  - [x] `src/intellisource/api/routers/clusters.py` — GET /api/v1/clusters 端点（含 cursor 早验证、limit clamp）
+  - [x] `src/intellisource/storage/repositories/__init__.py` — 导出 `ClusterRepository`
+  - [x] `src/intellisource/main.py` — 注册 clusters router
+  - [x] `tests/unit/api/test_clusters_routes.py` — 26 tests (1 skipped 401 待 T-063)；R-002 边界测试 + R-005 通配符测试均覆盖
 - **context_load**:
   - src/intellisource/storage/models.py (ContentCluster E-007)
   - src/intellisource/storage/repositories/content.py (参照 ContentRepository 分页模式)
