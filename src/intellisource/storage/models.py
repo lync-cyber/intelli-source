@@ -30,11 +30,43 @@ class Base(DeclarativeBase):
 
 
 # ---------------------------------------------------------------------------
+# Mixins
+# ---------------------------------------------------------------------------
+
+
+class CreatedAtMixin:
+    """Adds created_at with a server-side default of now()."""
+
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class TimestampMixin(CreatedAtMixin):
+    """Adds created_at (server default now) and updated_at (on-update now)."""
+
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True, onupdate=func.now()
+    )
+
+
+class ExecutionTimingMixin:
+    """Adds started_at and finished_at for executable entities."""
+
+    started_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    finished_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+
+
+# ---------------------------------------------------------------------------
 # E-001: Source
 # ---------------------------------------------------------------------------
 
 
-class Source(Base):
+class Source(TimestampMixin, Base):
     __tablename__ = "sources"
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -72,12 +104,6 @@ class Source(Base):
         VARCHAR(255), nullable=True
     )
     config_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
-    )
-    updated_at: Mapped[Optional[datetime]] = mapped_column(
-        TIMESTAMP(timezone=True), onupdate=func.now()
-    )
 
     # Relationships
     collect_tasks: Mapped[list["CollectTask"]] = relationship(back_populates="source")
@@ -96,7 +122,7 @@ class Source(Base):
 # ---------------------------------------------------------------------------
 
 
-class TaskChain(Base):
+class TaskChain(ExecutionTimingMixin, CreatedAtMixin, Base):
     __tablename__ = "task_chains"
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -110,15 +136,6 @@ class TaskChain(Base):
     completed_steps: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     current_step: Mapped[Optional[str]] = mapped_column(VARCHAR(100), nullable=True)
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    started_at: Mapped[Optional[datetime]] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=True
-    )
-    finished_at: Mapped[Optional[datetime]] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
-    )
 
     # Relationships
     collect_tasks: Mapped[list["CollectTask"]] = relationship(
@@ -136,7 +153,7 @@ class TaskChain(Base):
 # ---------------------------------------------------------------------------
 
 
-class CollectTask(Base):
+class CollectTask(ExecutionTimingMixin, CreatedAtMixin, Base):
     __tablename__ = "collect_tasks"
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -154,15 +171,6 @@ class CollectTask(Base):
     items_collected: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    started_at: Mapped[Optional[datetime]] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=True
-    )
-    finished_at: Mapped[Optional[datetime]] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
-    )
 
     # Relationships
     source: Mapped["Source"] = relationship(back_populates="collect_tasks")
@@ -185,7 +193,7 @@ class CollectTask(Base):
 # ---------------------------------------------------------------------------
 
 
-class RawContent(Base):
+class RawContent(CreatedAtMixin, Base):
     __tablename__ = "raw_contents"
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -209,9 +217,6 @@ class RawContent(Base):
     raw_metadata: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, default=dict
     )
-    created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
-    )
 
     # Relationships
     source: Mapped["Source"] = relationship(back_populates="raw_contents")
@@ -234,7 +239,7 @@ class RawContent(Base):
 # ---------------------------------------------------------------------------
 
 
-class ContentCluster(Base):
+class ContentCluster(TimestampMixin, Base):
     __tablename__ = "content_clusters"
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -245,12 +250,6 @@ class ContentCluster(Base):
     content_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     centroid = mapped_column(Vector(1536), nullable=True)
     status: Mapped[str] = mapped_column(VARCHAR(20), nullable=False, default="active")
-    created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
-    )
-    updated_at: Mapped[Optional[datetime]] = mapped_column(
-        TIMESTAMP(timezone=True), onupdate=func.now()
-    )
 
     # Relationships
     processed_contents: Mapped[list["ProcessedContent"]] = relationship(
@@ -269,7 +268,7 @@ class ContentCluster(Base):
 # ---------------------------------------------------------------------------
 
 
-class ProcessedContent(Base):
+class ProcessedContent(CreatedAtMixin, Base):
     __tablename__ = "processed_contents"
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -307,9 +306,6 @@ class ProcessedContent(Base):
     processed_at: Mapped[Optional[datetime]] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True
     )
-    created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
-    )
 
     # Relationships
     raw_content: Mapped["RawContent"] = relationship(back_populates="processed_content")
@@ -342,7 +338,7 @@ class ProcessedContent(Base):
 # ---------------------------------------------------------------------------
 
 
-class Digest(Base):
+class Digest(TimestampMixin, Base):
     __tablename__ = "digests"
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -358,12 +354,6 @@ class Digest(Base):
     generated_by: Mapped[str] = mapped_column(
         VARCHAR(20), nullable=False, default="llm"
     )
-    created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
-    )
-    updated_at: Mapped[Optional[datetime]] = mapped_column(
-        TIMESTAMP(timezone=True), onupdate=func.now()
-    )
 
     # Relationships
     cluster: Mapped["ContentCluster"] = relationship(back_populates="digests")
@@ -376,7 +366,7 @@ class Digest(Base):
 # ---------------------------------------------------------------------------
 
 
-class LLMCallLog(Base):
+class LLMCallLog(CreatedAtMixin, Base):
     __tablename__ = "llm_call_logs"
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -398,9 +388,6 @@ class LLMCallLog(Base):
     status: Mapped[str] = mapped_column(VARCHAR(20), nullable=False)
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     retry_attempt: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
-    )
 
     __table_args__ = (
         Index("ix_llm_call_logs_model", "model"),
@@ -415,7 +402,7 @@ class LLMCallLog(Base):
 # ---------------------------------------------------------------------------
 
 
-class Subscription(Base):
+class Subscription(TimestampMixin, Base):
     __tablename__ = "subscriptions"
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -433,12 +420,6 @@ class Subscription(Base):
     )
     quiet_hours: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
     status: Mapped[str] = mapped_column(VARCHAR(20), nullable=False, default="active")
-    created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
-    )
-    updated_at: Mapped[Optional[datetime]] = mapped_column(
-        TIMESTAMP(timezone=True), onupdate=func.now()
-    )
 
     # Relationships
     source: Mapped[Optional["Source"]] = relationship(back_populates="subscriptions")
@@ -462,7 +443,7 @@ class Subscription(Base):
 # ---------------------------------------------------------------------------
 
 
-class PushRecord(Base):
+class PushRecord(CreatedAtMixin, Base):
     __tablename__ = "push_records"
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -486,9 +467,6 @@ class PushRecord(Base):
     delivered_at: Mapped[Optional[datetime]] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True
     )
-    created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
-    )
 
     # Relationships
     subscription: Mapped["Subscription"] = relationship(back_populates="push_records")
@@ -510,7 +488,7 @@ class PushRecord(Base):
 # ---------------------------------------------------------------------------
 
 
-class ChatSession(Base):
+class ChatSession(CreatedAtMixin, Base):
     __tablename__ = "chat_sessions"
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -521,9 +499,6 @@ class ChatSession(Base):
     context: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     last_active_at: Mapped[Optional[datetime]] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
 
     __table_args__ = (
