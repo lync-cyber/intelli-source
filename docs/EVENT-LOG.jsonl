@@ -129,3 +129,6 @@
 {"ts": "2026-05-04T13:54:39+00:00", "event": "state_change", "phase": "development", "detail": "T-075 dispatch start (sprint-7 10/10 last task; cross-module M-006+M-008; tdd_mode=standard via tdd-engine)"}
 {"ts": "2026-05-04T13:55:49+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD RED: T-075 (cross-module M-006+M-008; standard mode; adaptive-review prompt injected)"}
 {"ts": "2026-05-04T13:59:48+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD RED done: T-075 — 8 failed (5 integration boot ImportError + 3 runner._persist param missing), 3 passed (default values preserved)"}
+{"ts": "2026-05-04T14:00:13+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD GREEN: T-075 dispatch implementer (cross-module M-006+M-008; adaptive-review prompt injected)"}
+{"event": "tdd_phase", "phase": "development", "detail": "TDD GREEN done: T-075 — 11/11 target + 1840 regression PASSED, mypy strict clean, ruff clean, refactor_needed=false", "ts": "2026-05-04T14:06:12+00:00"}
+{"event": "tdd_phase", "phase": "development", "detail": "TDD REFACTOR skipped: T-075 — implementer self-report refactor_needed=false (no complexity/duplication/coupling triggers)", "ts": "2026-05-04T14:06:12+00:00"}

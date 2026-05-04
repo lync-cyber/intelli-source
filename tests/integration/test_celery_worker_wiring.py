@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Integration tests for Celery worker wiring via scheduler.boot (T-075).
 
 Covers AC-T075-1, AC-T075-2, and AC-T075-4:
@@ -12,12 +10,14 @@ Covers AC-T075-1, AC-T075-2, and AC-T075-4:
   and pipeline_name.
 """
 
-import os
+from __future__ import annotations
+
+import sys
+import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker
-
 
 # ---------------------------------------------------------------------------
 # AC-T075-1
@@ -49,8 +49,6 @@ class TestInitWorkerSessionFactory:
         """boot.init_worker_session_factory() must not call create_app or access
         app.state.db — verified by ensuring intellisource.main is never invoked."""
         monkeypatch.setenv("IS_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
-
-        import sys
 
         # Remove any previously cached import of scheduler.boot to force re-import
         sys.modules.pop("intellisource.scheduler.boot", None)
@@ -126,9 +124,7 @@ class TestBuildCeleryTasks:
         mock_celery_app.task = _fake_task_decorator
 
         factory = boot.init_worker_session_factory()
-        boot.build_celery_tasks(
-            mock_celery_app, MagicMock(), MagicMock(), factory
-        )
+        boot.build_celery_tasks(mock_celery_app, MagicMock(), MagicMock(), factory)
 
         assert any("run_pipeline" in key for key in registered_tasks), (
             f"Expected a task with 'run_pipeline' in its name, got: "
@@ -149,10 +145,9 @@ class TestWorkerInitSignalHandler:
     ) -> None:
         """After worker_init_handler() is invoked get_celery_tasks() returns a
         non-None CeleryTasks instance."""
-        monkeypatch.setenv("IS_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+        import importlib  # noqa: PLC0415
 
-        import importlib
-        import sys
+        monkeypatch.setenv("IS_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 
         # Force a clean module state so _celery_tasks singleton starts at None.
         sys.modules.pop("intellisource.scheduler.boot", None)
@@ -202,7 +197,7 @@ class TestRunPipelineEndToEndWithSessionFactory:
 
         # repo.create returns the TaskChain back (mirrors real implementation)
         async def _fake_create(chain: TaskChain) -> TaskChain:
-            chain.id = __import__("uuid").uuid4()
+            chain.id = uuid.uuid4()
             return chain
 
         mock_repo.create = AsyncMock(side_effect=_fake_create)
@@ -252,7 +247,7 @@ class TestRunPipelineEndToEndWithSessionFactory:
 
         async def _capture_create(chain: TaskChain) -> TaskChain:
             captured_chains.append(chain)
-            chain.id = __import__("uuid").uuid4()
+            chain.id = uuid.uuid4()
             return chain
 
         mock_repo.create = AsyncMock(side_effect=_capture_create)

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Tests for AgentRunner._persist parameterization (T-075 AC-T075-3).
 
 Verifies that:
@@ -8,6 +6,8 @@ Verifies that:
 - run_strict passes execution_mode="strict" when calling _persist.
 - run_flexible passes execution_mode="flexible" when calling _persist.
 """
+
+from __future__ import annotations
 
 import uuid
 from typing import Any
@@ -18,7 +18,6 @@ import pytest
 from intellisource.agent.pipeline import PipelineConfig
 from intellisource.agent.runner import AgentRunner
 from intellisource.storage.models import TaskChain
-
 
 # ---------------------------------------------------------------------------
 # Helpers / shared fixtures
@@ -46,7 +45,7 @@ def _make_mock_repo() -> AsyncMock:
 
 
 def _strict_config(**overrides: Any) -> PipelineConfig:
-    base = {
+    base: dict[str, Any] = {
         "name": "test-strict",
         "mode": "strict",
         "steps": [],
@@ -58,7 +57,7 @@ def _strict_config(**overrides: Any) -> PipelineConfig:
 
 
 def _flexible_config(**overrides: Any) -> PipelineConfig:
-    base = {
+    base: dict[str, Any] = {
         "name": "test-flexible",
         "mode": "flexible",
         "steps": [],
