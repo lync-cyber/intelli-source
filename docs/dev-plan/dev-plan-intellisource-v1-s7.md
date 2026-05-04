@@ -25,7 +25,7 @@ split_from: dev-plan-intellisource-v1
   - T-059 配置分层合并机制 ✅ done
   - T-060 LLM 统计仪表盘 API ✅ done
   - T-061 LLM 配置 Pydantic Schema 验证 ✅ done
-  - T-062 模型特化 Prompt 变体
+  - T-062 模型特化 Prompt 变体 ✅ GREEN（待 code-review）
   - T-063 Sprint 7 集成测试与回归
   - T-072 数据库会话 DI 接驳（新增，源自 CODE-SCAN R-001/R-007）
   - T-073 GET /api/v1/clusters 端点（新增，源自 CODE-SCAN R-003）
@@ -175,12 +175,14 @@ split_from: dev-plan-intellisource-v1
 
 ---
 
-### T-062: 模型特化 Prompt 变体
+### T-062: 模型特化 Prompt 变体 ✅ GREEN（待 code-review）
 
 - **目标**: PromptBuilder 根据 `ModelProfile.prompt_style` 选择 prompt 模板变体文件，支持不同模型家族使用优化的 prompt 格式
 - **模块**: M-005
 - **接口**: internal
 - **复杂度**: S
+- **tdd_mode**: light（dispatch 模式：执行模式=standard 不走 inline）
+- **status**: GREEN done（2026-05-04，commit d355560；implementer self-report refactor_needed=false；43 target tests + 1754 全量回归 PASSED；mypy --strict src/ clean (102 files)；ruff check + format clean。Option A：summarizer.structured.txt 沿用现有命名约定，summarization.* deliverable 字面偏离已说明并采纳）
 - **依赖**: T-051（PromptBuilder）, T-053（ModelProfile.prompt_style）
 - **tdd_acceptance**:
   - [ ] AC-T062-1: `llm/prompts/` 支持 `{name}.{style}.txt` 变体文件命名（如 `extraction.structured.txt`）
