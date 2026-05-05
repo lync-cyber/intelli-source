@@ -15,21 +15,36 @@
 - model 继承: AGENT.md 中 `model: inherit` 继承父会话模型；可用 `model: <model-id>` 覆盖
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: development
-- 上次完成: orchestrator — T-063 done (CODE-REVIEW-T-063-r1 approved；3 LOW non-blocking：R-001 模块级 SQLiteTypeCompiler.visit_JSONB monkey-patch 副作用 / R-002 cluster tag filter mock 为 PG @> SQLite 不兼容 carryover 延续 / R-003 update_status missing-id 弱断言)；22 target integration tests + 1862 全量回归 PASSED + 1 SKIPPED + 0 FAILED；mypy strict + ruff clean；sprint-7 全部 11 任务实施闭环
-- 下一步行动: Sprint-7 sprint-review (sprint-review skill；任务数 11 > SPRINT_REVIEW_MICRO_TASK_COUNT=3 不可短路；全任务 approved/approved_with_notes，需聚合 AC 覆盖 + 范围偏移检测) → reflector retrospective (RETRO 阈值远超，**必须激活**，EXP 候选 a/e/f/h/i 5 组优先) <!-- 用户 /start-orchestrator 选 Option 2 (2026-05-04)：严格按主线箭头 -->
-- 已完成阶段: [bootstrap, requirements, architecture, ui_design(跳过-backend-only), dev_planning, sprint-1, sprint-2, sprint-3, sprint-4, sprint-5, sprint-6]
-- 当前Sprint: sprint-7 (approved, 11/11 done: T-057 ✅, T-058 ✅, T-059 ✅, T-060 ✅, T-061 ✅, T-062 ✅, T-072 ✅, T-073 ✅, T-074 ✅, T-075 ✅, T-063 ✅；下一: sprint-review + retrospective)
-- Retrospective 阈值监控: **极度超过 RETRO_TRIGGER_SELF_CAUSED=5**——T-072 (3 轮 7 self-caused) + T-074 (2 轮 6 self-caused) + T-073 (3 轮 6 self-caused) + T-075 (2 轮 4 self-caused：r1 R-001 MEDIUM signal connect 缺失重蹈 T-074 r2 同模式 + R-002/R-003/R-004 LOW)。叠加 T-058/T-059/T-060 历史 8+，累计远超阈值。**EXP 候选清单（高优先级）**: (a) implementer "make-the-test-pass over update-the-test"——T-072 r1 / T-074 r1 / T-073 r1 同模式；(b) implementer "修改文件未运行对应 lint"——T-072 r2 R-001-r2；(c) tests/ 累积 ~166 处 pre-existing ruff 债务；(d) orchestrator 时序观察（T-062）：implementer 收尾期间运行验证导致快照不一致；(e) refactorer 自行 git commit + push 违反 orchestrator 独占写权限协议（T-074 d0cb454）；(f) refactorer self-report 范围错位（T-074 第二次 REFACTOR 报"无修改"但实际 diff 40 行新增）；(g) "implementer self-report 阶段快照"不一致；(h) 上游契约漂移：T-073 task card AC 字面与 arch API-016 字段多点不一致；(i) **新增** **"DI 已改但生产路径无人调用"反复模式**——T-074 r2 (CeleryTasks 实例化无人触发) → T-075 创建专门修该 gap → T-075 r1 (signal handler 已定义但 connect 缺失) 同模式重现一次；属 implementer 对"production wiring 完整性"理解偏差，需要在 tech-lead/implementer prompt 中加入"production entry-point exists and is invoked"硬清单。Sprint-7 末尾 retrospective 必须激活 reflector 优先提炼 (a)+(e)+(f)+(h)+(i) 五组 EXP。
+- 当前阶段: pre_deploy_checkpoint (HOLD — sprint-7r remediation 待执行)
+- 上次完成: orchestrator — sprint-7r remediation 计划闭环：dev-plan-intellisource-v1-s7r.md status=approved (tech-lead 产出 3 张任务卡 T-080/T-081/T-082；reviewer r1 needs_revision 2 HIGH/2 MEDIUM/2 LOW，用户 2026-05-05 选本会话补 revision；tech-lead revision r1 修全部 6 项；reviewer r2 approved_with_notes，6 项 r1 全 closed + 1 LOW R-007 deliverables 与 AC-6 不一致；orchestrator inline 修复 R-007 — T-081 deliverables 第 6 条与 affected_files 改为按 AC-6 优先级表述，移除 docker-compose.test.yml 作为 CI 选项；最终 sprint-7r verdict approved)
+- 下一步行动: **下次会话接续** — orchestrator 启动 tdd-engine 编排执行 T-080 → T-081 → T-082 (依赖链线性，无环)；执行完成后回到 pre_deploy_checkpoint 重新评估 GO/NO-GO 是否进入 Phase 7 deployment
+  - T-080 (fix/light, S): runner.py DB_URL 环境变量化 (CODE-REVIEW-T-074-r2 新引入观察 + 12-factor §III Config 闭环)
+  - T-081 (feature/standard, L): testcontainers-postgres + pgvector fixture (BD-001/SR-002 闭环)；AC-2a/2b/2c 三层 fixture 结构 (session-scope migrate + function-scope savepoint + 可选 truncate)
+  - T-082 (chore/light, S): tests/ ruff 债务清理 (BD-003 闭环)；task_kind=chore 触发 CODE_REVIEW_L2_SKIP_TASK_KINDS 短路
+- 已完成阶段: [bootstrap, requirements, architecture, ui_design(跳过-backend-only), dev_planning, sprint-1, sprint-2, sprint-3, sprint-4, sprint-5, sprint-6, sprint-7, retrospective, testing]
+- 当前Sprint: sprint-7r (pre-deploy remediation, 计划 approved，待 tdd-engine 执行)
+- Retrospective 状态: 已完成 (2026-05-04，RETRO-intellisource-v1.md status=approved，6 EXP 已记录，应用决策见 §Learnings Registry)
 - 文档状态:
   - prd: approved
   - arch: approved
   - ui-spec: N/A
-  - dev-plan: approved
-  - test-report: 未开始
+  - dev-plan: approved (主卷 + s1~s7 + s7r remediation 全 approved；s8 OpenCode P2 改进保持 draft)
+  - test-report: approved
   - deploy-spec: 未开始
   <!-- changelog 由 devops 产出但不纳入门禁追踪 -->
-- Learnings Registry: (首次 retrospective 后填充)
+- Learnings Registry:
+  - **RETRO-intellisource-v1** (2026-05-04, sprint-1~7, 6 EXP, **应用决策: defer to backlog (用户 2026-05-05)**)
+    - EXP-001: implementer 弱测试断言 ("make-the-test-pass over update-the-test")，target=implementer/code-review SKILL — deferred
+    - EXP-002: refactorer 越权 git commit/push 破坏 orchestrator 独占写权限协议，target=refactorer AGENT + tdd-engine SKILL — deferred
+    - EXP-003: refactorer self-report 范围错位 + implementer self-report 阶段快照失真，target=refactorer/implementer AGENT — deferred
+    - EXP-004: 上游契约漂移 (dev-plan task card AC ↔ arch API 定义不对齐)，target=tech-lead AGENT/SKILL — deferred
+    - EXP-005: 生产接驳缺失 (DI/signal/lifespan 定义但无人调用)，target=code-review completeness 维度 + tech-lead task-card 模板 — deferred
+    - EXP-006: 文件修改后未运行对应 lint / 全量回归，target=orchestrator lint-gate / implementer post-edit checklist — deferred
+  - **缺陷 (元 EXP-003 活样本)**: reflector RETRO 自报"已产出 6 SKILL-IMPROVE-{skill_id}.md"实际只产出 RETRO 单文件；6 份 SKILL-IMPROVE 文件待补齐 → 进入 backlog；恢复时需 reflector task_type=continuation 补齐
+  - **Backlog (来自 sprint-7 retrospective + sprint-review)**:
+    - SR-002 SQLite→Postgres 真后端 集成测试基础设施改造 (testcontainers-postgres fixture)
+    - 6 EXP 改进应用 → .cataforge/agents 与 skills 文件修订 (defer 至下次 retrospective 或用户主动触发)
+    - tests/ 累积 ~166 处 pre-existing ruff 债务清理
 - 框架升级备注 (2026-05-03): 由 0.4.6 → 0.2.0 完成结构性重构；旧 .claude/scripts、旧 .claude/upgrade-source.json、旧 NAV-INDEX.md 由新 cataforge CLI + .doc-index.json 替代
 
 ## 执行环境

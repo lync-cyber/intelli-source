@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-05-04T13:55:21.485885+00:00",
+  "generated_at": "2026-05-05T01:53:29.104152+00:00",
   "documents": {
     "arch-intellisource-v1-api": {
       "file_path": "docs/arch/arch-intellisource-v1-api.md",
@@ -2472,6 +2472,52 @@
       "total_lines": 146,
       "est_tokens": 2028,
       "sections": {}
+    },
+    "dev-plan-intellisource-v1-s7r": {
+      "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7r.md",
+      "doc_type": "dev-plan",
+      "volume": "s7r",
+      "status": "draft",
+      "total_lines": 167,
+      "est_tokens": 3800,
+      "sections": {
+        "3": {
+          "heading": "## 3. 任务卡详细",
+          "level": 2,
+          "line_start": 25,
+          "line_end": 167,
+          "est_tokens": 3600,
+          "deps": [],
+          "items": {
+            "T-080": {
+              "heading": "### T-080: runner.py DB_URL 环境变量化（12-factor §III Config）",
+              "line_start": 27,
+              "line_end": 70,
+              "est_tokens": 800,
+              "deps": []
+            },
+            "T-081": {
+              "heading": "### T-081: testcontainers-postgres fixture（BD-001 / SR-002 闭环）",
+              "line_start": 72,
+              "line_end": 129,
+              "est_tokens": 2200,
+              "deps": []
+            },
+            "T-082": {
+              "heading": "### T-082: tests/ ruff 债务清理（BD-003 / ~166 处 pre-existing 违规）",
+              "line_start": 131,
+              "line_end": 167,
+              "est_tokens": 700,
+              "deps": []
+            }
+          }
+        }
+      },
+      "split_from": "dev-plan-intellisource-v1",
+      "deps": [
+        "arch-intellisource-v1",
+        "test-report-intellisource-v1"
+      ]
     }
   },
   "xref": {
