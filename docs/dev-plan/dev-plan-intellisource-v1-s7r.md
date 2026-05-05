@@ -17,16 +17,17 @@ split_from: dev-plan-intellisource-v1
 
 [NAV]
 - §3 任务卡详细
-  - T-080 runner.py DB_URL 环境变量化（DEF-006 闭环）
+  - T-080 runner.py DB_URL 环境变量化（12-factor §III Config）
   - T-081 testcontainers-postgres fixture（BD-001 / SR-002 闭环）
-  - T-082 tests/ ruff 债务清理（~166 处 pre-existing 违规）
+  - T-082 tests/ ruff 债务清理（BD-003 / ~166 处 pre-existing 违规）
 [/NAV]
 
 ## 3. 任务卡详细
 
-### T-080: runner.py DB_URL 环境变量化（DEF-006 闭环）
+### T-080: runner.py DB_URL 环境变量化（12-factor §III Config）
 
 - **目标**: 将 `src/intellisource/agent/runner.py` 中任何硬编码 DB_URL 字面量改为读取 `DATABASE_URL` 环境变量；确保生产部署通过环境变量注入，无需修改源码（12-factor §III Config）
+- **溯源**: `CODE-REVIEW-T-074-r2` 新引入观察段落（runner.py 硬编码 DB_URL）+ 12-factor §III Config 原则。注：test-report DEF-006 实指 `trigger_type`/`execution_mode` 硬编码，已由 T-075 闭环；本任务针对 CODE-REVIEW-T-074-r2 独立观察的 DB_URL 硬编码问题，与 DEF-006 无关。
 - **task_kind**: fix
 - **tdd_mode**: light
 - **tdd_refactor**: skip（单文件单点改动）
@@ -43,7 +44,7 @@ split_from: dev-plan-intellisource-v1
   - [ ] AC-3a: 单元测试 — 环境变量 `DATABASE_URL` 已设置时，初始化逻辑使用该值
   - [ ] AC-3b: 单元测试 — 环境变量未设置且 `ENV` 未设置（开发模式）时，使用开发回退值
   - [ ] AC-3c: 单元测试 — 环境变量未设置且 `ENV=production` 时，抛出预期异常拒绝启动
-  - [ ] AC-4: `deploy-spec` 后续可直接通过 `DATABASE_URL=postgresql+psycopg2://...` 注入，无需任何源码改动；AC 以注释形式记录在代码中（`# 12-factor §III Config`）
+  - [ ] AC-4: `deploy-spec` 后续可直接通过 `DATABASE_URL=postgresql+psycopg2://...` 注入，无需任何源码改动（行为断言：仅修改环境变量即可切换数据库后端，源码零修改）
 
 - **deliverables**:
   - [ ] `src/intellisource/agent/runner.py` — 移除硬编码 DB_URL，改为读取 `DATABASE_URL` 环境变量（含开发回退逻辑与生产拒绝启动逻辑）
@@ -55,7 +56,7 @@ split_from: dev-plan-intellisource-v1
 
 - **context_load**:
   - `arch-intellisource-v1#§2.M-009`（存储层数据库连接约定）
-  - `test-report-intellisource-v1#§6`（DEF-006 背景）
+  - `CODE-REVIEW-T-074-r2`（新引入观察段落：runner.py 硬编码 DB_URL，本任务直接溯源）
 
 - **risk**:
   - 回退默认值与既有 1862 PASSED 测试环境的 SQLite 连接串必须保持一致，否则会破坏现有测试；`monkeypatch` 隔离可防止污染
@@ -64,6 +65,7 @@ split_from: dev-plan-intellisource-v1
 - **mitigation**:
   - 新增测试文件不修改既有用例；使用 `monkeypatch` 确保隔离
   - 与 T-081 无硬依赖，可先行完成
+  - 编码规范提示（非 AC）：读取环境变量的代码行旁加单行注释 `# 12-factor §III Config`，便于后续维护者理解合规意图；此为代码可读性建议，不纳入测试验收
 
 ---
 
@@ -82,17 +84,18 @@ split_from: dev-plan-intellisource-v1
 
 - **tdd_acceptance**:
   - [ ] AC-1: `pyproject.toml` dev-dependencies 新增 `testcontainers[postgres]`；选定 Docker 镜像 `pgvector/pgvector:pg16`（含 pgvector 扩展）；镜像版本锁定以确保 CI 可重现
-  - [ ] AC-2a: `tests/integration/conftest.py` 新增 session-scoped `pg_container` fixture — 启动 PostgreSQL 容器并等待就绪（连接健康检查）
-  - [ ] AC-2b: `tests/integration/conftest.py` 新增 function-scoped `pg_session` fixture — 基于 `pg_container` 创建 async session；每个测试前执行 Alembic 迁移（`alembic upgrade head`）；每个测试后回滚事务保证隔离
+  - [ ] AC-2a: `tests/integration/conftest.py` 新增 **session-scoped** `pg_container` fixture — 启动 PostgreSQL 容器并等待就绪（连接健康检查）；容器启动后在 session 生命周期内**执行一次** `alembic upgrade head`（DDL 隐式提交，仅需运行一次，不可在 function-scope 内重复执行）
+  - [ ] AC-2b: `tests/integration/conftest.py` 新增 **function-scoped** `pg_session` fixture — 基于 `pg_container` 创建 async session；每个测试在 SQLAlchemy session-level savepoint（`SAVEPOINT`）内运行，测试结束后 `ROLLBACK TO SAVEPOINT` 保证 DML 隔离（适用于纯 DML 测试；不重复执行 Alembic 迁移）
+  - [ ] AC-2c: 提供可选的 **function-scoped** `pg_truncate` fixture — 测试结束后执行 `TRUNCATE` 所有业务表 + `RESTART IDENTITY`，供 DDL 相关测试或 savepoint 不适用场景使用；fixture 通过参数或直接引入可选调用，不强制每个测试使用
   - [ ] AC-3: 将 `tests/integration/test_sprint7_integration.py` 和 `tests/integration/test_celery_worker_wiring.py` 内共 22 个集成测试迁移至使用 `pg_session` fixture；迁移过程中**不允许放宽任何断言**（assertion 强度不降）
   - [ ] AC-4: 新增至少 1 个集成测试验证 pgvector 向量检索行为：向 `processed_contents` 表插入带 embedding 的记录，调用 `/api/v1/search` 混合检索路径，断言返回 HTTP 200 且 `items` 数组非空、余弦相似度排序正确（覆盖 BD-001 向量检索缺口）
   - [ ] AC-5: 新增至少 1 个集成测试验证 JSONB 操作符：向 `content_clusters` 表插入含 `tags` 字段的记录，使用 `@>` 操作符查询 cluster by tag，断言过滤结果正确（覆盖 BD-001 JSONB 缺口）
-  - [ ] AC-6: CI 配置确保 testcontainers 可用——在 `.github/workflows/` 已有 workflow 文件中添加 `services: docker` 或确认 docker-in-docker 已启用；或新增 `docker-compose.test.yml` 提供本地运行指令；无论哪种方式，`README`（或 CONTRIBUTING）中补充测试运行命令
+  - [ ] AC-6: CI 配置确保 testcontainers 可用，按以下优先级选择：**首选**——在已有 `.github/workflows/ci.yml` 中确认 Docker daemon 可用（GitHub Actions `ubuntu-latest` runner 已内置 Docker，通常无需额外配置；仅需确认 workflow 无 `--no-docker` 或 rootless 限制）；**降级**——若 docker-in-docker 不可用，改用 GitHub Actions 原生 `services: postgres: image: pgvector/pgvector:pg16`（无需 testcontainers，仅在 CI 中替换 fixture 后端）；两种方式均须在 `README`（或 `CONTRIBUTING`）中补充对应的测试运行命令，并说明本地 vs CI 的差异
   - [ ] AC-7: `uv run pytest` 全量执行通过（含原 1862 个单元测试 + 迁移后的 22 个集成测试 + 新增 PG 专项测试，至少 5 条 PG 集成测试全部 PASS）
 
 - **deliverables**:
   - [ ] `pyproject.toml` — `[tool.uv.sources]` / `[project.optional-dependencies]` 中追加 `testcontainers[postgres]`
-  - [ ] `tests/integration/conftest.py` — session-scoped `pg_container` + function-scoped `pg_session` fixture（含 Alembic 迁移 + 事务回滚）
+  - [ ] `tests/integration/conftest.py` — session-scoped `pg_container`（含 session 级一次性 Alembic migrate）+ function-scoped `pg_session`（savepoint 隔离）+ 可选 function-scoped `pg_truncate` fixture（DDL 场景备用）
   - [ ] `tests/integration/test_sprint7_integration.py` — 迁移到 PG fixture（22 个测试）
   - [ ] `tests/integration/test_celery_worker_wiring.py` — 迁移到 PG fixture（部分测试，按实际 DB 依赖情况）
   - [ ] `tests/integration/test_pg_vector_search.py`（新建）— pgvector 向量检索 + JSONB 操作符专项集成测试（≥2 个测试用例，覆盖 AC-4 / AC-5）
@@ -109,24 +112,25 @@ split_from: dev-plan-intellisource-v1
 - **context_load**:
   - `arch-intellisource-v1#§2.M-009`（存储层、pgvector 配置）
   - `arch-intellisource-v1#§2.M-008`（混合检索引擎接口）
-  - `test-report-intellisource-v1#§6`（BD-001 / BD-002 / DEF-001 背景）
+  - `test-report-intellisource-v1#§6`（BD-001 / BD-002 背景；DEF-001 与本任务无关，无需参阅）
   - `test-report-intellisource-v1#§1`（测试策略 / 集成测试分布）
 
 - **risk**:
-  - testcontainers 容器启动开销可能使 pytest session 增加；session-scoped `pg_container` 可摊销开销，但需确认 Alembic 迁移在 function-scoped 内幂等执行的可靠性
+  - testcontainers 容器启动开销可能使 pytest session 增加；session-scoped `pg_container` 可摊销开销（每 session 只启动一次容器）
   - CI 环境 docker-in-docker 权限问题（GitHub Actions 默认支持 Docker，但需确认当前 workflow 配置）
   - `pgvector/pgvector:pg16` 镜像体积较大（~500MB），首次拉取可能超时；可配置 GitHub Actions cache 或使用 `--pull-policy=if-not-present`
+  - savepoint 隔离仅覆盖 DML；若测试自身执行 DDL（CREATE/DROP），savepoint 无法回滚，需改用 `pg_truncate` fixture
 
 - **mitigation**:
-  - AC-2b 指定事务回滚（而非 DROP/CREATE）以减少每次测试的 Alembic 启动开销
+  - **fixture lifecycle 选型理由**：PostgreSQL DDL 语句（`CREATE TABLE`、`CREATE INDEX` 等）隐式提交，无法纳入显式事务后回滚；因此 Alembic `upgrade head` 必须在 session-scoped `pg_container` 内执行一次，而非在每个 function-scoped 测试内重复执行（重复执行会因对象已存在报错，且 ROLLBACK 无法撤销已提交 DDL）。function-scoped 隔离通过 savepoint（DML 测试）或 TRUNCATE（全表重置）实现，不再依赖 Alembic 幂等性。
   - CI 超时风险：在 workflow 设置合理的 `timeout-minutes`（建议 15 分钟）
   - 若 docker-in-docker 不可用，降级方案：在 CI Job 中显式声明 `postgres` service container（GitHub Actions 原生支持，无需 testcontainers），在本地仍用 testcontainers
 
 ---
 
-### T-082: tests/ ruff 债务清理（~166 处 pre-existing 违规）
+### T-082: tests/ ruff 债务清理（BD-003 / ~166 处 pre-existing 违规）
 
-- **目标**: 消除 `tests/` 目录约 166 处 pre-existing ruff 风格违规，使 `uv run ruff check tests/` 退出码为 0，与 `src/` 一致性对齐
+- **目标**: 消除 `tests/` 目录约 166 处 pre-existing ruff 风格违规（test-report-intellisource-v1#§4 BD-003），使 `uv run ruff check tests/` 退出码为 0，与 `src/` 一致性对齐
 - **task_kind**: chore
 - **tdd_mode**: light（chore 类型按规则跳过 RED/GREEN/REFACTOR 子代理调度；implementer 主线程直接执行 `ruff --fix` + 手工处理剩余 + 全量回归验证）
 - **tdd_refactor**: skip
