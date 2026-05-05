@@ -2,7 +2,7 @@
 id: "test-report-intellisource-v1"
 doc_type: test-report
 author: qa-engineer
-status: draft
+status: approved
 deps: ["dev-plan-intellisource-v1"]
 consumers: [developer, qa-engineer, devops]
 volume: main
@@ -352,6 +352,8 @@ uv run pytest --cov=src/intellisource --cov-report=term-missing --cov-report=htm
 1. **BD-001 PostgreSQL 集成测试覆盖缺口**（MEDIUM）：pgvector 向量检索、JSONB 操作符、全文检索无法通过当前 SQLite mock 测试体系验证；生产部署时需在真实 PG 环境手工冒烟验证 `/api/v1/search`（混合检索）和 `/api/v1/clusters`（tag 过滤）接口行为。建议在 Sprint-8 前完成至少一次 PG 环境冒烟测试。
 
    **最小可执行冒烟规范**（供 devops 在 Phase 7 deployment 直接执行）：
+
+   环境变量来源：`${API_BASE}` 指向部署环境的 API 根 URL（由 `deploy-spec` 环境配置章节定义，开发环境默认 `http://localhost:8000`）；`${API_KEY}` 为部署环境签发的 API 凭证（由 `deploy-spec` 凭证管理章节提供，本地冒烟可使用 `pyproject.toml` / `.env` 中的开发密钥）。执行前须 `export API_BASE=... API_KEY=...`。
 
    前置数据要求：数据库中至少存在 1 条 cluster 记录和 1 条 content 记录；若均不存在，空库下接口也应返回 HTTP 200，此时 `total=0` / `clusters=[]` 同样视为 PASS。
 

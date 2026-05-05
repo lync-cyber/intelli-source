@@ -15,18 +15,18 @@
 - model 继承: AGENT.md 中 `model: inherit` 继承父会话模型；可用 `model: <model-id>` 覆盖
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: testing
-- 上次完成: orchestrator — sprint-7 全闭环：sprint-review approved_with_notes (SPRINT-REVIEW-s7-r1：SR-001 LOW framework parser 假阳性 / SR-002 MEDIUM SQLite-vs-PG 集成测试基础设施债务 → sprint-8 backlog / SR-003 MEDIUM implementer "production wiring 完整性"反复模式 → reflector EXP) + retrospective approved (RETRO-intellisource-v1.md，6 EXP)；用户 /start-orchestrator 选项 (2026-05-05)：6 EXP 全部 defer，直接进 Phase 6 testing
-- 下一步行动: Phase 6 testing — qa-engineer 通过 testing skill 产出 docs/test-report/test-report-intellisource-v1.md（基于现有 1862 PASSED + 22 sprint-7 集成测试，补齐 Phase 6 系统级测试策略 / 覆盖率分析 / 缺陷清单）→ reviewer doc-review 门禁 → Phase 6→7 pre_deploy Manual Review Checkpoint
-- 已完成阶段: [bootstrap, requirements, architecture, ui_design(跳过-backend-only), dev_planning, sprint-1, sprint-2, sprint-3, sprint-4, sprint-5, sprint-6, sprint-7, retrospective]
-- 当前Sprint: — (development 阶段全部 7 个 Sprint 闭合；Phase 6 testing 不分 Sprint)
+- 当前阶段: pre_deploy_checkpoint (Phase 6→7 Manual Review)
+- 上次完成: orchestrator — Phase 6 testing 闭环：test-report-intellisource-v1 approved (qa-engineer Phase 6 产出 350→394 行；reviewer r1 approved_with_notes 3 MEDIUM/3 LOW，用户 2026-05-05 选修 R-001/R-002/R-003，defer R-004/R-005/R-006；qa-engineer revision 三处闭环；reviewer r2 approved_with_notes，3 MEDIUM 全 closed + 1 LOW R-007 由 orchestrator inline 修复 §7 环境变量来源段落；最终 verdict approved)
+- 下一步行动: pre_deploy Manual Review Checkpoint（COMMON-RULES §MANUAL_REVIEW_CHECKPOINTS=pre_deploy）— 用户确认 go/no-go；通过后激活 devops 进入 Phase 7 deployment（产出 deploy-spec + Dockerfile/compose 调整 + CI/CD 配置 + smoke 验证）
+- 已完成阶段: [bootstrap, requirements, architecture, ui_design(跳过-backend-only), dev_planning, sprint-1, sprint-2, sprint-3, sprint-4, sprint-5, sprint-6, sprint-7, retrospective, testing]
+- 当前Sprint: — (development 阶段全部 7 个 Sprint 闭合；Phase 6 testing 不分 Sprint，已闭环)
 - Retrospective 状态: 已完成 (2026-05-04，RETRO-intellisource-v1.md status=approved，6 EXP 已记录，应用决策见 §Learnings Registry)
 - 文档状态:
   - prd: approved
   - arch: approved
   - ui-spec: N/A
   - dev-plan: approved
-  - test-report: 未开始
+  - test-report: approved
   - deploy-spec: 未开始
   <!-- changelog 由 devops 产出但不纳入门禁追踪 -->
 - Learnings Registry:
