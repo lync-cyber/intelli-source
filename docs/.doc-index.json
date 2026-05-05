@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-05-05T09:48:26.709397+00:00",
+  "generated_at": "2026-05-05T11:29:29.406268+00:00",
   "documents": {
     "arch-intellisource-v1-api": {
       "file_path": "docs/arch/arch-intellisource-v1-api.md",
@@ -1392,6 +1392,24 @@
         "arch-intellisource-v1"
       ]
     },
+    "feedback-bug-eventlog-session-end-20260505": {
+      "file_path": "docs/feedback/feedback-bug-eventlog-session-end-20260505.md",
+      "doc_type": "framework-feedback",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 171,
+      "est_tokens": 3830,
+      "sections": {}
+    },
+    "feedback-suggest-reflector-frontmatter-20260505": {
+      "file_path": "docs/feedback/feedback-suggest-reflector-frontmatter-20260505.md",
+      "doc_type": "framework-feedback",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 28,
+      "est_tokens": 448,
+      "sections": {}
+    },
     "prd-intellisource-v1": {
       "file_path": "docs/prd/prd-intellisource-v1.md",
       "doc_type": "prd",
@@ -2514,6 +2532,78 @@
       "sections": {},
       "deps": [
         "sprint-review-s7-r1"
+      ]
+    },
+    "skill-improve-code-review": {
+      "file_path": "docs/reviews/retro/SKILL-IMPROVE-code-review.md",
+      "doc_type": "skill-improve",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 107,
+      "est_tokens": 1359,
+      "sections": {},
+      "deps": [
+        "retro-intellisource-v1"
+      ]
+    },
+    "skill-improve-implementer": {
+      "file_path": "docs/reviews/retro/SKILL-IMPROVE-implementer.md",
+      "doc_type": "skill-improve",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 93,
+      "est_tokens": 1245,
+      "sections": {},
+      "deps": [
+        "retro-intellisource-v1"
+      ]
+    },
+    "skill-improve-orchestrator": {
+      "file_path": "docs/reviews/retro/SKILL-IMPROVE-orchestrator.md",
+      "doc_type": "skill-improve",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 68,
+      "est_tokens": 867,
+      "sections": {},
+      "deps": [
+        "retro-intellisource-v1"
+      ]
+    },
+    "skill-improve-refactorer": {
+      "file_path": "docs/reviews/retro/SKILL-IMPROVE-refactorer.md",
+      "doc_type": "skill-improve",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 50,
+      "est_tokens": 645,
+      "sections": {},
+      "deps": [
+        "retro-intellisource-v1"
+      ]
+    },
+    "skill-improve-tdd-engine": {
+      "file_path": "docs/reviews/retro/SKILL-IMPROVE-tdd-engine.md",
+      "doc_type": "skill-improve",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 83,
+      "est_tokens": 969,
+      "sections": {},
+      "deps": [
+        "retro-intellisource-v1"
+      ]
+    },
+    "skill-improve-tech-lead": {
+      "file_path": "docs/reviews/retro/SKILL-IMPROVE-tech-lead.md",
+      "doc_type": "skill-improve",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 72,
+      "est_tokens": 865,
+      "sections": {},
+      "deps": [
+        "retro-intellisource-v1"
       ]
     },
     "sprint-review-s1-r1": {
