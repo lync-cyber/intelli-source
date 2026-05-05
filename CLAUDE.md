@@ -15,17 +15,20 @@
 - model 继承: AGENT.md 中 `model: inherit` 继承父会话模型；可用 `model: <model-id>` 覆盖
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: pre_deploy_checkpoint (Phase 6→7 Manual Review)
-- 上次完成: orchestrator — Phase 6 testing 闭环：test-report-intellisource-v1 approved (qa-engineer Phase 6 产出 350→394 行；reviewer r1 approved_with_notes 3 MEDIUM/3 LOW，用户 2026-05-05 选修 R-001/R-002/R-003，defer R-004/R-005/R-006；qa-engineer revision 三处闭环；reviewer r2 approved_with_notes，3 MEDIUM 全 closed + 1 LOW R-007 由 orchestrator inline 修复 §7 环境变量来源段落；最终 verdict approved)
-- 下一步行动: pre_deploy Manual Review Checkpoint（COMMON-RULES §MANUAL_REVIEW_CHECKPOINTS=pre_deploy）— 用户确认 go/no-go；通过后激活 devops 进入 Phase 7 deployment（产出 deploy-spec + Dockerfile/compose 调整 + CI/CD 配置 + smoke 验证）
+- 当前阶段: pre_deploy_checkpoint (HOLD — sprint-7r remediation 待执行)
+- 上次完成: orchestrator — sprint-7r remediation 计划闭环：dev-plan-intellisource-v1-s7r.md status=approved (tech-lead 产出 3 张任务卡 T-080/T-081/T-082；reviewer r1 needs_revision 2 HIGH/2 MEDIUM/2 LOW，用户 2026-05-05 选本会话补 revision；tech-lead revision r1 修全部 6 项；reviewer r2 approved_with_notes，6 项 r1 全 closed + 1 LOW R-007 deliverables 与 AC-6 不一致；orchestrator inline 修复 R-007 — T-081 deliverables 第 6 条与 affected_files 改为按 AC-6 优先级表述，移除 docker-compose.test.yml 作为 CI 选项；最终 sprint-7r verdict approved)
+- 下一步行动: **下次会话接续** — orchestrator 启动 tdd-engine 编排执行 T-080 → T-081 → T-082 (依赖链线性，无环)；执行完成后回到 pre_deploy_checkpoint 重新评估 GO/NO-GO 是否进入 Phase 7 deployment
+  - T-080 (fix/light, S): runner.py DB_URL 环境变量化 (CODE-REVIEW-T-074-r2 新引入观察 + 12-factor §III Config 闭环)
+  - T-081 (feature/standard, L): testcontainers-postgres + pgvector fixture (BD-001/SR-002 闭环)；AC-2a/2b/2c 三层 fixture 结构 (session-scope migrate + function-scope savepoint + 可选 truncate)
+  - T-082 (chore/light, S): tests/ ruff 债务清理 (BD-003 闭环)；task_kind=chore 触发 CODE_REVIEW_L2_SKIP_TASK_KINDS 短路
 - 已完成阶段: [bootstrap, requirements, architecture, ui_design(跳过-backend-only), dev_planning, sprint-1, sprint-2, sprint-3, sprint-4, sprint-5, sprint-6, sprint-7, retrospective, testing]
-- 当前Sprint: — (development 阶段全部 7 个 Sprint 闭合；Phase 6 testing 不分 Sprint，已闭环)
+- 当前Sprint: sprint-7r (pre-deploy remediation, 计划 approved，待 tdd-engine 执行)
 - Retrospective 状态: 已完成 (2026-05-04，RETRO-intellisource-v1.md status=approved，6 EXP 已记录，应用决策见 §Learnings Registry)
 - 文档状态:
   - prd: approved
   - arch: approved
   - ui-spec: N/A
-  - dev-plan: approved
+  - dev-plan: approved (主卷 + s1~s7 + s7r remediation 全 approved；s8 OpenCode P2 改进保持 draft)
   - test-report: approved
   - deploy-spec: 未开始
   <!-- changelog 由 devops 产出但不纳入门禁追踪 -->

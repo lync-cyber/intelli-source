@@ -2,7 +2,7 @@
 id: dev-plan-intellisource-v1-s7r
 doc_type: dev-plan
 author: tech-lead
-status: draft
+status: approved
 deps: [arch-intellisource-v1, test-report-intellisource-v1]
 consumers: [developer, qa-engineer, devops]
 volume: s7r
@@ -99,7 +99,7 @@ split_from: dev-plan-intellisource-v1
   - [ ] `tests/integration/test_sprint7_integration.py` — 迁移到 PG fixture（22 个测试）
   - [ ] `tests/integration/test_celery_worker_wiring.py` — 迁移到 PG fixture（部分测试，按实际 DB 依赖情况）
   - [ ] `tests/integration/test_pg_vector_search.py`（新建）— pgvector 向量检索 + JSONB 操作符专项集成测试（≥2 个测试用例，覆盖 AC-4 / AC-5）
-  - [ ] `.github/workflows/ci.yml`（或已有 workflow）— docker 环境配置确认；或 `docker-compose.test.yml`（新建）
+  - [ ] `.github/workflows/ci.yml`（或已有 workflow）— 按 AC-6 优先级配置：首选确认 ubuntu-latest runner 内置 Docker daemon 可用以驱动 testcontainers；若不可用则降级改用 GitHub Actions 原生 `services: postgres` 容器并在 README 标注
 
 - **affected_files**:
   - `pyproject.toml`
@@ -107,7 +107,7 @@ split_from: dev-plan-intellisource-v1
   - `tests/integration/test_sprint7_integration.py`
   - `tests/integration/test_celery_worker_wiring.py`
   - `tests/integration/test_pg_vector_search.py`（新建）
-  - `.github/workflows/ci.yml` 或 `docker-compose.test.yml`
+  - `.github/workflows/ci.yml`（按 AC-6 首选/降级方案任选其一）
 
 - **context_load**:
   - `arch-intellisource-v1#§2.M-009`（存储层、pgvector 配置）
