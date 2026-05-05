@@ -22,7 +22,7 @@ required_sections:
 
 [NAV]
 - §1 测试策略 → §1.1 金字塔分层, §1.2 IPC边界
-- §2 测试用例矩阵 → TC-001..TC-073 与 AC 映射
+- §2 测试用例矩阵 → TC-001..TC-071 与 AC 映射
 - §3 覆盖率目标 → 按模块行覆盖率（实测值）
 - §4 测试环境
 - §5 测试执行结果 → §5.1 执行汇总, §5.2 耗时分布
@@ -184,6 +184,19 @@ required_sections:
 
 **实测总体行覆盖率: 96%**（1862 PASSED，pytest-cov 实测，2026-05-05）
 
+**覆盖率测量命令**（可复现）：
+
+```bash
+uv run pytest --cov=src/intellisource --cov-report=term-missing --cov-report=html
+```
+
+- `--cov=src/intellisource`：覆盖范围限定为项目源码包（对应 `src/intellisource/`）
+- `--cov-report=term-missing`：终端输出各模块覆盖率及未覆盖行号
+- `--cov-report=html`：HTML 详细报告输出至 `htmlcov/index.html`（在浏览器中打开可查看逐行覆盖情况）
+- 数据生成时间：2026-05-05（sprint-7 关闭后代码快照）
+
+注：`pyproject.toml` 中 `addopts` 默认不含 `--cov`，需显式附加上述参数运行；`htmlcov/` 目录已加入 `.gitignore`，不随源码提交。
+
 ### 按模块行覆盖率（实测）
 
 | 模块 | 行数 | 未覆盖 | 覆盖率 | 未覆盖说明 |
@@ -337,6 +350,36 @@ required_sections:
 
 **已知残留风险（conditional 条件）**：
 1. **BD-001 PostgreSQL 集成测试覆盖缺口**（MEDIUM）：pgvector 向量检索、JSONB 操作符、全文检索无法通过当前 SQLite mock 测试体系验证；生产部署时需在真实 PG 环境手工冒烟验证 `/api/v1/search`（混合检索）和 `/api/v1/clusters`（tag 过滤）接口行为。建议在 Sprint-8 前完成至少一次 PG 环境冒烟测试。
+
+   **最小可执行冒烟规范**（供 devops 在 Phase 7 deployment 直接执行）：
+
+   前置数据要求：数据库中至少存在 1 条 cluster 记录和 1 条 content 记录；若均不存在，空库下接口也应返回 HTTP 200，此时 `total=0` / `clusters=[]` 同样视为 PASS。
+
+   ```bash
+   # 冒烟用例 1：混合检索接口
+   curl -s -w "\n%{http_code}" \
+     -H "X-API-Key: ${API_KEY}" \
+     "${API_BASE}/api/v1/search?q=test&limit=10"
+   ```
+
+   pass 标准（用例 1）：
+   - HTTP 状态码为 `200`
+   - 响应体为合法 JSON，包含顶层字段 `items`（数组，可为空）和 `total`（整数 `>= 0`）
+   - 示例最小契约：`{"items": [...], "total": 0}` 或 `{"items": [...], "total": N}`（N >= 0）
+
+   ```bash
+   # 冒烟用例 2：clusters 列表接口
+   curl -s -w "\n%{http_code}" \
+     -H "X-API-Key: ${API_KEY}" \
+     "${API_BASE}/api/v1/clusters"
+   ```
+
+   pass 标准（用例 2）：
+   - HTTP 状态码为 `200`
+   - 响应体为合法 JSON，包含顶层字段 `clusters`（数组，可为空）
+   - 示例最小契约：`{"clusters": [...]}` 或 `{"clusters": []}`
+
+   判定规则：两个用例均满足 pass 标准 → 冒烟通过，条件 1 满足；任一断言失败（非 200 / 缺少必需字段 / 响应非 JSON）→ 冒烟 FAIL，conditional-go 不满足，需在进入 Phase 7 前修复。
 2. **DEF-001~DEF-005 五个 LOW 残留**：全部为 test-quality 改进点或 best-effort 路径，不影响产品功能正确性，不阻塞发布。
 
 **优先级建议（Sprint-8 前处理）**：
