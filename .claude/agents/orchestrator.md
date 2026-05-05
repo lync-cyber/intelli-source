@@ -8,6 +8,7 @@ skills:
   - doc-nav
   - tdd-engine
   - change-guard
+  - framework-feedback
 ---
 
 # Role: 主编排智能体 (Orchestrator)

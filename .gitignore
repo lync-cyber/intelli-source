@@ -18,5 +18,6 @@ venv/
 htmlcov/
 coverage.xml
 .claude/backup-*/
+.cataforge/.backups/
 *.egg-info/
 __pycache__/
