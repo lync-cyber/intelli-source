@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-05-05T01:53:29.104152+00:00",
+  "generated_at": "2026-05-05T09:48:26.709397+00:00",
   "documents": {
     "arch-intellisource-v1-api": {
       "file_path": "docs/arch/arch-intellisource-v1-api.md",
@@ -1077,15 +1077,15 @@
       "doc_type": "dev-plan",
       "volume": "s7",
       "status": "approved",
-      "total_lines": 353,
-      "est_tokens": 7139,
+      "total_lines": 354,
+      "est_tokens": 7406,
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
           "level": 2,
           "line_start": 37,
-          "line_end": 353,
-          "est_tokens": 6769,
+          "line_end": 354,
+          "est_tokens": 7046,
           "deps": [],
           "items": {
             "T-057": {
@@ -1134,7 +1134,7 @@
               "heading": "### T-063: Sprint 7 集成测试与回归",
               "line_start": 209,
               "line_end": 233,
-              "est_tokens": 312,
+              "est_tokens": 498,
               "deps": []
             },
             "T-072": {
@@ -1161,8 +1161,8 @@
             "T-075": {
               "heading": "### T-075: Celery worker wiring + runner._persist 参数化",
               "line_start": 328,
-              "line_end": 353,
-              "est_tokens": 765,
+              "line_end": 354,
+              "est_tokens": 856,
               "deps": []
             }
           }
@@ -1171,6 +1171,52 @@
       "split_from": "dev-plan-intellisource-v1",
       "deps": [
         "arch-intellisource-v1"
+      ]
+    },
+    "dev-plan-intellisource-v1-s7r": {
+      "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7r.md",
+      "doc_type": "dev-plan",
+      "volume": "s7r",
+      "status": "approved",
+      "total_lines": 167,
+      "est_tokens": 3220,
+      "sections": {
+        "3": {
+          "heading": "## 3. 任务卡详细",
+          "level": 2,
+          "line_start": 25,
+          "line_end": 167,
+          "est_tokens": 2941,
+          "deps": [],
+          "items": {
+            "T-080": {
+              "heading": "### T-080: runner.py DB_URL 环境变量化（12-factor §III Config）",
+              "line_start": 27,
+              "line_end": 71,
+              "est_tokens": 733,
+              "deps": []
+            },
+            "T-081": {
+              "heading": "### T-081: testcontainers-postgres fixture（BD-001 / SR-002 闭环）",
+              "line_start": 72,
+              "line_end": 130,
+              "est_tokens": 1642,
+              "deps": []
+            },
+            "T-082": {
+              "heading": "### T-082: tests/ ruff 债务清理（BD-003 / ~166 处 pre-existing 违规）",
+              "line_start": 131,
+              "line_end": 167,
+              "est_tokens": 560,
+              "deps": []
+            }
+          }
+        }
+      },
+      "split_from": "dev-plan-intellisource-v1",
+      "deps": [
+        "arch-intellisource-v1",
+        "test-report-intellisource-v1"
       ]
     },
     "dev-plan-intellisource-v1-s8": {
@@ -1852,8 +1898,8 @@
       "doc_type": "correction-log",
       "volume": "main",
       "status": "approved",
-      "total_lines": 38,
-      "est_tokens": 556,
+      "total_lines": 52,
+      "est_tokens": 737,
       "sections": {}
     },
     "code-review-T-057-r1": {
@@ -2008,6 +2054,18 @@
         "T-062"
       ]
     },
+    "code-review-t-063-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-063-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 78,
+      "est_tokens": 1707,
+      "sections": {},
+      "deps": [
+        "T-063"
+      ]
+    },
     "code-review-T-072-r1": {
       "file_path": "docs/reviews/code/CODE-REVIEW-T-072-r1.md",
       "doc_type": "code-review",
@@ -2102,6 +2160,30 @@
       "sections": {},
       "deps": [
         "T-074"
+      ]
+    },
+    "code-review-t-075-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-075-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 98,
+      "est_tokens": 1999,
+      "sections": {},
+      "deps": [
+        "T-075"
+      ]
+    },
+    "code-review-t-075-r2": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-075-r2.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 80,
+      "est_tokens": 1173,
+      "sections": {},
+      "deps": [
+        "T-075"
       ]
     },
     "code-review-deliverable-compliance-r1": {
@@ -2350,6 +2432,30 @@
         "dev-plan-intellisource-v1-s7"
       ]
     },
+    "review-dev-plan-intellisource-v1-s7r-r1": {
+      "file_path": "docs/reviews/doc/REVIEW-dev-plan-intellisource-v1-s7r-r1.md",
+      "doc_type": "review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 115,
+      "est_tokens": 2103,
+      "sections": {},
+      "deps": [
+        "dev-plan-intellisource-v1-s7r"
+      ]
+    },
+    "review-dev-plan-intellisource-v1-s7r-r2": {
+      "file_path": "docs/reviews/doc/REVIEW-dev-plan-intellisource-v1-s7r-r2.md",
+      "doc_type": "review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 160,
+      "est_tokens": 2128,
+      "sections": {},
+      "deps": [
+        "dev-plan-intellisource-v1-s7r"
+      ]
+    },
     "review-prd-intellisource-v1-r1": {
       "file_path": "docs/reviews/doc/REVIEW-prd-intellisource-v1-r1.md",
       "doc_type": "review",
@@ -2372,6 +2478,42 @@
       "sections": {},
       "deps": [
         "prd-intellisource-v1"
+      ]
+    },
+    "review-test-report-intellisource-v1-r1": {
+      "file_path": "docs/reviews/doc/REVIEW-test-report-intellisource-v1-r1.md",
+      "doc_type": "review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 165,
+      "est_tokens": 2468,
+      "sections": {},
+      "deps": [
+        "test-report-intellisource-v1"
+      ]
+    },
+    "review-test-report-intellisource-v1-r2": {
+      "file_path": "docs/reviews/doc/REVIEW-test-report-intellisource-v1-r2.md",
+      "doc_type": "review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 204,
+      "est_tokens": 2001,
+      "sections": {},
+      "deps": [
+        "test-report-intellisource-v1"
+      ]
+    },
+    "retro-intellisource-v1": {
+      "file_path": "docs/reviews/retro/RETRO-intellisource-v1.md",
+      "doc_type": "retrospective",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 223,
+      "est_tokens": 4110,
+      "sections": {},
+      "deps": [
+        "sprint-review-s7-r1"
       ]
     },
     "sprint-review-s1-r1": {
@@ -2473,50 +2615,144 @@
       "est_tokens": 2028,
       "sections": {}
     },
-    "dev-plan-intellisource-v1-s7r": {
-      "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7r.md",
-      "doc_type": "dev-plan",
-      "volume": "s7r",
-      "status": "draft",
-      "total_lines": 167,
-      "est_tokens": 3800,
+    "sprint-review-s7-r1": {
+      "file_path": "docs/reviews/sprint/SPRINT-REVIEW-s7-r1.md",
+      "doc_type": "sprint-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 149,
+      "est_tokens": 2501,
+      "sections": {},
+      "deps": [
+        "dev-plan-intellisource-v1-s7"
+      ]
+    },
+    "test-report-intellisource-v1": {
+      "file_path": "docs/test-report/test-report-intellisource-v1.md",
+      "doc_type": "test-report",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 395,
+      "est_tokens": 6937,
       "sections": {
-        "3": {
-          "heading": "## 3. 任务卡详细",
+        "1": {
+          "heading": "## 1. 测试策略",
           "level": 2,
-          "line_start": 25,
-          "line_end": 167,
-          "est_tokens": 3600,
+          "line_start": 33,
+          "line_end": 61,
+          "est_tokens": 505,
           "deps": [],
           "items": {
-            "T-080": {
-              "heading": "### T-080: runner.py DB_URL 环境变量化（12-factor §III Config）",
-              "line_start": 27,
-              "line_end": 70,
-              "est_tokens": 800,
+            "1.1": {
+              "heading": "### 1.1 测试金字塔",
+              "line_start": 35,
+              "line_end": 50,
+              "est_tokens": 305,
               "deps": []
             },
-            "T-081": {
-              "heading": "### T-081: testcontainers-postgres fixture（BD-001 / SR-002 闭环）",
-              "line_start": 72,
-              "line_end": 129,
-              "est_tokens": 2200,
-              "deps": []
-            },
-            "T-082": {
-              "heading": "### T-082: tests/ ruff 债务清理（BD-003 / ~166 处 pre-existing 违规）",
-              "line_start": 131,
-              "line_end": 167,
-              "est_tokens": 700,
+            "1.2": {
+              "heading": "### 1.2 IPC 边界测试",
+              "line_start": 51,
+              "line_end": 61,
+              "est_tokens": 195,
               "deps": []
             }
           }
+        },
+        "2": {
+          "heading": "## 2. 测试用例矩阵",
+          "level": 2,
+          "line_start": 62,
+          "line_end": 182,
+          "est_tokens": 2779,
+          "deps": [],
+          "items": {}
+        },
+        "3": {
+          "heading": "## 3. 覆盖率目标",
+          "level": 2,
+          "line_start": 183,
+          "line_end": 237,
+          "est_tokens": 975,
+          "deps": [],
+          "items": {}
+        },
+        "4": {
+          "heading": "## 4. 测试环境",
+          "level": 2,
+          "line_start": 238,
+          "line_end": 258,
+          "est_tokens": 212,
+          "deps": [],
+          "items": {}
+        },
+        "5": {
+          "heading": "## 5. 测试执行结果",
+          "level": 2,
+          "line_start": 259,
+          "line_end": 294,
+          "est_tokens": 526,
+          "deps": [],
+          "items": {
+            "5.1": {
+              "heading": "### 5.1 执行汇总",
+              "line_start": 271,
+              "line_end": 277,
+              "est_tokens": 62,
+              "deps": []
+            },
+            "5.2": {
+              "heading": "### 5.2 耗时分布（Top 10 最慢用例）",
+              "line_start": 278,
+              "line_end": 294,
+              "est_tokens": 239,
+              "deps": []
+            }
+          }
+        },
+        "6": {
+          "heading": "## 6. 缺陷清单",
+          "level": 2,
+          "line_start": 295,
+          "line_end": 326,
+          "est_tokens": 868,
+          "deps": [],
+          "items": {
+            "6.1": {
+              "heading": "### 6.1 残留 LOW 缺陷（来自 CODE-REVIEW 报告，已知非阻塞）",
+              "line_start": 297,
+              "line_end": 307,
+              "est_tokens": 393,
+              "deps": []
+            },
+            "6.2": {
+              "heading": "### 6.2 测试基础设施债务（非代码缺陷）",
+              "line_start": 308,
+              "line_end": 315,
+              "est_tokens": 246,
+              "deps": []
+            },
+            "6.3": {
+              "heading": "### 6.3 覆盖率盲区（观察项，非 bug）",
+              "line_start": 316,
+              "line_end": 326,
+              "est_tokens": 223,
+              "deps": []
+            }
+          }
+        },
+        "7": {
+          "heading": "## 7. 结论与建议",
+          "level": 2,
+          "line_start": 327,
+          "line_end": 395,
+          "est_tokens": 836,
+          "deps": [],
+          "items": {}
         }
       },
-      "split_from": "dev-plan-intellisource-v1",
       "deps": [
-        "arch-intellisource-v1",
-        "test-report-intellisource-v1"
+        "dev-plan-intellisource-v1"
       ]
     }
   },
@@ -3338,6 +3574,27 @@
         "doc_id": "dev-plan-intellisource-v1-s8",
         "section": "3",
         "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8.md"
+      }
+    ],
+    "T-080": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s7r",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7r.md"
+      }
+    ],
+    "T-081": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s7r",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7r.md"
+      }
+    ],
+    "T-082": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s7r",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7r.md"
       }
     ],
     "T-064": [

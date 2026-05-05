@@ -104,7 +104,20 @@
       "Bash(sed 's/.*\\\\\\(`[^`]*`\\\\\\).*/\\\\1/g')",
       "Bash(awk '/^\\\\- \\\\*\\\\*deliverables\\\\*\\\\*/{flag=1; next} /^\\\\- \\\\*\\\\*/{flag=0} flag && /\\\\`.*\\\\`/{print}' \"/c/Users/hlin/LocalWork/GitRepo/intelli-source/docs/dev-plan/dev-plan-intellisource-v1-s3.md\")",
       "Bash(awk '/^\\\\- \\\\*\\\\*deliverables\\\\*\\\\*/{flag=1; next} /^\\\\- \\\\*\\\\*/{flag=0} flag && /\\\\`.*\\\\`/{print}' \"/c/Users/hlin/LocalWork/GitRepo/intelli-source/docs/dev-plan/dev-plan-intellisource-v1-s4.md\")",
-      "Bash(awk '/^\\\\- \\\\*\\\\*deliverables\\\\*\\\\*/{flag=1; next} /^\\\\- \\\\*\\\\*/{flag=0} flag && /\\\\`.*\\\\`/{print}' \"/c/Users/hlin/LocalWork/GitRepo/intelli-source/docs/dev-plan/dev-plan-intellisource-v1-s5.md\")"
+      "Bash(awk '/^\\\\- \\\\*\\\\*deliverables\\\\*\\\\*/{flag=1; next} /^\\\\- \\\\*\\\\*/{flag=0} flag && /\\\\`.*\\\\`/{print}' \"/c/Users/hlin/LocalWork/GitRepo/intelli-source/docs/dev-plan/dev-plan-intellisource-v1-s5.md\")",
+      "Bash(cataforge setup *)",
+      "Bash(python -m cataforge --version)",
+      "Bash(python -c \"import cataforge; print\\(cataforge.__file__\\)\")",
+      "Bash(pip show *)",
+      "Bash(where.exe cataforge *)",
+      "Bash(where.exe uv *)",
+      "Bash(powershell.exe -Command \"Get-Command cataforge -ErrorAction SilentlyContinue | Select-Object Source\")",
+      "Bash(python .cataforge/scripts/framework/setup.py --emit-env-block)",
+      "Bash(cataforge docs *)",
+      "Bash(where cataforge *)",
+      "Bash(docker --version)",
+      "Bash(docker info *)",
+      "Bash(awk '{print $2}')"
     ]
   }
 }
