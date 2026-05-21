@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import uuid
 from typing import Any
@@ -105,9 +106,14 @@ class SubscriptionMatcher:
                     if regex_lib.search(value, text, timeout=1.0):
                         has_match = True
                 except TimeoutError:
+                    pattern_hash = hashlib.sha256(value.encode("utf-8")).hexdigest()[
+                        :12
+                    ]
                     _logger.warning(
-                        "regex.search timeout for pattern %r — treating as no-match",
-                        value,
+                        "regex.search timeout for pattern (sha256=%s, len=%d)"
+                        " — treating as no-match",
+                        pattern_hash,
+                        len(value),
                     )
             else:
                 if value.lower() in text_lower:
