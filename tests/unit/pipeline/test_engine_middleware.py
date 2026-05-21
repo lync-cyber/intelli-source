@@ -589,7 +589,9 @@ class TestCtxErrorsSchemaConsistency:
 
     def test_execute_errors_are_list_of_dicts(self) -> None:
         """execute() fail_fast=False: ctx["errors"] entries are dicts with processor+error keys."""
-        engine = PipelineEngine(processors=[_RaisingProcessor("p", "oops")], fail_fast=False)
+        engine = PipelineEngine(
+            processors=[_RaisingProcessor("p", "oops")], fail_fast=False
+        )
         ctx = PipelineContext()
         result = engine.execute(ctx)
         errors = result.get("errors")
@@ -603,7 +605,9 @@ class TestCtxErrorsSchemaConsistency:
 
     async def test_execute_stream_errors_are_list_of_dicts(self) -> None:
         """execute_stream() fail_fast=False: ctx["errors"] entries are dicts with processor+error keys."""
-        engine = PipelineEngine(processors=[_RaisingProcessor("p", "oops")], fail_fast=False)
+        engine = PipelineEngine(
+            processors=[_RaisingProcessor("p", "oops")], fail_fast=False
+        )
         ctx = PipelineContext()
         yielded: list[PipelineContext] = []
         async for intermediate_ctx in engine.execute_stream(ctx):
@@ -620,7 +624,10 @@ class TestCtxErrorsSchemaConsistency:
     def test_execute_multiple_errors_all_dicts(self) -> None:
         """execute() with 2 failing processors: both errors use dict schema."""
         engine = PipelineEngine(
-            processors=[_RaisingProcessor("p1", "err1"), _RaisingProcessor("p2", "err2")],
+            processors=[
+                _RaisingProcessor("p1", "err1"),
+                _RaisingProcessor("p2", "err2"),
+            ],
             fail_fast=False,
         )
         ctx = PipelineContext()

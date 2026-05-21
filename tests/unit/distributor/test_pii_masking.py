@@ -5,9 +5,6 @@ Covers AC-8 of T-090.
 
 from __future__ import annotations
 
-import pytest
-
-
 # ---------------------------------------------------------------------------
 # AC-8: mask_email and mask_phone pure functions
 # ---------------------------------------------------------------------------

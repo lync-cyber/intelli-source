@@ -220,3 +220,5 @@
 {"ts": "2026-05-21T13:25:26.317552+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD GREEN: T-091 (wave 2)"}
 {"ts": "2026-05-21T13:31:31.053518+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD REFACTOR: T-090 (self-report duplication across 3 channel send blocks)"}
 {"ts": "2026-05-21T13:34:31.195120+00:00", "event": "review_verdict", "phase": "development", "detail": "T-084 r3 — all r2 net-new (1 MEDIUM + 2 LOW) RESOLVED, no further regression; T-084 closed", "agent": "reviewer", "status": "approved"}
+{"ts": "2026-05-21T13:44:13.755216+00:00", "event": "review_verdict", "phase": "development", "detail": "T-091 r1 — 1 HIGH R-001 (ConfigValidator no-op security gate) + 4 MEDIUM (loader stub, path traversal, callback rename, None session) + 2 LOW", "agent": "reviewer", "status": "needs_revision"}
+{"ts": "2026-05-21T13:44:13.793352+00:00", "event": "revision_start", "phase": "development", "detail": "T-091 r2 — fix R-001 HIGH + 4 MEDIUM + 2 LOW per code-review report", "agent": "implementer"}
