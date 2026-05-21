@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import configparser
 import os
 from logging.config import fileConfig
 
@@ -13,9 +14,14 @@ from intellisource.storage.models import Base
 # Alembic Config object
 config = context.config
 
-# Interpret the config file for Python logging
+# Apply file-based logging only when the .ini carries logging sections.
+# The project's alembic.ini ships with just [alembic]; calling fileConfig on it
+# would raise KeyError: 'formatters'.
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    _parser = configparser.ConfigParser()
+    _parser.read(config.config_file_name)
+    if _parser.has_section("loggers") and _parser.has_section("formatters"):
+        fileConfig(config.config_file_name)
 
 # Set target_metadata to Base.metadata for autogenerate support
 target_metadata = Base.metadata
