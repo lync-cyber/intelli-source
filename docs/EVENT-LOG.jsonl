@@ -192,3 +192,5 @@
 {"ts": "2026-05-21T12:19:13.282642+00:00", "event": "review_verdict", "phase": "development", "detail": "T-083 r2 — R-001 HIGH resolved; net-new R-007 MEDIUM (datetime non-serializable in JSONResponse)", "agent": "reviewer", "status": "approved_with_notes"}
 {"ts": "2026-05-21T12:19:13.311809+00:00", "event": "user_decision", "phase": "development", "detail": "T-083 r2 approved_with_notes — user chose: 修复 R-007"}
 {"ts": "2026-05-21T12:19:13.337169+00:00", "event": "revision_start", "phase": "development", "detail": "T-083 r3 — fix R-007 (datetime JSON serialization in /tasks/collect response)", "agent": "implementer"}
+{"ts": "2026-05-21T12:24:03.231658+00:00", "event": "review_verdict", "phase": "development", "detail": "T-083 r3 — R-007 resolved, no net-new findings, batch 1 closed", "agent": "reviewer", "status": "approved"}
+{"ts": "2026-05-21T12:24:03.258734+00:00", "event": "state_change", "phase": "development", "detail": "sprint-8r batch 1 (T-083 + T-093) closed: all approved; entering batch 2 (T-084/085/086/090/091)"}
