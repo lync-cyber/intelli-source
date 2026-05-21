@@ -5,7 +5,8 @@ Covers:
   AC-2: chat() method exists and does not raise AttributeError
   AC-3: keyword_weight / vector_weight are forwarded to HybridIndex.search()
   AC-4: search() with mock HybridIndex returns a non-empty result list
-  AC-5: chat() with mock HybridIndex/LLMGateway returns dict with 'reply' key
+  AC-5: chat() returns API-013 ChatResponse shape
+        (session_id, answer, sources, query_time_ms)
 """
 
 from __future__ import annotations
@@ -149,9 +150,7 @@ class TestChatMethodExists:
         session = _make_session_mock()
         engine = HybridSearchEngine(session=session)
 
-        assert hasattr(engine, "chat"), (
-            "HybridSearchEngine must expose a chat() method"
-        )
+        assert hasattr(engine, "chat"), "HybridSearchEngine must expose a chat() method"
         assert callable(engine.chat)
 
     async def test_chat_method_accepts_messages_list(self) -> None:
@@ -291,9 +290,11 @@ class TestFusionWeightForwarding:
 
         # Instance weights must be forwarded even without per-call override
         _, kwargs = index_mock.search.call_args
-        assert "keyword_weight" in kwargs or "vector_weight" in kwargs, (
-            "Instance-level weights must be forwarded to HybridIndex.search()"
+        assert "keyword_weight" in kwargs and "vector_weight" in kwargs, (
+            "Both instance-level weights must be forwarded to HybridIndex.search()"
         )
+        assert kwargs["keyword_weight"] == pytest.approx(0.3)
+        assert kwargs["vector_weight"] == pytest.approx(0.7)
 
 
 # ===========================================================================
@@ -403,15 +404,15 @@ class TestSearchReturnsResults:
 
 
 # ===========================================================================
-# AC-5: chat() returns dict with 'reply' key
+# AC-5: chat() returns API-013 ChatResponse shape
 # ===========================================================================
 
 
 class TestChatReturnsReply:
-    """AC-5: chat() must return a dict containing a 'reply' key."""
+    """AC-5: chat() must return API-013 ChatResponse shape."""
 
-    async def test_chat_returns_dict_with_reply_key(self) -> None:
-        """chat([{role, content}]) must return a dict containing 'reply'."""
+    async def test_chat_returns_dict_with_answer_key(self) -> None:
+        """chat([{role, content}]) must return a dict containing 'answer'."""
         from intellisource.search.hybrid import HybridSearchEngine
 
         session = _make_session_mock()
@@ -421,15 +422,11 @@ class TestChatReturnsReply:
             messages=[{"role": "user", "content": "What is machine learning?"}]
         )
 
-        assert isinstance(result, dict), (
-            "chat() must return a dict"
-        )
-        assert "reply" in result, (
-            "chat() return value must contain a 'reply' key"
-        )
+        assert isinstance(result, dict), "chat() must return a dict"
+        assert "answer" in result, "chat() return value must contain an 'answer' key"
 
-    async def test_chat_reply_is_non_none(self) -> None:
-        """chat() must return a dict where result['reply'] is not None."""
+    async def test_chat_answer_echoes_last_user_content(self) -> None:
+        """chat() answer must echo the last user message content."""
         from intellisource.search.hybrid import HybridSearchEngine
 
         session = _make_session_mock()
@@ -439,12 +436,24 @@ class TestChatReturnsReply:
             messages=[{"role": "user", "content": "Explain neural networks"}]
         )
 
-        assert result.get("reply") is not None, (
-            "chat() reply value must not be None"
+        assert result.get("answer") == "Explain neural networks"
+
+    async def test_chat_response_has_session_id(self) -> None:
+        """chat() must return a dict with 'session_id' key."""
+        from intellisource.search.hybrid import HybridSearchEngine
+
+        session = _make_session_mock()
+        engine = HybridSearchEngine(session=session)
+
+        result = await engine.chat(
+            messages=[{"role": "user", "content": "hi"}],
         )
 
-    async def test_chat_with_session_id_returns_dict_with_reply(self) -> None:
-        """chat() with session_id must still return dict with 'reply' key."""
+        assert "session_id" in result
+        assert result["session_id"] is not None
+
+    async def test_chat_uses_provided_session_id(self) -> None:
+        """chat() with session_id must echo it back in the response."""
         from intellisource.search.hybrid import HybridSearchEngine
 
         session = _make_session_mock()
@@ -456,7 +465,34 @@ class TestChatReturnsReply:
         )
 
         assert isinstance(result, dict)
-        assert "reply" in result
+        assert result["session_id"] == "session-abc-123"
+
+    async def test_chat_response_has_empty_sources(self) -> None:
+        """chat() stub must return sources=[]."""
+        from intellisource.search.hybrid import HybridSearchEngine
+
+        session = _make_session_mock()
+        engine = HybridSearchEngine(session=session)
+
+        result = await engine.chat(messages=[{"role": "user", "content": "hello"}])
+
+        assert "sources" in result
+        assert result["sources"] == []
+
+    async def test_chat_response_has_query_time_ms(self) -> None:
+        """chat() must return query_time_ms >= 0."""
+        from intellisource.search.hybrid import HybridSearchEngine
+
+        session = _make_session_mock()
+        engine = HybridSearchEngine(session=session)
+
+        result = await engine.chat(
+            messages=[{"role": "user", "content": "timing test"}]
+        )
+
+        assert "query_time_ms" in result
+        assert isinstance(result["query_time_ms"], int)
+        assert result["query_time_ms"] >= 0
 
     async def test_chat_does_not_raise_attribute_error(self) -> None:
         """chat() must not raise AttributeError (method must exist)."""
@@ -466,8 +502,18 @@ class TestChatReturnsReply:
         engine = HybridSearchEngine(session=session)
 
         try:
-            await engine.chat(
-                messages=[{"role": "user", "content": "hello world"}]
-            )
+            await engine.chat(messages=[{"role": "user", "content": "hello world"}])
         except AttributeError as exc:
             pytest.fail(f"chat() raised AttributeError (method missing): {exc}")
+
+    async def test_chat_raises_value_error_on_empty_messages(self) -> None:
+        """chat(messages=[]) must raise ValueError."""
+        from intellisource.search.hybrid import HybridSearchEngine
+
+        session = _make_session_mock()
+        engine = HybridSearchEngine(session=session)
+
+        with pytest.raises(
+            ValueError, match="messages must contain at least one entry"
+        ):
+            await engine.chat(messages=[])

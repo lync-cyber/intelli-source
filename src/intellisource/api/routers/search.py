@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -51,7 +52,7 @@ async def search(
     engine: Any = HybridSearchEngine(session)
     result: dict[str, Any] = await engine.search(
         query=body.query,
-        search_mode=body.search_mode,
+        mode=body.search_mode,
         tags=body.tags,
         date_from=body.date_from,
         date_to=body.date_to,
@@ -64,10 +65,13 @@ async def search(
 async def chat_search(
     body: ChatRequest,
     session: AsyncSession = Depends(get_db_session),
-) -> dict[str, Any]:
+) -> Any:
     engine: Any = HybridSearchEngine(session)
-    result: dict[str, Any] = await engine.chat(
-        messages=[{"role": "user", "content": body.message}],
-        session_id=body.session_id,
-    )
+    try:
+        result: dict[str, Any] = await engine.chat(
+            messages=[{"role": "user", "content": body.message}],
+            session_id=body.session_id,
+        )
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"detail": str(exc)})
     return result
