@@ -10,10 +10,9 @@ Covers T-087 AC-4:
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Helper: build a minimal ToolDeps mock matching the shared design contract.
@@ -47,8 +46,10 @@ class TestLLMCompleteExecuteCallsGateway:
     @pytest.mark.asyncio
     async def test_llm_complete_calls_gateway_complete(self) -> None:
         """_llm_complete_execute must call gateway.complete() once."""
-        from intellisource.agent.tools import _llm_complete_execute  # type: ignore[import]
-        from intellisource.llm.gateway import LLMResult
+        from intellisource.agent.tools import (
+            _llm_complete_execute,  # type: ignore[import]
+        )
+        from intellisource.llm.gateway import LLMResult  # type: ignore[import]
 
         mock_gateway = AsyncMock()
         mock_gateway.complete = AsyncMock(
@@ -60,13 +61,12 @@ class TestLLMCompleteExecuteCallsGateway:
 
         deps = _make_tool_deps(mock_gateway)
 
-        result = await _llm_complete_execute(
+        await _llm_complete_execute(
             call_type="summarize",
             prompt_vars={"text": "some content"},
             tool_deps=deps,
         )
 
-        # Either complete or chat must have been called (not both)
         total_calls = mock_gateway.complete.call_count + mock_gateway.chat.call_count
         assert total_calls >= 1, (
             "_llm_complete_execute must call LLMGateway.complete() or .chat() "
@@ -76,8 +76,10 @@ class TestLLMCompleteExecuteCallsGateway:
     @pytest.mark.asyncio
     async def test_llm_complete_calls_gateway_exactly_once(self) -> None:
         """_llm_complete_execute must call the gateway exactly once per invocation."""
-        from intellisource.agent.tools import _llm_complete_execute  # type: ignore[import]
-        from intellisource.llm.gateway import LLMResult
+        from intellisource.agent.tools import (
+            _llm_complete_execute,  # type: ignore[import]
+        )
+        from intellisource.llm.gateway import LLMResult  # type: ignore[import]
 
         mock_gateway = AsyncMock()
         mock_gateway.complete = AsyncMock(
@@ -103,8 +105,10 @@ class TestLLMCompleteExecuteCallsGateway:
     @pytest.mark.asyncio
     async def test_llm_complete_result_not_placeholder(self) -> None:
         """Result must not be the old placeholder {status: ok, tool: llm_complete}."""
-        from intellisource.agent.tools import _llm_complete_execute  # type: ignore[import]
-        from intellisource.llm.gateway import LLMResult
+        from intellisource.agent.tools import (
+            _llm_complete_execute,  # type: ignore[import]
+        )
+        from intellisource.llm.gateway import LLMResult  # type: ignore[import]
 
         mock_gateway = AsyncMock()
         mock_gateway.complete = AsyncMock(
@@ -122,7 +126,6 @@ class TestLLMCompleteExecuteCallsGateway:
             tool_deps=deps,
         )
 
-        # Old placeholder has status=="ok" and tool=="llm_complete" and nothing else
         is_old_placeholder = (
             isinstance(result, dict)
             and result.get("status") == "ok"
@@ -137,8 +140,10 @@ class TestLLMCompleteExecuteCallsGateway:
     @pytest.mark.asyncio
     async def test_llm_complete_gateway_receives_prompt_vars(self) -> None:
         """The LLMGateway call must include content derived from prompt_vars."""
-        from intellisource.agent.tools import _llm_complete_execute  # type: ignore[import]
-        from intellisource.llm.gateway import LLMResult
+        from intellisource.agent.tools import (
+            _llm_complete_execute,  # type: ignore[import]
+        )
+        from intellisource.llm.gateway import LLMResult  # type: ignore[import]
 
         mock_gateway = AsyncMock()
         mock_gateway.complete = AsyncMock(
@@ -157,13 +162,11 @@ class TestLLMCompleteExecuteCallsGateway:
             tool_deps=deps,
         )
 
-        # At least one call to complete or chat must have occurred
         total_calls = mock_gateway.complete.call_count + mock_gateway.chat.call_count
         assert total_calls >= 1, (
             "Expected LLMGateway to be called with prompt_vars content"
         )
 
-        # Verify that the call args contain something from prompt_vars
         if mock_gateway.complete.call_count > 0:
             call_args = mock_gateway.complete.call_args
             all_args_str = str(call_args)
@@ -187,7 +190,7 @@ class TestToolDepsContract:
 
     def test_tool_deps_importable(self) -> None:
         """ToolDeps must be importable from intellisource.agent.deps."""
-        from intellisource.agent.deps import ToolDeps  # type: ignore[import]  # noqa: F401
+        from intellisource.agent.deps import ToolDeps  # type: ignore[import]
 
         assert ToolDeps is not None
 

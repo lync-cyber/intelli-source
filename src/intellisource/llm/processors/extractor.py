@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from intellisource.llm.fallback import FallbackManager
     from intellisource.llm.gateway import LLMGateway, SchemaEnforcer
+
+logger = logging.getLogger(__name__)
 
 
 class LLMExtractor:
@@ -34,11 +37,12 @@ class LLMExtractor:
         try:
             structured = self._schema_enforcer.validate(result.content)
             return {"structured_data": structured}
-        except SchemaValidationError:
+        except SchemaValidationError as exc:
             if self._fallback_manager is not None:
                 fallback_result = await self._fallback_manager.execute_fallback(
                     task_type="extract",
                     input_data=body_text,
                 )
                 return {"structured_data": fallback_result}
+            logger.warning("schema validation failed, no fallback configured: %s", exc)
             return {"structured_data": None}
