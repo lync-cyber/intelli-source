@@ -1,7 +1,8 @@
 """Tests for keyword_parser and scorer keyword weight integration.
 
 Covers AC-3 and AC-4 of T-093:
-- AC-3: distributor/keyword_parser.py provides parse_keyword_token(kw) -> (operator, value)
+- AC-3: distributor/keyword_parser.py provides parse_keyword_token(kw)
+  returning (operator, value) tuple
 - AC-4: scorer._keyword_match_score uses parse_keyword_token; '+' weight × 2.0;
         '!' → 0 contribution; '/regex/' → 1.0 weight
 """
@@ -14,7 +15,6 @@ from datetime import datetime, timezone
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Stub helpers for scorer tests
 # ---------------------------------------------------------------------------
@@ -23,7 +23,9 @@ import pytest
 @dataclass
 class StubSubscription:
     id: uuid.UUID = field(default_factory=uuid.uuid4)
-    match_rules: dict = field(default_factory=lambda: {"keywords": [], "tags": [], "min_score": 0})
+    match_rules: dict = field(
+        default_factory=lambda: {"keywords": [], "tags": [], "min_score": 0}
+    )
     status: str = "active"
 
 
@@ -83,7 +85,7 @@ class TestParseKeywordToken:
     # -- Security / boundary cases --
 
     def test_empty_string_does_not_raise(self):
-        """AC-3 boundary: empty string is handled gracefully (plain or raises ValueError)."""
+        """AC-3 boundary: empty string handled gracefully (plain or ValueError)."""
         # The parser should either return ('plain', '') or raise a well-typed error.
         # Implementation must not silently produce wrong operator.
         try:
@@ -106,7 +108,7 @@ class TestParseKeywordToken:
         assert op in ("!", "plain")
 
     def test_mixed_prefix_plus_bang(self):
-        """AC-3 boundary security: '+!both' — first valid prefix wins or treated as plain.
+        """AC-3 boundary: '+!both' — first valid prefix wins or treated as plain.
         The parser must be deterministic and not crash.
         """
         op, val = self._parse("+!both")
@@ -128,7 +130,7 @@ class TestParseKeywordToken:
         assert val == ""
 
     def test_plus_with_spaces_in_value(self):
-        """AC-3: '+hello world' → ('+', 'hello world') — value preserves inner content."""
+        """AC-3: '+hello world' → ('+', 'hello world') — value keeps inner content."""
         op, val = self._parse("+hello world")
         assert op == "+"
         assert val == "hello world"
@@ -192,9 +194,10 @@ class TestScorerKeywordWeights:
         score_regex = scorer._keyword_match_score(content, sub_regex)
         score_plain = scorer._keyword_match_score(content, sub_plain)
 
-        # regex hit weight (× 1.0) should equal plain weight (× 1.0) for same single keyword
+        # regex hit weight (× 1.0) should equal plain weight (× 1.0) for same keyword
         assert score_regex == pytest.approx(score_plain, rel=0.01), (
-            f"regex match score ({score_regex}) should equal plain match score ({score_plain})"
+            f"regex match score ({score_regex}) should equal "
+            f"plain match score ({score_plain})"
         )
 
     def test_required_keyword_weight_is_double_plain_exact_ratio(self):
@@ -218,7 +221,5 @@ class TestScorerKeywordWeights:
         """AC-4: empty keywords list → 0.0."""
         scorer = self._scorer()
         content = StubContent(title="python guide", body_text="")
-        sub = StubSubscription(
-            match_rules={"keywords": [], "tags": [], "min_score": 0}
-        )
+        sub = StubSubscription(match_rules={"keywords": [], "tags": [], "min_score": 0})
         assert scorer._keyword_match_score(content, sub) == 0.0

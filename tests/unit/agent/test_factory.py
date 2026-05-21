@@ -4,9 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
-
-
 # ---------------------------------------------------------------------------
 # AC-2: build_agent_runner factory exists and returns AgentRunner
 # ---------------------------------------------------------------------------
@@ -24,13 +21,17 @@ class TestBuildAgentRunnerFactory:
 
     def test_build_agent_runner_callable_exists(self) -> None:
         """AC-2: factory module exports a 'build_agent_runner' callable."""
-        from intellisource.agent.factory import build_agent_runner  # type: ignore[import-untyped]
+        from intellisource.agent.factory import (
+            build_agent_runner,  # type: ignore[import-untyped]
+        )
 
         assert callable(build_agent_runner)
 
     def test_build_agent_runner_returns_agent_runner(self) -> None:
         """AC-2: build_agent_runner returns an AgentRunner instance."""
-        from intellisource.agent.factory import build_agent_runner  # type: ignore[import-untyped]
+        from intellisource.agent.factory import (
+            build_agent_runner,  # type: ignore[import-untyped]
+        )
         from intellisource.agent.runner import AgentRunner
 
         session_factory = MagicMock()
@@ -44,7 +45,9 @@ class TestBuildAgentRunnerFactory:
 
     def test_build_agent_runner_wires_llm_gateway(self) -> None:
         """AC-2: The returned AgentRunner has the provided llm_gateway wired."""
-        from intellisource.agent.factory import build_agent_runner  # type: ignore[import-untyped]
+        from intellisource.agent.factory import (
+            build_agent_runner,  # type: ignore[import-untyped]
+        )
 
         session_factory = MagicMock()
         llm_gateway = MagicMock()
@@ -57,7 +60,9 @@ class TestBuildAgentRunnerFactory:
 
     def test_build_agent_runner_creates_tool_registry(self) -> None:
         """AC-2: build_agent_runner constructs an AgentToolRegistry internally."""
-        from intellisource.agent.factory import build_agent_runner  # type: ignore[import-untyped]
+        from intellisource.agent.factory import (
+            build_agent_runner,  # type: ignore[import-untyped]
+        )
         from intellisource.agent.tools import AgentToolRegistry
 
         session_factory = MagicMock()
@@ -80,7 +85,9 @@ class TestAgentRunnerRegistryTools:
 
     def test_registry_has_at_least_three_tools(self) -> None:
         """AC-7: tool registry contains >= 3 registered tools after factory call."""
-        from intellisource.agent.factory import build_agent_runner  # type: ignore[import-untyped]
+        from intellisource.agent.factory import (
+            build_agent_runner,  # type: ignore[import-untyped]
+        )
 
         session_factory = MagicMock()
         llm_gateway = MagicMock()
@@ -94,7 +101,9 @@ class TestAgentRunnerRegistryTools:
 
     def test_registry_includes_default_tools(self) -> None:
         """AC-7: registry contains at least one of the known default tools."""
-        from intellisource.agent.factory import build_agent_runner  # type: ignore[import-untyped]
+        from intellisource.agent.factory import (
+            build_agent_runner,  # type: ignore[import-untyped]
+        )
 
         session_factory = MagicMock()
         llm_gateway = MagicMock()
@@ -109,7 +118,9 @@ class TestAgentRunnerRegistryTools:
 
     def test_registry_includes_atomic_tools(self) -> None:
         """AC-7: registry contains at least one known atomic tool."""
-        from intellisource.agent.factory import build_agent_runner  # type: ignore[import-untyped]
+        from intellisource.agent.factory import (
+            build_agent_runner,  # type: ignore[import-untyped]
+        )
 
         session_factory = MagicMock()
         llm_gateway = MagicMock()

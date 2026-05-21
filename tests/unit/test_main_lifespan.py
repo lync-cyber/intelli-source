@@ -8,7 +8,6 @@ import pytest
 
 from intellisource.main import create_app
 
-
 # ---------------------------------------------------------------------------
 # AC-3: lifespan startup mounts celery_app into app.state.celery_app;
 #        shutdown calls celery_app.close() or equivalent
@@ -61,7 +60,8 @@ class TestLifespanCeleryAppState:
 
             async with lifespan(app):
                 assert app.state.celery_app is mock_celery, (
-                    "app.state.celery_app must be the Celery instance from init_celery()"
+                    "app.state.celery_app must be the Celery instance "
+                    "from init_celery()"
                 )
 
     @pytest.mark.asyncio
@@ -118,7 +118,7 @@ class TestLifespanCeleryAppState:
 
 
 class TestLifespanCeleryAppSendTask:
-    """AC-8 (unit): After lifespan completes, send_task does not raise AttributeError."""
+    """AC-8 (unit): send_task does not raise AttributeError after lifespan."""
 
     @pytest.mark.asyncio
     async def test_celery_app_send_task_accessible_after_startup(self) -> None:

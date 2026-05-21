@@ -3,7 +3,8 @@
 security_sensitive=true:
 - /regex/ branch must use `regex.search(pattern, text, timeout=1.0)` (third-party
   `regex` library), NOT `re.search`.
-- TimeoutError (built-in, raised by regex.search when timeout= triggers) is caught; keyword returns False.
+- TimeoutError (built-in, raised by regex.search when timeout= triggers)
+  is caught; keyword returns False.
 - Catastrophic backtracking patterns must not block for > 2 seconds.
 """
 
@@ -106,7 +107,8 @@ class TestReDoSProtectionKeywordMatches:
         elapsed = time.monotonic() - t0
 
         assert elapsed < 2.0, (
-            f"Pattern /{pattern}/ blocked for {elapsed:.2f}s (timeout protection failed)"
+            f"Pattern /{pattern}/ blocked for {elapsed:.2f}s "
+            "(timeout protection failed)"
         )
 
     def test_regex_timeout_error_captured_returns_false(self):
@@ -171,7 +173,8 @@ class TestReDoSProtectionKeywordMatches:
 
         assert len(captured_kwargs) >= 1, "regex.search was not invoked"
         assert "timeout" in captured_kwargs[0], (
-            f"regex.search not called with timeout kwarg; got kwargs={captured_kwargs[0]}"
+            f"regex.search not called with timeout kwarg; "
+            f"got kwargs={captured_kwargs[0]}"
         )
         assert captured_kwargs[0]["timeout"] == pytest.approx(1.0), (
             f"Expected timeout=1.0, got {captured_kwargs[0]['timeout']}"
@@ -188,7 +191,7 @@ class TestReDoSProtectionKeywordMatches:
         assert result is True
 
     def test_timeout_logged_not_silently_swallowed(self, caplog):
-        """AC-5: TimeoutError from regex.search timeout must be logged (warning or error level)."""
+        """AC-5: TimeoutError from regex.search timeout must be logged."""
         import logging
 
         import regex as regex_lib

@@ -11,7 +11,6 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-
 # ---------------------------------------------------------------------------
 # Stub helpers
 # ---------------------------------------------------------------------------
@@ -57,7 +56,7 @@ class TestMatcherDisciplineTagsDistinction:
         return SubscriptionMatcher()
 
     def test_content_discipline_tags_match_subscription_discipline_tags(self):
-        """AC-6: content.discipline_tags intersects sub.match_rules.discipline_tags → match."""
+        """AC-6: content.discipline_tags ∩ sub.match_rules.discipline_tags → match."""
         matcher = self._matcher()
         content = StubContent(
             title="quantum computing paper",
@@ -78,13 +77,13 @@ class TestMatcherDisciplineTagsDistinction:
         )
 
     def test_discipline_tags_do_not_match_generic_tags(self):
-        """AC-6: content.tags do not satisfy subscription.match_rules.discipline_tags."""
+        """AC-6: content.tags do not satisfy subscription.discipline_tags rules."""
         matcher = self._matcher()
         content = StubContent(
             title="quantum paper",
             body_text="",
-            tags=["quantum"],          # generic tag only
-            discipline_tags=[],        # no discipline tags
+            tags=["quantum"],  # generic tag only
+            discipline_tags=[],  # no discipline tags
         )
         sub = StubSubscription(
             match_rules={
@@ -97,11 +96,11 @@ class TestMatcherDisciplineTagsDistinction:
         results = matcher.match(content, [sub])
         # Generic content.tags must NOT satisfy discipline_tags requirement
         assert sub not in results, (
-            "content.tags['quantum'] should not satisfy discipline_tags=['quantum'] rule"
+            "content.tags=['quantum'] must not satisfy discipline_tags=['quantum']"
         )
 
     def test_generic_tags_still_work_independently(self):
-        """AC-6: content.tags match subscription.match_rules.tags → match (unchanged behavior)."""
+        """AC-6: content.tags match subscription.tags → match (legacy behavior)."""
         matcher = self._matcher()
         content = StubContent(
             title="machine learning",
@@ -161,7 +160,7 @@ class TestMatcherDisciplineTagsDistinction:
         )
 
     def test_no_tags_no_discipline_tags_no_keywords_no_match(self):
-        """AC-6: subscription with only discipline_tags set but content has none → no match."""
+        """AC-6: subscription has discipline_tags but content has none → no match."""
         matcher = self._matcher()
         content = StubContent(
             title="random article",
@@ -201,7 +200,7 @@ class TestMatcherDisciplineTagsDistinction:
         assert sub in results
 
     def test_discipline_tags_empty_list_in_match_rules(self):
-        """AC-6: empty discipline_tags in match_rules → discipline tag matching skipped."""
+        """AC-6: empty discipline_tags in match_rules → discipline match skipped."""
         matcher = self._matcher()
         content = StubContent(
             title="test article",

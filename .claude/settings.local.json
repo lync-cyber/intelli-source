@@ -126,7 +126,10 @@
       "Bash(Get-Content docs/dev-plan/dev-plan-intellisource-v1-s8r.md)",
       "Bash(Measure-Object -Line)",
       "Bash(Select-Object -ExpandProperty Lines)",
-      "Bash(gh pr *)"
+      "Bash(gh pr *)",
+      "Bash(gh api *)",
+      "Bash(grep -oE \"\\(\\\\.cataforge|\\\\.claude|tests|src\\)[\\\\\\\\/][^:]+\\\\.py\" ruff-errors.txt)",
+      "Bash(awk '/Line too long/ {match\\($0, /\\\\\\(\\([0-9]+\\) > 88\\\\\\)/, a\\); print a[1]}' my-errors.txt)"
     ]
   }
 }

@@ -2,12 +2,11 @@
 
 Covers AC-1 and AC-6 of T-093:
 - AC-1: Subscription ORM model has 'timezone' column (VARCHAR, default 'Asia/Shanghai')
-- AC-6: Subscription and Source ORM models have 'discipline_tags' ARRAY column (default [])
+- AC-6: Subscription and Source ORM models have 'discipline_tags' ARRAY
+        column (default [])
 """
 
 from __future__ import annotations
-
-import pytest
 
 from intellisource.storage.models import Source, Subscription
 
@@ -81,12 +80,13 @@ class TestSubscriptionDisciplineTagsColumn:
         )
 
     def test_discipline_tags_is_array_type(self):
-        """AC-6: discipline_tags is an ARRAY (PG) / JSON (SQLite fallback via Variant) collection column."""
+        """AC-6: discipline_tags is ARRAY (PG) / JSON (SQLite via Variant)."""
         col = _col(Subscription, "discipline_tags")
         type_name = type(col.type).__name__.upper()
-        # Variant pattern: ARRAY on PostgreSQL, JSON on SQLite (mitigation in T-093 task card)
+        # Variant pattern: ARRAY on PG, JSON on SQLite (T-093 task card)
         assert type_name in ("ARRAY", "JSON"), (
-            f"Expected ARRAY (PG) or JSON (SQLite fallback) type for discipline_tags, got {type_name}"
+            f"Expected ARRAY (PG) or JSON (SQLite fallback) type "
+            f"for discipline_tags, got {type_name}"
         )
 
     def test_discipline_tags_has_default_empty_list(self):
@@ -120,11 +120,12 @@ class TestSourceDisciplineTagsColumn:
         )
 
     def test_discipline_tags_is_array_type(self):
-        """AC-6: Source.discipline_tags is ARRAY (PG) / JSON (SQLite fallback via Variant) collection column."""
+        """AC-6: Source.discipline_tags is ARRAY (PG) / JSON (SQLite via Variant)."""
         col = _col(Source, "discipline_tags")
         type_name = type(col.type).__name__.upper()
         assert type_name in ("ARRAY", "JSON"), (
-            f"Expected ARRAY (PG) or JSON (SQLite fallback) type for Source.discipline_tags, got {type_name}"
+            f"Expected ARRAY (PG) or JSON (SQLite fallback) type for "
+            f"Source.discipline_tags, got {type_name}"
         )
 
     def test_discipline_tags_has_default(self):
