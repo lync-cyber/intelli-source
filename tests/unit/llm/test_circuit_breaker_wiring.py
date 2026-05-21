@@ -7,7 +7,8 @@ Covers:
   AC-3: LLM success → record_success() called; LLM failure → record_failure() called
   AC-4: LLMGateway enqueues via PriorityQueue; interactive → HIGH priority,
         background → lower priority; worker coroutine consumes queue
-  AC-5: GET /api/v1/llm/status returns circuit_state + queue_lengths structure
+  AC-5: GET /api/v1/llm/status returns circuit_state + queue_lengths structure;
+        endpoint requires X-API-Key auth (R-001); reads real gateway state (R-002)
 """
 
 from __future__ import annotations
@@ -20,7 +21,11 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from tenacity import wait_fixed
 
-from intellisource.llm.circuit_breaker import CircuitBreaker, CircuitState
+from intellisource.llm.circuit_breaker import (
+    CircuitBreaker,
+    CircuitOpenError,
+    CircuitState,
+)
 from intellisource.llm.gateway import LLMGateway
 from intellisource.llm.priority_queue import PriorityLevel, PriorityQueue, QueuedRequest
 
@@ -102,7 +107,7 @@ class TestCircuitBreakerAllowRequest:
         gw = _make_gateway(circuit_breaker=cb)
 
         with patch("litellm.acompletion", new_callable=AsyncMock) as mock_acompletion:
-            with pytest.raises(Exception) as exc_info:
+            with pytest.raises(CircuitOpenError):
                 await gw._call_with_retry(  # type: ignore[attr-defined]
                     call_kwargs={"model": "gpt-4o-mini", "messages": []},
                     prompt="test prompt",
@@ -110,10 +115,6 @@ class TestCircuitBreakerAllowRequest:
                 )
             # Circuit is OPEN — litellm must NOT have been called
             mock_acompletion.assert_not_called()
-        # Exception name must signal the circuit is open
-        assert "circuit" in type(exc_info.value).__name__.lower() or "open" in str(
-            exc_info.value
-        ).lower()
 
     @pytest.mark.asyncio
     async def test_allow_request_called_before_litellm(self) -> None:
@@ -180,13 +181,19 @@ class TestCircuitBreakerRecording:
 
     @pytest.mark.asyncio
     async def test_record_failure_called_on_llm_exception(self) -> None:
-        """record_failure() is awaited when litellm raises an exception."""
+        """record_failure() is awaited exactly once on a non-transient LLM exception."""
         import litellm.exceptions as le
 
         cb = _make_mock_circuit_breaker(allow=True)
         gw = _make_gateway(circuit_breaker=cb)
 
-        err = le.Timeout(message="timeout", model="gpt-4o-mini", llm_provider="openai")
+        # Use an UNRECOVERABLE (non-transient) exception so tenacity does not retry,
+        # ensuring record_failure is called exactly once and intent is unambiguous.
+        err = le.BadRequestError(
+            message="bad request",
+            model="gpt-4o-mini",
+            llm_provider="openai",
+        )
         with patch("litellm.acompletion", new_callable=AsyncMock, side_effect=err):
             with pytest.raises(Exception):
                 await gw._call_with_retry(  # type: ignore[attr-defined]
@@ -195,7 +202,7 @@ class TestCircuitBreakerRecording:
                     task_type=None,
                 )
 
-        cb.record_failure.assert_awaited()
+        cb.record_failure.assert_awaited_once()
         cb.record_success.assert_not_awaited()
 
     @pytest.mark.asyncio
@@ -321,7 +328,7 @@ class TestPriorityQueueWiring:
 
 @pytest.fixture()
 def llm_status_app() -> FastAPI:
-    """Minimal FastAPI app mounting only the llm router."""
+    """Minimal FastAPI app mounting only the llm router (IS_API_KEY unset → auth passthrough)."""
     from intellisource.api.routers.llm import router as llm_router
 
     application = FastAPI()
@@ -341,7 +348,7 @@ class TestLLMStatusEndpoint:
 
     @pytest.mark.asyncio
     async def test_status_returns_200(self, llm_status_client: AsyncClient) -> None:
-        """GET /api/v1/llm/status responds with HTTP 200."""
+        """GET /api/v1/llm/status responds with HTTP 200 when IS_API_KEY is unset."""
         resp = await llm_status_client.get("/api/v1/llm/status")
         assert resp.status_code == 200
 
@@ -355,13 +362,13 @@ class TestLLMStatusEndpoint:
         assert "circuit_state" in body
 
     @pytest.mark.asyncio
-    async def test_status_circuit_state_is_valid_enum_value(
+    async def test_status_circuit_state_is_known_value(
         self, llm_status_client: AsyncClient
     ) -> None:
-        """circuit_state value is one of CLOSED, OPEN, HALF_OPEN."""
+        """circuit_state value is one of CLOSED, OPEN, HALF_OPEN, UNKNOWN."""
         resp = await llm_status_client.get("/api/v1/llm/status")
         body = resp.json()
-        assert body["circuit_state"] in {"CLOSED", "OPEN", "HALF_OPEN"}
+        assert body["circuit_state"] in {"CLOSED", "OPEN", "HALF_OPEN", "UNKNOWN"}
 
     @pytest.mark.asyncio
     async def test_status_contains_queue_lengths_field(
@@ -426,3 +433,137 @@ class TestLLMStatusEndpoint:
         assert body["circuit_state"] == "OPEN"
         assert body["queue_lengths"]["interactive"] == 3
         assert body["queue_lengths"]["background"] == 12
+
+
+# ---------------------------------------------------------------------------
+# R-001: Auth enforcement — /api/v1/llm/status rejects missing/invalid key
+# ---------------------------------------------------------------------------
+
+
+class TestLLMStatusAuth:
+    """R-001: /api/v1/llm/status enforces X-API-Key when IS_API_KEY is set."""
+
+    @pytest.mark.asyncio
+    async def test_missing_api_key_returns_401(
+        self, llm_status_app: FastAPI, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Without X-API-Key header, endpoint returns 401 when IS_API_KEY is set."""
+        monkeypatch.setenv("IS_API_KEY", "secret-key")
+        transport = ASGITransport(app=llm_status_app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            resp = await ac.get("/api/v1/llm/status")
+        assert resp.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_wrong_api_key_returns_401(
+        self, llm_status_app: FastAPI, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Wrong X-API-Key value returns 401 when IS_API_KEY is configured."""
+        monkeypatch.setenv("IS_API_KEY", "secret-key")
+        transport = ASGITransport(app=llm_status_app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            resp = await ac.get(
+                "/api/v1/llm/status", headers={"x-api-key": "wrong-key"}
+            )
+        assert resp.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_correct_api_key_returns_200(
+        self, llm_status_app: FastAPI, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Correct X-API-Key value returns 200 when IS_API_KEY is configured."""
+        monkeypatch.setenv("IS_API_KEY", "secret-key")
+        transport = ASGITransport(app=llm_status_app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            resp = await ac.get(
+                "/api/v1/llm/status", headers={"x-api-key": "secret-key"}
+            )
+        assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# R-002: get_llm_gateway_status reads real LLMGateway from app.state
+# ---------------------------------------------------------------------------
+
+
+class TestLLMStatusRealGateway:
+    """R-002: /api/v1/llm/status reflects actual circuit state from app.state."""
+
+    @pytest.mark.asyncio
+    async def test_status_reflects_injected_open_circuit(self) -> None:
+        """When app.state.llm_gateway has OPEN circuit breaker, status returns OPEN."""
+        from intellisource.api.routers.llm import router as llm_router
+
+        app = FastAPI()
+        app.include_router(llm_router, prefix="/api/v1")
+
+        mock_cb = AsyncMock(spec=CircuitBreaker)
+        mock_cb.get_state.return_value = CircuitState.OPEN
+
+        mock_queue = MagicMock(spec=PriorityQueue)
+        mock_queue.interactive_queue_size.return_value = 5
+        mock_queue.background_queue_size.return_value = 10
+
+        mock_gateway = MagicMock(spec=LLMGateway)
+        mock_gateway.circuit_breaker = mock_cb
+        mock_gateway._priority_queue = mock_queue
+
+        app.state.llm_gateway = mock_gateway
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            resp = await ac.get("/api/v1/llm/status")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["circuit_state"] == "OPEN"
+        assert body["queue_lengths"]["interactive"] == 5
+        assert body["queue_lengths"]["background"] == 10
+
+    @pytest.mark.asyncio
+    async def test_status_reflects_injected_closed_circuit(self) -> None:
+        """When app.state.llm_gateway has CLOSED breaker, status returns CLOSED."""
+        from intellisource.api.routers.llm import router as llm_router
+
+        app = FastAPI()
+        app.include_router(llm_router, prefix="/api/v1")
+
+        mock_cb = AsyncMock(spec=CircuitBreaker)
+        mock_cb.get_state.return_value = CircuitState.CLOSED
+
+        mock_queue = MagicMock(spec=PriorityQueue)
+        mock_queue.interactive_queue_size.return_value = 0
+        mock_queue.background_queue_size.return_value = 0
+
+        mock_gateway = MagicMock(spec=LLMGateway)
+        mock_gateway.circuit_breaker = mock_cb
+        mock_gateway._priority_queue = mock_queue
+
+        app.state.llm_gateway = mock_gateway
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            resp = await ac.get("/api/v1/llm/status")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["circuit_state"] == "CLOSED"
+        assert body["queue_lengths"]["interactive"] == 0
+        assert body["queue_lengths"]["background"] == 0
+
+    @pytest.mark.asyncio
+    async def test_status_returns_unknown_when_gateway_not_in_app_state(self) -> None:
+        """When llm_gateway is absent from app.state, circuit_state returns UNKNOWN."""
+        from intellisource.api.routers.llm import router as llm_router
+
+        app = FastAPI()
+        app.include_router(llm_router, prefix="/api/v1")
+        # Deliberately do not set app.state.llm_gateway
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            resp = await ac.get("/api/v1/llm/status")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["circuit_state"] == "UNKNOWN"

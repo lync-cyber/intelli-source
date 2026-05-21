@@ -6,6 +6,7 @@ by AgentRunner, and load_pipeline_config for loading YAML pipelines.
 
 from __future__ import annotations
 
+import logging
 import uuid as _uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,6 +16,8 @@ from intellisource.agent.pipeline import PipelineConfig
 from intellisource.pipeline.processors import tools as atomic_tools
 
 _PIPELINES_DIR = Path(__file__).resolve().parents[3] / "config" / "pipelines"
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -109,7 +112,14 @@ async def _collect_execute(
         if collector is not None:
             collected = await collector.collect(source_id=source_id, **kwargs)
             return {"status": "ok", "tool": "collect", "collected": collected}
-    return {"status": "ok", "tool": "collect", "collected": [], "source_id": source_id}
+    logger.warning("tool_deps not injected for collect, returning placeholder")
+    return {
+        "status": "degraded",
+        "tool": "collect",
+        "reason": "tool_deps not injected",
+        "collected": [],
+        "source_id": source_id,
+    }
 
 
 async def _process_execute(
@@ -123,7 +133,13 @@ async def _process_execute(
             content_id=content_id, **kwargs
         )
         return {"status": "ok", "tool": "process", "result": result}
-    return {"status": "ok", "tool": "process", "content_id": content_id}
+    logger.warning("tool_deps not injected for process, returning placeholder")
+    return {
+        "status": "degraded",
+        "tool": "process",
+        "reason": "tool_deps not injected",
+        "content_id": content_id,
+    }
 
 
 async def _distribute_execute(
@@ -140,7 +156,13 @@ async def _distribute_execute(
             **kwargs,
         )
         return {"status": "ok", "tool": "distribute", "result": result}
-    return {"status": "ok", "tool": "distribute", "content_id": content_id}
+    logger.warning("tool_deps not injected for distribute, returning placeholder")
+    return {
+        "status": "degraded",
+        "tool": "distribute",
+        "reason": "tool_deps not injected",
+        "content_id": content_id,
+    }
 
 
 async def _search_execute(
@@ -155,7 +177,13 @@ async def _search_execute(
             query=query, top_k=top_k, **kwargs
         )
         return {"status": "ok", "tool": "search", "response": response}
-    return {"status": "ok", "tool": "search", "query": query}
+    logger.warning("tool_deps not injected for search, returning placeholder")
+    return {
+        "status": "degraded",
+        "tool": "search",
+        "reason": "tool_deps not injected",
+        "query": query,
+    }
 
 
 async def _get_content_detail_execute(
@@ -177,7 +205,15 @@ async def _get_content_detail_execute(
                 "content": content,
                 "content_id": content_id,
             }
-    return {"status": "ok", "tool": "get_content_detail", "content_id": content_id}
+    logger.warning(
+        "tool_deps not injected for get_content_detail, returning placeholder"
+    )
+    return {
+        "status": "degraded",
+        "tool": "get_content_detail",
+        "reason": "tool_deps not injected",
+        "content_id": content_id,
+    }
 
 
 async def _summarize_for_user_execute(
@@ -198,7 +234,15 @@ async def _summarize_for_user_execute(
             "summary": result.content,
             "content_id": content_id,
         }
-    return {"status": "ok", "tool": "summarize_for_user", "content_id": content_id}
+    logger.warning(
+        "tool_deps not injected for summarize_for_user, returning placeholder"
+    )
+    return {
+        "status": "degraded",
+        "tool": "summarize_for_user",
+        "reason": "tool_deps not injected",
+        "content_id": content_id,
+    }
 
 
 async def _llm_complete_execute(
@@ -217,7 +261,13 @@ async def _llm_complete_execute(
     )
     gateway = tool_deps.llm_gateway if tool_deps is not None else None
     if gateway is None:
-        return {"status": "ok", "tool": "llm_complete", "call_type": call_type}
+        logger.warning("tool_deps not injected for llm_complete, returning placeholder")
+        return {
+            "status": "degraded",
+            "tool": "llm_complete",
+            "reason": "tool_deps not injected",
+            "call_type": call_type,
+        }
     result = await gateway.complete(prompt=prompt, task_type=call_type or None)
     return {
         "content": result.content,

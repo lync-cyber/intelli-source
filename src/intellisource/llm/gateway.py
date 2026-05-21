@@ -32,6 +32,7 @@ from tenacity import (
 )
 
 from intellisource.core.errors import ErrorCategory, IntelliSourceError, LLMError
+from intellisource.llm.circuit_breaker import CircuitOpenError as CircuitOpenError
 from intellisource.llm.cost_tracker import LLMCallRecord
 from intellisource.llm.model_config import ModelRoutingConfig, load_model_config
 from intellisource.llm.priority_queue import PriorityLevel, PriorityQueue, QueuedRequest
@@ -137,13 +138,6 @@ class LLMOutputError(LLMError):
         recovery_hint: str = "",
     ) -> None:
         super().__init__(message, category=category, recovery_hint=recovery_hint)
-
-
-class CircuitOpenError(LLMError):
-    """Raised when a request is blocked because the circuit breaker is OPEN."""
-
-    def __init__(self, message: str = "Circuit breaker is OPEN") -> None:
-        super().__init__(message, category=ErrorCategory.RECOVERABLE_DEGRADED)
 
 
 @dataclass
@@ -670,7 +664,8 @@ class LLMGateway:
         """Enqueue an LLM request into the priority queue.
 
         Interactive task types (search, chat, interactive, query) use
-        PriorityLevel.HIGH; all other task types use PriorityLevel.NORMAL.
+        PriorityLevel.HIGH; all other task types — including task_type=None —
+        use PriorityLevel.NORMAL.
         """
         if self._priority_queue is None:
             raise RuntimeError("No priority_queue configured on LLMGateway")

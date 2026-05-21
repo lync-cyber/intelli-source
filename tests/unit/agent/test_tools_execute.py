@@ -21,10 +21,9 @@ from __future__ import annotations
 
 import uuid
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -135,8 +134,7 @@ class TestCollectExecuteReal:
             and mock_collector.collect.call_count == 0
         )
         assert not is_placeholder, (
-            "_collect_execute must not return old placeholder; "
-            f"got: {result}"
+            f"_collect_execute must not return old placeholder; got: {result}"
         )
 
 
@@ -164,7 +162,9 @@ class TestProcessExecuteReal:
             tool_deps=deps,
         )
 
-        total_calls = mock_engine.execute.call_count + mock_engine.execute_stream.call_count
+        total_calls = (
+            mock_engine.execute.call_count + mock_engine.execute_stream.call_count
+        )
         assert total_calls >= 1, (
             "_process_execute must call PipelineEngine.execute() or execute_stream(); "
             f"found {total_calls} calls"
@@ -226,7 +226,9 @@ class TestDistributeExecuteReal:
     @pytest.mark.asyncio
     async def test_distribute_execute_calls_distribute(self) -> None:
         """_distribute_execute must call distributor.distribute()."""
-        from intellisource.agent.tools import _distribute_execute  # type: ignore[import]
+        from intellisource.agent.tools import (
+            _distribute_execute,  # type: ignore[import]
+        )
 
         mock_distributor = AsyncMock()
         mock_distributor.distribute = AsyncMock(return_value={"sent": True})
@@ -249,7 +251,9 @@ class TestDistributeExecuteReal:
     @pytest.mark.asyncio
     async def test_distribute_execute_distribute_called_once(self) -> None:
         """_distribute_execute calls distribute exactly once."""
-        from intellisource.agent.tools import _distribute_execute  # type: ignore[import]
+        from intellisource.agent.tools import (
+            _distribute_execute,  # type: ignore[import]
+        )
 
         mock_distributor = AsyncMock()
         mock_distributor.distribute = AsyncMock(return_value={"sent": True})
@@ -269,7 +273,9 @@ class TestDistributeExecuteReal:
     @pytest.mark.asyncio
     async def test_distribute_execute_not_placeholder(self) -> None:
         """_distribute_execute must not return old placeholder."""
-        from intellisource.agent.tools import _distribute_execute  # type: ignore[import]
+        from intellisource.agent.tools import (
+            _distribute_execute,  # type: ignore[import]
+        )
 
         mock_distributor = AsyncMock()
         mock_distributor.distribute = AsyncMock(return_value={"sent": True})
@@ -374,9 +380,7 @@ class TestSearchExecuteReal:
             and result.get("tool") == "search"
             and mock_engine.search.call_count == 0
         )
-        assert not is_placeholder, (
-            f"_search_execute returned old placeholder: {result}"
-        )
+        assert not is_placeholder, f"_search_execute returned old placeholder: {result}"
 
 
 # ---------------------------------------------------------------------------
@@ -390,7 +394,9 @@ class TestGetContentDetailExecuteReal:
     @pytest.mark.asyncio
     async def test_get_content_detail_calls_repo_get_by_id(self) -> None:
         """_get_content_detail_execute must call repository.get_by_id(content_id)."""
-        from intellisource.agent.tools import _get_content_detail_execute  # type: ignore[import]
+        from intellisource.agent.tools import (
+            _get_content_detail_execute,  # type: ignore[import]
+        )
 
         content_id = uuid.uuid4()
         fake_content = MagicMock()
@@ -423,7 +429,9 @@ class TestGetContentDetailExecuteReal:
     @pytest.mark.asyncio
     async def test_get_content_detail_returns_content_dict(self) -> None:
         """_get_content_detail_execute returns a content dict with id and title."""
-        from intellisource.agent.tools import _get_content_detail_execute  # type: ignore[import]
+        from intellisource.agent.tools import (
+            _get_content_detail_execute,  # type: ignore[import]
+        )
 
         content_id = uuid.uuid4()
 
@@ -464,7 +472,9 @@ class TestGetContentDetailExecuteReal:
     @pytest.mark.asyncio
     async def test_get_content_detail_content_id_passed_to_repo(self) -> None:
         """content_id must be passed to get_by_id()."""
-        from intellisource.agent.tools import _get_content_detail_execute  # type: ignore[import]
+        from intellisource.agent.tools import (
+            _get_content_detail_execute,  # type: ignore[import]
+        )
 
         content_id = uuid.uuid4()
         fake_content = MagicMock()
@@ -494,9 +504,11 @@ class TestGetContentDetailExecuteReal:
             "ContentRepository.get_by_id() must be called"
         )
         call_args_str = str(mock_repo.get_by_id.call_args)
-        assert str(content_id) in call_args_str or str(content_id).replace("-", "") in call_args_str or mock_repo.get_by_id.called, (
-            f"get_by_id() call args must include content_id {content_id}"
-        )
+        assert (
+            str(content_id) in call_args_str
+            or str(content_id).replace("-", "") in call_args_str
+            or mock_repo.get_by_id.called
+        ), f"get_by_id() call args must include content_id {content_id}"
 
 
 # ---------------------------------------------------------------------------
@@ -510,7 +522,9 @@ class TestSummarizeForUserExecuteReal:
     @pytest.mark.asyncio
     async def test_summarize_calls_llm_gateway(self) -> None:
         """_summarize_for_user_execute must call gateway.complete() or .chat()."""
-        from intellisource.agent.tools import _summarize_for_user_execute  # type: ignore[import]
+        from intellisource.agent.tools import (
+            _summarize_for_user_execute,  # type: ignore[import]
+        )
         from intellisource.llm.gateway import LLMResult
 
         mock_gateway = AsyncMock()
@@ -538,7 +552,9 @@ class TestSummarizeForUserExecuteReal:
     @pytest.mark.asyncio
     async def test_summarize_prompt_contains_content(self) -> None:
         """The LLMGateway call must include the content in the prompt/messages."""
-        from intellisource.agent.tools import _summarize_for_user_execute  # type: ignore[import]
+        from intellisource.agent.tools import (
+            _summarize_for_user_execute,  # type: ignore[import]
+        )
         from intellisource.llm.gateway import LLMResult
 
         mock_gateway = AsyncMock()
@@ -571,7 +587,9 @@ class TestSummarizeForUserExecuteReal:
     @pytest.mark.asyncio
     async def test_summarize_not_placeholder(self) -> None:
         """_summarize_for_user_execute must not return old placeholder."""
-        from intellisource.agent.tools import _summarize_for_user_execute  # type: ignore[import]
+        from intellisource.agent.tools import (
+            _summarize_for_user_execute,  # type: ignore[import]
+        )
         from intellisource.llm.gateway import LLMResult
 
         mock_gateway = AsyncMock()
@@ -608,7 +626,7 @@ class TestSummarizeForUserExecuteReal:
 
 
 class TestToolDepsInjectionViaAgentRunner:
-    """AC-7: AgentRunner.run() must pass ToolDeps when invoking tool execute functions."""
+    """AC-7: AgentRunner.run() must pass ToolDeps when invoking tool execute fns."""
 
     def test_tool_deps_class_importable(self) -> None:
         """ToolDeps must be importable from intellisource.agent.deps."""
@@ -646,7 +664,6 @@ class TestToolDepsInjectionViaAgentRunner:
         """AgentRunner.run_flexible() must accept and use a tool_deps parameter."""
         from intellisource.agent.runner import AgentRunner  # type: ignore[import]
         from intellisource.agent.tools import AgentToolRegistry
-        from intellisource.agent.deps import ToolDeps  # type: ignore[import]
         from intellisource.llm.gateway import LLMResult
 
         mock_gateway = AsyncMock()
@@ -669,15 +686,6 @@ class TestToolDepsInjectionViaAgentRunner:
         mock_engine = AsyncMock()
         mock_engine.execute = AsyncMock(return_value={"status": "success"})
 
-        deps = ToolDeps(
-            session_factory=MagicMock(),
-            llm_gateway=mock_gateway,
-            pipeline_engine=mock_engine,
-            search_engine=AsyncMock(),
-            collector_registry=MagicMock(),
-            distributor=AsyncMock(),
-        )
-
         registry = AgentToolRegistry()
         registry.register_defaults()
         registry.register_atomic_tools()
@@ -689,15 +697,13 @@ class TestToolDepsInjectionViaAgentRunner:
         )
 
         # Verify AgentRunner accepts a tool_deps parameter in run() or run_flexible()
-        # The implementation should expose tool_deps as a parameter.
         import inspect
 
         run_flexible_sig = inspect.signature(runner.run_flexible)
         run_sig = inspect.signature(runner.run) if hasattr(runner, "run") else None
 
-        has_tool_deps_param = (
-            "tool_deps" in run_flexible_sig.parameters
-            or (run_sig is not None and "tool_deps" in run_sig.parameters)
+        has_tool_deps_param = "tool_deps" in run_flexible_sig.parameters or (
+            run_sig is not None and "tool_deps" in run_sig.parameters
         )
 
         assert has_tool_deps_param, (
@@ -708,11 +714,11 @@ class TestToolDepsInjectionViaAgentRunner:
     @pytest.mark.asyncio
     async def test_agent_runner_execute_with_tool_deps(self) -> None:
         """AgentRunner.execute() must forward tool_deps when calling tools."""
-        from intellisource.agent.runner import AgentRunner  # type: ignore[import]
-        from intellisource.agent.tools import AgentToolRegistry, ToolDefinition
-        from intellisource.agent.deps import ToolDeps  # type: ignore[import]
-        from intellisource.llm.gateway import LLMResult
         import inspect
+
+        from intellisource.agent.runner import AgentRunner  # type: ignore[import]
+        from intellisource.agent.tools import AgentToolRegistry
+        from intellisource.llm.gateway import LLMResult
 
         mock_gateway = AsyncMock()
         mock_gateway.chat = AsyncMock(
@@ -730,18 +736,11 @@ class TestToolDepsInjectionViaAgentRunner:
             )
         )
 
-        deps = ToolDeps(
-            session_factory=MagicMock(),
-            llm_gateway=mock_gateway,
-            pipeline_engine=AsyncMock(),
-            search_engine=AsyncMock(),
-            collector_registry=MagicMock(),
-            distributor=AsyncMock(),
-        )
-
         injected_deps: list[Any] = []
 
-        async def _collect_with_deps_capture(tool_deps: Any = None, **kwargs: Any) -> dict[str, Any]:
+        async def _collect_with_deps_capture(
+            tool_deps: Any = None, **kwargs: Any
+        ) -> dict[str, Any]:
             injected_deps.append(tool_deps)
             return {"status": "collected"}
 
@@ -786,11 +785,10 @@ class TestAllToolsAcceptToolDeps:
     ]
 
     @pytest.mark.parametrize("_tool_name,fn_name", _TOOL_NAMES_AND_EXECUTE)
-    def test_execute_fn_accepts_tool_deps(
-        self, _tool_name: str, fn_name: str
-    ) -> None:
+    def test_execute_fn_accepts_tool_deps(self, _tool_name: str, fn_name: str) -> None:
         """Each tool execute function must accept 'tool_deps' as a parameter."""
         import inspect
+
         import intellisource.agent.tools as tools_mod  # type: ignore[import]
 
         fn = getattr(tools_mod, fn_name, None)
@@ -802,6 +800,191 @@ class TestAllToolsAcceptToolDeps:
 
         sig = inspect.signature(fn)
         assert "tool_deps" in sig.parameters, (
-            f"{fn_name} must accept 'tool_deps' keyword argument for ToolDeps injection; "
-            f"current params: {list(sig.parameters.keys())}"
+            f"{fn_name} must accept 'tool_deps' keyword argument for ToolDeps"
+            f" injection; current params: {list(sig.parameters.keys())}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# R-003: run_flexible forwards tool_deps to tool execute functions
+# ---------------------------------------------------------------------------
+
+
+class TestRunFlexibleForwardsToolDeps:
+    """R-003: run_flexible must forward tool_deps to tool execute functions."""
+
+    @pytest.mark.asyncio
+    async def test_run_flexible_forwards_tool_deps_to_execute(self) -> None:
+        """tool_deps passed to run_flexible must reach the tool execute function."""
+        from intellisource.agent.deps import ToolDeps
+        from intellisource.agent.pipeline import PipelineConfig
+        from intellisource.agent.runner import AgentRunner
+        from intellisource.agent.tools import AgentToolRegistry
+        from intellisource.llm.gateway import LLMResult
+
+        captured_deps: list[Any] = []
+
+        async def _mock_tool_execute(
+            tool_deps: Any = None, **kwargs: Any
+        ) -> dict[str, Any]:
+            captured_deps.append(tool_deps)
+            return {"status": "ok", "result": "done"}
+
+        mock_gateway = AsyncMock()
+
+        call_count = 0
+
+        async def _chat(**kwargs: Any) -> LLMResult:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                tc = MagicMock()
+                tc.function.name = "mock_tool"
+                tc.function.arguments = "{}"
+                tc.id = "tc-001"
+                return LLMResult(
+                    content="",
+                    metadata={
+                        "tool_calls": [tc],
+                        "finish_reason": "tool_calls",
+                        "usage": {},
+                    },
+                )
+            return LLMResult(
+                content="done",
+                metadata={"tool_calls": None, "finish_reason": "stop", "usage": {}},
+            )
+
+        mock_gateway.chat.side_effect = _chat
+
+        registry = AgentToolRegistry()
+        registry.register(
+            name="mock_tool",
+            description="Test tool",
+            parameters={"type": "object", "properties": {}},
+            execute_fn=_mock_tool_execute,
+        )
+
+        deps = ToolDeps(
+            session_factory=MagicMock(),
+            llm_gateway=mock_gateway,
+            pipeline_engine=AsyncMock(),
+            search_engine=AsyncMock(),
+            collector_registry=MagicMock(),
+            distributor=AsyncMock(),
+        )
+
+        runner = AgentRunner(tool_registry=registry, llm_gateway=mock_gateway)
+
+        config = PipelineConfig.from_dict(
+            {
+                "name": "test-forward",
+                "mode": "flexible",
+                "tools_allowed": ["mock_tool"],
+                "tools_denied": [],
+                "steps": [],
+                "max_steps": 5,
+                "on_failure": "skip",
+            }
+        )
+
+        await runner.run_flexible(
+            config,
+            user_message="test",
+            session={},
+            tool_deps=deps,
+        )
+
+        assert len(captured_deps) == 1, (
+            f"Tool execute must be called once; called {len(captured_deps)} times"
+        )
+        assert captured_deps[0] is deps, (
+            "run_flexible must forward tool_deps to the tool execute function; "
+            f"got: {captured_deps[0]!r}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_run_flexible_uses_instance_tool_deps_as_fallback(self) -> None:
+        """When run_flexible is called without tool_deps, self._tool_deps is used."""
+        from intellisource.agent.deps import ToolDeps
+        from intellisource.agent.pipeline import PipelineConfig
+        from intellisource.agent.runner import AgentRunner
+        from intellisource.agent.tools import AgentToolRegistry
+        from intellisource.llm.gateway import LLMResult
+
+        captured_deps: list[Any] = []
+
+        async def _mock_tool_execute(
+            tool_deps: Any = None, **kwargs: Any
+        ) -> dict[str, Any]:
+            captured_deps.append(tool_deps)
+            return {"status": "ok"}
+
+        mock_gateway = AsyncMock()
+        call_count = 0
+
+        async def _chat(**kwargs: Any) -> LLMResult:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                tc = MagicMock()
+                tc.function.name = "mock_tool"
+                tc.function.arguments = "{}"
+                tc.id = "tc-002"
+                return LLMResult(
+                    content="",
+                    metadata={
+                        "tool_calls": [tc],
+                        "finish_reason": "tool_calls",
+                        "usage": {},
+                    },
+                )
+            return LLMResult(
+                content="done",
+                metadata={"tool_calls": None, "finish_reason": "stop", "usage": {}},
+            )
+
+        mock_gateway.chat.side_effect = _chat
+
+        registry = AgentToolRegistry()
+        registry.register(
+            name="mock_tool",
+            description="Test tool",
+            parameters={"type": "object", "properties": {}},
+            execute_fn=_mock_tool_execute,
+        )
+
+        instance_deps = ToolDeps(
+            session_factory=MagicMock(),
+            llm_gateway=mock_gateway,
+            pipeline_engine=AsyncMock(),
+            search_engine=AsyncMock(),
+            collector_registry=MagicMock(),
+            distributor=AsyncMock(),
+        )
+
+        runner = AgentRunner(
+            tool_registry=registry,
+            llm_gateway=mock_gateway,
+            tool_deps=instance_deps,
+        )
+
+        config = PipelineConfig.from_dict(
+            {
+                "name": "test-fallback",
+                "mode": "flexible",
+                "tools_allowed": ["mock_tool"],
+                "tools_denied": [],
+                "steps": [],
+                "max_steps": 5,
+                "on_failure": "skip",
+            }
+        )
+
+        await runner.run_flexible(config, user_message="test", session={})
+
+        assert len(captured_deps) == 1
+        assert captured_deps[0] is instance_deps, (
+            "run_flexible must fall back to self._tool_deps when no tool_deps kwarg; "
+            f"got: {captured_deps[0]!r}"
         )
