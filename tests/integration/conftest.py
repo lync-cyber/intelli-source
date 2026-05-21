@@ -114,13 +114,17 @@ async def pg_container() -> AsyncIterator[str]:
                 "postgresql+psycopg2://", "postgresql+asyncpg://"
             )
 
-        # Build sync URL for DDL + alembic
-        sync_url = async_url.replace("+asyncpg", "")
+        # Bare libpq URL for psycopg.connect (libpq rejects the SQLAlchemy
+        # driver suffix) and an explicit +psycopg variant for SQLAlchemy /
+        # alembic — the project ships psycopg v3, not psycopg2 (which is
+        # SQLAlchemy's default fallback for a driver-less postgresql:// URL).
+        libpq_url = async_url.replace("+asyncpg", "")
+        sync_url = async_url.replace("+asyncpg", "+psycopg")
 
         # Install required extensions via psycopg (sync) before alembic
         import psycopg  # type: ignore[import-untyped]
 
-        with psycopg.connect(sync_url, autocommit=True) as conn:
+        with psycopg.connect(libpq_url, autocommit=True) as conn:
             conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
             conn.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
 
