@@ -161,14 +161,11 @@ async def trigger_collect(
                 },
             )
 
-    return JSONResponse(
-        status_code=202,
-        content={
-            "task_chain_id": task_chain_id,
-            "tasks": [_task_brief(t) for t in tasks],
-            "message": f"已创建 {len(tasks)} 个采集任务",
-        },
-    )
+    return {
+        "task_chain_id": task_chain_id,
+        "tasks": [_task_brief(t) for t in tasks],
+        "message": f"已创建 {len(tasks)} 个采集任务",
+    }
 
 
 @router.get("/tasks/{id}")

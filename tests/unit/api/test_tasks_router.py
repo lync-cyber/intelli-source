@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import AsyncIterator
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -591,3 +592,47 @@ class TestCollectSendTaskPrecision:
         call_args = app_with_celery.state.celery_app.send_task.call_args
         sent_kwargs = call_args.kwargs["kwargs"]
         assert sent_kwargs["priority"] == "high"
+
+
+# ---------------------------------------------------------------------------
+# R-007 regression: datetime serialization in response body
+# ---------------------------------------------------------------------------
+
+
+class TestCollectDatetimeSerialization:
+    """Regression guard: real datetime objects in task fields must not cause 500."""
+
+    @pytest.mark.asyncio
+    async def test_collect_serializes_datetime_in_response_body(
+        self, celery_client: AsyncClient, app_with_celery: FastAPI
+    ) -> None:
+        """created_at as a real datetime is serialized to ISO string in the 202 body."""
+        real_dt = datetime(2026, 5, 21, 12, 0, 0, tzinfo=timezone.utc)
+        task_obj = _make_task_obj()
+        task_obj.created_at = real_dt
+
+        mock_task_repo = AsyncMock()
+        mock_task_repo.create.return_value = task_obj
+        mock_source_repo = AsyncMock()
+
+        with (
+            patch(
+                "intellisource.api.routers.tasks.TaskRepository",
+                return_value=mock_task_repo,
+            ),
+            patch(
+                "intellisource.api.routers.tasks.SourceRepository",
+                return_value=mock_source_repo,
+            ),
+        ):
+            resp = await celery_client.post(
+                "/api/v1/tasks/collect",
+                json={"source_ids": [str(SOURCE_ID)], "priority": "normal"},
+            )
+
+        assert resp.status_code == 202
+        body = resp.json()
+        assert len(body["tasks"]) == 1
+        created_at_value = body["tasks"][0]["created_at"]
+        assert isinstance(created_at_value, str)
+        assert "2026-05-21" in created_at_value
