@@ -6,6 +6,7 @@ by AgentRunner, and load_pipeline_config for loading YAML pipelines.
 
 from __future__ import annotations
 
+import uuid as _uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Coroutine
@@ -169,7 +170,7 @@ async def _get_content_detail_execute(
         session = tool_deps.session_factory()
         async with session as s:
             repo = ContentRepository(session=s)
-            content = await repo.get_by_id(content_id)
+            content = await repo.get_by_id(_uuid.UUID(content_id))
             return {
                 "status": "ok",
                 "tool": "get_content_detail",
