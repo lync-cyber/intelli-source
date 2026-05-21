@@ -1,14 +1,14 @@
 """Tests for LLMGateway unified calling interface and SchemaEnforcer.
 
 Covers:
-- AC-028: LLMGateway.complete() unified calling interface, supports different provider/model
+- AC-028: LLMGateway.complete() unified call interface, supports any provider/model
 - AC-031: SchemaEnforcer forces LLM output to conform to predefined JSON Schema
 - AC-T019-1: Support configuring multiple LLM provider API keys via env vars
 - AC-T019-2: Request parameter standardization (temperature/max_tokens/system_prompt)
 - AC-T019-3: Call result includes input_tokens/output_tokens/latency_ms metadata
 - AC-T019-4: JSON Schema validation failure raises SchemaValidationError
 - AC-T019-5: LLMGateway.estimate_tokens(text, model) provides token counting
-- AC-T019-6: task_type parameter auto-selects model via config; fallback to default_model
+- AC-T019-6: task_type auto-selects model via config; fallback to default_model
 """
 
 from __future__ import annotations
@@ -88,7 +88,7 @@ class TestLLMGatewayComplete:
         for model in models:
             with patch("intellisource.llm.gateway.litellm") as mock_litellm:
                 mock_litellm.acompletion = AsyncMock(return_value=mock_litellm_response)
-                result = await gateway.complete(
+                await gateway.complete(
                     prompt="Hello",
                     model=model,
                 )

@@ -1,14 +1,12 @@
 """Tests for BatchProcessor (AC-017, AC-T017-2).
 
 Covers:
-- AC-017: Support batch processing mode (pass multiple items, processor handles them in bulk).
+- AC-017: Support batch mode — pass multiple items; processor handles them in bulk.
 - AC-T017-2: In batch mode, pipeline context maintains independent state per item.
 """
 
-
-from intellisource.pipeline.batch import BatchProcessor
-
 from intellisource.pipeline.base import BaseProcessor
+from intellisource.pipeline.batch import BatchProcessor
 from intellisource.pipeline.context import PipelineContext
 
 # ---------------------------------------------------------------------------
@@ -156,7 +154,7 @@ class TestBatchProcessorIndependentState:
 
 
 class TestBatchProcessorFailureIsolation:
-    """AC-017 / AC-T017-2: One item failing should not prevent others from being processed."""
+    """AC-017 / AC-T017-2: One item failing must not block other items from running."""
 
     def test_failure_in_one_item_does_not_block_others(self):
         """When one item fails, other items should still be processed successfully."""
@@ -180,7 +178,7 @@ class TestBatchProcessorFailureIsolation:
         assert results[2].get("processed") is True
 
     def test_failed_item_preserves_original_context(self):
-        """A failed item should retain its original context (not be mutated by the failure)."""
+        """A failed item retains its original context (not mutated by the failure)."""
         proc = _FailingProcessor()
         batch = BatchProcessor(proc)
 

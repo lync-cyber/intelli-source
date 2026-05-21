@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any, Protocol
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 FREQUENCY_OPTIONS: set[str] = {
     "realtime",
@@ -87,13 +88,18 @@ class FrequencyController:
         return current_minutes >= start_minutes or current_minutes < end_minutes
 
     def is_quiet_hours(self, subscription: Any) -> bool:
-        """Check if current time falls within quiet hours."""
+        """Check if current time falls within quiet hours.
+
+        Converts UTC clock time to subscription.timezone before comparison.
+        """
         qh = subscription.quiet_hours
         if not self._has_quiet_hours(qh):
             return False
 
-        now = self._clock.now()
-        current_minutes = now.hour * 60 + now.minute
+        now_utc = self._clock.now()
+        tz_name: str = getattr(subscription, "timezone", "UTC")
+        local_now = now_utc.astimezone(ZoneInfo(tz_name))
+        current_minutes = local_now.hour * 60 + local_now.minute
 
         start_h, start_m = _parse_time(qh["start"])
         end_h, end_m = _parse_time(qh["end"])

@@ -2,7 +2,7 @@
 
 Covers:
   AC-057: Log output contains structured fields: task_id, processing_stage, duration_ms
-  AC-059: TracingMiddleware generates unique trace_id per request and injects into log context
+  AC-059: TracingMiddleware emits per-request trace_id, injected into log context
   AC-T006-1: Log format is JSON Lines with timestamp, level, message, extra fields
   AC-T006-2: Log level configurable via IS_LOG_LEVEL environment variable
 """
@@ -139,7 +139,7 @@ class TestLogLevelConfiguration:
             logger.info("should-appear")
 
         output = stream.getvalue().strip()
-        lines = [l for l in output.splitlines() if l.strip()]
+        lines = [ln for ln in output.splitlines() if ln.strip()]
         # At least the INFO line should be present
         assert len(lines) >= 1, "Expected at least one log line for INFO"
         # Verify no DEBUG line leaked through
@@ -347,7 +347,7 @@ class TestTracingMiddlewareLogIntegration:
         await middleware(scope, receive, send)
 
         output = stream.getvalue().strip()
-        lines = [l for l in output.splitlines() if l.strip()]
+        lines = [ln for ln in output.splitlines() if ln.strip()]
         assert len(lines) >= 2, "Expected at least 2 log lines for 2 requests"
 
         trace_ids = []

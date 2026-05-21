@@ -2,7 +2,7 @@
 
 Covers:
   AC-T009-1: ConfigLoader.load_file() parses YAML/JSON and validates via ConfigValidator
-  AC-T009-2: ConfigLoader.sync_to_db() syncs configs to Source table (create/update/mark-deleted)
+  AC-T009-2: ConfigLoader.sync_to_db() syncs configs to Source (create/update/delete)
   AC-T009-3: ConfigWatcher detects file changes and triggers reload callback
   AC-T009-4: Validation failure rejects load; existing configs unaffected
   AC-T009-5: ConfigVersionManager.rollback(version) restores a previous version
@@ -83,6 +83,10 @@ async def engine():
             type_name = type(col.type).__name__
             if type_name == "Vector":
                 col.type = Text()
+            elif type_name == "ARRAY":
+                from sqlalchemy import JSON
+
+                col.type = JSON()
 
     async with eng.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -365,7 +369,7 @@ class TestValidationFailureRejection:
 
 
 class TestConfigVersionManager:
-    """AC-T009-5 / AC-004: ConfigVersionManager tracks versions and supports rollback."""
+    """AC-T009-5 / AC-004: ConfigVersionManager tracks versions, supports rollback."""
 
     def test_import_config_version_manager(self) -> None:
         """ConfigVersionManager class must be importable."""

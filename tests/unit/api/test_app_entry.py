@@ -9,8 +9,6 @@ Covers:
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -287,8 +285,7 @@ class TestShutdownResourceRelease:
             patch("intellisource.main.shutdown_celery", new_callable=MagicMock),
         ):
             # Directly invoke the lifespan to confirm it yields
-            async with lifespan(app) as state:
+            async with lifespan(app):
                 # After yield the app should be in "running" state
-                # state may be None or a dict -- either is acceptable
                 pass
             # If we reach here without error, shutdown completed successfully

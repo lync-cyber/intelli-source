@@ -17,9 +17,8 @@ are mocked via AsyncSession.
 from __future__ import annotations
 
 import math
-import uuid
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -281,7 +280,7 @@ class TestSearchFiltering:
 
 
 # ===========================================================================
-# AC-T037-4: Rich result fields (content_id/title/snippet/score/source_name/published_at)
+# AC-T037-4: Rich result fields (content_id/title/snippet/score/source_name/date)
 # ===========================================================================
 
 

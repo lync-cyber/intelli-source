@@ -7,6 +7,7 @@ Covers:
 """
 
 import pytest
+
 from intellisource.core.errors import (
     CollectorError,
     DistributorError,
@@ -23,7 +24,7 @@ from intellisource.core.errors import (
 
 
 class TestIntelliSourceErrorBase:
-    """IntelliSourceError must carry category (ErrorCategory) and recovery_hint (str)."""
+    """IntelliSourceError carries category (ErrorCategory) and recovery_hint (str)."""
 
     def test_is_exception_subclass(self):
         """IntelliSourceError should be a subclass of Exception."""
@@ -65,7 +66,7 @@ class TestErrorCategory:
     }
 
     def test_enum_members_match_architecture(self):
-        """Enum should contain exactly the four categories defined in arch section 5.3."""
+        """Enum contains exactly the four categories defined in arch section 5.3."""
         actual = {member.name for member in ErrorCategory}
         assert actual == self.EXPECTED_MEMBERS
 
@@ -93,7 +94,7 @@ _MODULE_ERROR_DEFAULTS = [
 
 
 class TestModuleErrors:
-    """Each module error class inherits IntelliSourceError with the correct default category."""
+    """Each module error inherits IntelliSourceError with correct default category."""
 
     @pytest.mark.parametrize(
         "error_cls, expected_category",
@@ -110,7 +111,7 @@ class TestModuleErrors:
         ids=[cls.__name__ for cls, _ in _MODULE_ERROR_DEFAULTS],
     )
     def test_default_category(self, error_cls, expected_category):
-        """Instantiating with just a message should use the predefined default category."""
+        """Instantiating with just a message uses the predefined default category."""
         err = error_cls("test")
         assert err.category is expected_category
 

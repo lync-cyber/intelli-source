@@ -385,7 +385,7 @@ class TestHybridFusion:
 
     @pytest.mark.asyncio
     async def test_hybrid_mode_requires_both_query_and_vector(self) -> None:
-        """Hybrid mode needs both query (str) and query_vector; missing either raises."""
+        """Hybrid mode needs both query (str) and query_vector; either missing raises."""  # noqa: E501
         from intellisource.storage.vector import HybridIndex
 
         mock_session = AsyncMock()

@@ -14,13 +14,8 @@ requiring a real database connection.
 
 from __future__ import annotations
 
-import ast
-import importlib
 import pathlib
 import re
-import textwrap
-
-import pytest
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -148,7 +143,7 @@ class TestUpgradeCreatesTablesAndIndexes:
         )
 
     def test_upgrade_creates_hnsw_index(self) -> None:
-        """upgrade() must create the HNSW vector index on processed_contents.embedding."""
+        """upgrade() must create the HNSW vector index on processed_contents."""
         source = _read_migration_source()
         assert re.search(r"hnsw", source, re.IGNORECASE), (
             "Migration does not create HNSW index for vector similarity search"

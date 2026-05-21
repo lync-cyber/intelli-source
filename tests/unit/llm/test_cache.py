@@ -15,7 +15,6 @@ Covers:
 from __future__ import annotations
 
 import json
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -335,7 +334,7 @@ class TestCacheInvalidate:
         fake_redis: FakeRedis,
         sample_result: LLMResult,
     ) -> None:
-        """invalidate() must use non-blocking scan_iter, never the blocking KEYS command.
+        """invalidate() must use non-blocking scan_iter, never blocking KEYS.
 
         SR-003 regression guard: prior implementation used redis.keys() which
         blocks the Redis event loop O(N) in production.

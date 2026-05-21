@@ -4,7 +4,7 @@ Covers:
 - AC-009: Dynamic interval calculation based on historical update frequency
 - AC-012: Auto-retry with exponential backoff (3 attempts), failure logging
 - AC-T015-1: New sources use default interval; adaptive adjustment after 5 collections
-- AC-T015-2: Adaptive interval clamped to [2 min, 24 hours] (arch §2.M-002: 120s minimum)
+- AC-T015-2: Adaptive interval clamped to [2 min, 24h] (arch §2.M-002: 120s min)
 - AC-T015-3: Consecutive errors extend interval (backoff); success restores it
 """
 
@@ -86,7 +86,7 @@ class TestAdaptiveSchedulerAdaptive:
     """After 5+ collections, interval adapts to avg_update_interval."""
 
     def test_frequent_updates_shorten_interval(self):
-        """Sources updating every 10 min should get a shorter interval than default 1h."""
+        """Sources updating every 10 min get a shorter interval than default 1h."""
         scheduler = AdaptiveScheduler()
         stats = SourceStats(
             collect_count=10,
@@ -99,7 +99,7 @@ class TestAdaptiveSchedulerAdaptive:
         assert result < 3600, "Frequent updates should shorten the interval"
 
     def test_infrequent_updates_extend_interval(self):
-        """Sources updating every 12 hours should get a longer interval than 1h default."""
+        """Sources updating every 12 hours get a longer interval than 1h default."""
         scheduler = AdaptiveScheduler()
         stats = SourceStats(
             collect_count=10,

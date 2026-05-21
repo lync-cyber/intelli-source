@@ -117,7 +117,19 @@
       "Bash(where cataforge *)",
       "Bash(docker --version)",
       "Bash(docker info *)",
-      "Bash(awk '{print $2}')"
+      "Bash(awk '{print $2}')",
+      "Bash(cataforge event *)",
+      "Skill(tdd-engine)",
+      "Skill(tdd-engine:*)",
+      "Bash(findstr testcontainers *)",
+      "Bash(cataforge skill *)",
+      "Bash(Get-Content docs/dev-plan/dev-plan-intellisource-v1-s8r.md)",
+      "Bash(Measure-Object -Line)",
+      "Bash(Select-Object -ExpandProperty Lines)",
+      "Bash(gh pr *)",
+      "Bash(gh api *)",
+      "Bash(grep -oE \"\\(\\\\.cataforge|\\\\.claude|tests|src\\)[\\\\\\\\/][^:]+\\\\.py\" ruff-errors.txt)",
+      "Bash(awk '/Line too long/ {match\\($0, /\\\\\\(\\([0-9]+\\) > 88\\\\\\)/, a\\); print a[1]}' my-errors.txt)"
     ]
   }
 }

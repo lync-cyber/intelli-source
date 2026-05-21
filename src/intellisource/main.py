@@ -50,12 +50,13 @@ async def init_redis() -> None:
 
 
 def init_celery() -> Any:
-    """Instantiate and return a Celery application."""
+    """Instantiate Celery application bound to configured broker/backend."""
     global _celery_app
     broker_url = os.environ.get("IS_CELERY_BROKER_URL") or os.environ.get(
         "IS_REDIS_URL", "redis://localhost:6379/0"
     )
     _celery_app = Celery("intellisource", broker=broker_url)
+    _celery_app.conf.broker_connection_retry_on_startup = False
     return _celery_app
 
 
@@ -86,11 +87,13 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[dict[str, Any]]:
     """Manage application startup and shutdown."""
     db = DatabaseManager()
     app.state.db = db
+    celery_instance = init_celery()
+    app.state.celery_app = celery_instance
     try:
         await init_redis()
-        init_celery()
         yield {}
     finally:
+        app.state.celery_app.close()
         await db.close()
         await close_redis()
         shutdown_celery()

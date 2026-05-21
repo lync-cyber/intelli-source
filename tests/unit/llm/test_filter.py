@@ -14,8 +14,8 @@ import json
 from pathlib import Path
 
 import pytest
-from intellisource.llm.processors.filter import ContentFilter
 
+from intellisource.llm.processors.filter import ContentFilter
 from intellisource.pipeline.base import BaseProcessor
 from intellisource.pipeline.context import PipelineContext
 

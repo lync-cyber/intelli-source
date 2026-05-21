@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 
 import pytest
+
 from intellisource.llm.priority_queue import PriorityLevel, PriorityQueue, QueuedRequest
 
 # ---------------------------------------------------------------------------

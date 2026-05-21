@@ -1,9 +1,8 @@
 """Tests for PipelineContext (AC-016).
 
 Covers:
-- AC-016: PipelineContext supports data passing between processors via get/set key-value pairs.
+- AC-016: PipelineContext supports inter-processor data via get/set key-value pairs.
 """
-
 
 from intellisource.pipeline.context import PipelineContext
 
@@ -50,7 +49,7 @@ class TestPipelineContextGetSet:
         assert ctx.get("key_b") == "value_b"
 
     def test_supports_various_value_types(self):
-        """Context should support storing different Python types (str, int, list, dict)."""
+        """Context supports storing different Python types (str, int, list, dict)."""
         ctx = PipelineContext()
         ctx.set("string", "hello")
         ctx.set("number", 42)
@@ -67,7 +66,7 @@ class TestPipelineContextSharing:
     """AC-016: PipelineContext can be passed between multiple processors."""
 
     def test_context_preserves_data_across_mutations(self):
-        """Simulates passing context through processors: data set by one is visible to the next."""
+        """Passing context through processors: data set by one is visible to next."""
         ctx = PipelineContext()
 
         # Processor 1 sets data

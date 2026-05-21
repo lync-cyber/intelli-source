@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-05-05T11:29:29.406268+00:00",
+  "generated_at": "2026-05-21T08:21:34.492223+00:00",
   "documents": {
     "arch-intellisource-v1-api": {
       "file_path": "docs/arch/arch-intellisource-v1-api.md",
@@ -1179,35 +1179,35 @@
       "volume": "s7r",
       "status": "approved",
       "total_lines": 167,
-      "est_tokens": 3220,
+      "est_tokens": 3296,
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
           "level": 2,
           "line_start": 25,
           "line_end": 167,
-          "est_tokens": 2941,
+          "est_tokens": 3017,
           "deps": [],
           "items": {
             "T-080": {
               "heading": "### T-080: runner.py DB_URL 环境变量化（12-factor §III Config）",
               "line_start": 27,
               "line_end": 71,
-              "est_tokens": 733,
+              "est_tokens": 732,
               "deps": []
             },
             "T-081": {
               "heading": "### T-081: testcontainers-postgres fixture（BD-001 / SR-002 闭环）",
               "line_start": 72,
               "line_end": 130,
-              "est_tokens": 1642,
+              "est_tokens": 1680,
               "deps": []
             },
             "T-082": {
               "heading": "### T-082: tests/ ruff 债务清理（BD-003 / ~166 处 pre-existing 违规）",
               "line_start": 131,
               "line_end": 167,
-              "est_tokens": 560,
+              "est_tokens": 599,
               "deps": []
             }
           }
@@ -2844,6 +2844,176 @@
       "deps": [
         "dev-plan-intellisource-v1"
       ]
+    },
+    "dev-plan-intellisource-v1-s8r": {
+      "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8r.md",
+      "doc_type": "dev-plan",
+      "volume": "s8r",
+      "status": "draft",
+      "total_lines": 706,
+      "est_tokens": 14719,
+      "sections": {
+        "2": {
+          "heading": "## 2. 依赖图",
+          "level": 2,
+          "line_start": 37,
+          "line_end": 76,
+          "est_tokens": 281,
+          "deps": [],
+          "items": {}
+        },
+        "3": {
+          "heading": "## 3. 任务卡详细",
+          "level": 2,
+          "line_start": 77,
+          "line_end": 681,
+          "est_tokens": 13294,
+          "deps": [],
+          "items": {
+            "T-083": {
+              "heading": "### T-083: 应用组合根与 Celery 链路真实初始化（B-01 + B-12 基础层）",
+              "line_start": 79,
+              "line_end": 138,
+              "est_tokens": 1365,
+              "deps": []
+            },
+            "T-084": {
+              "heading": "### T-084: PipelineEngine 中间件接入与流式/批处理分路（B-03）",
+              "line_start": 139,
+              "line_end": 188,
+              "est_tokens": 1069,
+              "deps": []
+            },
+            "T-085": {
+              "heading": "### T-085: HybridSearchEngine 真实查询接驳 + chat 方法补全（B-02）",
+              "line_start": 189,
+              "line_end": 233,
+              "est_tokens": 903,
+              "deps": []
+            },
+            "T-086": {
+              "heading": "### T-086: LLMGateway chat 方法 + JSON Mode / Function Calling（B-06 + B-11）",
+              "line_start": 234,
+              "line_end": 276,
+              "est_tokens": 897,
+              "deps": []
+            },
+            "T-087": {
+              "heading": "### T-087: F-005 LLM 智能处理链路接驳（B-04）",
+              "line_start": 277,
+              "line_end": 333,
+              "est_tokens": 1333,
+              "deps": []
+            },
+            "T-088": {
+              "heading": "### T-088: CircuitBreaker + PriorityQueue 接驳 LLMGateway（B-05）",
+              "line_start": 334,
+              "line_end": 377,
+              "est_tokens": 903,
+              "deps": []
+            },
+            "T-089": {
+              "heading": "### T-089: Agent 工具 6 个 execute stub 真实实现（B-08）",
+              "line_start": 378,
+              "line_end": 426,
+              "est_tokens": 1034,
+              "deps": []
+            },
+            "T-090": {
+              "heading": "### T-090: 三渠道 PushRecord 持久化 + 统一 dedup hook（B-07）",
+              "line_start": 427,
+              "line_end": 475,
+              "est_tokens": 1034,
+              "deps": []
+            },
+            "T-091": {
+              "heading": "### T-091: ConfigWatcher 热加载 + reload API 真实实现（B-09）",
+              "line_start": 476,
+              "line_end": 522,
+              "est_tokens": 1082,
+              "deps": []
+            },
+            "T-092": {
+              "heading": "### T-092: Celery task_routes 配置 + boot.py worker_init 修复 + 幂等三组件串入（B-12 + B-13）",
+              "line_start": 523,
+              "line_end": 570,
+              "est_tokens": 1083,
+              "deps": []
+            },
+            "T-093": {
+              "heading": "### T-093: quiet_hours 时区修复 + scorer/matcher 关键词解析器统一 + ReDoS 防护（B-10 + B-14 + B-15）",
+              "line_start": 571,
+              "line_end": 629,
+              "est_tokens": 1487,
+              "deps": []
+            },
+            "T-094": {
+              "heading": "### T-094: Sprint-8r 集成测试与冷启动验证",
+              "line_start": 630,
+              "line_end": 681,
+              "est_tokens": 1091,
+              "deps": []
+            }
+          }
+        },
+        "4": {
+          "heading": "## 4. 风险项",
+          "level": 2,
+          "line_start": 682,
+          "line_end": 706,
+          "est_tokens": 625,
+          "deps": [],
+          "items": {
+            "R-001": {
+              "heading": "### R-001: 应用组合根改动影响面广（CRITICAL）",
+              "line_start": 684,
+              "line_end": 687,
+              "est_tokens": 78,
+              "deps": []
+            },
+            "R-002": {
+              "heading": "### R-002: testcontainers 在 CI 或本地无 Docker 时的跳过策略",
+              "line_start": 688,
+              "line_end": 691,
+              "est_tokens": 94,
+              "deps": []
+            },
+            "R-003": {
+              "heading": "### R-003: ReDoS 防护依赖第三方 `regex` 库（HIGH）",
+              "line_start": 692,
+              "line_end": 695,
+              "est_tokens": 94,
+              "deps": []
+            },
+            "R-004": {
+              "heading": "### R-004: Alembic 迁移顺序与 PG 兼容性（MEDIUM）",
+              "line_start": 696,
+              "line_end": 699,
+              "est_tokens": 103,
+              "deps": []
+            },
+            "R-005": {
+              "heading": "### R-005: `PriorityQueue` asyncio.Queue 与 Celery worker 线程模型冲突（MEDIUM）",
+              "line_start": 700,
+              "line_end": 703,
+              "est_tokens": 134,
+              "deps": []
+            },
+            "R-006": {
+              "heading": "### R-006: F-005 四模块跨度任务卡（T-087）执行风险（MEDIUM）",
+              "line_start": 704,
+              "line_end": 706,
+              "est_tokens": 115,
+              "deps": []
+            }
+          }
+        }
+      },
+      "split_from": "dev-plan-intellisource-v1",
+      "deps": [
+        "arch-intellisource-v1",
+        "prd-intellisource-v1"
+      ]
     }
   },
   "xref": {
@@ -3867,6 +4037,132 @@
         "doc_id": "prd-intellisource-v1",
         "section": "2",
         "file_path": "docs/prd/prd-intellisource-v1.md"
+      }
+    ],
+    "T-083": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s8r",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8r.md"
+      }
+    ],
+    "T-084": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s8r",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8r.md"
+      }
+    ],
+    "T-085": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s8r",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8r.md"
+      }
+    ],
+    "T-086": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s8r",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8r.md"
+      }
+    ],
+    "T-087": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s8r",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8r.md"
+      }
+    ],
+    "T-088": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s8r",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8r.md"
+      }
+    ],
+    "T-089": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s8r",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8r.md"
+      }
+    ],
+    "T-090": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s8r",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8r.md"
+      }
+    ],
+    "T-091": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s8r",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8r.md"
+      }
+    ],
+    "T-092": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s8r",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8r.md"
+      }
+    ],
+    "T-093": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s8r",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8r.md"
+      }
+    ],
+    "T-094": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s8r",
+        "section": "3",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8r.md"
+      }
+    ],
+    "R-001": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s8r",
+        "section": "4",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8r.md"
+      }
+    ],
+    "R-002": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s8r",
+        "section": "4",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8r.md"
+      }
+    ],
+    "R-003": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s8r",
+        "section": "4",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8r.md"
+      }
+    ],
+    "R-004": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s8r",
+        "section": "4",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8r.md"
+      }
+    ],
+    "R-005": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s8r",
+        "section": "4",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8r.md"
+      }
+    ],
+    "R-006": [
+      {
+        "doc_id": "dev-plan-intellisource-v1-s8r",
+        "section": "4",
+        "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8r.md"
       }
     ]
   },

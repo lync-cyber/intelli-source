@@ -35,7 +35,7 @@ split_from: dev-plan-intellisource-v1
 - **模块**: M-009（storage/database）、M-011（API 入口 / 配置）
 - **接口**: internal — `DATABASE_URL` 环境变量约定
 - **复杂度**: S（预估 LOC < 50：读取环境变量逻辑 ~10 行 + 单元测试 ~30 行）
-- **status**: planned
+- **status**: done
 - **依赖**: 无（独立任务，优先执行）
 
 - **tdd_acceptance**:
@@ -79,7 +79,7 @@ split_from: dev-plan-intellisource-v1
 - **模块**: M-009（storage/pgvector/repositories）、M-008（search/hybrid）
 - **接口**: internal — pytest fixture 接口
 - **复杂度**: L（预估 LOC ~260）
-- **status**: planned
+- **status**: done（pg_* 集成测试 PASS 验证需 Docker daemon — 本地无 Docker 时 17 个新增测试 + 11 个迁移测试 graceful skip；CI ubuntu-latest 内置 Docker 完成最终验证）
 - **依赖**: T-080（DATABASE_URL 环境变量化后，fixture 可通过 `monkeypatch.setenv("DATABASE_URL", pg_url)` 干净注入，避免硬编码）
 
 - **tdd_acceptance**:
@@ -138,7 +138,7 @@ split_from: dev-plan-intellisource-v1
 - **模块**: 仅 `tests/`（不涉及 `src/` 任何模块）
 - **接口**: 不涉及
 - **复杂度**: S（机械重构；大部分可 `ruff --fix` 自动处理）
-- **status**: planned
+- **status**: done（ruff check 0 violations / ruff format clean / pytest 1854 passed 0 failed；4 处 `# noqa: E501` 用于无法合理折行的固定字符串字面量与测试断言文本）
 - **依赖**: T-081（确保 T-081 新增的 PG fixture 代码也被同步纳入清理范围）
 
 - **tdd_acceptance**:

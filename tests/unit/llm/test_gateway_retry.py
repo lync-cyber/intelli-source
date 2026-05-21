@@ -12,7 +12,6 @@ Covers:
 
 from __future__ import annotations
 
-import json
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -22,7 +21,6 @@ from tenacity import wait_fixed
 
 from intellisource.core.errors import ErrorCategory
 from intellisource.llm.gateway import LLMGateway, _classify_error
-
 
 # ---------------------------------------------------------------------------
 # Shared fixtures & helpers
@@ -130,9 +128,7 @@ class TestRetryOnTransient:
         gw = _make_gateway(retry_wait=wait_fixed(0))
 
         with patch("intellisource.llm.gateway.litellm") as mock_litellm:
-            mock_litellm.acompletion = AsyncMock(
-                side_effect=[transient, success_resp]
-            )
+            mock_litellm.acompletion = AsyncMock(side_effect=[transient, success_resp])
             mock_litellm.token_counter = MagicMock(return_value=10)
             result = await gw.complete(prompt="test", model="gpt-4o-mini")
 
@@ -140,7 +136,7 @@ class TestRetryOnTransient:
         assert mock_litellm.acompletion.call_count == 2
 
     async def test_retry_count_capped_at_3(self) -> None:
-        """After 3 retries (4 total calls), retries are exhausted and exception raised."""
+        """After 3 retries (4 total calls), retries exhaust and exception raises."""
         transient = _make_transient_error()
         gw = _make_gateway(retry_wait=wait_fixed(0))
 
@@ -235,7 +231,7 @@ class TestFallbackAfterExhaustion:
         assert result == "fallback_result"
 
     async def test_no_fallback_manager_raises_after_exhaustion(self) -> None:
-        """Without fallback_manager, the original exception propagates after exhaustion."""
+        """Without fallback_manager, original exception propagates on exhaustion."""
         transient = _make_transient_error()
         gw = _make_gateway(fallback_manager=None, retry_wait=wait_fixed(0))
 
@@ -250,7 +246,7 @@ class TestFallbackAfterExhaustion:
         assert mock_litellm.acompletion.call_count == 4
 
     async def test_fallback_function_raises_propagates_fallback_error(self) -> None:
-        """When fallback function itself raises, fallback error supersedes original transient."""
+        """When fallback fn raises, fallback error supersedes original transient."""
         transient = _make_transient_error()
         fm = MagicMock()
         fm.execute_fallback = AsyncMock(side_effect=ValueError("fallback boom"))
@@ -363,4 +359,6 @@ class TestClassifyError:
         assert _classify_error(err) is ErrorCategory.RECOVERABLE_TRANSIENT
 
     def test_classify_unknown_exception_as_degraded(self) -> None:
-        assert _classify_error(RuntimeError("oops")) is ErrorCategory.RECOVERABLE_DEGRADED
+        assert (
+            _classify_error(RuntimeError("oops")) is ErrorCategory.RECOVERABLE_DEGRADED
+        )

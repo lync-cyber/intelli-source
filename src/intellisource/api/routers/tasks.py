@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -90,6 +90,7 @@ async def list_tasks(
 
 @router.post("/tasks/collect", status_code=202)
 async def trigger_collect(
+    request: Request,
     body: CollectRequest,
     session: AsyncSession = Depends(get_db_session),
 ) -> Any:
@@ -101,7 +102,21 @@ async def trigger_collect(
         )
     except ValueError:
         return JSONResponse(status_code=404, content={"detail": "source not found"})
-    return _serialize_task(task)
+
+    serialized = _serialize_task(task)
+
+    celery_instance = getattr(request.app.state, "celery_app", None)
+    if celery_instance is not None:
+        async_result = celery_instance.send_task(
+            "run_pipeline",
+            kwargs={
+                "source_id": str(body.source_id),
+                "trigger_type": body.trigger_type,
+            },
+        )
+        serialized["task_id"] = async_result.id
+
+    return serialized
 
 
 @router.get("/tasks/{id}")

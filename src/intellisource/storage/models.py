@@ -16,11 +16,12 @@ from sqlalchemy import (
     Index,
     Integer,
     Numeric,
+    String,
     Text,
     UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import VARCHAR
 
@@ -104,6 +105,9 @@ class Source(TimestampMixin, Base):
         VARCHAR(255), nullable=True
     )
     config_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    discipline_tags: Mapped[list[str]] = mapped_column(
+        ARRAY(String), nullable=False, default=list
+    )
 
     # Relationships
     collect_tasks: Mapped[list["CollectTask"]] = relationship(back_populates="source")
@@ -419,6 +423,12 @@ class Subscription(TimestampMixin, Base):
         VARCHAR(20), nullable=False, default="realtime"
     )
     quiet_hours: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
+    timezone: Mapped[str] = mapped_column(
+        VARCHAR(100), nullable=False, default="Asia/Shanghai"
+    )
+    discipline_tags: Mapped[list[str]] = mapped_column(
+        ARRAY(String), nullable=False, default=list
+    )
     status: Mapped[str] = mapped_column(VARCHAR(20), nullable=False, default="active")
 
     # Relationships

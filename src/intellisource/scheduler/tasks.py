@@ -14,6 +14,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from intellisource.scheduler.celery_app import celery_app
 from intellisource.storage.models import TaskChain
 from intellisource.storage.repositories.task_chain import TaskChainRepository
 
@@ -176,3 +177,28 @@ class CeleryTasks:
             self._update_chain_status(chain_id, "failed")
 
         raise last_error  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# Module-level Celery task (AC-4) — delegates to CeleryTasks business logic
+# ---------------------------------------------------------------------------
+
+
+@celery_app.task(name="run_pipeline", bind=True)  # type: ignore[untyped-decorator]
+def run_pipeline(self: Any, **kwargs: Any) -> dict[str, Any]:
+    """Celery entry point: execute the named pipeline with the given params.
+
+    The ``bind=True`` flag injects the Celery Task instance as ``self``.
+    Business logic is delegated to :class:`CeleryTasks` when a configured
+    instance is available; otherwise a minimal pass-through is returned.
+    """
+    pipeline_name: str = kwargs.get("pipeline_name", "default")
+    params: dict[str, Any] = kwargs.get("params", kwargs)
+
+    _celery_tasks_instance: CeleryTasks | None = getattr(
+        celery_app, "_celery_tasks_instance", None
+    )
+    if _celery_tasks_instance is not None:
+        return _celery_tasks_instance.run_pipeline(pipeline_name, params)
+
+    return {"status": "queued", "pipeline_name": pipeline_name, "params": params}

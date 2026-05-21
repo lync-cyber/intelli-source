@@ -29,9 +29,11 @@ def init_worker_session_factory() -> async_sessionmaker[AsyncSession]:
     Does not import or access intellisource.main or app.state.db.
     """
     global _worker_engine
-    url = os.environ.get("IS_DATABASE_URL")
+    url = os.environ.get("DATABASE_URL") or os.environ.get(
+        "IS_DATABASE_URL"
+    )  # 12-factor §III Config
     if not url:
-        raise ValueError("IS_DATABASE_URL must be set for the worker process")
+        raise ValueError("DATABASE_URL must be set for the worker process")
     _worker_engine = create_async_engine(url)
     return async_sessionmaker(
         bind=_worker_engine, class_=AsyncSession, expire_on_commit=False

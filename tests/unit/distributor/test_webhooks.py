@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -245,9 +245,7 @@ class TestTextMessageRouting:
         mock_search.search = AsyncMock(return_value=[{"title": "result1"}])
 
         handler = WeChatWebhookHandler(token=_WECHAT_TOKEN)
-        response = await handler.handle_message(
-            _SAMPLE_TEXT_XML, search_service=mock_search
-        )
+        await handler.handle_message(_SAMPLE_TEXT_XML, search_service=mock_search)
 
         # Search should have been called with the message content
         mock_search.search.assert_called_once()
@@ -283,9 +281,7 @@ class TestTextMessageRouting:
         mock_search.search = AsyncMock(return_value=[])
 
         handler = WeChatWebhookHandler(token=_WECHAT_TOKEN)
-        response = await handler.handle_message(
-            _SAMPLE_IMAGE_XML, search_service=mock_search
-        )
+        await handler.handle_message(_SAMPLE_IMAGE_XML, search_service=mock_search)
 
         mock_search.search.assert_not_called()
 

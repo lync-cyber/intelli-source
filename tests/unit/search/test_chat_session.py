@@ -310,9 +310,6 @@ class TestSessionCleanup:
         mock_db = AsyncMock()
         manager = ChatSessionManager(session=mock_db)
 
-        recent_session = _make_session_row(
-            last_active_at=datetime.now(timezone.utc) - timedelta(hours=1)
-        )
         old_session = _make_session_row(
             last_active_at=datetime.now(timezone.utc) - timedelta(hours=48)
         )

@@ -30,12 +30,19 @@ class DatabaseManager:
     """
 
     def __init__(self, database_url: str | None = None) -> None:
-        url = database_url or os.environ.get("IS_DATABASE_URL")
+        url = (
+            database_url
+            or os.environ.get("DATABASE_URL")
+            or os.environ.get("IS_DATABASE_URL")
+        )  # 12-factor §III Config
         if not url:
-            raise ValueError(
-                "database_url must be provided or IS_DATABASE_URL "
-                "environment variable must be set"
-            )
+            env = os.environ.get("ENV", "")
+            if env in ("production", "staging"):
+                raise ValueError(
+                    "DATABASE_URL environment variable must be set "
+                    "in production/staging environments."
+                )
+            url = "sqlite+aiosqlite:///./intellisource_dev.db"
         self._engine: AsyncEngine = create_async_engine(url)
         self._session_factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
             bind=self._engine,

@@ -138,7 +138,7 @@ class TestPyprojectDependencies:
             cwd=str(PROJECT_ROOT),
         )
         assert result.returncode == 0, (
-            f"uv pip install --dry-run failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
+            f"uv pip install --dry-run failed:\n{result.stdout}\n{result.stderr}"
         )
 
 

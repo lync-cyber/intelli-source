@@ -1,7 +1,7 @@
 """Tests for pipeline processors (AC-015, AC-T018-1..4).
 
 Covers:
-- AC-015: Each processor implements BaseProcessor interface and can be independently registered.
+- AC-015: Each processor implements BaseProcessor and can be independently registered.
 - AC-T018-1: HTMLParser extracts plain text from body_html into body_text.
 - AC-T018-2: ContentDedup detects duplicate content via SHA-256 fingerprint.
 - AC-T018-3: KeywordTagger adds tags based on a predefined keyword library.
@@ -10,20 +10,19 @@ Covers:
 
 import hashlib
 
+from intellisource.pipeline.base import BaseProcessor
+from intellisource.pipeline.context import PipelineContext
 from intellisource.pipeline.processors.dedup import ContentDedup
 from intellisource.pipeline.processors.formatter import FormatConverter
 from intellisource.pipeline.processors.parser import HTMLParser
 from intellisource.pipeline.processors.tagger import KeywordTagger
-
-from intellisource.pipeline.base import BaseProcessor
-from intellisource.pipeline.context import PipelineContext
 
 
 # ---------------------------------------------------------------------------
 # AC-015: All processors implement BaseProcessor and can be independently registered
 # ---------------------------------------------------------------------------
 class TestProcessorBaseInterface:
-    """AC-015: Every processor implements BaseProcessor and can be registered to a pipeline."""
+    """AC-015: Every processor implements BaseProcessor and is pipeline-registrable."""
 
     def test_html_parser_is_base_processor(self):
         """HTMLParser should be a subclass of BaseProcessor."""
@@ -126,7 +125,7 @@ class TestContentDedup:
         assert result.get("is_duplicate") is False
 
     def test_duplicate_content_marked_duplicate(self):
-        """Content whose fingerprint already exists should be marked is_duplicate=True."""
+        """Existing-fingerprint content should be marked is_duplicate=True."""
         fingerprint = hashlib.sha256("duplicate content".encode()).hexdigest()
         seen = {fingerprint}
         processor = ContentDedup(seen_fingerprints=seen)
@@ -137,7 +136,7 @@ class TestContentDedup:
         assert result.get("is_duplicate") is True
 
     def test_new_fingerprint_is_recorded(self):
-        """After processing new content, its fingerprint should be stored for future dedup."""
+        """After processing new content, its fingerprint is stored for future dedup."""
         seen: set[str] = set()
         processor = ContentDedup(seen_fingerprints=seen)
         ctx = PipelineContext()
@@ -161,7 +160,7 @@ class TestContentDedup:
         assert result.get("is_duplicate") is False
 
     def test_sequential_dedup_across_contexts(self):
-        """Processing the same fingerprint twice through a single processor instance should detect the duplicate."""
+        """Same fingerprint twice via one processor instance detects duplicate."""
         processor = ContentDedup()
         fingerprint = hashlib.sha256("repeated".encode()).hexdigest()
 
@@ -198,7 +197,7 @@ class TestKeywordTagger:
         assert "AI" in tags
 
     def test_matches_multiple_tags(self):
-        """Content containing keywords from multiple categories should receive all matching tags."""
+        """Content matching keywords in multiple categories gets all matching tags."""
         keywords = {
             "AI": ["artificial intelligence"],
             "Cloud": ["cloud computing"],
@@ -288,7 +287,7 @@ class TestFormatConverter:
         assert result.get("body_text") == "hello world"
 
     def test_collapses_multiple_blank_lines(self):
-        """Multiple consecutive blank lines should be collapsed to a single blank line."""
+        """Multiple consecutive blank lines collapse into a single blank line."""
         processor = FormatConverter()
         ctx = PipelineContext()
         ctx.set("body_text", "paragraph1\n\n\n\nparagraph2")

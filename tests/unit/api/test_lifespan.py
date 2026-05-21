@@ -7,14 +7,11 @@ implementation is complete.
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from intellisource.main import create_app
-
 
 # ---------------------------------------------------------------------------
 # AC-T072-1: lifespan startup writes DatabaseManager into app.state.db
@@ -27,15 +24,13 @@ class TestLifespanDatabaseManagerDI:
 
     @pytest.mark.asyncio
     async def test_startup_stores_database_manager_in_app_state(self) -> None:
-        """AC-T072-1: After lifespan startup, app.state.db is a DatabaseManager instance."""
+        """AC-T072-1: After lifespan startup, app.state.db is a DatabaseManager."""
         from intellisource.storage.database import DatabaseManager
 
         mock_db = MagicMock(spec=DatabaseManager)
         mock_db.close = AsyncMock()
 
-        with patch(
-            "intellisource.main.DatabaseManager", return_value=mock_db
-        ):
+        with patch("intellisource.main.DatabaseManager", return_value=mock_db):
             app = create_app()
             lifespan = app.router.lifespan_context
 
@@ -44,7 +39,7 @@ class TestLifespanDatabaseManagerDI:
                     "app.state.db must be set during lifespan startup"
                 )
                 assert app.state.db is mock_db, (
-                    "app.state.db must be the DatabaseManager instance created in startup"
+                    "app.state.db must be the DatabaseManager created in startup"
                 )
 
     @pytest.mark.asyncio
@@ -74,9 +69,7 @@ class TestLifespanDatabaseManagerDI:
         mock_db = MagicMock(spec=DatabaseManager)
         mock_db.close = AsyncMock()
 
-        with patch(
-            "intellisource.main.DatabaseManager", return_value=mock_db
-        ):
+        with patch("intellisource.main.DatabaseManager", return_value=mock_db):
             app = create_app()
             lifespan = app.router.lifespan_context
 
@@ -93,9 +86,7 @@ class TestLifespanDatabaseManagerDI:
         mock_db = MagicMock(spec=DatabaseManager)
         mock_db.close = AsyncMock()
 
-        with patch(
-            "intellisource.main.DatabaseManager", return_value=mock_db
-        ):
+        with patch("intellisource.main.DatabaseManager", return_value=mock_db):
             app = create_app()
             lifespan = app.router.lifespan_context
 
@@ -161,7 +152,7 @@ class TestInitCelery:
             mock_celery_cls.assert_called_once()
 
     def test_init_celery_returns_or_stores_celery_app(self) -> None:
-        """AC-T072-4: init_celery() returns a Celery app or stores it in a module attribute."""
+        """AC-T072-4: init_celery() returns the Celery app or stores it module-level."""
         import intellisource.main as main_module
 
         mock_celery_instance = MagicMock()
@@ -175,5 +166,5 @@ class TestInitCelery:
             # Additionally: returned value (if any) must be the Celery instance
             if result is not None:
                 assert result is mock_celery_instance, (
-                    "init_celery() must return the Celery instance when it returns a value"
+                    "init_celery() must return the Celery instance on return"
                 )
