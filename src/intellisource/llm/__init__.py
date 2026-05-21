@@ -3,6 +3,7 @@
 from intellisource.llm.cache import LLMCache
 from intellisource.llm.gateway import (
     LLMGateway,
+    LLMOutputError,
     LLMResult,
     SchemaEnforcer,
     SchemaValidationError,
@@ -16,6 +17,7 @@ from intellisource.llm.model_config import (
 __all__ = [
     "LLMCache",
     "LLMGateway",
+    "LLMOutputError",
     "LLMResult",
     "ModelConfig",
     "ModelRoutingConfig",

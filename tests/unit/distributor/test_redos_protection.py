@@ -90,9 +90,7 @@ class TestReDoSProtectionKeywordMatches:
             "(expected < 2.0s with regex timeout=1.0)"
         )
         # Result must be False (no match, not None which signals constraint violation)
-        assert (
-            result is False or result is None
-        )  # either "no match" or "timeout → False"
+        assert result is False
 
     @pytest.mark.parametrize("pattern", _REDOS_PATTERNS)
     def test_all_redos_patterns_complete_quickly(self, pattern: str):
@@ -209,4 +207,31 @@ class TestReDoSProtectionKeywordMatches:
 
         assert len(caplog.records) >= 1, (
             "regex.TimeoutError was not logged; silent swallowing is not allowed"
+        )
+
+    def test_timeout_log_does_not_leak_pattern(self, caplog):
+        """AC-5: timeout warning must not contain the raw pattern text."""
+        import logging
+
+        import regex as regex_lib
+
+        pattern = "(secret_business_keyword_xyz+)+$"
+        kw = f"/{pattern}/"
+
+        with patch.object(
+            regex_lib,
+            "search",
+            side_effect=TimeoutError("mock timeout"),
+        ):
+            from intellisource.distributor.matcher import SubscriptionMatcher
+
+            with caplog.at_level(logging.WARNING):
+                matcher = SubscriptionMatcher()
+                matcher._evaluate_keywords([kw], "some text", "some text")
+
+        assert pattern not in caplog.text, (
+            "Timeout log must not contain the raw pattern string"
+        )
+        assert "sha256=" in caplog.text, (
+            "Timeout log should include sha256= hash for traceability"
         )

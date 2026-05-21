@@ -227,75 +227,113 @@ class TestTaskCollectEndpoint:
 
     @pytest.mark.asyncio
     async def test_trigger_collect_returns_202(self, client: AsyncClient) -> None:
-        """POST /api/v1/tasks/collect with valid source_id returns 202 Accepted."""
-        mock_repo = AsyncMock()
-        mock_repo.create.return_value = _make_task_obj(trigger_type="manual")
+        """POST /api/v1/tasks/collect with valid source_ids returns 202 Accepted."""
+        mock_task_repo = AsyncMock()
+        mock_task_repo.create.return_value = _make_task_obj(trigger_type="manual")
+        mock_source_repo = AsyncMock()
 
-        with patch(
-            "intellisource.api.routers.tasks.TaskRepository",
-            return_value=mock_repo,
+        with (
+            patch(
+                "intellisource.api.routers.tasks.TaskRepository",
+                return_value=mock_task_repo,
+            ),
+            patch(
+                "intellisource.api.routers.tasks.SourceRepository",
+                return_value=mock_source_repo,
+            ),
         ):
             resp = await client.post(
                 "/api/v1/tasks/collect",
-                json={"source_id": str(SOURCE_ID), "trigger_type": "manual"},
+                json={"source_ids": [str(SOURCE_ID)]},
             )
 
         assert resp.status_code == 202
 
     @pytest.mark.asyncio
-    async def test_trigger_collect_returns_task_id(self, client: AsyncClient) -> None:
-        """Response body contains the created task id."""
-        mock_repo = AsyncMock()
+    async def test_trigger_collect_returns_task_chain_response(
+        self, client: AsyncClient
+    ) -> None:
+        """Response body contains task_chain_id, tasks list, and message."""
+        mock_task_repo = AsyncMock()
         task = _make_task_obj()
-        mock_repo.create.return_value = task
+        mock_task_repo.create.return_value = task
+        mock_source_repo = AsyncMock()
 
-        with patch(
-            "intellisource.api.routers.tasks.TaskRepository",
-            return_value=mock_repo,
+        with (
+            patch(
+                "intellisource.api.routers.tasks.TaskRepository",
+                return_value=mock_task_repo,
+            ),
+            patch(
+                "intellisource.api.routers.tasks.SourceRepository",
+                return_value=mock_source_repo,
+            ),
         ):
             resp = await client.post(
                 "/api/v1/tasks/collect",
-                json={"source_id": str(SOURCE_ID), "trigger_type": "manual"},
+                json={"source_ids": [str(SOURCE_ID)]},
             )
 
         assert resp.status_code == 202
         body = resp.json()
-        assert "id" in body
-        assert body["id"] == str(TASK_ID)
+        assert "task_chain_id" in body
+        assert "tasks" in body
+        assert "message" in body
+        assert len(body["tasks"]) == 1
+        assert body["tasks"][0]["id"] == str(TASK_ID)
 
     @pytest.mark.asyncio
-    async def test_trigger_collect_missing_source_id_422(
+    async def test_trigger_collect_invalid_uuid_returns_400(
         self, client: AsyncClient
     ) -> None:
-        """Missing source_id returns 422 validation error."""
-        resp = await client.post(
-            "/api/v1/tasks/collect",
-            json={"trigger_type": "manual"},
-        )
+        """Non-UUID string in source_ids returns 400 validation error."""
+        mock_task_repo = AsyncMock()
+        mock_source_repo = AsyncMock()
 
-        assert resp.status_code == 422
-
-    @pytest.mark.asyncio
-    async def test_trigger_collect_source_not_found_404(
-        self, client: AsyncClient
-    ) -> None:
-        """Non-existent source_id returns 404."""
-        mock_repo = AsyncMock()
-        mock_repo.create.side_effect = ValueError("source not found")
-
-        with patch(
-            "intellisource.api.routers.tasks.TaskRepository",
-            return_value=mock_repo,
+        with (
+            patch(
+                "intellisource.api.routers.tasks.TaskRepository",
+                return_value=mock_task_repo,
+            ),
+            patch(
+                "intellisource.api.routers.tasks.SourceRepository",
+                return_value=mock_source_repo,
+            ),
         ):
             resp = await client.post(
                 "/api/v1/tasks/collect",
-                json={
-                    "source_id": str(uuid.UUID("ffffffff-ffff-ffff-ffff-ffffffffffff")),
-                    "trigger_type": "manual",
-                },
+                json={"source_ids": ["not-a-uuid"]},
             )
 
-        assert resp.status_code == 404
+        assert resp.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_trigger_collect_no_source_ids_uses_active_sources(
+        self, client: AsyncClient
+    ) -> None:
+        """Omitting source_ids triggers full sweep using active sources."""
+        mock_task_repo = AsyncMock()
+        mock_task_repo.create.return_value = _make_task_obj()
+        mock_source_repo = AsyncMock()
+        mock_source_repo.list_active_source_ids.return_value = [SOURCE_ID]
+
+        with (
+            patch(
+                "intellisource.api.routers.tasks.TaskRepository",
+                return_value=mock_task_repo,
+            ),
+            patch(
+                "intellisource.api.routers.tasks.SourceRepository",
+                return_value=mock_source_repo,
+            ),
+        ):
+            resp = await client.post(
+                "/api/v1/tasks/collect",
+                json={},
+            )
+
+        assert resp.status_code == 202
+        mock_source_repo.list_active_source_ids.assert_called_once()
 
 
 # ===========================================================================

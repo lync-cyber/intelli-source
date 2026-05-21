@@ -17,6 +17,7 @@ import pytest
 from intellisource.agent.pipeline import PipelineConfig
 from intellisource.agent.runner import AgentRunner
 from intellisource.agent.tools import AgentToolRegistry
+from intellisource.llm.gateway import LLMResult
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -39,23 +40,27 @@ def _make_llm_gateway(
     gw = AsyncMock()
     call_idx = 0
 
-    async def _chat(**kwargs: Any) -> dict[str, Any]:
+    async def _chat(**kwargs: Any) -> LLMResult:
         nonlocal call_idx
         if call_idx < len(tool_calls_sequence):
             tcs = tool_calls_sequence[call_idx]
             call_idx += 1
-            return {
-                "tool_calls": tcs,
-                "content": "",
-                "done": len(tcs) == 0,
-                "usage": {"total_tokens": 100},
-            }
-        return {
-            "tool_calls": [],
-            "content": "done",
-            "done": True,
-            "usage": {"total_tokens": 0},
-        }
+            return LLMResult(
+                content="",
+                metadata={
+                    "tool_calls": tcs if tcs else None,
+                    "finish_reason": "stop" if not tcs else "tool_calls",
+                    "usage": {"total_tokens": 100},
+                },
+            )
+        return LLMResult(
+            content="done",
+            metadata={
+                "tool_calls": None,
+                "finish_reason": "stop",
+                "usage": {"total_tokens": 0},
+            },
+        )
 
     gw.chat.side_effect = _chat
     return gw

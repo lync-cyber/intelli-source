@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from collections.abc import Callable, Sequence
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select
@@ -15,6 +17,11 @@ from intellisource.config.validator import ConfigValidator
 from intellisource.storage.models import Source
 
 logger = logging.getLogger(__name__)
+
+
+class ConfigPathError(ValueError):
+    """Raised when a config file path escapes the allowed config directory."""
+
 
 _FORMAT_MAP: dict[str, str] = {
     ".yaml": "yaml",
@@ -66,18 +73,59 @@ class ConfigLoader:
 
     def __init__(self) -> None:
         self._validator = ConfigValidator()
+        config_dir_env = os.environ.get("IS_SOURCE_CONFIG_DIR", "")
+        self._config_dir: Path | None = Path(config_dir_env) if config_dir_env else None
 
     def load_file(self, file_path: str) -> list[SourceConfig]:
         """Load and validate a configuration file (YAML or JSON).
 
+        Raises ConfigPathError if the resolved path escapes the config directory.
         Detects format from file extension and delegates to ConfigValidator.
         """
+        resolved = Path(file_path).resolve()
+
+        if self._config_dir is not None:
+            allowed_dir = self._config_dir.resolve()
+            try:
+                resolved.relative_to(allowed_dir)
+            except ValueError:
+                raise ConfigPathError(
+                    f"path {file_path!r} escapes config directory {str(allowed_dir)!r}"
+                )
+
         fmt = _detect_format(file_path)
 
-        with open(file_path, encoding="utf-8") as f:
+        with open(resolved, encoding="utf-8") as f:
             content = f.read()
 
         return self._validator.validate_sources_file(content, format=fmt)
+
+    def load_source_configs(self) -> list[SourceConfig]:
+        """Scan the configured directory and load all *.yaml / *.yml config files.
+
+        Returns an empty list when SOURCE_CONFIG_DIR is unset or does not exist.
+        """
+        if self._config_dir is None:
+            logger.warning("IS_SOURCE_CONFIG_DIR is not set; skipping config scan")
+            return []
+
+        config_dir = self._config_dir.resolve()
+        if not config_dir.is_dir():
+            logger.warning(
+                "Config directory %s does not exist; skipping config scan", config_dir
+            )
+            return []
+
+        results: list[SourceConfig] = []
+        for pattern in ("*.yaml", "*.yml"):
+            for config_path in sorted(config_dir.glob(pattern)):
+                try:
+                    loaded = self.load_file(str(config_path))
+                    results.extend(loaded)
+                except Exception:
+                    logger.exception("Failed to load config file %s", config_path)
+
+        return results
 
     async def sync_to_db(
         self, configs: Sequence[SourceConfig], session: AsyncSession
@@ -108,9 +156,13 @@ class ConfigLoader:
 class ConfigWatcher:
     """Watches a directory for configuration file changes."""
 
-    def __init__(self, config_dir: str, on_change: Callable[[str], None]) -> None:
+    def __init__(
+        self,
+        config_dir: str,
+        callback: Callable[..., Any],
+    ) -> None:
         self._config_dir = config_dir
-        self._on_change = on_change
+        self._on_change = callback
         self._task: asyncio.Task[None] | None = None
 
     async def start(self) -> None:
@@ -131,14 +183,23 @@ class ConfigWatcher:
 
     async def _watch(self) -> None:
         """Internal watch loop using watchfiles."""
+        import inspect
+
         from watchfiles import awatch
 
-        async for changes in awatch(self._config_dir, step=100):
-            for _change_type, path in changes:
-                try:
-                    self._on_change(path)
-                except Exception:
-                    logger.exception("on_change callback failed for %s", path)
+        try:
+            async for changes in awatch(self._config_dir, step=100):
+                for _change_type, path in changes:
+                    try:
+                        result = self._on_change(path)
+                        if inspect.isawaitable(result):
+                            await result
+                    except Exception:
+                        logger.exception("on_change callback failed for %s", path)
+        except (FileNotFoundError, OSError):
+            logger.warning(
+                "Config directory not found or inaccessible: %s", self._config_dir
+            )
 
 
 class ConfigVersionManager:

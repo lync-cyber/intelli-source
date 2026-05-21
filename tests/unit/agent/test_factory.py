@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import MagicMock
 
 # ---------------------------------------------------------------------------
@@ -137,3 +138,65 @@ class TestAgentRunnerRegistryTools:
         assert tools & known_atomics, (
             f"Expected at least one of {known_atomics} in registry, got {tools}"
         )
+
+
+# ---------------------------------------------------------------------------
+# T-084 R-002: pipeline_engine wired into AgentRunner via factory
+# ---------------------------------------------------------------------------
+
+
+class TestPipelineEngineWiring:
+    """T-084 R-002: build_agent_runner wires PipelineEngine loaded from yaml."""
+
+    def test_runner_has_pipeline_engine_set(self) -> None:
+        """build_agent_runner returns a runner with _pipeline_engine set (not None)."""
+        from intellisource.agent.factory import build_agent_runner
+        from intellisource.pipeline.engine import PipelineEngine
+
+        session_factory = MagicMock()
+        llm_gateway = MagicMock()
+
+        runner = build_agent_runner(session_factory, llm_gateway)
+
+        assert runner._pipeline_engine is not None, (
+            "_pipeline_engine must be set after factory build"
+        )
+        engine_type = type(runner._pipeline_engine)
+        assert isinstance(runner._pipeline_engine, PipelineEngine), (
+            f"_pipeline_engine must be a PipelineEngine, got {engine_type}"
+        )
+
+    def test_pipeline_engine_has_processors_from_yaml(self) -> None:
+        """build_agent_runner loads content-process.yaml; engine has >=3 processors."""
+        from intellisource.agent.factory import build_agent_runner
+
+        session_factory = MagicMock()
+        llm_gateway = MagicMock()
+
+        runner = build_agent_runner(session_factory, llm_gateway)
+
+        engine = runner._pipeline_engine
+        assert engine is not None
+        processor_count = len(list(engine._processors))
+        assert processor_count >= 3, (
+            "content-process.yaml has 3 steps; expected >=3 processors,"
+            f" got {processor_count}"
+        )
+
+    def test_pipeline_engine_wired_with_custom_yaml(self) -> None:
+        """build_agent_runner with explicit pipeline_config path wires engine."""
+        from intellisource.agent.factory import build_agent_runner
+
+        repo_root = Path(__file__).parents[3]
+        yaml_path = str(repo_root / "config" / "pipelines" / "content-process.yaml")
+
+        session_factory = MagicMock()
+        llm_gateway = MagicMock()
+
+        runner = build_agent_runner(
+            session_factory, llm_gateway, pipeline_config=yaml_path
+        )
+
+        engine = runner._pipeline_engine
+        assert engine is not None
+        assert len(list(engine._processors)) >= 3

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -27,7 +29,12 @@ from intellisource.api.routers import (
     system,
     tasks,
 )
+from intellisource.config.loader import ConfigLoader, ConfigWatcher
+from intellisource.config.validator import ConfigValidator
 from intellisource.storage.database import DatabaseManager
+from intellisource.storage.repositories.source import SourceRepository
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Module-level singletons (populated by init_* functions)
@@ -65,7 +72,7 @@ async def close_redis() -> None:
     global _redis_client
     if _redis_client is not None:
         try:
-            await _redis_client.close()
+            await _redis_client.aclose()
         except Exception:
             pass
         _redis_client = None
@@ -78,23 +85,64 @@ def shutdown_celery() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Config change callback (db_manager injected at lifespan startup)
+# ---------------------------------------------------------------------------
+
+_db_manager: DatabaseManager | None = None
+
+
+async def on_config_change(path: str) -> None:
+    """Handle a changed config file: load → validate → upsert each source."""
+    loader = ConfigLoader()
+    validator = ConfigValidator()
+    try:
+        configs = loader.load_file(path)
+    except Exception:
+        logger.exception("ConfigLoader.load_file failed for %s", path)
+        return
+    if _db_manager is None:
+        logger.warning(
+            "on_config_change called before db_manager is initialised; skipping upsert"
+        )
+        return
+    for cfg in configs:
+        try:
+            validated = validator.validate(cfg)
+            async with _db_manager.get_session() as session:
+                repo = SourceRepository(session)
+                await repo.upsert(validated)
+        except Exception:
+            logger.exception("Validation or upsert failed for config in %s", path)
+
+
+# ---------------------------------------------------------------------------
 # Lifespan
 # ---------------------------------------------------------------------------
+
+_SOURCE_CONFIG_DIR: str = os.environ.get("IS_SOURCE_CONFIG_DIR", "config/sources")
 
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[dict[str, Any]]:
     """Manage application startup and shutdown."""
+    global _db_manager
     db = DatabaseManager()
+    _db_manager = db
     app.state.db = db
     celery_instance = init_celery()
     app.state.celery_app = celery_instance
+    watcher = ConfigWatcher(config_dir=_SOURCE_CONFIG_DIR, callback=on_config_change)
+    app.state.config_watcher = watcher
+    watcher_task = asyncio.create_task(watcher.start())
+    app.state.config_watcher_task = watcher_task
     try:
         await init_redis()
         yield {}
     finally:
+        await watcher.stop()
         app.state.celery_app.close()
         await db.close()
+        _db_manager = None
         await close_redis()
         shutdown_celery()
 

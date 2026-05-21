@@ -8,12 +8,15 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from intellisource.agent.tools import ToolDefinition
 from intellisource.core.errors import ErrorCategory, IntelliSourceError
 from intellisource.storage.models import TaskChain
 from intellisource.storage.repositories.task_chain import TaskChainRepository
+
+if TYPE_CHECKING:
+    from intellisource.pipeline.engine import PipelineEngine
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +30,12 @@ class AgentRunner:
         self,
         tool_registry: Any,
         llm_gateway: Any | None = None,
+        *,
+        pipeline_engine: PipelineEngine | None = None,
     ) -> None:
         self._tool_registry = tool_registry
         self._llm_gateway = llm_gateway
+        self._pipeline_engine = pipeline_engine
 
     # -- public API --------------------------------------------------
 
@@ -141,47 +147,61 @@ class AgentRunner:
             steps_executed += 1
 
             # Track token budget
-            usage = response.get("usage", {})
+            usage = response.metadata.get("usage", {})
             tokens_used += usage.get("total_tokens", 0)
             if max_tokens_budget is not None and tokens_used >= max_tokens_budget:
                 budget_exhausted = True
                 break
 
-            if response.get("done") or not response.get("tool_calls"):
+            tool_calls = response.metadata.get("tool_calls") or []
+            finish_reason = response.metadata.get("finish_reason", "")
+            done = finish_reason == "stop" or not tool_calls
+            if done:
                 break
 
-            for tc in response["tool_calls"]:
-                tool_raw = self._tool_registry.get(tc["name"])
+            for tc in tool_calls:
+                tc_name = tc.function.name if hasattr(tc, "function") else tc["name"]
+                tc_id = tc.id if hasattr(tc, "id") else tc.get("id", "")
+                if hasattr(tc, "function"):
+                    import json as _json
+
+                    raw_args = tc.function.arguments or "{}"
+                    tc_args: dict[str, Any] = (
+                        _json.loads(raw_args) if isinstance(raw_args, str) else raw_args
+                    )
+                else:
+                    tc_args = tc.get("arguments", {})
+                tool_raw = self._tool_registry.get(tc_name)
                 if tool_raw is not None:
                     tool_fn = self._resolve_callable(tool_raw)
                     try:
-                        result = await tool_fn(**tc.get("arguments", {}))
-                        import json as _json
+                        result = await tool_fn(**tc_args)
+                        import json as _json  # noqa: F811
 
                         messages.append(
                             {
                                 "role": "tool",
                                 "content": _json.dumps(result, default=str),
-                                "tool_call_id": tc.get("id", ""),
+                                "tool_call_id": tc_id,
                             }
                         )
-                        tool_results.append({"tool": tc["name"], "output": result})
+                        tool_results.append({"tool": tc_name, "output": result})
                     except Exception as exc:
                         logger.warning(
                             "Tool %s failed: %s",
-                            tc["name"],
+                            tc_name,
                             exc,
                         )
                         messages.append(
                             {
                                 "role": "tool",
                                 "content": f"Error: {exc}",
-                                "tool_call_id": tc.get("id", ""),
+                                "tool_call_id": tc_id,
                             }
                         )
                         tool_results.append(
                             {
-                                "tool": tc["name"],
+                                "tool": tc_name,
                                 "output": None,
                                 "error": str(exc),
                             }

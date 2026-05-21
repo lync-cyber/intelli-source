@@ -7,15 +7,15 @@ import html
 import os
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 
-try:
-    import aiosmtplib
-except ImportError:  # pragma: no cover
-    aiosmtplib = None
+import aiosmtplib
 
 from intellisource.distributor.base import BaseDistributor
+
+if TYPE_CHECKING:
+    from intellisource.storage.repositories.push import PushRepository
 
 MAX_RETRY: int = 3
 RETRY_INTERVAL: int = 5
@@ -33,16 +33,14 @@ class EmailDistributor(BaseDistributor):
         smtp_user: str,
         smtp_password: str,
         use_tls: bool = True,
+        push_repo: "PushRepository | None" = None,
     ) -> None:
         self.smtp_host = smtp_host
         self.smtp_port = smtp_port
         self.smtp_user = smtp_user
         self.smtp_password = smtp_password
         self.use_tls = use_tls
-        # [ASSUMPTION] In-process dedup as a fast-path guard; authoritative
-        # dedup is handled by the outer DeliveryTracker / PushRecord DB layer.
-        # This mirrors WeChat/WeWork channels' local dedup strategy.
-        self._sent_keys: set[str] = set()
+        self._push_repo = push_repo
 
     @classmethod
     def from_env(cls) -> EmailDistributor:
@@ -123,45 +121,39 @@ class EmailDistributor(BaseDistributor):
         subscription: Any,
     ) -> dict[str, Any]:
         """Distribute content to a subscription via email."""
-        content_id = str(getattr(content, "id", ""))
-        sub_id = str(getattr(subscription, "id", ""))
-        dedup_key = f"{content_id}:{sub_id}"
+        content_id = getattr(content, "id", None)
+        sub_id = getattr(subscription, "id", None)
+        channel = "email"
 
-        if dedup_key in self._sent_keys:
-            return self._make_result(
-                "deduplicated",
-                content_id,
-                sub_id,
-            )
-
-        to_addr: str = subscription.channel_config.get(
-            "to_addr",
-            "",
-        )
+        to_addr: str = subscription.channel_config.get("to_addr", "")
         subject = getattr(content, "title", "")
         html_body = self.format_html(content)
 
-        last_err: Exception | None = None
-        for _ in range(MAX_RETRY):
+        async def attempt_fn(
+            _attempt: int, is_last: bool
+        ) -> tuple[bool, str | None, dict[str, Any]]:
             try:
                 await self.send_email(
                     to_addr=to_addr,
                     subject=subject,
                     html_body=html_body,
                 )
-                self._sent_keys.add(dedup_key)
-                return self._make_result(
-                    "sent",
-                    content_id,
-                    sub_id,
-                )
+                return True, None, {}
             except Exception as exc:  # noqa: BLE001
-                last_err = exc
-                await asyncio.sleep(RETRY_INTERVAL)
+                if not is_last:
+                    await asyncio.sleep(RETRY_INTERVAL)
+                return False, str(exc), {}
 
-        return self._make_result(
-            "failed",
-            content_id,
+        was_deduped, succeeded, _, error, _ = await self._send_with_dedup_lifecycle(
             sub_id,
-            error=str(last_err),
+            content_id,
+            channel,
+            attempt_fn=attempt_fn,
+            max_retry=MAX_RETRY,
         )
+
+        if was_deduped:
+            return self._make_result("deduplicated", str(content_id), str(sub_id))
+        if succeeded:
+            return self._make_result("sent", str(content_id), str(sub_id))
+        return self._make_result("failed", str(content_id), str(sub_id), error=error)

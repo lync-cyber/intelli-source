@@ -6,10 +6,13 @@ quiet hours enforcement, and content aggregation for batch delivery.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Protocol
 from uuid import UUID
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+_logger = logging.getLogger(__name__)
 
 FREQUENCY_OPTIONS: set[str] = {
     "realtime",
@@ -98,7 +101,14 @@ class FrequencyController:
 
         now_utc = self._clock.now()
         tz_name: str = getattr(subscription, "timezone", "UTC")
-        local_now = now_utc.astimezone(ZoneInfo(tz_name))
+        try:
+            tz = ZoneInfo(tz_name)
+        except (ZoneInfoNotFoundError, KeyError):
+            _logger.warning(
+                "Invalid timezone %r on subscription, falling back to UTC", tz_name
+            )
+            tz = ZoneInfo("UTC")
+        local_now = now_utc.astimezone(tz)
         current_minutes = local_now.hour * 60 + local_now.minute
 
         start_h, start_m = _parse_time(qh["start"])

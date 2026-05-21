@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import Any
 
@@ -12,7 +13,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session
+from intellisource.config.loader import ConfigLoader
+from intellisource.config.validator import ConfigValidator
 from intellisource.storage.repositories.source import SourceRepository
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["sources"])
 
@@ -81,9 +86,33 @@ def _serialize_source(source: Any) -> dict[str, Any]:
     }
 
 
-async def reload_source_configs(*, config_name: str | None = None) -> dict[str, Any]:
-    """Stub for reload_source_configs. Tests patch this function."""
-    return {"loaded_count": 0, "errors": []}
+async def reload_source_configs(
+    session: AsyncSession,
+    *,
+    config_name: str | None = None,
+) -> dict[str, Any]:
+    """Load all source configs from disk, validate, and bulk-upsert to the database."""
+    loader = ConfigLoader()
+    validator = ConfigValidator()
+    repo = SourceRepository(session)
+
+    try:
+        configs = loader.load_source_configs()
+    except Exception as exc:
+        return {"loaded_count": 0, "errors": [{"file": "(scan)", "error": str(exc)}]}
+
+    validated: list[Any] = []
+    errors: list[dict[str, Any]] = []
+    for cfg in configs:
+        try:
+            validated.append(validator.validate(cfg))
+        except Exception as exc:
+            errors.append({"error": str(exc)})
+
+    if validated:
+        await repo.bulk_upsert(validated)
+
+    return {"loaded_count": len(validated), "errors": errors}
 
 
 # ---------------------------------------------------------------------------
@@ -168,9 +197,12 @@ async def delete_source(
 
 
 @router.post("/sources/reload")
-async def reload_sources(body: ReloadRequest) -> dict[str, Any]:
+async def reload_sources(
+    body: ReloadRequest,
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
     try:
-        result = await reload_source_configs(config_name=body.config_name)
+        result = await reload_source_configs(session, config_name=body.config_name)
     except ValueError as e:
         return JSONResponse(status_code=400, content={"detail": str(e)})  # type: ignore[return-value]
     return result

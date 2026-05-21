@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from intellisource.distributor.base import BaseDistributor
+
+if TYPE_CHECKING:
+    from intellisource.storage.repositories.push import PushRepository
 
 TOKEN_CACHE_KEY: str = "wechat:access_token"
 TOKEN_EXPIRE_BUFFER: int = 300
@@ -35,14 +38,16 @@ class WeChatDistributor(BaseDistributor):
         http_client: Any,
         app_id: str,
         app_secret: str,
+        push_repo: "PushRepository | None" = None,
     ) -> None:
         self._redis = redis
         self._http = http_client
         self._app_id = app_id
         self._app_secret = app_secret
+        self._push_repo = push_repo
 
     # ----------------------------------------------------------
-    # Token management (AC-T032-1)
+    # Token management
     # ----------------------------------------------------------
 
     async def get_access_token(self) -> str:
@@ -70,7 +75,7 @@ class WeChatDistributor(BaseDistributor):
         return token
 
     # ----------------------------------------------------------
-    # Message sending (AC-040)
+    # Message sending
     # ----------------------------------------------------------
 
     async def send_template_message(
@@ -111,7 +116,7 @@ class WeChatDistributor(BaseDistributor):
         return result
 
     # ----------------------------------------------------------
-    # Content formatting (AC-T032-2)
+    # Content formatting
     # ----------------------------------------------------------
 
     def format_template_data(self, content: Any) -> dict[str, Any]:
@@ -143,63 +148,61 @@ class WeChatDistributor(BaseDistributor):
         channel_cfg: dict[str, Any] = getattr(subscription, "channel_config", {})
         openid: str = channel_cfg.get("openid", "")
         msg_type: str = channel_cfg.get("msg_type", "template")
+        channel = "wechat"
 
-        # --- dedup check (AC-044) ---
-        dedup_key = f"push:dedup:{content_id}:{sub_id}:wechat"
-        if await self._redis.exists(dedup_key):
-            return {
-                "status": "skipped",
-                "channel": "wechat",
-                "content_id": content_id,
-                "subscription_id": sub_id,
-                "reason": "duplicate",
-            }
-
-        # --- send with retry (AC-045) ---
-        last_result: dict[str, Any] = {}
-        for attempt in range(MAX_RETRY):
+        async def attempt_fn(
+            _attempt: int, is_last: bool
+        ) -> tuple[bool, str | None, dict[str, Any]]:
+            exc_ref: list[Exception] = []
             try:
                 if msg_type == "news":
                     articles = self.format_news_articles(content)
-                    last_result = await self.send_news_message(
-                        openid=openid,
-                        articles=articles,
-                    )
+                    raw = await self.send_news_message(openid=openid, articles=articles)
                 else:
                     tpl_id: str = channel_cfg.get("template_id", "")
                     tpl_data = self.format_template_data(content)
-                    last_result = await self.send_template_message(
-                        openid=openid,
-                        template_id=tpl_id,
-                        data=tpl_data,
+                    raw = await self.send_template_message(
+                        openid=openid, template_id=tpl_id, data=tpl_data
                     )
+            except Exception as exc:
+                exc_ref.append(exc)
+                raw = {"errcode": -1, "errmsg": "network_error"}
 
-                if last_result.get("errcode", -1) == 0:
-                    await self._redis.set(dedup_key, "1", ex=86400)
-                    return {
-                        "status": "success",
-                        "channel": "wechat",
-                        "content_id": content_id,
-                        "subscription_id": sub_id,
-                        **last_result,
-                    }
-
-            except Exception:
-                last_result = {
-                    "errcode": -1,
-                    "errmsg": "network_error",
-                }
-
-            # Retry delay (skip after final attempt)
-            if attempt < MAX_RETRY - 1:
+            if raw.get("errcode", -1) == 0:
+                return True, None, raw
+            error = str(exc_ref[0]) if exc_ref else raw.get("errmsg", "unknown error")
+            if not is_last:
                 await asyncio.sleep(RETRY_INTERVAL)
+            return False, error, raw
 
-        # all retries exhausted
+        was_deduped, succeeded, _, error, raw = await self._send_with_dedup_lifecycle(
+            sub_id,
+            content_id,
+            channel,
+            attempt_fn=attempt_fn,
+            max_retry=MAX_RETRY,
+        )
+
+        if was_deduped:
+            return {
+                "status": "deduplicated",
+                "channel": channel,
+                "content_id": content_id,
+                "subscription_id": sub_id,
+            }
+        if succeeded:
+            return {
+                "status": "success",
+                "channel": channel,
+                "content_id": content_id,
+                "subscription_id": sub_id,
+                **raw,
+            }
         return {
             "status": "failed",
-            "channel": "wechat",
+            "channel": channel,
             "content_id": content_id,
             "subscription_id": sub_id,
-            "error_code": last_result.get("errcode"),
-            "error_msg": last_result.get("errmsg"),
+            "error_code": raw.get("errcode"),
+            "error_msg": error,
         }

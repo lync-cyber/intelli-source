@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from intellisource.core.errors import DistributorError
 from intellisource.distributor.base import BaseDistributor
+
+if TYPE_CHECKING:
+    from intellisource.storage.repositories.push import PushRepository
 
 TOKEN_CACHE_KEY: str = "wework:access_token"
 TOKEN_EXPIRE_BUFFER: int = 300
@@ -27,12 +30,14 @@ class WeWorkDistributor(BaseDistributor):
         corp_id: str,
         corp_secret: str,
         agent_id: int,
+        push_repo: "PushRepository | None" = None,
     ) -> None:
         self.redis = redis
         self.http_client = http_client
         self.corp_id = corp_id
         self.corp_secret = corp_secret
         self.agent_id = agent_id
+        self._push_repo = push_repo
 
     # ------------------------------------------------------------------
     # distribute (ABC entry-point)
@@ -44,58 +49,50 @@ class WeWorkDistributor(BaseDistributor):
         subscription: Any,
     ) -> dict[str, Any]:
         """Distribute *content* to *subscription* via WeWork."""
-        dedup_key = f"wework:dedup:{content.id}:{subscription.id}"
-
-        # AC-044 dedup
-        if await self.redis.exists(dedup_key):
-            return self._build_result(
-                "duplicate",
-                content,
-                subscription,
-            )
+        content_id = getattr(content, "id", None)
+        sub_id = getattr(subscription, "id", None)
+        channel = "wework"
 
         cfg = subscription.channel_config
         msg_type: str = cfg.get("msg_type", "text")
         user_id: str = cfg.get("user_id", "@all")
-
         formatted = self.format_content(content, msg_type=msg_type)
 
-        # AC-045 retry loop
-        last_err: str = ""
-        for _ in range(MAX_RETRY):
-            if msg_type == "markdown":
-                res = await self.send_markdown_message(
-                    user_id,
-                    formatted,
-                )
-            elif msg_type == "news":
-                res = await self.send_news_card(
-                    user_id,
-                    formatted,
-                )
-            else:
-                res = await self.send_text_message(
-                    user_id,
-                    formatted,
-                )
+        async def attempt_fn(
+            _attempt: int, is_last: bool
+        ) -> tuple[bool, str | None, dict[str, Any]]:
+            exc_ref: list[Exception] = []
+            try:
+                if msg_type == "markdown":
+                    res = await self.send_markdown_message(user_id, formatted)
+                elif msg_type == "news":
+                    res = await self.send_news_card(user_id, formatted)
+                else:
+                    res = await self.send_text_message(user_id, formatted)
+            except Exception as exc:
+                exc_ref.append(exc)
+                res = {"errcode": -1, "errmsg": "network_error"}
 
             if res.get("errcode", -1) == 0:
-                await self.redis.set(dedup_key, "1")
-                await self.redis.expire(dedup_key, 86400)
-                return self._build_result(
-                    "success",
-                    content,
-                    subscription,
-                )
-            last_err = res.get("errmsg", "unknown error")
-            await asyncio.sleep(RETRY_INTERVAL)
+                return True, None, res
+            error = str(exc_ref[0]) if exc_ref else res.get("errmsg", "unknown error")
+            if not is_last:
+                await asyncio.sleep(RETRY_INTERVAL)
+            return False, error, res
 
-        return self._build_result(
-            "failed",
-            content,
-            subscription,
-            error=last_err,
+        was_deduped, succeeded, _, error, _ = await self._send_with_dedup_lifecycle(
+            sub_id,
+            content_id,
+            channel,
+            attempt_fn=attempt_fn,
+            max_retry=MAX_RETRY,
         )
+
+        if was_deduped:
+            return self._build_result("duplicate", content, subscription)
+        if succeeded:
+            return self._build_result("success", content, subscription)
+        return self._build_result("failed", content, subscription, error=error)
 
     # ------------------------------------------------------------------
     # Access token
@@ -123,14 +120,8 @@ class WeWorkDistributor(BaseDistributor):
         token: str = data["access_token"]
         expires_in: int = data.get("expires_in", 7200)
 
-        await self.redis.set(
-            TOKEN_CACHE_KEY,
-            token,
-        )
-        await self.redis.expire(
-            TOKEN_CACHE_KEY,
-            expires_in - TOKEN_EXPIRE_BUFFER,
-        )
+        await self.redis.set(TOKEN_CACHE_KEY, token)
+        await self.redis.expire(TOKEN_CACHE_KEY, expires_in - TOKEN_EXPIRE_BUFFER)
         return token
 
     # ------------------------------------------------------------------

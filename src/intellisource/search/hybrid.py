@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from intellisource.storage.vector import HybridIndex
+
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -52,7 +54,9 @@ def _extract_attr(row: Any, name: str, default: Any = "") -> Any:
 def _build_enriched_result(row: Any) -> EnrichedSearchResult | None:
     """Build an EnrichedSearchResult from a row, returning None on failure."""
     try:
-        content_id = _extract_attr(row, "id", None)
+        content_id = _extract_attr(row, "content_id", None)
+        if content_id is None:
+            content_id = _extract_attr(row, "id", None)
         if content_id is None:
             content_id = row[0]
 
@@ -87,11 +91,15 @@ class HybridSearchEngine:
     async def search(
         self,
         query: str,
+        query_vector: list[float] | None = None,
         mode: str = "hybrid",
         tags: list[str] | None = None,
         date_from: datetime | None = None,
         date_to: datetime | None = None,
         limit: int = 10,
+        keyword_weight: float | None = None,
+        vector_weight: float | None = None,
+        **kwargs: Any,
     ) -> SearchResponse:
         """Execute a search with optional filtering and return enriched results."""
         if not query:
@@ -103,13 +111,26 @@ class HybridSearchEngine:
 
         limit = min(limit, _MAX_LIMIT)
 
+        kw = keyword_weight if keyword_weight is not None else self.keyword_weight
+        vw = vector_weight if vector_weight is not None else self.semantic_weight
+
+        # Fall back to keyword-only when a vector mode is requested without a vector.
+        effective_mode = mode
+        if query_vector is None and mode in ("hybrid", "semantic"):
+            effective_mode = "keyword"
+
         start = time.monotonic()
 
-        # Execute query via session; handle both real and mock results
-        session_any: Any = self._session
-        result: Any = await session_any.execute()
+        index = HybridIndex(self._session)
+        rows = await index.search(
+            query,
+            query_vector,
+            mode=effective_mode,  # type: ignore[arg-type]
+            top_k=limit,
+            keyword_weight=kw,
+            vector_weight=vw,
+        )
 
-        rows = _extract_rows(result)
         items = _build_items(rows)
 
         elapsed_ms = int((time.monotonic() - start) * 1000)
@@ -119,6 +140,34 @@ class HybridSearchEngine:
             total=len(items),
             query_time_ms=elapsed_ms,
         )
+
+    async def chat(
+        self,
+        messages: list[dict[str, Any]],
+        session_id: str | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Return a chat reply for the given conversation messages.
+
+        # [ASSUMPTION] stateless echo stub — session_id/answer/sources/query_time_ms
+        # are placeholders; full LLM integration deferred to T-094.
+        """
+        if not messages:
+            raise ValueError("messages must contain at least one entry")
+        start = time.monotonic()
+        last_content: str = ""
+        for msg in reversed(messages):
+            if msg.get("role") == "user":
+                last_content = str(msg.get("content", ""))
+                break
+        elapsed_ms = int((time.monotonic() - start) * 1000)
+        return {
+            "session_id": session_id or str(uuid.uuid4()),
+            # [ASSUMPTION] stateless echo; T-094 wires LLMGateway.chat()
+            "answer": last_content,
+            "sources": [],
+            "query_time_ms": elapsed_ms,
+        }
 
 
 def _extract_rows(result: Any) -> list[Any]:

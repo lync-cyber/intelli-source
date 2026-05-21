@@ -326,13 +326,21 @@ class TestEmailDeduplication:
 
     @pytest.mark.asyncio
     async def test_duplicate_content_not_resent(self):
-        """Second distribute() call for same content+sub returns deduplicated."""
+        """Second distribute() for same content+sub is deduplicated via push_repo."""
+        from unittest.mock import MagicMock
+
         cls = _import_email_distributor()
+
+        push_repo = MagicMock()
+        push_repo.exists = AsyncMock(side_effect=[False, True])
+        push_repo.create = AsyncMock(return_value=MagicMock())
+
         distributor = cls(
             smtp_host="smtp.example.com",
             smtp_port=587,
             smtp_user="user@example.com",
             smtp_password="secret",
+            push_repo=push_repo,
         )
         distributor.send_email = AsyncMock(
             return_value={"status": "sent"},
@@ -343,7 +351,7 @@ class TestEmailDeduplication:
 
         # First call should send
         result1 = await distributor.distribute(content, subscription)
-        assert result1["status"] == "sent"
+        assert result1["status"] in ("sent", "success")
 
         # Second call with same content+subscription should be deduplicated
         result2 = await distributor.distribute(content, subscription)

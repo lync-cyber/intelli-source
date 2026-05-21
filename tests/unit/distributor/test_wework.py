@@ -364,46 +364,77 @@ class TestMessageFormats:
 
 
 class TestDeduplication:
-    """AC-044: Same content is not pushed twice to the same subscription."""
+    """AC-044: Deduplication is handled by PushRepository (see test_push_dedup.py)."""
 
     @pytest.mark.asyncio
-    async def test_duplicate_push_skipped(
+    async def test_duplicate_push_via_push_repo(
         self,
-        distributor: Any,
         mock_redis: AsyncMock,
         mock_http_client: AsyncMock,
+        corp_id: str,
+        corp_secret: str,
+        agent_id: int,
     ) -> None:
-        """Second distribute() for same content+subscription is skipped."""
+        """Second distribute() skipped when push_repo.exists() returns True."""
+        from unittest.mock import MagicMock
+
+        from intellisource.distributor.channels.wework import WeWorkDistributor
+
+        push_repo = MagicMock()
+        push_repo.exists = AsyncMock(side_effect=[False, True])
+        push_repo.create = AsyncMock(return_value=MagicMock())
+
+        dist = WeWorkDistributor(
+            redis=mock_redis,
+            http_client=mock_http_client,
+            corp_id=corp_id,
+            corp_secret=corp_secret,
+            agent_id=agent_id,
+            push_repo=push_repo,
+        )
         content = StubContent()
         subscription = StubSubscription()
 
-        # First call succeeds
-        mock_redis.exists.return_value = False
-        await distributor.distribute(content, subscription)
+        first = await dist.distribute(content, subscription)
+        second = await dist.distribute(content, subscription)
 
-        # Mark as already pushed
-        mock_redis.exists.return_value = True
-        result2 = await distributor.distribute(content, subscription)
-
-        assert result2["status"] in ("skipped", "duplicate")
+        assert first["status"] == "success"
+        assert second["status"] in ("skipped", "duplicate", "deduplicated")
 
     @pytest.mark.asyncio
-    async def test_dedup_key_includes_content_and_subscription(
+    async def test_dedup_uses_push_repo_not_redis(
         self,
-        distributor: Any,
         mock_redis: AsyncMock,
+        mock_http_client: AsyncMock,
+        corp_id: str,
+        corp_secret: str,
+        agent_id: int,
     ) -> None:
-        """Deduplication check uses both content id and subscription id."""
+        """Deduplication check uses push_repo.exists(), not redis.exists()."""
+        from unittest.mock import MagicMock
+
+        from intellisource.distributor.channels.wework import WeWorkDistributor
+
+        push_repo = MagicMock()
+        push_repo.exists = AsyncMock(return_value=False)
+        push_repo.create = AsyncMock(return_value=MagicMock())
+
+        dist = WeWorkDistributor(
+            redis=mock_redis,
+            http_client=mock_http_client,
+            corp_id=corp_id,
+            corp_secret=corp_secret,
+            agent_id=agent_id,
+            push_repo=push_repo,
+        )
         content = StubContent()
         subscription = StubSubscription()
 
-        mock_redis.exists.return_value = False
-        await distributor.distribute(content, subscription)
+        await dist.distribute(content, subscription)
 
-        # Verify redis.exists was called with a key containing both IDs
-        mock_redis.exists.assert_called()
-        dedup_key = mock_redis.exists.call_args[0][0]
-        assert str(content.id) in dedup_key or str(subscription.id) in dedup_key
+        push_repo.exists.assert_awaited_once()
+        # Redis should not be used for dedup anymore
+        mock_redis.exists.assert_not_called()
 
 
 # ===========================================================================
@@ -556,3 +587,79 @@ class TestPushResultTracking:
 
         assert result["status"] == "failed"
         assert "error" in result or "errmsg" in result
+
+
+# ===========================================================================
+# R-005: WeWork attempt_fn try/except symmetry
+# ===========================================================================
+
+
+class TestWeWorkExceptionSymmetry:
+    """R-005: Network exceptions in attempt_fn produce a failed record."""
+
+    @pytest.mark.asyncio
+    async def test_network_exception_produces_failed_result(
+        self,
+        mock_redis: AsyncMock,
+        mock_http_client: AsyncMock,
+        corp_id: str,
+        corp_secret: str,
+        agent_id: int,
+    ) -> None:
+        """When http_client.post raises a network exception, returns failed."""
+        from intellisource.distributor.channels.wework import WeWorkDistributor
+
+        mock_http_client.post.side_effect = OSError("Connection refused")
+
+        dist = WeWorkDistributor(
+            redis=mock_redis,
+            http_client=mock_http_client,
+            corp_id=corp_id,
+            corp_secret=corp_secret,
+            agent_id=agent_id,
+        )
+        content = StubContent()
+        subscription = StubSubscription()
+
+        result = await dist.distribute(content, subscription)
+
+        assert result["status"] == "failed"
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_network_exception_records_push_failed_in_repo(
+        self,
+        mock_redis: AsyncMock,
+        mock_http_client: AsyncMock,
+        corp_id: str,
+        corp_secret: str,
+        agent_id: int,
+    ) -> None:
+        """When http_client.post raises, a failed PushRecord is written to the repo."""
+        from unittest.mock import MagicMock
+
+        from intellisource.distributor.channels.wework import WeWorkDistributor
+
+        mock_http_client.post.side_effect = RuntimeError("aiohttp.ClientError: timeout")
+
+        push_repo = MagicMock()
+        push_repo.exists = AsyncMock(return_value=False)
+        push_repo.create = AsyncMock(return_value=MagicMock())
+
+        dist = WeWorkDistributor(
+            redis=mock_redis,
+            http_client=mock_http_client,
+            corp_id=corp_id,
+            corp_secret=corp_secret,
+            agent_id=agent_id,
+            push_repo=push_repo,
+        )
+        content = StubContent()
+        subscription = StubSubscription()
+
+        await dist.distribute(content, subscription)
+
+        push_repo.create.assert_awaited_once()
+        create_kwargs = push_repo.create.await_args[1]
+        assert create_kwargs.get("status") == "failed"
+        assert create_kwargs.get("error_message") is not None

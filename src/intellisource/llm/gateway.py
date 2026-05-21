@@ -124,6 +124,18 @@ class SchemaValidationError(LLMError):
         super().__init__(message, category=category, recovery_hint=recovery_hint)
 
 
+class LLMOutputError(LLMError):
+    """Raised when LLM output cannot be parsed or validated after enforcement."""
+
+    def __init__(
+        self,
+        message: str,
+        category: ErrorCategory = ErrorCategory.RECOVERABLE_DEGRADED,
+        recovery_hint: str = "",
+    ) -> None:
+        super().__init__(message, category=category, recovery_hint=recovery_hint)
+
+
 @dataclass
 class LLMResult:
     """Result from an LLM completion call."""
@@ -206,6 +218,7 @@ class LLMGateway:
         task_type: str | None = None,
         cache_key_parts: dict[str, str] | None = None,
         max_input_tokens: int | None = None,
+        response_format: dict[str, Any] | None = None,
     ) -> LLMResult:
         """Call an LLM with standardized parameters.
 
@@ -311,6 +324,8 @@ class LLMGateway:
         }
         if profile is not None:
             call_kwargs["timeout"] = profile.timeout_seconds
+        if response_format is not None:
+            call_kwargs["response_format"] = response_format
 
         start_time = time.monotonic()
         try:
@@ -341,6 +356,161 @@ class LLMGateway:
                 prompt_version=cache_key_parts["prompt_version"],
                 result=result,
             )
+
+        return result
+
+    def _validate_tools(self, tools: Any) -> None:
+        """Validate tools list structure before sending to litellm.
+
+        Args:
+            tools: The tools argument to validate.
+
+        Raises:
+            ValueError: If tools is not a list[dict] or any dict lacks
+                required 'type' and 'function' keys.
+        """
+        if not isinstance(tools, list):
+            raise ValueError(
+                f"tools must be a list of dicts, got: {type(tools).__name__}"
+            )
+        for i, tool in enumerate(tools):
+            if not isinstance(tool, dict):
+                raise ValueError(
+                    f"tools[{i}] must be a dict, got: {type(tool).__name__}"
+                )
+            if "type" not in tool:
+                raise ValueError(f"tools[{i}] missing required key 'type'")
+            if "function" not in tool:
+                raise ValueError(f"tools[{i}] missing required key 'function'")
+
+    async def _chat_call_with_retry(
+        self,
+        call_kwargs: dict[str, Any],
+    ) -> Any:
+        """Invoke litellm.acompletion for chat() with retry.
+
+        Retries RECOVERABLE_TRANSIENT errors up to 3 times (4 total calls).
+        On UnsupportedParamsError, retries once without tools/response_format.
+        """
+        async for attempt in AsyncRetrying(
+            stop=stop_after_attempt(4),
+            wait=self._retry_wait,
+            retry=retry_if_exception(
+                lambda e: _classify_error(e) is ErrorCategory.RECOVERABLE_TRANSIENT
+            ),
+            reraise=True,
+        ):
+            with attempt:
+                try:
+                    return await litellm.acompletion(**call_kwargs)
+                except Exception as exc:
+                    if type(exc).__name__ == "UnsupportedParamsError":
+                        logger.warning(
+                            "Provider does not support tools/response_format; "
+                            "retrying without them: %s",
+                            exc,
+                        )
+                        degraded_kwargs = {
+                            k: v
+                            for k, v in call_kwargs.items()
+                            if k not in ("tools", "response_format")
+                        }
+                        return await litellm.acompletion(**degraded_kwargs)
+                    raise
+        return None  # unreachable; satisfies mypy
+
+    async def chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        response_format: dict[str, Any] | None = None,
+        schema: dict[str, Any] | None = None,
+        model: str | None = None,
+    ) -> LLMResult:
+        """Call an LLM with a messages-style API (function calling / JSON mode).
+
+        Args:
+            messages: List of message dicts with 'role' and 'content' keys.
+                Passed to litellm without modification (SS-2).
+            tools: Optional list of tool/function dicts. Each must contain
+                'type' and 'function' keys (SS-1 validation).
+            response_format: Optional response format dict, e.g.
+                {"type": "json_object"}.
+            schema: Optional JSON Schema dict. When provided and the LLM returns
+                invalid JSON, SchemaEnforcer.validate() is called exactly once
+                (AC-4 / SS-3). Raises LLMOutputError if enforcement also fails.
+            model: Model identifier override.
+
+        Returns:
+            LLMResult with content and metadata (tool_calls, finish_reason, usage).
+
+        Raises:
+            ValueError: If tools fails structural validation (SS-1).
+            LLMOutputError: If JSON output is invalid and SchemaEnforcer fails.
+        """
+        if tools is not None:
+            self._validate_tools(tools)
+
+        resolved_model = model or "gpt-4o-mini"
+
+        call_kwargs: dict[str, Any] = {
+            "model": resolved_model,
+            "messages": messages,
+        }
+        if tools is not None:
+            call_kwargs["tools"] = tools
+        if response_format is not None:
+            call_kwargs["response_format"] = response_format
+
+        start_time = time.monotonic()
+        response = await self._chat_call_with_retry(call_kwargs)
+        elapsed_ms = (time.monotonic() - start_time) * 1000
+
+        content: str = response.choices[0].message.content or ""
+        metadata: dict[str, Any] = {
+            "tool_calls": response.choices[0].message.tool_calls,
+            "finish_reason": response.choices[0].finish_reason,
+            "usage": dict(response.usage) if response.usage else {},
+            "input_tokens": response.usage.prompt_tokens,
+            "output_tokens": response.usage.completion_tokens,
+            "latency_ms": elapsed_ms,
+            "model": response.model,
+        }
+
+        if schema is not None:
+            try:
+                json.loads(content)
+            except json.JSONDecodeError:
+                enforcer = SchemaEnforcer(schema)
+                try:
+                    enforcer.validate(content)
+                except Exception as exc:
+                    raise LLMOutputError(
+                        f"LLM output failed JSON validation: {exc}"
+                    ) from exc
+
+        result = LLMResult(content=content, metadata=metadata)
+
+        if self._cost_tracker is not None:
+            record = LLMCallRecord(
+                model=str(response.model),
+                provider=(
+                    str(response.model).split("/")[0]
+                    if "/" in str(response.model)
+                    else "unknown"
+                ),
+                call_type="chat",
+                input_tokens=int(response.usage.prompt_tokens),
+                output_tokens=int(response.usage.completion_tokens),
+                latency_ms=int(elapsed_ms),
+                input_length=sum(len(str(m.get("content", ""))) for m in messages),
+                output_length=len(content),
+                status="success",
+            )
+            try:
+                await self._cost_tracker.log_call(record)
+            except Exception as log_exc:
+                logger.warning("Failed to log chat call to CostTracker: %s", log_exc)
 
         return result
 

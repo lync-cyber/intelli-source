@@ -149,3 +149,24 @@ class TestQuietHoursTimezoneConversion:
         )
         ctrl = self._make_controller(utc_0300)
         assert ctrl.is_quiet_hours(sub) is True
+
+    def test_invalid_timezone_falls_back_to_utc_without_raising(self, caplog):
+        """R-002: invalid timezone must not raise; fallback to UTC and log WARNING."""
+        import logging
+
+        # UTC 03:00 is outside quiet_hours 09:00-17:00 even in UTC
+        utc_0300 = datetime(2026, 1, 1, 3, 0, tzinfo=timezone.utc)
+        sub = StubSubscription(
+            quiet_hours={"start": "09:00", "end": "17:00"},
+            timezone="Asia/Shanghia",  # intentional typo — invalid zone
+        )
+        ctrl = self._make_controller(utc_0300)
+
+        with caplog.at_level(logging.WARNING):
+            result = ctrl.is_quiet_hours(sub)
+
+        # Must not raise; UTC 03:00 is outside 09:00-17:00 → not quiet
+        assert result is False
+        assert any("Invalid timezone" in r.message for r in caplog.records), (
+            "Expected a WARNING log about invalid timezone"
+        )

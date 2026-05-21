@@ -174,7 +174,7 @@ def task_trigger(
 ) -> None:
     """Trigger a collection task for a source."""
     url = f"{_base_url()}/api/v1/tasks/collect"
-    payload = {"source_id": source_id, "trigger_type": "manual"}
+    payload = {"source_ids": [source_id]}
     resp = httpx.post(url, json=payload, headers=_get_headers())
     try:
         resp.raise_for_status()

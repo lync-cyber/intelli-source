@@ -32,7 +32,8 @@ class MiddlewareChain:
 
     def execute(self, ctx: PipelineContext) -> PipelineContext:
         """Execute the middleware chain with the given context."""
-        # Build the onion from inside out
+        # Reversed iteration makes the first middleware in the list the outermost
+        # layer: mw[0].before → mw[1].before → handler → mw[1].after → mw[0].after.
         current: Callable[[PipelineContext], PipelineContext] = self._handler
         for middleware in reversed(self._middlewares):
             current = self._wrap(middleware, current)

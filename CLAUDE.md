@@ -14,16 +14,21 @@
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 
-- 当前阶段: sprint-8r 批次 1 r1 review 完成 — T-083 + T-093 verdict=needs_revision，用户决定本会话停止、下次会话走 Revision Protocol
-- 下一步行动: **下次会话 /start-orchestrator 接续** — ① 批次 1 revision：dispatch implementer (task_type=revision) 修 T-083 R-001（/tasks/collect schema 对齐 arch API-007：`source_id: str` → `source_ids: array[string]` + 响应加 `task_chain_id / tasks / message`，对应测试同步）+ T-093 R-002（frequency.py `is_quiet_hours` ZoneInfo fallback）+ T-093 R-001（matcher.py 日志 hash/截断 regex pattern）+ T-093 R-003（test_redos_pattern_does_not_block_beyond_2s 断言收紧只允许 False）+ reviewer r2 ② 启动批次 2 RED+GREEN（5 任务并行：T-084 / T-085 / T-086 / T-090 / T-091）③ 批次 3 (T-087/088/089/092) ④ 批次 4 T-094 集成测试 ⑤ pre_deploy 二次评估
+- 当前阶段: sprint-8r 批次 1 + 批次 2 完成 — 7 任务全部 approved，准备进入批次 3
+- 下一步行动: ① 批次 3 RED+GREEN（4 任务：T-087 LLM 智能处理链路 / T-088 hybrid_search_optimizer / T-089 配置热加载边界 / T-092 Celery task_routes + worker_init + 幂等三组件）② 批次 4 T-094 集成测试 ③ pre_deploy 二次评估
 - 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r]
-- 当前Sprint: sprint-8r (in-progress — 批次 1 GREEN+REFACTOR+r1 review 完成 2/12，verdict=needs_revision；待 revision r2 + 批次 2-4)
+- 当前Sprint: sprint-8r (in-progress — 批次 1 + 批次 2 全 approved 7/12；待批次 3-4)
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r) / test-report = approved；ui-spec = N/A；dev-plan-s8(P2 backlog) = draft；deploy-spec = 未开始
-- 批次 1 r1 检查点详情:
-  - T-083 status=done（GREEN：28 RED test 全 PASS；REFACTOR commit `7bb224a` 抽 `_resolve_url` helper + 模块顶层 `concurrent.futures` import；code-review r1 verdict=needs_revision，1 HIGH R-001 /tasks/collect 与 arch API-007 schema 偏差 + 3 MEDIUM + 2 LOW；reviewer 自报 approved_with_notes，orchestrator 按 §三态判定仲裁为 needs_revision）
-  - T-093 status=done（GREEN：55 RED test 全 PASS；REFACTOR 推荐 skip（TDD_REFACTOR_TRIGGER 未达阈值，reviewer 明确建议）；code-review r1 verdict=needs_revision，1 HIGH R-002 ZoneInfo 无 fallback + 1 MEDIUM R-001 日志泄漏 regex pattern + 1 LOW R-003 测试断言宽松）
-  - orchestrator 本会话顺手修复：① test_migration.py `_find_migration_files` glob 顺序非确定性（多迁移文件场景 sorted）② T-083 REFACTOR 见上 ③ EVENT-LOG 追加 4 条 (tdd_phase REFACTOR + 2× review_verdict needs_revision + state_change)
-  - 本会话全量回归: 1937 passed / 0 failed / 29 skipped；ruff format + check + mypy --strict 全部 clean
+- 批次 1 闭环检查点:
+  - T-083 status=approved（r1→r2→r3。final: f567ad1 + 74a7252。报告 r1/r2/r3）
+  - T-093 status=approved（r1→r2。final: b567e46。报告 r1/r2）
+- 批次 2 闭环检查点:
+  - T-084 status=approved（GREEN+REFACTOR → r1 approved_with_notes（2 MEDIUM 用户全修）→ r2 approved_with_notes（1 MEDIUM ctx errors schema + 2 LOW 用户全修）→ r3 approved。final: 374e8ef + 49d6d1b + df7b24d + c7a9ed9。报告 r1/r2/r3）
+  - T-085 status=approved（r1 needs_revision（2 HIGH: search_mode kwarg drop, ChatResponse schema） → r2 approved。final: 8d6b075 + 2511a8e。报告 r1/r2）
+  - T-086 status=approved_with_notes（r1 needs_revision（1 HIGH LLMResult shape ≠ runner consumer） → r2 approved_with_notes（1 LOW N-001 silent downgrade log），用户接受并继续。final: 5f40f4e + 9fd0204。报告 r1/r2）
+  - T-090 status=approved（GREEN+REFACTOR → r1 needs_revision（1 HIGH security: pii.py 未接入 record_push） → r2 approved。final: 55ea9b0 + dca8be9 + c78e90a。报告 r1/r2）
+  - T-091 status=approved（GREEN → r1 needs_revision（1 HIGH security: validator no-op） → r2 approved_with_notes（1 MEDIUM allowed-types drift + 2 LOW 测试缺口），用户全修无 r3 reviewer → orchestrator inline approve。final: e91d444 + a3caef2 + 74f093a。报告 r1/r2）
+  - 全量回归: 2154 passed / 0 failed / 29 skipped; ruff + mypy --strict clean
 - Learnings Registry:
   - [RETRO-intellisource-v1.md](docs/reviews/retro/RETRO-intellisource-v1.md) — 6 EXP，应用决策 deferred to backlog
   - [SKILL-IMPROVE-*.md](docs/reviews/retro/) — 6 份建议（implementer / refactorer / code-review / tech-lead / tdd-engine / orchestrator）

@@ -114,18 +114,25 @@ async def pg_container() -> AsyncIterator[str]:
                 "postgresql+psycopg2://", "postgresql+asyncpg://"
             )
 
-        # Build sync URL for DDL + alembic
-        sync_url = async_url.replace("+asyncpg", "")
+        # Bare libpq URL for psycopg.connect (libpq rejects the SQLAlchemy
+        # driver suffix) and an explicit +psycopg variant for SQLAlchemy /
+        # alembic — the project ships psycopg v3, not psycopg2 (which is
+        # SQLAlchemy's default fallback for a driver-less postgresql:// URL).
+        libpq_url = async_url.replace("+asyncpg", "")
+        sync_url = async_url.replace("+asyncpg", "+psycopg")
 
         # Install required extensions via psycopg (sync) before alembic
         import psycopg  # type: ignore[import-untyped]
 
-        with psycopg.connect(sync_url, autocommit=True) as conn:
+        with psycopg.connect(libpq_url, autocommit=True) as conn:
             conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
             conn.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
 
-        # Set DATABASE_URL so alembic env.py can pick it up
-        os.environ["DATABASE_URL"] = async_url
+        # Set DATABASE_URL so alembic env.py can pick it up. alembic runs sync
+        # so the URL must drop the asyncpg driver suffix; otherwise env.py
+        # overrides the sync URL set on cfg below and SQLAlchemy hits
+        # MissingGreenlet while bridging asyncpg through sync engine_from_config.
+        os.environ["DATABASE_URL"] = sync_url
 
         # Patch alembic.op.execute to skip zhparser DDL
         from alembic import op as alembic_op  # type: ignore[import-untyped]
