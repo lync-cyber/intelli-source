@@ -214,3 +214,6 @@
 {"ts": "2026-05-21T13:15:58.705677+00:00", "event": "user_decision", "phase": "development", "detail": "T-086 r2 approved_with_notes — user chose: 接受并继续 (N-001 deferred to ops backlog)"}
 {"ts": "2026-05-21T13:15:58.731896+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD GREEN: T-090 (wave 2)"}
 {"ts": "2026-05-21T13:15:58.760160+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD RED: T-091 (wave 2)"}
+{"ts": "2026-05-21T13:22:30.188895+00:00", "event": "review_verdict", "phase": "development", "detail": "T-084 r2 — 3 original RESOLVED; net-new: 1 MEDIUM (ctx errors schema divergence) + 2 LOW", "agent": "reviewer", "status": "approved_with_notes"}
+{"ts": "2026-05-21T13:22:30.218327+00:00", "event": "user_decision", "phase": "development", "detail": "T-084 r2 approved_with_notes — user chose: 修 R-001 MEDIUM + 2 LOW 全包"}
+{"ts": "2026-05-21T13:22:30.246645+00:00", "event": "revision_start", "phase": "development", "detail": "T-084 r3 — unify ctx errors schema to list[dict] across execute/execute_stream + harden yaml path + fix [ASSUMPTION] comment", "agent": "implementer"}
