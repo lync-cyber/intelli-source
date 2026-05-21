@@ -77,18 +77,22 @@ class TestBuildCeleryTasks:
         """build_celery_tasks(...) returns a CeleryTasks instance whose
         _session_factory attribute is not None."""
         monkeypatch.setenv("IS_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+        monkeypatch.setenv("IS_REDIS_URL", "redis://localhost:6379/0")
 
         from intellisource.scheduler import boot  # noqa: PLC0415
         from intellisource.scheduler.tasks import CeleryTasks  # noqa: PLC0415
 
-        mock_celery_app = MagicMock()
         mock_agent_runner = MagicMock()
         mock_pipeline_config = MagicMock()
         factory = boot.init_worker_session_factory()
 
-        tasks = boot.build_celery_tasks(
-            mock_celery_app, mock_agent_runner, mock_pipeline_config, factory
-        )
+        mock_redis = MagicMock()
+        with patch(
+            "intellisource.scheduler.boot._build_redis_client", return_value=mock_redis
+        ):
+            tasks = boot.build_celery_tasks(
+                mock_agent_runner, mock_pipeline_config, factory
+            )
 
         assert isinstance(tasks, CeleryTasks), (
             f"Expected CeleryTasks instance, got {type(tasks)}"
@@ -108,35 +112,16 @@ class TestBuildCeleryTasks:
     def test_build_celery_tasks_registers_run_pipeline_task(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """build_celery_tasks() registers 'intellisource.run_pipeline' (or an
-        equivalent key) in celery_app.tasks."""
+        """The module-level celery_app registers 'run_pipeline' as a task."""
         monkeypatch.setenv("IS_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 
-        from intellisource.scheduler import boot  # noqa: PLC0415
+        # Importing tasks registers run_pipeline on the module-level celery_app.
+        import intellisource.scheduler.tasks  # noqa: PLC0415, F401
+        from intellisource.scheduler.celery_app import celery_app  # noqa: PLC0415
 
-        # Use a real dict-backed fake so we can inspect registrations.
-        registered_tasks: dict[str, object] = {}
-
-        mock_celery_app = MagicMock()
-        mock_celery_app.tasks = registered_tasks
-
-        # Simulate celery_app.task() decorator registering the function.
-        def _fake_task_decorator(*args: object, **kwargs: object):  # noqa: ANN001
-            def _decorator(fn: object) -> object:
-                name = kwargs.get("name", getattr(fn, "__name__", str(fn)))
-                registered_tasks[name] = fn
-                return fn
-
-            return _decorator
-
-        mock_celery_app.task = _fake_task_decorator
-
-        factory = boot.init_worker_session_factory()
-        boot.build_celery_tasks(mock_celery_app, MagicMock(), MagicMock(), factory)
-
-        assert any("run_pipeline" in key for key in registered_tasks), (
-            f"Expected a task with 'run_pipeline' in its name, got: "
-            f"{list(registered_tasks.keys())}"
+        registered_names = list(celery_app.tasks.keys())
+        assert any("run_pipeline" in key for key in registered_names), (
+            f"Expected a task with 'run_pipeline' in its name, got: {registered_names}"
         )
 
 
@@ -156,6 +141,7 @@ class TestWorkerInitSignalHandler:
         import importlib  # noqa: PLC0415
 
         monkeypatch.setenv("IS_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+        monkeypatch.setenv("IS_REDIS_URL", "redis://localhost:6379/0")
 
         # Force a clean module state so _celery_tasks singleton starts at None.
         sys.modules.pop("intellisource.scheduler.boot", None)
@@ -165,15 +151,30 @@ class TestWorkerInitSignalHandler:
 
         from intellisource.scheduler.tasks import CeleryTasks  # noqa: PLC0415
 
-        mock_celery_app = MagicMock()
-        mock_agent_runner = MagicMock()
-        mock_pipeline_config = MagicMock()
+        mock_runner = MagicMock()
+        mock_factory = MagicMock()
+        mock_redis = MagicMock()
+        mock_tasks = MagicMock(spec=CeleryTasks)
 
-        boot_mod.worker_init_handler(
-            celery_app=mock_celery_app,
-            agent_runner=mock_agent_runner,
-            pipeline_config=mock_pipeline_config,
-        )
+        with (
+            patch(
+                "intellisource.scheduler.boot.init_worker_session_factory",
+                return_value=mock_factory,
+            ),
+            patch(
+                "intellisource.scheduler.boot.build_celery_tasks",
+                return_value=mock_tasks,
+            ),
+            patch(
+                "intellisource.agent.factory.get_agent_runner",
+                return_value=mock_runner,
+            ),
+            patch(
+                "intellisource.scheduler.boot._build_redis_client",
+                return_value=mock_redis,
+            ),
+        ):
+            boot_mod.worker_init_handler(sender=object())
 
         result = boot_mod.get_celery_tasks()
         assert result is not None, (

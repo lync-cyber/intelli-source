@@ -9,7 +9,9 @@ from __future__ import annotations
 import os
 from typing import Any
 
+import redis.asyncio as aioredis
 from celery.signals import worker_process_init, worker_process_shutdown
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -18,10 +20,32 @@ from sqlalchemy.ext.asyncio import (
 )
 
 import intellisource.agent.factory as _agent_factory
+from intellisource.scheduler.celery_app import celery_app as _module_celery_app
+from intellisource.scheduler.idempotency import FingerprintChecker, IdempotencyGuard
 from intellisource.scheduler.tasks import CeleryTasks
+from intellisource.storage.models import RawContent
 
 _celery_tasks: CeleryTasks | None = None
 _worker_engine: AsyncEngine | None = None
+
+
+class _RawContentFingerprintRepo:
+    """Minimal adapter providing exists_by_fingerprint for FingerprintChecker."""
+
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        self._session_factory = session_factory
+
+    async def exists_by_fingerprint(self, fingerprint: str) -> bool:
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(RawContent.id)
+                .where(RawContent.fingerprint == fingerprint)
+                .limit(1)
+            )
+            return result.first() is not None
+
+    async def record_fingerprint(self, fingerprint: str, content_id: Any) -> None:
+        pass
 
 
 def init_worker_session_factory() -> async_sessionmaker[AsyncSession]:
@@ -41,39 +65,47 @@ def init_worker_session_factory() -> async_sessionmaker[AsyncSession]:
     )
 
 
+def _build_redis_client() -> Any:
+    """Construct an async Redis client from IS_REDIS_URL."""
+    redis_url = os.environ.get("IS_REDIS_URL")
+    if not redis_url:
+        raise ValueError("IS_REDIS_URL must be set for the worker process")
+    return aioredis.from_url(redis_url)
+
+
 def build_celery_tasks(
-    celery_app: Any,
     agent_runner: Any,
     pipeline_config: Any,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> CeleryTasks:
-    """Instantiate CeleryTasks and register run_pipeline as a Celery task."""
+    """Instantiate CeleryTasks with all idempotency guards wired."""
     factory = session_factory
 
     async def _make_session() -> AsyncSession:
         return factory()
 
-    tasks = CeleryTasks(
+    redis_client = _build_redis_client()
+    idempotency_guard = IdempotencyGuard(redis=redis_client)
+
+    fingerprint_repo = _RawContentFingerprintRepo(session_factory)
+    fingerprint_checker = FingerprintChecker(repository=fingerprint_repo)
+
+    return CeleryTasks(
         agent_runner=agent_runner,
         pipeline_config=pipeline_config,
         session_factory=_make_session,
+        idempotency_guard=idempotency_guard,
+        fingerprint_checker=fingerprint_checker,
     )
 
-    @celery_app.task(name="intellisource.scheduler.run_pipeline")  # type: ignore[untyped-decorator]
-    def _run_pipeline_task(
-        pipeline_name: str, params: dict[str, Any]
-    ) -> dict[str, Any]:
-        return tasks.run_pipeline(pipeline_name, params)
 
-    return tasks
-
-
-def worker_init_handler(*, celery_app: Any = None, **_: Any) -> None:
+def worker_init_handler(**_: Any) -> None:
     """Celery worker_process_init signal entry point; idempotent singleton."""
     global _celery_tasks
     agent_runner = _agent_factory.get_agent_runner()
     factory = init_worker_session_factory()
-    _celery_tasks = build_celery_tasks(celery_app, agent_runner, None, factory)
+    _celery_tasks = build_celery_tasks(agent_runner, None, factory)
+    setattr(_module_celery_app, "_celery_tasks_instance", _celery_tasks)
 
 
 def worker_shutdown_handler(**_: Any) -> None:
@@ -84,10 +116,12 @@ def worker_shutdown_handler(**_: Any) -> None:
 
         try:
             asyncio.run(_worker_engine.dispose())
-        except RuntimeError:
-            # Already in event loop — best-effort
-            pass
-        _worker_engine = None
+        except RuntimeError as exc:
+            import logging  # noqa: PLC0415
+
+            logging.getLogger(__name__).warning("engine.dispose skipped: %s", exc)
+        finally:
+            _worker_engine = None
     _celery_tasks = None
 
 

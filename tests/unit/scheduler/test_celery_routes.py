@@ -14,7 +14,6 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-
 # ---------------------------------------------------------------------------
 # AC-1: task_routes and task_queues present in celery_app.conf
 # ---------------------------------------------------------------------------
@@ -47,9 +46,7 @@ class TestCeleryTaskRoutes:
         routes = celery_app.conf.task_routes
         # Accept either the short name 'run_pipeline' or the fully-qualified name
         route_keys = set(routes.keys()) if isinstance(routes, dict) else set()
-        has_run_pipeline = any(
-            "run_pipeline" in key for key in route_keys
-        )
+        has_run_pipeline = any("run_pipeline" in key for key in route_keys)
         assert has_run_pipeline, (
             f"task_routes must contain a rule for 'run_pipeline'; "
             f"current keys: {route_keys}"
@@ -73,7 +70,8 @@ class TestCeleryTaskRoutes:
             "No routing entry found for run_pipeline"
         )
         assert "queue" in run_pipeline_config, (
-            f"run_pipeline routing entry must have a 'queue' key; got: {run_pipeline_config}"
+            "run_pipeline routing entry must have a 'queue' key; "
+            f"got: {run_pipeline_config}"
         )
         assert run_pipeline_config["queue"], (
             "run_pipeline routing entry 'queue' must be a non-empty string"
@@ -283,3 +281,59 @@ class TestGetAgentRunnerSingletonExists:
         except Exception:
             # Any non-TypeError is fine; it just means real deps are absent
             pass
+
+
+# ---------------------------------------------------------------------------
+# R-001: worker_process_init signal does not raise AttributeError
+# ---------------------------------------------------------------------------
+
+
+class TestWorkerInitSignalNoAttributeError:
+    """R-001: worker_init_handler uses the module-level celery_app singleton,
+    not a kwarg, so it must never raise AttributeError on signal dispatch."""
+
+    def test_worker_init_signal_does_not_raise_attribute_error(self) -> None:
+        """Simulates Celery dispatching worker_process_init with no celery_app kwarg.
+
+        Patches IdempotencyGuard, FingerprintChecker, and the Redis client builder
+        so no real infrastructure is needed; verifies that worker_init_handler
+        completes without AttributeError (the 'NoneType has no attribute task' failure
+        that occurs when celery_app is taken from a missing kwarg).
+        """
+        from unittest.mock import MagicMock, patch
+
+        from intellisource.scheduler.boot import worker_init_handler
+        from intellisource.scheduler.idempotency import (
+            FingerprintChecker,
+            IdempotencyGuard,
+        )
+
+        mock_runner = MagicMock()
+        mock_factory = MagicMock()
+        mock_tasks = MagicMock()
+        mock_tasks._idempotency_guard = MagicMock(spec=IdempotencyGuard)
+        mock_tasks._fingerprint_checker = MagicMock(spec=FingerprintChecker)
+
+        with (
+            patch(
+                "intellisource.scheduler.boot.init_worker_session_factory",
+                return_value=mock_factory,
+            ),
+            patch(
+                "intellisource.scheduler.boot.build_celery_tasks",
+                return_value=mock_tasks,
+            ),
+            patch(
+                "intellisource.agent.factory.get_agent_runner",
+                return_value=mock_runner,
+            ),
+        ):
+            # Celery dispatches worker_process_init with sender kwarg only.
+            # Must NOT raise AttributeError.
+            try:
+                worker_init_handler(sender=object())
+            except AttributeError as exc:
+                raise AssertionError(
+                    f"worker_init_handler raised AttributeError — "
+                    f"celery_app singleton not wired correctly: {exc}"
+                ) from exc

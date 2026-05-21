@@ -33,10 +33,6 @@ __all__ = [
 ]
 
 
-# Lazy imports -- patched in tests, resolved at runtime.
-TaskRepository: Any = None
-
-
 def get_queue_for_priority(priority: str) -> str:
     """Return the queue name for the given priority level.
 
@@ -140,15 +136,15 @@ class CeleryTasks:
         fingerprint: str = params.get("fingerprint", "")
 
         if self._idempotency_guard is not None:
-            lock_acquired: bool = _run_sync(
-                self._idempotency_guard.acquire_lock(task_id)
-            )
+            lock_acquired: bool = _run_sync(self._idempotency_guard.acquire(task_id))
             if not lock_acquired:
                 return {"status": "skipped", "reason": "already_running"}
 
         if self._fingerprint_checker is not None:
-            is_duplicate: bool = _run_sync(self._fingerprint_checker.check(fingerprint))
-            if is_duplicate:
+            is_dup: bool = _run_sync(
+                self._fingerprint_checker.is_duplicate(fingerprint)
+            )
+            if is_dup:
                 return {"status": "skipped", "reason": "duplicate"}
 
         config = self._pipeline_config.load(pipeline_name)
@@ -173,25 +169,15 @@ class CeleryTasks:
         for attempt in range(1 + MAX_RETRIES):
             try:
                 result = _run_sync(self._agent_runner.execute(config, params=params))
+                if self._content_repository is not None:
+                    _run_sync(self._content_repository.create(result))
                 if chain_id is not None:
                     self._update_chain_status(chain_id, "success")
                 return dict(result)
             except Exception as exc:
                 last_error = exc
                 if attempt < MAX_RETRIES:
-                    # In-process retry with exponential backoff.
-                    # When integrated with real Celery, replace with
-                    # self.retry(countdown=...) for non-blocking retries.
                     _run_sync(asyncio.sleep(RETRY_BACKOFF_BASE * (2**attempt)))
-
-        # All retries exhausted -- record error and propagate.
-        if TaskRepository is not None:
-            task_repo = TaskRepository()
-            _run_sync(
-                task_repo.update(
-                    error_message=str(last_error),
-                )
-            )
 
         if chain_id is not None:
             self._update_chain_status(chain_id, "failed")
@@ -209,8 +195,8 @@ def run_pipeline(self: Any, **kwargs: Any) -> dict[str, Any]:
     """Celery entry point: execute the named pipeline with the given params.
 
     The ``bind=True`` flag injects the Celery Task instance as ``self``.
-    Business logic is delegated to :class:`CeleryTasks` when a configured
-    instance is available; otherwise a minimal pass-through is returned.
+    Business logic is delegated to :class:`CeleryTasks` wired during
+    worker_process_init via ``celery_app._celery_tasks_instance``.
     """
     pipeline_name: str = kwargs.get("pipeline_name", "default")
     params: dict[str, Any] = kwargs.get("params", kwargs)
@@ -218,7 +204,8 @@ def run_pipeline(self: Any, **kwargs: Any) -> dict[str, Any]:
     _celery_tasks_instance: CeleryTasks | None = getattr(
         celery_app, "_celery_tasks_instance", None
     )
-    if _celery_tasks_instance is not None:
-        return _celery_tasks_instance.run_pipeline(pipeline_name, params)
-
-    return {"status": "queued", "pipeline_name": pipeline_name, "params": params}
+    if _celery_tasks_instance is None:
+        raise RuntimeError(
+            "CeleryTasks not wired: worker_process_init handler has not run"
+        )
+    return _celery_tasks_instance.run_pipeline(pipeline_name, params)

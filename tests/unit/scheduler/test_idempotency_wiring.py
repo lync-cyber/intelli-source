@@ -1,14 +1,15 @@
 """Tests for T-092 AC-3, AC-4, and AC-5.
 
 AC-3: The collection entry point (CeleryTasks.run_pipeline) calls
-      IdempotencyGuard.acquire_lock(task_id) AND FingerprintChecker.check(fingerprint)
+      IdempotencyGuard.acquire(task_id) AND FingerprintChecker.is_duplicate(fingerprint)
       before pipeline execution; each is called exactly once.
 
-AC-4: When IdempotencyGuard.acquire_lock(task_id) returns False (lock already held),
+AC-4: When IdempotencyGuard.acquire(task_id) returns False (lock already held),
       run_pipeline returns an early-exit signal and the pipeline is NOT executed.
 
-AC-5: When FingerprintChecker.check(fingerprint) returns True (content already seen),
-      the collection step skips the DB write; ContentRepository.create is NOT called.
+AC-5: When FingerprintChecker.is_duplicate(fingerprint) returns True (content already
+      seen), the collection step skips the DB write; ContentRepository.create is
+      NOT called.
 """
 
 from __future__ import annotations
@@ -42,21 +43,21 @@ def _make_mock_agent_runner(result: dict[str, Any] | None = None) -> MagicMock:
     return runner
 
 
-def _make_idempotency_guard(acquire_lock_return: bool = True) -> MagicMock:
-    """Return an IdempotencyGuard mock with acquire_lock wired."""
+def _make_idempotency_guard(acquire_return: bool = True) -> MagicMock:
+    """Return an IdempotencyGuard mock with acquire wired."""
     guard = MagicMock()
-    guard.acquire_lock = AsyncMock(return_value=acquire_lock_return)
+    guard.acquire = AsyncMock(return_value=acquire_return)
     return guard
 
 
-def _make_fingerprint_checker(check_return: bool = False) -> MagicMock:
-    """Return a FingerprintChecker mock with check wired.
+def _make_fingerprint_checker(is_duplicate_return: bool = False) -> MagicMock:
+    """Return a FingerprintChecker mock with is_duplicate wired.
 
-    check() returning False means the fingerprint is new (not a duplicate).
-    check() returning True means the fingerprint already exists (duplicate).
+    is_duplicate() returning False means the fingerprint is new (not a duplicate).
+    is_duplicate() returning True means the fingerprint already exists (duplicate).
     """
     checker = MagicMock()
-    checker.check = AsyncMock(return_value=check_return)
+    checker.is_duplicate = AsyncMock(return_value=is_duplicate_return)
     return checker
 
 
@@ -74,16 +75,16 @@ def _make_content_repository() -> MagicMock:
 
 
 class TestIdempotencyWiringAC3:
-    """AC-3: acquire_lock(task_id) and check(fingerprint) each invoked once
+    """AC-3: acquire(task_id) and is_duplicate(fingerprint) each invoked once
     before pipeline runs."""
 
     def test_acquire_lock_called_once_before_pipeline(self) -> None:
-        """IdempotencyGuard.acquire_lock must be called exactly once before
+        """IdempotencyGuard.acquire must be called exactly once before
         AgentRunner.execute is invoked."""
         from intellisource.scheduler.tasks import CeleryTasks
 
-        guard = _make_idempotency_guard(acquire_lock_return=True)
-        checker = _make_fingerprint_checker(check_return=False)
+        guard = _make_idempotency_guard(acquire_return=True)
+        checker = _make_fingerprint_checker(is_duplicate_return=False)
         agent_runner = _make_mock_agent_runner()
         pipeline_config = _make_mock_pipeline_config()
 
@@ -99,21 +100,21 @@ class TestIdempotencyWiringAC3:
             {"task_id": "task-001", "fingerprint": "sha256-abc"},
         )
 
-        guard.acquire_lock.assert_called_once()
-        call_args = guard.acquire_lock.call_args
+        guard.acquire.assert_called_once()
+        call_args = guard.acquire.call_args
         # task_id must be passed as positional or keyword argument
         assert "task-001" in (call_args.args + tuple(call_args.kwargs.values())), (
-            "acquire_lock must be called with the task_id from params; "
+            "acquire must be called with the task_id from params; "
             f"actual call: {call_args}"
         )
 
     def test_fingerprint_check_called_once_before_pipeline(self) -> None:
-        """FingerprintChecker.check must be called exactly once before
+        """FingerprintChecker.is_duplicate must be called exactly once before
         AgentRunner.execute is invoked."""
         from intellisource.scheduler.tasks import CeleryTasks
 
-        guard = _make_idempotency_guard(acquire_lock_return=True)
-        checker = _make_fingerprint_checker(check_return=False)
+        guard = _make_idempotency_guard(acquire_return=True)
+        checker = _make_fingerprint_checker(is_duplicate_return=False)
         agent_runner = _make_mock_agent_runner()
         pipeline_config = _make_mock_pipeline_config()
 
@@ -129,34 +130,34 @@ class TestIdempotencyWiringAC3:
             {"task_id": "task-002", "fingerprint": "sha256-xyz"},
         )
 
-        checker.check.assert_called_once()
-        call_args = checker.check.call_args
+        checker.is_duplicate.assert_called_once()
+        call_args = checker.is_duplicate.call_args
         assert "sha256-xyz" in (call_args.args + tuple(call_args.kwargs.values())), (
-            "FingerprintChecker.check must be called with the fingerprint from params; "
-            f"actual call: {call_args}"
+            "FingerprintChecker.is_duplicate must be called with the fingerprint "
+            f"from params; actual call: {call_args}"
         )
 
     def test_acquire_lock_called_before_agent_execute(self) -> None:
-        """acquire_lock must be invoked strictly before AgentRunner.execute."""
+        """acquire must be invoked strictly before AgentRunner.execute."""
         from intellisource.scheduler.tasks import CeleryTasks
 
         call_order: list[str] = []
 
         guard = MagicMock()
 
-        async def _acquire_lock_side_effect(task_id: str) -> bool:
-            call_order.append("acquire_lock")
+        async def _acquire_side_effect(task_id: str) -> bool:
+            call_order.append("acquire")
             return True
 
-        guard.acquire_lock = AsyncMock(side_effect=_acquire_lock_side_effect)
+        guard.acquire = AsyncMock(side_effect=_acquire_side_effect)
 
         checker = MagicMock()
 
-        async def _check_side_effect(fingerprint: str) -> bool:
-            call_order.append("check")
+        async def _is_duplicate_side_effect(fingerprint: str) -> bool:
+            call_order.append("is_duplicate")
             return False
 
-        checker.check = AsyncMock(side_effect=_check_side_effect)
+        checker.is_duplicate = AsyncMock(side_effect=_is_duplicate_side_effect)
 
         agent_runner = MagicMock()
 
@@ -179,12 +180,11 @@ class TestIdempotencyWiringAC3:
             {"task_id": "task-003", "fingerprint": "sha256-order"},
         )
 
-        assert call_order.index("acquire_lock") < call_order.index("execute"), (
-            "acquire_lock must be invoked before execute; "
-            f"actual order: {call_order}"
+        assert call_order.index("acquire") < call_order.index("execute"), (
+            f"acquire must be invoked before execute; actual order: {call_order}"
         )
-        assert call_order.index("check") < call_order.index("execute"), (
-            "FingerprintChecker.check must be invoked before execute; "
+        assert call_order.index("is_duplicate") < call_order.index("execute"), (
+            "FingerprintChecker.is_duplicate must be invoked before execute; "
             f"actual order: {call_order}"
         )
 
@@ -193,8 +193,8 @@ class TestIdempotencyWiringAC3:
         and the pipeline executes normally."""
         from intellisource.scheduler.tasks import CeleryTasks
 
-        guard = _make_idempotency_guard(acquire_lock_return=True)
-        checker = _make_fingerprint_checker(check_return=False)
+        guard = _make_idempotency_guard(acquire_return=True)
+        checker = _make_fingerprint_checker(is_duplicate_return=False)
         agent_runner = _make_mock_agent_runner({"status": "success"})
         pipeline_config = _make_mock_pipeline_config()
 
@@ -210,8 +210,8 @@ class TestIdempotencyWiringAC3:
             {"task_id": "task-004", "fingerprint": "fp-happy"},
         )
 
-        guard.acquire_lock.assert_called_once()
-        checker.check.assert_called_once()
+        guard.acquire.assert_called_once()
+        checker.is_duplicate.assert_called_once()
         agent_runner.execute.assert_called_once()
         assert result is not None
 
@@ -225,11 +225,11 @@ class TestIdempotencyWiringAC4:
     """AC-4: Lock already held → early-exit result, no pipeline execution."""
 
     def test_pipeline_not_executed_when_lock_not_acquired(self) -> None:
-        """When acquire_lock returns False, AgentRunner.execute must not be called."""
+        """When acquire returns False, AgentRunner.execute must not be called."""
         from intellisource.scheduler.tasks import CeleryTasks
 
-        guard = _make_idempotency_guard(acquire_lock_return=False)
-        checker = _make_fingerprint_checker(check_return=False)
+        guard = _make_idempotency_guard(acquire_return=False)
+        checker = _make_fingerprint_checker(is_duplicate_return=False)
         agent_runner = _make_mock_agent_runner()
         pipeline_config = _make_mock_pipeline_config()
 
@@ -252,8 +252,8 @@ class TestIdempotencyWiringAC4:
         raising an exception."""
         from intellisource.scheduler.tasks import CeleryTasks
 
-        guard = _make_idempotency_guard(acquire_lock_return=False)
-        checker = _make_fingerprint_checker(check_return=False)
+        guard = _make_idempotency_guard(acquire_return=False)
+        checker = _make_fingerprint_checker(is_duplicate_return=False)
         agent_runner = _make_mock_agent_runner()
         pipeline_config = _make_mock_pipeline_config()
 
@@ -278,8 +278,8 @@ class TestIdempotencyWiringAC4:
         (e.g. contains a 'skipped' or 'already_running' indicator)."""
         from intellisource.scheduler.tasks import CeleryTasks
 
-        guard = _make_idempotency_guard(acquire_lock_return=False)
-        checker = _make_fingerprint_checker(check_return=False)
+        guard = _make_idempotency_guard(acquire_return=False)
+        checker = _make_fingerprint_checker(is_duplicate_return=False)
         agent_runner = _make_mock_agent_runner()
         pipeline_config = _make_mock_pipeline_config()
 
@@ -310,12 +310,12 @@ class TestIdempotencyWiringAC4:
         )
 
     def test_fingerprint_check_not_called_after_lock_failure(self) -> None:
-        """When acquire_lock returns False, FingerprintChecker.check need not
+        """When acquire returns False, FingerprintChecker.is_duplicate need not
         be called — the pipeline is already blocked."""
         from intellisource.scheduler.tasks import CeleryTasks
 
-        guard = _make_idempotency_guard(acquire_lock_return=False)
-        checker = _make_fingerprint_checker(check_return=False)
+        guard = _make_idempotency_guard(acquire_return=False)
+        checker = _make_fingerprint_checker(is_duplicate_return=False)
         agent_runner = _make_mock_agent_runner()
         pipeline_config = _make_mock_pipeline_config()
 
@@ -347,12 +347,12 @@ class TestIdempotencyWiringAC5:
     def test_content_repository_create_not_called_on_duplicate_fingerprint(
         self,
     ) -> None:
-        """When check(fingerprint) returns True, ContentRepository.create
+        """When is_duplicate(fingerprint) returns True, ContentRepository.create
         must NOT be invoked."""
         from intellisource.scheduler.tasks import CeleryTasks
 
-        guard = _make_idempotency_guard(acquire_lock_return=True)
-        checker = _make_fingerprint_checker(check_return=True)  # duplicate!
+        guard = _make_idempotency_guard(acquire_return=True)
+        checker = _make_fingerprint_checker(is_duplicate_return=True)  # duplicate!
         agent_runner = _make_mock_agent_runner()
         pipeline_config = _make_mock_pipeline_config()
         content_repo = _make_content_repository()
@@ -373,12 +373,12 @@ class TestIdempotencyWiringAC5:
         content_repo.create.assert_not_called()
 
     def test_pipeline_skipped_when_fingerprint_duplicate(self) -> None:
-        """When check(fingerprint) returns True, the collection pipeline
+        """When is_duplicate(fingerprint) returns True, the collection pipeline
         step is skipped — AgentRunner.execute must not be called."""
         from intellisource.scheduler.tasks import CeleryTasks
 
-        guard = _make_idempotency_guard(acquire_lock_return=True)
-        checker = _make_fingerprint_checker(check_return=True)  # duplicate!
+        guard = _make_idempotency_guard(acquire_return=True)
+        checker = _make_fingerprint_checker(is_duplicate_return=True)  # duplicate!
         agent_runner = _make_mock_agent_runner()
         pipeline_config = _make_mock_pipeline_config()
         content_repo = _make_content_repository()
@@ -399,12 +399,12 @@ class TestIdempotencyWiringAC5:
         agent_runner.execute.assert_not_called()
 
     def test_fingerprint_duplicate_result_signals_skip(self) -> None:
-        """When check(fingerprint) returns True, the returned result dict
+        """When is_duplicate(fingerprint) returns True, the returned result dict
         must contain a skip/duplicate indicator."""
         from intellisource.scheduler.tasks import CeleryTasks
 
-        guard = _make_idempotency_guard(acquire_lock_return=True)
-        checker = _make_fingerprint_checker(check_return=True)
+        guard = _make_idempotency_guard(acquire_return=True)
+        checker = _make_fingerprint_checker(is_duplicate_return=True)
         agent_runner = _make_mock_agent_runner()
         pipeline_config = _make_mock_pipeline_config()
         content_repo = _make_content_repository()
@@ -439,12 +439,12 @@ class TestIdempotencyWiringAC5:
         )
 
     def test_content_repository_create_called_on_new_fingerprint(self) -> None:
-        """Sanity: when check(fingerprint) returns False (new content),
-        ContentRepository.create IS expected to be reachable (pipeline runs)."""
+        """When is_duplicate(fingerprint) returns False (new content),
+        ContentRepository.create IS called after pipeline executes successfully."""
         from intellisource.scheduler.tasks import CeleryTasks
 
-        guard = _make_idempotency_guard(acquire_lock_return=True)
-        checker = _make_fingerprint_checker(check_return=False)  # new content
+        guard = _make_idempotency_guard(acquire_return=True)
+        checker = _make_fingerprint_checker(is_duplicate_return=False)  # new content
         agent_runner = _make_mock_agent_runner({"status": "success"})
         pipeline_config = _make_mock_pipeline_config()
         content_repo = _make_content_repository()
@@ -464,6 +464,8 @@ class TestIdempotencyWiringAC5:
 
         # Pipeline must execute when fingerprint is new
         agent_runner.execute.assert_called_once()
+        # ContentRepository.create must be called after successful execution
+        content_repo.create.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -480,8 +482,8 @@ class TestIdempotencyWiringEdgeCases:
         invoked (with a fallback or the method handles absence)."""
         from intellisource.scheduler.tasks import CeleryTasks
 
-        guard = _make_idempotency_guard(acquire_lock_return=True)
-        checker = _make_fingerprint_checker(check_return=False)
+        guard = _make_idempotency_guard(acquire_return=True)
+        checker = _make_fingerprint_checker(is_duplicate_return=False)
         agent_runner = _make_mock_agent_runner()
         pipeline_config = _make_mock_pipeline_config()
 
@@ -506,8 +508,8 @@ class TestIdempotencyWiringEdgeCases:
         with an unhandled KeyError."""
         from intellisource.scheduler.tasks import CeleryTasks
 
-        guard = _make_idempotency_guard(acquire_lock_return=True)
-        checker = _make_fingerprint_checker(check_return=False)
+        guard = _make_idempotency_guard(acquire_return=True)
+        checker = _make_fingerprint_checker(is_duplicate_return=False)
         agent_runner = _make_mock_agent_runner()
         pipeline_config = _make_mock_pipeline_config()
 
@@ -589,3 +591,53 @@ class TestIdempotencyWiringEdgeCases:
                 "CeleryTasks must accept 'content_repository' kwarg; "
                 f"got TypeError: {exc}"
             ) from exc
+
+
+# ---------------------------------------------------------------------------
+# R-002 wiring: build_celery_tasks assembles all three guards as non-None
+# ---------------------------------------------------------------------------
+
+
+class TestBuildCeleryTasksGuardWiring:
+    """R-002: build_celery_tasks must wire all three idempotency components."""
+
+    def test_build_celery_tasks_wires_three_guards_non_none(self) -> None:
+        """CeleryTasks returned by build_celery_tasks must have
+        _idempotency_guard, _fingerprint_checker, and _content_repository
+        all set to non-None values, confirming real assembly (not None defaults)."""
+        from unittest.mock import MagicMock, patch
+
+        from intellisource.scheduler.boot import build_celery_tasks
+        from intellisource.scheduler.idempotency import (
+            FingerprintChecker,
+            IdempotencyGuard,
+        )
+
+        mock_session_factory = MagicMock()
+        mock_session_factory.return_value = MagicMock()
+        mock_agent_runner = MagicMock()
+
+        mock_redis = MagicMock()
+
+        with patch(
+            "intellisource.scheduler.boot._build_redis_client",
+            return_value=mock_redis,
+        ):
+            celery_tasks = build_celery_tasks(
+                mock_agent_runner, None, mock_session_factory
+            )
+
+        assert celery_tasks._idempotency_guard is not None, (
+            "build_celery_tasks must wire _idempotency_guard (got None)"
+        )
+        assert isinstance(celery_tasks._idempotency_guard, IdempotencyGuard), (
+            f"_idempotency_guard must be IdempotencyGuard; "
+            f"got {type(celery_tasks._idempotency_guard)}"
+        )
+        assert celery_tasks._fingerprint_checker is not None, (
+            "build_celery_tasks must wire _fingerprint_checker (got None)"
+        )
+        assert isinstance(celery_tasks._fingerprint_checker, FingerprintChecker), (
+            f"_fingerprint_checker must be FingerprintChecker; "
+            f"got {type(celery_tasks._fingerprint_checker)}"
+        )
