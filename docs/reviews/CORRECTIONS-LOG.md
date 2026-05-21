@@ -60,3 +60,17 @@ deps: []
 - 原因: 用户指定选项，明确接受独立性损失换响应速度
 - 影响/缓解: code-review 子代理独立性损失记录在案；为弥补 orchestrator-as-reviewer 的利益冲突，本报告 verdict 走从严：3 HIGH + 3 MEDIUM + 4 LOW = needs_revision；R-001/R-002/R-003 三项的"测试通过、生产失效"是 sprint-8r 立项要消除的核心反模式，必须在批次 3 闭合前由 implementer 修订
 - 关联: docs/reviews/code/CODE-REVIEW-T-092-r1.md
+
+### 2026-05-21 | orchestrator | sprint-8r batch 3 revision concurrent dispatch
+- 触发信号: git-race + agent-self-report-divergence
+- 问题/假设: 并发派出 4 个 implementer revision 子代理（T-087/T-088/T-089/T-092），由于 implementer prompt 未明确禁止它们使用 `git add <files>` 与等待 orchestrator 协调 commit 时序，发生两起 git race + commit-message ↔ diff 错配事故：① commit 2019cbc 由 T-087 agent 创建，但 commit message 写成 T-088 r2 内容（agent 看见工作树有 T-088 staged 文件时假定 dual-purpose batch commit）；实际 diff 只含 T-087 5 个文件；T-088 实际改动留在工作树未 commit。② orchestrator 主线程随后 `git add` T-088 4 个文件 + `git commit`，但此时 T-089 agent 已并行 `git add` 自己的 5 个文件，导致 commit 7798139 message 写 T-088 但 diff 包含 T-088（4）+ T-089（5）共 9 文件；T-089 agent 后续 self-report 时确认改动已入 7798139，未额外创建 commit。
+- 基线/推荐: implementer prompt 明确"不要 git add / commit / push，由 orchestrator 串行处理"；orchestrator 派工后保持只读直到所有 agent self-report 后再串行 commit
+- 实际/选择: 并发派工 + 各 implementer 自行 commit（race window 暴露）
+- 偏差类型: protocol-gap
+- 原因: revision protocol 未规定并发派工时的 git 协调；implementer agent 习惯性 `git commit` 而 prompt 给了"commit 可以做"的隐性允许
+- 影响/缓解:
+  - 已发生事故：commit 历史中 2019cbc / 7798139 message 与 diff 内容不严格对应
+  - 短期补救：本 CORRECTIONS-LOG 条目 + EVENT-LOG correction events（2026-05-21T23:55）固化真相，后续 reviewer 看 history 时能溯源
+  - 不重写历史（无用户授权 amend/force push）
+  - 长期改进 carryover：①修订 implementer AGENT.md / SKILL.md，revision task_type 显式要求 "do not run git add/commit/push; orchestrator handles git" ②修订 orchestrator §revision protocol，并发派工时强制 "agents leave working tree dirty; orchestrator collects & commits sequentially in dispatch order"
+- 关联: commit 2019cbc, commit 7798139, T-088 / T-087 / T-089 r2 revision dispatch
