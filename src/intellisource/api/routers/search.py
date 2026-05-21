@@ -67,7 +67,7 @@ async def chat_search(
 ) -> dict[str, Any]:
     engine: Any = HybridSearchEngine(session)
     result: dict[str, Any] = await engine.chat(
-        message=body.message,
+        messages=[{"role": "user", "content": body.message}],
         session_id=body.session_id,
     )
     return result

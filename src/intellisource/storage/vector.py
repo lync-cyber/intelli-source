@@ -114,6 +114,7 @@ class HybridIndex:
         query_vector: list[float] | None,
         mode: SearchMode,
         top_k: int = 10,
+        **kwargs: Any,
     ) -> list[SearchResult]:
         """Search using keyword, semantic, or hybrid mode."""
         if mode == "semantic":

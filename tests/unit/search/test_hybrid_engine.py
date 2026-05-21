@@ -308,9 +308,10 @@ class TestSearchReturnsResults:
         self,
     ) -> None:
         """search() must return SearchResponse.items with results from HybridIndex."""
+        import uuid
+
         from intellisource.search.hybrid import HybridSearchEngine
         from intellisource.storage.vector import HybridIndex, SearchResult
-        import uuid
 
         session = _make_session_mock()
         fake_results = [
@@ -377,9 +378,10 @@ class TestSearchReturnsResults:
 
     async def test_search_response_total_matches_items(self) -> None:
         """SearchResponse.total must reflect the count of returned items."""
+        import uuid
+
         from intellisource.search.hybrid import HybridSearchEngine
         from intellisource.storage.vector import HybridIndex, SearchResult
-        import uuid
 
         session = _make_session_mock()
         fake_results = [
