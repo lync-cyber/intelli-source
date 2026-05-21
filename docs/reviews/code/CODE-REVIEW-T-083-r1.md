@@ -10,8 +10,10 @@ deps: ["T-083"]
 
 Layer 1 delegated to hook (PostToolUse Edit → lint_format.py)
 
-**verdict**: approved_with_notes
+**verdict**: needs_revision
 **问题统计**: CRITICAL 0 / HIGH 1 / MEDIUM 3 / LOW 2
+
+> orchestrator 仲裁说明：reviewer 在报告生成时自报 `approved_with_notes` 并附"若属于已知简化可降为 MEDIUM"，但严格按 COMMON-RULES §三态判定（HIGH ⟹ needs_revision），orchestrator 将 verdict 标准化为 `needs_revision`。用户决策（2026-05-21）：走 Revision Protocol 修 R-001。
 
 ---
 
@@ -124,9 +126,11 @@ lifespan shutdown 异常路径无对应测试（即 `app.state.celery_app.close(
 ## §8 complexity / duplication / coupling
 
 ### 圈复杂度
+
 `init_celery`（main.py L52–60）：线性，CC=1。`build_agent_runner`（factory.py）：线性，CC=1。`run_pipeline`（tasks.py 模块级函数 L186–203）：含 `getattr` + None 判断，CC=2。`CeleryTasks.run_pipeline`（tasks.py L123–178）：含嵌套循环 + 多条件，CC≈7，低于阈值 15，可接受。
 
 ### REFACTOR 后重复/耦合状态
+
 `_resolve_url` helper 已正确抽出，消除了原本在 celery_app.py 中可能存在的内联 env-fallback 重复。
 
 剩余潜在重复：`main.py:init_celery` 与 `celery_app.py` 的 broker fallback 逻辑仍有分叉（R-002 已标）。
@@ -156,4 +160,4 @@ REFACTOR（commit `7bb224a`）成功将 env-fallback 链抽取为 `_resolve_url`
 | test-quality | LOW：kwargs 断言为字符串包含检查 |
 | complexity | 无问题（CC 最高 ≈7，远低于阈值 15） |
 
-**verdict: approved_with_notes**（1 HIGH + 3 MEDIUM + 2 LOW，无 CRITICAL）
+**verdict: needs_revision**（1 HIGH + 3 MEDIUM + 2 LOW，无 CRITICAL；按 COMMON-RULES §三态判定 HIGH ⟹ needs_revision）

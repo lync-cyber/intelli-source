@@ -128,3 +128,5 @@ completeness 无 CRITICAL/HIGH 缺失。
 | LOW | 1 | R-003 |
 
 存在 1 个 HIGH 问题（R-002：`is_quiet_hours` 中 `ZoneInfo(tz_name)` 无 fallback，无效时区名会向上抛出 `ZoneInfoNotFoundError` 中断推送流程）。需修复后重新审查。
+
+用户决策（2026-05-21）：走 Revision Protocol 修 R-002 + R-001（R-003 LOW 顺手修）。REFACTOR 推荐 skip 保持。
