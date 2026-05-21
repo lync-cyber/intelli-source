@@ -5,7 +5,7 @@
 - 项目名称: IntelliSource
 - 技术栈: Python 3.11+ / FastAPI / Celery + Redis / PostgreSQL + pgvector / SQLAlchemy 2.0 / litellm
 - 运行时: claude-code
-- 框架版本: 0.3.1
+- 框架版本: 0.4.0
 - 语言定位: 中文框架（提示词/文档/交互用中文；代码/变量/CLI参数用英文）
 - 执行模式: standard
   <!-- 可选值: standard | agile-lite | agile-prototype。矩阵见 COMMON-RULES §执行模式矩阵 -->
@@ -15,7 +15,7 @@
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 
 - 当前阶段: sprint-8r 批次 1 + 批次 2 完成 — 7 任务全部 approved，准备进入批次 3
-- 下一步行动: ① 批次 3 RED+GREEN（4 任务：T-087 LLM 智能处理链路 / T-088 hybrid_search_optimizer / T-089 配置热加载边界 / T-092 Celery task_routes + worker_init + 幂等三组件）② 批次 4 T-094 集成测试 ③ pre_deploy 二次评估
+- 下一步行动: ① 批次 3 RED+GREEN（4 任务：T-087 F-005 LLM 智能处理链路接驳（B-04） / T-088 CircuitBreaker + PriorityQueue 接驳 LLMGateway（B-05） / T-089 Agent 工具 6 个 execute stub 真实实现（B-08） / T-092 Celery task_routes + boot.py worker_init + 幂等三组件串入（B-12 + B-13））② 批次 4 T-094 集成测试与冷启动验证 ③ pre_deploy 二次评估
 - 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r]
 - 当前Sprint: sprint-8r (in-progress — 批次 1 + 批次 2 全 approved 7/12；待批次 3-4)
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r) / test-report = approved；ui-spec = N/A；dev-plan-s8(P2 backlog) = draft；deploy-spec = 未开始
