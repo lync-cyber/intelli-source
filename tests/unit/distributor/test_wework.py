@@ -364,46 +364,77 @@ class TestMessageFormats:
 
 
 class TestDeduplication:
-    """AC-044: Same content is not pushed twice to the same subscription."""
+    """AC-044: Deduplication is handled by PushRepository (see test_push_dedup.py)."""
 
     @pytest.mark.asyncio
-    async def test_duplicate_push_skipped(
+    async def test_duplicate_push_via_push_repo(
         self,
-        distributor: Any,
         mock_redis: AsyncMock,
         mock_http_client: AsyncMock,
+        corp_id: str,
+        corp_secret: str,
+        agent_id: int,
     ) -> None:
-        """Second distribute() for same content+subscription is skipped."""
+        """Second distribute() skipped when push_repo.exists() returns True."""
+        from unittest.mock import MagicMock
+
+        from intellisource.distributor.channels.wework import WeWorkDistributor
+
+        push_repo = MagicMock()
+        push_repo.exists = AsyncMock(side_effect=[False, True])
+        push_repo.create = AsyncMock(return_value=MagicMock())
+
+        dist = WeWorkDistributor(
+            redis=mock_redis,
+            http_client=mock_http_client,
+            corp_id=corp_id,
+            corp_secret=corp_secret,
+            agent_id=agent_id,
+            push_repo=push_repo,
+        )
         content = StubContent()
         subscription = StubSubscription()
 
-        # First call succeeds
-        mock_redis.exists.return_value = False
-        await distributor.distribute(content, subscription)
+        first = await dist.distribute(content, subscription)
+        second = await dist.distribute(content, subscription)
 
-        # Mark as already pushed
-        mock_redis.exists.return_value = True
-        result2 = await distributor.distribute(content, subscription)
-
-        assert result2["status"] in ("skipped", "duplicate")
+        assert first["status"] == "success"
+        assert second["status"] in ("skipped", "duplicate", "deduplicated")
 
     @pytest.mark.asyncio
-    async def test_dedup_key_includes_content_and_subscription(
+    async def test_dedup_uses_push_repo_not_redis(
         self,
-        distributor: Any,
         mock_redis: AsyncMock,
+        mock_http_client: AsyncMock,
+        corp_id: str,
+        corp_secret: str,
+        agent_id: int,
     ) -> None:
-        """Deduplication check uses both content id and subscription id."""
+        """Deduplication check uses push_repo.exists(), not redis.exists()."""
+        from unittest.mock import MagicMock
+
+        from intellisource.distributor.channels.wework import WeWorkDistributor
+
+        push_repo = MagicMock()
+        push_repo.exists = AsyncMock(return_value=False)
+        push_repo.create = AsyncMock(return_value=MagicMock())
+
+        dist = WeWorkDistributor(
+            redis=mock_redis,
+            http_client=mock_http_client,
+            corp_id=corp_id,
+            corp_secret=corp_secret,
+            agent_id=agent_id,
+            push_repo=push_repo,
+        )
         content = StubContent()
         subscription = StubSubscription()
 
-        mock_redis.exists.return_value = False
-        await distributor.distribute(content, subscription)
+        await dist.distribute(content, subscription)
 
-        # Verify redis.exists was called with a key containing both IDs
-        mock_redis.exists.assert_called()
-        dedup_key = mock_redis.exists.call_args[0][0]
-        assert str(content.id) in dedup_key or str(subscription.id) in dedup_key
+        push_repo.exists.assert_awaited_once()
+        # Redis should not be used for dedup anymore
+        mock_redis.exists.assert_not_called()
 
 
 # ===========================================================================

@@ -18,7 +18,9 @@ import pytest
 # Shared test helpers
 # ---------------------------------------------------------------------------
 
-_SRC_DIR = str(Path(__file__).parent.parent.parent.parent / "src" / "intellisource" / "distributor")
+_SRC_DIR = str(
+    Path(__file__).parent.parent.parent.parent / "src" / "intellisource" / "distributor"
+)
 
 
 class _FakeContent:
@@ -143,7 +145,10 @@ class TestAC1:
 
         repo.create.assert_awaited_once()
         _, kwargs = repo.create.call_args
-        assert kwargs.get("status") == "failed" or repo.create.await_args[1].get("status") == "failed"
+        assert (
+            kwargs.get("status") == "failed"
+            or repo.create.await_args[1].get("status") == "failed"
+        )
 
     @pytest.mark.asyncio
     async def test_record_push_passes_correct_ids_to_create(self) -> None:
@@ -186,8 +191,16 @@ class TestAC2:
         redis.set = AsyncMock()
         redis.exists = AsyncMock(return_value=False)
         http = MagicMock()
-        http.post = AsyncMock(return_value=MagicMock(json=lambda: {"errcode": 0, "errmsg": "ok", "msgid": "1"}))
-        http.get = AsyncMock(return_value=MagicMock(json=lambda: {"access_token": "tok", "expires_in": 7200}))
+        http.post = AsyncMock(
+            return_value=MagicMock(
+                json=lambda: {"errcode": 0, "errmsg": "ok", "msgid": "1"}
+            )
+        )
+        http.get = AsyncMock(
+            return_value=MagicMock(
+                json=lambda: {"access_token": "tok", "expires_in": 7200}
+            )
+        )
         dist = WeChatDistributor(
             redis=redis,
             http_client=http,
@@ -202,7 +215,9 @@ class TestAC2:
         repo = _make_push_repo(exists_return=True)
         dist = self._make_wechat(repo)
         content = _FakeContent()
-        sub = _FakeSubscription({"openid": "openid_abc", "msg_type": "template", "template_id": "tpl1"})
+        sub = _FakeSubscription(
+            {"openid": "openid_abc", "msg_type": "template", "template_id": "tpl1"}
+        )
 
         result = await dist.distribute(content, sub)
 
@@ -215,7 +230,9 @@ class TestAC2:
         repo = _make_push_repo(exists_return=False)
         dist = self._make_wechat(repo)
         content = _FakeContent()
-        sub = _FakeSubscription({"openid": "openid_abc", "msg_type": "template", "template_id": "tpl1"})
+        sub = _FakeSubscription(
+            {"openid": "openid_abc", "msg_type": "template", "template_id": "tpl1"}
+        )
 
         result = await dist.distribute(content, sub)
 
@@ -237,7 +254,11 @@ class TestAC2:
         redis.exists = AsyncMock(return_value=False)
         http = MagicMock()
         http.post = AsyncMock(side_effect=RuntimeError("network error"))
-        http.get = AsyncMock(return_value=MagicMock(json=lambda: {"access_token": "tok", "expires_in": 7200}))
+        http.get = AsyncMock(
+            return_value=MagicMock(
+                json=lambda: {"access_token": "tok", "expires_in": 7200}
+            )
+        )
         dist = WeChatDistributor(
             redis=redis,
             http_client=http,
@@ -246,7 +267,9 @@ class TestAC2:
             push_repo=repo,
         )
         content = _FakeContent()
-        sub = _FakeSubscription({"openid": "openid_abc", "msg_type": "template", "template_id": "tpl1"})
+        sub = _FakeSubscription(
+            {"openid": "openid_abc", "msg_type": "template", "template_id": "tpl1"}
+        )
 
         result = await dist.distribute(content, sub)
 
@@ -254,14 +277,19 @@ class TestAC2:
         repo.create.assert_awaited_once()
         create_kwargs = repo.create.await_args[1]
         assert create_kwargs.get("status") == "failed"
-        assert create_kwargs.get("error_message") is not None and create_kwargs["error_message"] != ""
+        assert (
+            create_kwargs.get("error_message") is not None
+            and create_kwargs["error_message"] != ""
+        )
 
     @pytest.mark.asyncio
     async def test_wechat_repo_exists_and_create_each_called_once(self) -> None:
         repo = _make_push_repo(exists_return=False)
         dist = self._make_wechat(repo)
         content = _FakeContent()
-        sub = _FakeSubscription({"openid": "openid_abc", "msg_type": "template", "template_id": "tpl1"})
+        sub = _FakeSubscription(
+            {"openid": "openid_abc", "msg_type": "template", "template_id": "tpl1"}
+        )
 
         await dist.distribute(content, sub)
 
@@ -286,8 +314,14 @@ class TestAC3:
         redis.expire = AsyncMock()
         redis.exists = AsyncMock(return_value=False)
         http = MagicMock()
-        http.post = AsyncMock(return_value=MagicMock(json=lambda: {"errcode": 0, "errmsg": "ok"}))
-        http.get = AsyncMock(return_value=MagicMock(json=lambda: {"errcode": 0, "access_token": "tok", "expires_in": 7200}))
+        http.post = AsyncMock(
+            return_value=MagicMock(json=lambda: {"errcode": 0, "errmsg": "ok"})
+        )
+        http.get = AsyncMock(
+            return_value=MagicMock(
+                json=lambda: {"errcode": 0, "access_token": "tok", "expires_in": 7200}
+            )
+        )
         dist = WeWorkDistributor(
             redis=redis,
             http_client=http,
@@ -336,8 +370,14 @@ class TestAC3:
         redis.set = AsyncMock()
         redis.expire = AsyncMock()
         http = MagicMock()
-        http.post = AsyncMock(return_value=MagicMock(json=lambda: {"errcode": -1, "errmsg": "fail"}))
-        http.get = AsyncMock(return_value=MagicMock(json=lambda: {"errcode": 0, "access_token": "tok", "expires_in": 7200}))
+        http.post = AsyncMock(
+            return_value=MagicMock(json=lambda: {"errcode": -1, "errmsg": "fail"})
+        )
+        http.get = AsyncMock(
+            return_value=MagicMock(
+                json=lambda: {"errcode": 0, "access_token": "tok", "expires_in": 7200}
+            )
+        )
         dist = WeWorkDistributor(
             redis=redis,
             http_client=http,
@@ -481,7 +521,11 @@ class TestAC5:
         redis.set = AsyncMock()
         http = MagicMock()
         http.post = AsyncMock(side_effect=RuntimeError("network timeout"))
-        http.get = AsyncMock(return_value=MagicMock(json=lambda: {"access_token": "tok", "expires_in": 7200}))
+        http.get = AsyncMock(
+            return_value=MagicMock(
+                json=lambda: {"access_token": "tok", "expires_in": 7200}
+            )
+        )
         dist = WeChatDistributor(
             redis=redis,
             http_client=http,
@@ -490,7 +534,9 @@ class TestAC5:
             push_repo=repo,
         )
         content = _FakeContent()
-        sub = _FakeSubscription({"openid": "openid_abc", "msg_type": "template", "template_id": "tpl1"})
+        sub = _FakeSubscription(
+            {"openid": "openid_abc", "msg_type": "template", "template_id": "tpl1"}
+        )
 
         await dist.distribute(content, sub)
 
@@ -511,8 +557,16 @@ class TestAC5:
         redis.set = AsyncMock()
         redis.expire = AsyncMock()
         http = MagicMock()
-        http.post = AsyncMock(return_value=MagicMock(json=lambda: {"errcode": -1, "errmsg": "network_timeout"}))
-        http.get = AsyncMock(return_value=MagicMock(json=lambda: {"errcode": 0, "access_token": "tok", "expires_in": 7200}))
+        http.post = AsyncMock(
+            return_value=MagicMock(
+                json=lambda: {"errcode": -1, "errmsg": "network_timeout"}
+            )
+        )
+        http.get = AsyncMock(
+            return_value=MagicMock(
+                json=lambda: {"errcode": 0, "access_token": "tok", "expires_in": 7200}
+            )
+        )
         dist = WeWorkDistributor(
             redis=redis,
             http_client=http,
@@ -577,7 +631,9 @@ class TestAC6:
         content_id = uuid.uuid4()
         repo = _make_push_repo(exists_return=False)
 
-        result = await _make_concrete_distributor().check_dedup(sub_id, content_id, "email", repo=repo)
+        result = await _make_concrete_distributor().check_dedup(
+            sub_id, content_id, "email", repo=repo
+        )
         assert result is False
 
     @pytest.mark.asyncio
@@ -587,7 +643,9 @@ class TestAC6:
         # Simulate: second call where the record already exists
         repo = _make_push_repo(exists_return=True)
 
-        result = await _make_concrete_distributor().check_dedup(sub_id, content_id, "email", repo=repo)
+        result = await _make_concrete_distributor().check_dedup(
+            sub_id, content_id, "email", repo=repo
+        )
         assert result is True
 
     @pytest.mark.asyncio
@@ -619,8 +677,16 @@ class TestAC6:
         redis.get = AsyncMock(return_value="fake_token")
         redis.set = AsyncMock()
         http = MagicMock()
-        http.post = AsyncMock(return_value=MagicMock(json=lambda: {"errcode": 0, "errmsg": "ok", "msgid": "1"}))
-        http.get = AsyncMock(return_value=MagicMock(json=lambda: {"access_token": "tok", "expires_in": 7200}))
+        http.post = AsyncMock(
+            return_value=MagicMock(
+                json=lambda: {"errcode": 0, "errmsg": "ok", "msgid": "1"}
+            )
+        )
+        http.get = AsyncMock(
+            return_value=MagicMock(
+                json=lambda: {"access_token": "tok", "expires_in": 7200}
+            )
+        )
         dist = WeChatDistributor(
             redis=redis,
             http_client=http,
@@ -631,7 +697,9 @@ class TestAC6:
 
         content = _FakeContent()
         content.id = content_id
-        sub = _FakeSubscription({"openid": "openid_abc", "msg_type": "template", "template_id": "tpl1"})
+        sub = _FakeSubscription(
+            {"openid": "openid_abc", "msg_type": "template", "template_id": "tpl1"}
+        )
         sub.id = sub_id
 
         first = await dist.distribute(content, sub)

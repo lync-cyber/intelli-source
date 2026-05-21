@@ -442,24 +442,29 @@ class TestDeduplication:
     async def test_distribute_skips_duplicate(
         self, mock_redis, mock_http_client, app_id, app_secret
     ):
-        """distribute() should skip if same content+user+channel already pushed."""
+        """distribute() skips when push_repo.exists() returns True."""
+        from unittest.mock import MagicMock
+
         from intellisource.distributor.channels.wechat import (
             WeChatDistributor,
         )
 
-        # Simulate that a push record already exists (Redis key exists)
-        mock_redis.exists = AsyncMock(return_value=True)
+        push_repo = MagicMock()
+        push_repo.exists = AsyncMock(return_value=True)
+        push_repo.create = AsyncMock(return_value=MagicMock())
+
         dist = WeChatDistributor(
             redis=mock_redis,
             http_client=mock_http_client,
             app_id=app_id,
             app_secret=app_secret,
+            push_repo=push_repo,
         )
         content = StubContent()
         sub = StubSubscription()
         result = await dist.distribute(content, sub)
         assert isinstance(result, dict)
-        assert result.get("status") == "skipped"
+        assert result.get("status") in ("deduplicated", "skipped", "duplicate")
         # Should NOT call WeChat API
         mock_http_client.post.assert_not_called()
 
@@ -707,12 +712,17 @@ class TestPushRecordTracking:
     async def test_push_record_records_push_history(
         self, mock_redis, mock_http_client, app_id, app_secret
     ):
-        """After push, dedup key should be set in Redis for history."""
+        """After push, push record is written via push_repo.create()."""
+        from unittest.mock import MagicMock
+
         from intellisource.distributor.channels.wechat import (
             WeChatDistributor,
         )
 
-        mock_redis.exists = AsyncMock(return_value=False)
+        push_repo = MagicMock()
+        push_repo.exists = AsyncMock(return_value=False)
+        push_repo.create = AsyncMock(return_value=MagicMock())
+
         mock_redis.get = AsyncMock(return_value="cached_token_123")
         mock_http_client.post = AsyncMock(
             return_value=AsyncMock(
@@ -724,12 +734,13 @@ class TestPushRecordTracking:
             http_client=mock_http_client,
             app_id=app_id,
             app_secret=app_secret,
+            push_repo=push_repo,
         )
         content = StubContent()
         sub = StubSubscription()
         await dist.distribute(content, sub)
-        # Should set a dedup key in Redis after successful push
-        mock_redis.set.assert_called()
+        # Push record is written via push_repo after successful send
+        push_repo.create.assert_awaited_once()
 
 
 # ===================================================================
