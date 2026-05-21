@@ -7,6 +7,7 @@ support, priority queues, and task chain persistence.
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -67,8 +68,6 @@ def _run_sync(coro_or_result: Any) -> Any:
 
         if loop and loop.is_running():
             # Shouldn't happen in Celery workers but handle gracefully.
-            import concurrent.futures
-
             with concurrent.futures.ThreadPoolExecutor() as pool:
                 return pool.submit(asyncio.run, coro_or_result).result()
         return asyncio.run(coro_or_result)

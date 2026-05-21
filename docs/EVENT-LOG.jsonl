@@ -182,3 +182,4 @@
 {"ts": "2026-05-21T09:02:43+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD GREEN: T-083 (应用组合根)"}
 {"ts": "2026-05-21T09:02:44+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD GREEN: T-093 (时区/ReDoS/解析器)"}
 {"ts": "2026-05-21T09:24:23+00:00", "event": "tdd_phase", "phase": "development", "detail": "sprint-8r 批次 1 GREEN checkpoint — T-083+T-093 done (REFACTOR+code-review pending next session); 全量回归 1919 passed/0 failed"}
+{"ts": "2026-05-21T10:28:46+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD REFACTOR: T-083 (required — factory + module-level singleton, GREEN done in prior session)"}
