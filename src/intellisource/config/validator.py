@@ -16,6 +16,17 @@ _ENV_VAR_PATTERN: Final[re.Pattern[str]] = re.compile(r"\$\{([^}]+)\}")
 
 _JsonValue = str | int | float | bool | None | dict[str, Any] | list[Any]
 
+_ALLOWED_SOURCE_TYPES: Final[frozenset[str]] = frozenset(
+    {"rss", "atom", "html", "api", "web"}
+)
+_ALLOWED_URL_SCHEMES: Final[frozenset[str]] = frozenset({"http://", "https://"})
+_PATH_TRAVERSAL_CHARS: Final[frozenset[str]] = frozenset({"..", "/", "\\"})
+_MAX_NAME_LENGTH: Final[int] = 100
+
+
+class ConfigValidationError(ValueError):
+    """Raised when a SourceConfig fails semantic validation."""
+
 
 def _resolve_env_vars(value: _JsonValue) -> _JsonValue:
     """Recursively resolve ${ENV_VAR} placeholders in string values."""
@@ -40,7 +51,36 @@ class ConfigValidator:
     """Validates source configuration data."""
 
     def validate(self, config: SourceConfig) -> SourceConfig:
-        """Validate a SourceConfig instance; returns it unchanged."""
+        """Validate a SourceConfig instance with semantic security checks.
+
+        Raises:
+            ConfigValidationError: If any validation rule is violated.
+        """
+        name = config.name
+        if not name:
+            raise ConfigValidationError("name must be non-empty")
+        if len(name) > _MAX_NAME_LENGTH:
+            raise ConfigValidationError(
+                f"name length {len(name)} exceeds maximum {_MAX_NAME_LENGTH}"
+            )
+        for forbidden in _PATH_TRAVERSAL_CHARS:
+            if forbidden in name:
+                raise ConfigValidationError(
+                    f"name contains forbidden character: {forbidden!r}"
+                )
+
+        source_type = config.type
+        if source_type not in _ALLOWED_SOURCE_TYPES:
+            raise ConfigValidationError(
+                f"type {source_type!r} is not one of {sorted(_ALLOWED_SOURCE_TYPES)}"
+            )
+
+        url = config.url
+        if not any(url.startswith(scheme) for scheme in _ALLOWED_URL_SCHEMES):
+            raise ConfigValidationError(
+                f"url must start with http:// or https://, got: {url!r}"
+            )
+
         return config
 
     def validate_source(self, data: dict[str, Any]) -> SourceConfig:

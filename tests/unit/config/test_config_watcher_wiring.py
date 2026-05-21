@@ -1,8 +1,8 @@
 """Tests for T-091: ConfigWatcher lifespan wiring.
 
 Covers:
-  AC-1: _lifespan instantiates ConfigWatcher and launches background task; stop() on shutdown
-  AC-2: on_config_change callback flows through ConfigLoader → ConfigValidator → SourceRepository.upsert
+  AC-1: _lifespan instantiates ConfigWatcher and launches background task
+  AC-2: on_config_change flows through ConfigLoader/Validator/Repository.upsert
   AC-6: app.state.config_watcher is non-None after lifespan startup
   AC-7: yaml.safe_load-only security guard in config/ directory
 """
@@ -11,9 +11,7 @@ from __future__ import annotations
 
 import subprocess
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, call, patch
-
-import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from intellisource.main import create_app
 
@@ -42,7 +40,7 @@ class TestLifespanConfigWatcherInstantiation:
     async def test_startup_instantiates_config_watcher_with_source_config_dir(
         self,
     ) -> None:
-        """AC-1: ConfigWatcher is constructed with config_dir=settings.SOURCE_CONFIG_DIR."""
+        """AC-1: ConfigWatcher is constructed with config_dir from settings."""
         mock_watcher_instance = _make_mock_watcher()
 
         with (
@@ -75,7 +73,7 @@ class TestLifespanConfigWatcherInstantiation:
         )
 
     async def test_startup_passes_callback_to_config_watcher(self) -> None:
-        """AC-1: ConfigWatcher is constructed with a callable on_change/callback kwarg."""
+        """AC-1: ConfigWatcher is constructed with a callable callback kwarg."""
         mock_watcher_instance = _make_mock_watcher()
 
         with (
@@ -96,18 +94,17 @@ class TestLifespanConfigWatcherInstantiation:
                 pass
 
         call_kwargs = mock_watcher_cls.call_args
-        # The callback is passed as on_change= or callback= kwarg (or second positional arg)
         kwargs = call_kwargs.kwargs
         args = call_kwargs.args
-        callback = kwargs.get("on_change") or kwargs.get("callback")
+        callback = kwargs.get("callback")
         if callback is None and len(args) >= 2:
             callback = args[1]
         assert callable(callback), (
-            "ConfigWatcher must be called with a callable callback/on_change argument"
+            "ConfigWatcher must be called with a callable callback argument"
         )
 
     async def test_startup_creates_background_task_for_watcher(self) -> None:
-        """AC-1: asyncio.create_task is called to start watcher.start() or watcher.run()."""
+        """AC-1: asyncio.create_task is called to start watcher.start/run()."""
         import asyncio
 
         mock_watcher_instance = _make_mock_watcher()
@@ -129,7 +126,10 @@ class TestLifespanConfigWatcherInstantiation:
                 "intellisource.main.ConfigWatcher",
                 return_value=mock_watcher_instance,
             ),
-            patch("intellisource.main.asyncio.create_task", side_effect=_tracking_create_task),
+            patch(
+                "intellisource.main.asyncio.create_task",
+                side_effect=_tracking_create_task,
+            ),
         ):
             _mock_db_cls.return_value.close = AsyncMock()
             _mock_aioredis.from_url = AsyncMock()
@@ -140,21 +140,12 @@ class TestLifespanConfigWatcherInstantiation:
             async with lifespan(app):
                 pass
 
-        # asyncio.create_task must have been called at least once in startup
-        assert len(tasks_created) >= 1 or True, (
-            "asyncio.create_task must be called to launch the watcher background task"
+        # asyncio.create_task must be called once for the watcher.
+        assert len(tasks_created) == 1, (
+            f"create_task must be called once for the watcher, got {len(tasks_created)}"
         )
-        # The real assertion: create_task must be called
-        # (If lifespan uses watcher.start() which internally calls create_task,
-        # or if lifespan calls create_task(watcher.run()) directly)
-        # We verify the watcher was started in some form:
-        started = (
-            mock_watcher_instance.start.called
-            or mock_watcher_instance.run.called
-            or len(tasks_created) >= 1
-        )
-        assert started, (
-            "Watcher must be started (via start(), run(), or create_task) during lifespan startup"
+        assert mock_watcher_instance.start.called, (
+            "watcher.start() must be called during lifespan startup"
         )
 
     async def test_shutdown_calls_watcher_stop(self) -> None:
@@ -212,6 +203,15 @@ class TestLifespanConfigWatcherInstantiation:
 # ---------------------------------------------------------------------------
 
 
+def _make_mock_db_manager() -> MagicMock:
+    """MagicMock DatabaseManager with async ctx-manager get_session()."""
+    mock_session = MagicMock()
+    mock_db = MagicMock()
+    mock_db.get_session.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_db.get_session.return_value.__aexit__ = AsyncMock(return_value=False)
+    return mock_db
+
+
 class TestOnConfigChangeCallback:
     """on_config_change(path) calls ConfigLoader.load_file → ConfigValidator.validate
     → SourceRepository.upsert in order."""
@@ -232,11 +232,13 @@ class TestOnConfigChangeCallback:
         mock_validator.validate = MagicMock(return_value=mock_configs[0])
         mock_repo = MagicMock()
         mock_repo.upsert = AsyncMock()
+        mock_db = _make_mock_db_manager()
 
         with (
             patch("intellisource.main.ConfigLoader", return_value=mock_loader),
             patch("intellisource.main.ConfigValidator", return_value=mock_validator),
             patch("intellisource.main.SourceRepository", return_value=mock_repo),
+            patch("intellisource.main._db_manager", mock_db),
         ):
             on_change = main_module.on_config_change
             await on_change("/etc/sources/arxiv.yaml")
@@ -244,7 +246,7 @@ class TestOnConfigChangeCallback:
         mock_loader.load_file.assert_called_once_with("/etc/sources/arxiv.yaml")
 
     async def test_callback_calls_validator_validate(self) -> None:
-        """AC-2: on_config_change calls ConfigValidator.validate for each loaded config."""
+        """AC-2: on_config_change calls ConfigValidator.validate per config."""
         import intellisource.main as main_module
 
         assert hasattr(main_module, "on_config_change"), (
@@ -258,11 +260,13 @@ class TestOnConfigChangeCallback:
         mock_validator.validate = MagicMock(return_value=mock_config)
         mock_repo = MagicMock()
         mock_repo.upsert = AsyncMock()
+        mock_db = _make_mock_db_manager()
 
         with (
             patch("intellisource.main.ConfigLoader", return_value=mock_loader),
             patch("intellisource.main.ConfigValidator", return_value=mock_validator),
             patch("intellisource.main.SourceRepository", return_value=mock_repo),
+            patch("intellisource.main._db_manager", mock_db),
         ):
             on_change = main_module.on_config_change
             await on_change("/etc/sources/arxiv.yaml")
@@ -270,7 +274,7 @@ class TestOnConfigChangeCallback:
         mock_validator.validate.assert_called()
 
     async def test_callback_calls_repo_upsert(self) -> None:
-        """AC-2: on_config_change calls SourceRepository.upsert with validated config."""
+        """AC-2: on_config_change calls Repository.upsert with validated config."""
         import intellisource.main as main_module
 
         assert hasattr(main_module, "on_config_change"), (
@@ -285,11 +289,13 @@ class TestOnConfigChangeCallback:
         mock_validator.validate = MagicMock(return_value=validated_config)
         mock_repo = MagicMock()
         mock_repo.upsert = AsyncMock()
+        mock_db = _make_mock_db_manager()
 
         with (
             patch("intellisource.main.ConfigLoader", return_value=mock_loader),
             patch("intellisource.main.ConfigValidator", return_value=mock_validator),
             patch("intellisource.main.SourceRepository", return_value=mock_repo),
+            patch("intellisource.main._db_manager", mock_db),
         ):
             on_change = main_module.on_config_change
             await on_change("/etc/sources/arxiv.yaml")
@@ -326,11 +332,13 @@ class TestOnConfigChangeCallback:
         mock_validator.validate = MagicMock(side_effect=_validate)
         mock_repo = MagicMock()
         mock_repo.upsert = AsyncMock(side_effect=_upsert)
+        mock_db = _make_mock_db_manager()
 
         with (
             patch("intellisource.main.ConfigLoader", return_value=mock_loader),
             patch("intellisource.main.ConfigValidator", return_value=mock_validator),
             patch("intellisource.main.SourceRepository", return_value=mock_repo),
+            patch("intellisource.main._db_manager", mock_db),
         ):
             on_change = main_module.on_config_change
             await on_change("/etc/sources/arxiv.yaml")
@@ -375,7 +383,7 @@ class TestLifespanConfigWatcherAppState:
                 )
 
     async def test_app_state_config_watcher_is_the_watcher_instance(self) -> None:
-        """AC-6: app.state.config_watcher is the ConfigWatcher instance constructed in startup."""
+        """AC-6: app.state.config_watcher is the constructed ConfigWatcher."""
         mock_watcher_instance = _make_mock_watcher()
 
         with (
@@ -394,7 +402,7 @@ class TestLifespanConfigWatcherAppState:
 
             async with lifespan(app):
                 assert app.state.config_watcher is mock_watcher_instance, (
-                    "app.state.config_watcher must be the exact ConfigWatcher instance returned by constructor"
+                    "app.state.config_watcher must be the constructor return value"
                 )
 
 
@@ -404,7 +412,7 @@ class TestLifespanConfigWatcherAppState:
 
 
 class TestYamlSafeLoadOnlyInConfigDir:
-    """ConfigLoader.load_file must use yaml.safe_load only; no unsafe yaml.load variants."""
+    """ConfigLoader.load_file uses yaml.safe_load; no unsafe yaml.load variants."""
 
     def test_no_unsafe_yaml_calls_in_config_directory(self) -> None:
         """AC-7: grep for yaml.load/full_load/unsafe_load in src/intellisource/config/
@@ -428,13 +436,12 @@ class TestYamlSafeLoadOnlyInConfigDir:
             if line.strip() and "Loader=yaml.SafeLoader" not in line
         ]
         assert unsafe_lines == [], (
-            "Unsafe yaml calls found in src/intellisource/config/ "
-            "(yaml.load without Loader=yaml.SafeLoader, yaml.full_load, or yaml.unsafe_load):\n"
-            + "\n".join(unsafe_lines)
+            "Unsafe yaml calls in src/intellisource/config/ "
+            "(missing Loader=yaml.SafeLoader):\n" + "\n".join(unsafe_lines)
         )
 
     def test_no_unsafe_yaml_load_without_safe_loader(self) -> None:
-        """AC-7: Extended regex grep confirms no yaml.load( call without SafeLoader in config/."""
+        """AC-7: ERE grep — no yaml.load( without SafeLoader anywhere in config/."""
         result = subprocess.run(
             [
                 "grep",

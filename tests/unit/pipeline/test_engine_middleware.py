@@ -588,7 +588,7 @@ class TestCtxErrorsSchemaConsistency:
     """Both execute() and execute_stream() must produce list[dict] for ctx["errors"]."""
 
     def test_execute_errors_are_list_of_dicts(self) -> None:
-        """execute() fail_fast=False: ctx["errors"] entries are dicts with processor+error keys."""
+        """execute() fail_fast=False: errors entries are processor+error dicts."""
         engine = PipelineEngine(
             processors=[_RaisingProcessor("p", "oops")], fail_fast=False
         )
@@ -604,7 +604,7 @@ class TestCtxErrorsSchemaConsistency:
         assert "oops" in entry["error"]
 
     async def test_execute_stream_errors_are_list_of_dicts(self) -> None:
-        """execute_stream() fail_fast=False: ctx["errors"] entries are dicts with processor+error keys."""
+        """execute_stream() fail_fast=False: errors entries are dicts too."""
         engine = PipelineEngine(
             processors=[_RaisingProcessor("p", "oops")], fail_fast=False
         )

@@ -508,7 +508,7 @@ class TestAC4:
 
 
 class TestAC5:
-    """record_push() called with retry_count>=1 and non-empty error_message on failure."""
+    """record_push() called with retry_count>=1 + error_message on failure."""
 
     @pytest.mark.asyncio
     async def test_failed_wechat_send_records_retry_count_and_error(self) -> None:

@@ -7,12 +7,11 @@ import logging
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any, cast
+from typing import Any
 
 import redis.asyncio as aioredis
 from celery import Celery
 from fastapi import FastAPI
-from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.types import Receive, Scope, Send
 
 from intellisource.api.middleware import (
@@ -86,24 +85,32 @@ def shutdown_celery() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Config change callback
+# Config change callback (db_manager injected at lifespan startup)
 # ---------------------------------------------------------------------------
+
+_db_manager: DatabaseManager | None = None
 
 
 async def on_config_change(path: str) -> None:
     """Handle a changed config file: load → validate → upsert each source."""
     loader = ConfigLoader()
     validator = ConfigValidator()
-    repo = SourceRepository(cast(AsyncSession, None))
     try:
         configs = loader.load_file(path)
     except Exception:
         logger.exception("ConfigLoader.load_file failed for %s", path)
         return
+    if _db_manager is None:
+        logger.warning(
+            "on_config_change called before db_manager is initialised; skipping upsert"
+        )
+        return
     for cfg in configs:
         try:
             validated = validator.validate(cfg)
-            await repo.upsert(validated)
+            async with _db_manager.get_session() as session:
+                repo = SourceRepository(session)
+                await repo.upsert(validated)
         except Exception:
             logger.exception("Validation or upsert failed for config in %s", path)
 
@@ -118,13 +125,16 @@ _SOURCE_CONFIG_DIR: str = os.environ.get("IS_SOURCE_CONFIG_DIR", "config/sources
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[dict[str, Any]]:
     """Manage application startup and shutdown."""
+    global _db_manager
     db = DatabaseManager()
+    _db_manager = db
     app.state.db = db
     celery_instance = init_celery()
     app.state.celery_app = celery_instance
-    watcher = ConfigWatcher(config_dir=_SOURCE_CONFIG_DIR, on_change=on_config_change)
+    watcher = ConfigWatcher(config_dir=_SOURCE_CONFIG_DIR, callback=on_config_change)
     app.state.config_watcher = watcher
-    asyncio.create_task(watcher.start())
+    watcher_task = asyncio.create_task(watcher.start())
+    app.state.config_watcher_task = watcher_task
     try:
         await init_redis()
         yield {}
@@ -132,6 +142,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[dict[str, Any]]:
         await watcher.stop()
         app.state.celery_app.close()
         await db.close()
+        _db_manager = None
         await close_redis()
         shutdown_celery()
 

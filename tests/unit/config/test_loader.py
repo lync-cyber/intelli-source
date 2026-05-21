@@ -263,23 +263,23 @@ class TestConfigWatcher:
         assert ConfigWatcher is not None
 
     def test_watcher_init_with_callback(self, tmp_path) -> None:
-        """ConfigWatcher accepts config_dir and on_change callback."""
+        """ConfigWatcher accepts config_dir and callback."""
         from intellisource.config.loader import ConfigWatcher
 
         callback = lambda path: None  # noqa: E731
-        watcher = ConfigWatcher(config_dir=str(tmp_path), on_change=callback)
+        watcher = ConfigWatcher(config_dir=str(tmp_path), callback=callback)
 
         assert watcher is not None
 
     @pytest.mark.asyncio
     async def test_watcher_triggers_callback_on_file_change(self, tmp_path) -> None:
-        """ConfigWatcher calls on_change when a config file is modified."""
+        """ConfigWatcher calls callback when a config file is modified."""
         from unittest.mock import MagicMock
 
         from intellisource.config.loader import ConfigWatcher
 
         callback = MagicMock()
-        watcher = ConfigWatcher(config_dir=str(tmp_path), on_change=callback)
+        watcher = ConfigWatcher(config_dir=str(tmp_path), callback=callback)
 
         # Create a config file to trigger the watcher
         config_file = tmp_path / "sources.yaml"
@@ -307,7 +307,7 @@ class TestConfigWatcher:
         from intellisource.config.loader import ConfigWatcher
 
         callback = lambda path: None  # noqa: E731
-        watcher = ConfigWatcher(config_dir=str(tmp_path), on_change=callback)
+        watcher = ConfigWatcher(config_dir=str(tmp_path), callback=callback)
 
         assert callable(getattr(watcher, "start", None))
         assert callable(getattr(watcher, "stop", None))

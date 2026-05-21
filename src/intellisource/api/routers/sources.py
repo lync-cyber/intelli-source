@@ -86,11 +86,15 @@ def _serialize_source(source: Any) -> dict[str, Any]:
     }
 
 
-async def reload_source_configs(*, config_name: str | None = None) -> dict[str, Any]:
+async def reload_source_configs(
+    session: AsyncSession,
+    *,
+    config_name: str | None = None,
+) -> dict[str, Any]:
     """Load all source configs from disk, validate, and bulk-upsert to the database."""
     loader = ConfigLoader()
     validator = ConfigValidator()
-    repo = SourceRepository(None)  # type: ignore[arg-type]
+    repo = SourceRepository(session)
 
     try:
         configs = loader.load_source_configs()
@@ -193,9 +197,12 @@ async def delete_source(
 
 
 @router.post("/sources/reload")
-async def reload_sources(body: ReloadRequest) -> dict[str, Any]:
+async def reload_sources(
+    body: ReloadRequest,
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
     try:
-        result = await reload_source_configs(config_name=body.config_name)
+        result = await reload_source_configs(session, config_name=body.config_name)
     except ValueError as e:
         return JSONResponse(status_code=400, content={"detail": str(e)})  # type: ignore[return-value]
     return result
