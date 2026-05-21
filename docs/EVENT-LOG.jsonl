@@ -236,3 +236,5 @@
 {"event": "tdd_phase", "phase": "development", "detail": "TDD GREEN: T-087+T-089 bundle (shared ToolDeps creation + agent/tools.py)", "ts": "2026-05-21T22:58:07+00:00"}
 {"event": "tdd_phase", "phase": "development", "detail": "TDD GREEN: T-088", "ts": "2026-05-21T22:58:07+00:00"}
 {"event": "tdd_phase", "phase": "development", "detail": "TDD GREEN: T-092", "ts": "2026-05-21T22:58:07+00:00"}
+{"event": "tdd_phase", "phase": "development", "detail": "TDD GREEN complete: batch 3 (T-087+T-089 bundle / T-088 / T-092) — 2262 passed / 0 failed / 29 skipped; ruff + mypy --strict clean", "ts": "2026-05-21T23:09:51+00:00"}
+{"event": "state_change", "phase": "development", "detail": "sprint-8r batch 3 GREEN approved; entering parallel code-review (4 tasks)", "ts": "2026-05-21T23:09:51+00:00"}

@@ -35,7 +35,10 @@ celery_app.conf.broker_connection_retry_on_startup = False
 # Task routing — queues and routes derived from shared queue constants
 # ---------------------------------------------------------------------------
 
-from intellisource.scheduler.queues import PRIORITY_QUEUES, TRIGGER_TYPE_QUEUES  # noqa: E402
+from intellisource.scheduler.queues import (  # noqa: E402
+    PRIORITY_QUEUES,
+    TRIGGER_TYPE_QUEUES,
+)
 
 _all_queue_names: list[str] = list(PRIORITY_QUEUES.values()) + list(
     TRIGGER_TYPE_QUEUES.values()

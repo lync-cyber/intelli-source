@@ -147,9 +147,7 @@ class CeleryTasks:
                 return {"status": "skipped", "reason": "already_running"}
 
         if self._fingerprint_checker is not None:
-            is_duplicate: bool = _run_sync(
-                self._fingerprint_checker.check(fingerprint)
-            )
+            is_duplicate: bool = _run_sync(self._fingerprint_checker.check(fingerprint))
             if is_duplicate:
                 return {"status": "skipped", "reason": "duplicate"}
 
