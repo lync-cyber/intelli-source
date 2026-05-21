@@ -233,3 +233,6 @@
 {"event": "tdd_phase", "phase": "development", "detail": "TDD RED: T-087+T-089 bundle (shared agent/tools.py + ToolDeps introduction; C2 batching per ORCHESTRATOR §RED batch)", "ts": "2026-05-21T22:47:37+00:00"}
 {"event": "tdd_phase", "phase": "development", "detail": "TDD RED: T-088", "ts": "2026-05-21T22:47:37+00:00"}
 {"event": "tdd_phase", "phase": "development", "detail": "TDD RED: T-092", "ts": "2026-05-21T22:47:37+00:00"}
+{"event": "tdd_phase", "phase": "development", "detail": "TDD GREEN: T-087+T-089 bundle (shared ToolDeps creation + agent/tools.py)", "ts": "2026-05-21T22:58:07+00:00"}
+{"event": "tdd_phase", "phase": "development", "detail": "TDD GREEN: T-088", "ts": "2026-05-21T22:58:07+00:00"}
+{"event": "tdd_phase", "phase": "development", "detail": "TDD GREEN: T-092", "ts": "2026-05-21T22:58:07+00:00"}

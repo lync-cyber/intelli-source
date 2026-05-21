@@ -46,6 +46,20 @@ def _build_processors_from_config(config: PipelineConfig) -> list[BaseProcessor]
     return processors
 
 
+_agent_runner: AgentRunner | None = None
+
+
+def get_agent_runner() -> AgentRunner:
+    """Return the module-level AgentRunner singleton, building it on first call."""
+    global _agent_runner
+    if _agent_runner is None:
+        _agent_runner = build_agent_runner(
+            session_factory=None,
+            llm_gateway=None,
+        )
+    return _agent_runner
+
+
 def build_agent_runner(
     session_factory: Any,
     llm_gateway: Any,

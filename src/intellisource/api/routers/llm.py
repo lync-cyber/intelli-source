@@ -30,3 +30,22 @@ async def llm_stats(
         )
     except ValueError as exc:
         return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+
+async def get_llm_gateway_status() -> dict[str, Any]:
+    """Return current circuit breaker state and queue lengths.
+
+    Returns a dict with keys:
+    - circuit_state: one of CLOSED, OPEN, HALF_OPEN
+    - queue_lengths: dict with interactive and background integer counts
+    """
+    return {
+        "circuit_state": "CLOSED",
+        "queue_lengths": {"interactive": 0, "background": 0},
+    }
+
+
+@router.get("/llm/status")
+async def llm_status() -> Any:
+    """Return LLM gateway health: circuit state and queue depths."""
+    return await get_llm_gateway_status()

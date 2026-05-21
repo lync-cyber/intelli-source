@@ -16,22 +16,21 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.scheduler.celery_app import celery_app
+from intellisource.scheduler.queues import PRIORITY_QUEUES, TRIGGER_TYPE_QUEUES
 from intellisource.storage.models import TaskChain
 from intellisource.storage.repositories.task_chain import TaskChainRepository
 
 MAX_RETRIES: int = 3
 RETRY_BACKOFF_BASE: int = 1
 
-PRIORITY_QUEUES: dict[str, str] = {
-    "low": "queue.priority.low",
-    "normal": "queue.priority.normal",
-    "high": "queue.priority.high",
-}
-
-TRIGGER_TYPE_QUEUES: dict[str, str] = {
-    "scheduled": "queue.trigger.scheduled",
-    "manual": "queue.trigger.manual",
-}
+__all__ = [
+    "PRIORITY_QUEUES",
+    "TRIGGER_TYPE_QUEUES",
+    "CeleryTasks",
+    "get_queue_for_priority",
+    "get_queue_for_trigger_type",
+    "run_pipeline",
+]
 
 
 # Lazy imports -- patched in tests, resolved at runtime.
@@ -82,10 +81,17 @@ class CeleryTasks:
         agent_runner: Any,
         pipeline_config: Any,
         session_factory: Callable[[], Awaitable[AsyncSession]] | None = None,
+        *,
+        idempotency_guard: Any = None,
+        fingerprint_checker: Any = None,
+        content_repository: Any = None,
     ) -> None:
         self._agent_runner = agent_runner
         self._pipeline_config = pipeline_config
         self._session_factory = session_factory
+        self._idempotency_guard = idempotency_guard
+        self._fingerprint_checker = fingerprint_checker
+        self._content_repository = content_repository
 
     @asynccontextmanager
     async def _chain_repo_session(self) -> AsyncIterator[TaskChainRepository]:
@@ -130,6 +136,23 @@ class CeleryTasks:
         Retries up to ``MAX_RETRIES`` times on failure with
         exponential backoff.
         """
+        task_id: str = params.get("task_id", "")
+        fingerprint: str = params.get("fingerprint", "")
+
+        if self._idempotency_guard is not None:
+            lock_acquired: bool = _run_sync(
+                self._idempotency_guard.acquire_lock(task_id)
+            )
+            if not lock_acquired:
+                return {"status": "skipped", "reason": "already_running"}
+
+        if self._fingerprint_checker is not None:
+            is_duplicate: bool = _run_sync(
+                self._fingerprint_checker.check(fingerprint)
+            )
+            if is_duplicate:
+                return {"status": "skipped", "reason": "duplicate"}
+
         config = self._pipeline_config.load(pipeline_name)
         trigger_type = params.get("trigger_type", "scheduled")
         execution_mode = config.get("execution_mode", "strict")

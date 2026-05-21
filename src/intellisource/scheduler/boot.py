@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+import intellisource.agent.factory as _agent_factory
 from intellisource.scheduler.tasks import CeleryTasks
 
 _celery_tasks: CeleryTasks | None = None
@@ -67,19 +68,12 @@ def build_celery_tasks(
     return tasks
 
 
-def worker_init_handler(
-    *,
-    celery_app: Any = None,
-    agent_runner: Any = None,
-    pipeline_config: Any = None,
-    **_: Any,
-) -> None:
+def worker_init_handler(*, celery_app: Any = None, **_: Any) -> None:
     """Celery worker_process_init signal entry point; idempotent singleton."""
     global _celery_tasks
+    agent_runner = _agent_factory.get_agent_runner()
     factory = init_worker_session_factory()
-    _celery_tasks = build_celery_tasks(
-        celery_app, agent_runner, pipeline_config, factory
-    )
+    _celery_tasks = build_celery_tasks(celery_app, agent_runner, None, factory)
 
 
 def worker_shutdown_handler(**_: Any) -> None:
