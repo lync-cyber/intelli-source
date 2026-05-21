@@ -64,7 +64,21 @@ class PipelineEngine:
     async def execute_stream(
         self, ctx: PipelineContext
     ) -> AsyncIterator[PipelineContext]:
-        """Yield context after each processor completes."""
+        """Yield context after each processor completes.
+
+        Mirrors fail_fast semantics from execute(): when fail_fast=False,
+        processor exceptions are caught and appended to ctx["errors"] before
+        yielding; when fail_fast=True, the exception propagates immediately.
+        """
         for processor in self._processors:
-            ctx = processor.process(ctx)
+            try:
+                ctx = processor.process(ctx)
+            except Exception as exc:
+                if self._fail_fast:
+                    raise
+                errors: list[dict[str, str]] = list(ctx.get("errors") or [])
+                errors.append(
+                    {"processor": type(processor).__name__, "error": str(exc)}
+                )
+                ctx.set("errors", errors)
             yield ctx

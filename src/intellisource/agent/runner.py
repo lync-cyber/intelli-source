@@ -8,12 +8,15 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from intellisource.agent.tools import ToolDefinition
 from intellisource.core.errors import ErrorCategory, IntelliSourceError
 from intellisource.storage.models import TaskChain
 from intellisource.storage.repositories.task_chain import TaskChainRepository
+
+if TYPE_CHECKING:
+    from intellisource.pipeline.engine import PipelineEngine
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +30,12 @@ class AgentRunner:
         self,
         tool_registry: Any,
         llm_gateway: Any | None = None,
+        *,
+        pipeline_engine: PipelineEngine | None = None,
     ) -> None:
         self._tool_registry = tool_registry
         self._llm_gateway = llm_gateway
+        self._pipeline_engine = pipeline_engine
 
     # -- public API --------------------------------------------------
 

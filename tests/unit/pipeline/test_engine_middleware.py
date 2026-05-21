@@ -377,7 +377,7 @@ class TestAC4ContentProcessYaml:
 
 
 class TestAC5FactoryInstantiatesPipelineEngine:
-    """AC-5: build_agent_runner instantiates PipelineEngine from yaml."""
+    """AC-5: build_agent_runner calls PipelineEngine() constructor internally."""
 
     def test_pipeline_engine_instantiated_in_factory(self) -> None:
         """build_agent_runner must create a PipelineEngine instance internally."""
@@ -511,3 +511,69 @@ class TestAC6UnitMiddlewareAndConditionalSkip:
             "inner:after",
             "outer:after",
         ], f"Unexpected onion order: {mw_log}"
+
+
+# ===========================================================================
+# R-001: execute_stream fail_fast parity tests
+# ===========================================================================
+
+
+class _RaisingProcessor(BaseProcessor):
+    """Processor that always raises RuntimeError."""
+
+    def __init__(self, name: str, msg: str = "boom") -> None:
+        self._name = name
+        self._msg = msg
+
+    def process(self, context: PipelineContext) -> PipelineContext:
+        raise RuntimeError(self._msg)
+
+
+class TestExecuteStreamFailFastParity:
+    """execute_stream fail_fast semantics must mirror execute() behavior."""
+
+    async def test_stream_fail_fast_false_continues_after_exception(self) -> None:
+        """fail_fast=False: stream continues yielding after a processor exception."""
+        failing = _RaisingProcessor("fail")
+        ok = _AppendProcessor("ok")
+        engine = PipelineEngine(processors=[failing, ok], fail_fast=False)
+        ctx = PipelineContext()
+
+        yielded: list[PipelineContext] = []
+        async for intermediate_ctx in engine.execute_stream(ctx):
+            yielded.append(intermediate_ctx)
+
+        assert len(yielded) == 2, (
+            f"Expected 2 yields (one per processor), got {len(yielded)}"
+        )
+        errors = yielded[0].get("errors") or []
+        assert len(errors) == 1, f"Expected 1 error entry, got {errors}"
+        assert errors[0]["processor"] == "_RaisingProcessor"
+        assert "boom" in errors[0]["error"]
+
+    async def test_stream_fail_fast_false_ok_processor_still_runs(self) -> None:
+        """fail_fast=False: processors after the failing one still execute."""
+        failing = _RaisingProcessor("fail")
+        ok = _AppendProcessor("ok")
+        engine = PipelineEngine(processors=[failing, ok], fail_fast=False)
+        ctx = PipelineContext()
+
+        final_ctx: PipelineContext | None = None
+        async for intermediate_ctx in engine.execute_stream(ctx):
+            final_ctx = intermediate_ctx
+
+        assert final_ctx is not None
+        assert final_ctx.get("order") == ["ok"], (
+            "ok processor must have appended 'ok' to order list"
+        )
+
+    async def test_stream_fail_fast_true_raises_immediately(self) -> None:
+        """fail_fast=True: stream re-raises processor exception immediately."""
+        failing = _RaisingProcessor("fail", "critical error")
+        ok = _AppendProcessor("ok")
+        engine = PipelineEngine(processors=[failing, ok], fail_fast=True)
+        ctx = PipelineContext()
+
+        with pytest.raises(RuntimeError, match="critical error"):
+            async for _ in engine.execute_stream(ctx):
+                pass

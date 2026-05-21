@@ -208,3 +208,5 @@
 {"ts": "2026-05-21T13:01:45.934162+00:00", "event": "review_verdict", "phase": "development", "detail": "T-085 r2 — all r1 issues (2 HIGH + 1 MEDIUM + 1 LOW) resolved, no net-new findings", "agent": "reviewer", "status": "approved"}
 {"ts": "2026-05-21T13:03:39.117383+00:00", "event": "review_verdict", "phase": "development", "detail": "T-084 r1 — 0 HIGH; 2 MEDIUM (R-001 execute_stream fail_fast 分叉 + R-002 PipelineEngine 未接线 AgentRunner) + 1 LOW R-003", "agent": "reviewer", "status": "approved_with_notes"}
 {"ts": "2026-05-21T13:03:39.144631+00:00", "event": "user_decision", "phase": "development", "detail": "T-084 r1 approved_with_notes — user chose: 三项全修（含 R-002 AgentRunner pipeline_engine 接线）"}
+{"ts": "2026-05-21T13:08:04.905524+00:00", "event": "revision_start", "phase": "development", "detail": "T-084 r2 — fix R-001 execute_stream fail_fast 镜像 + R-002 AgentRunner pipeline_engine 接线 + R-003 LOW docstring", "agent": "implementer"}
+{"ts": "2026-05-21T13:08:04.932690+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD RED: T-090 (wave 2)"}
