@@ -125,50 +125,35 @@ class EmailDistributor(BaseDistributor):
         sub_id = getattr(subscription, "id", None)
         channel = "email"
 
-        # dedup check
-        if self._push_repo is not None:
-            is_dup = await self.check_dedup(
-                sub_id, content_id, channel, repo=self._push_repo
-            )
-            if is_dup:
-                return self._make_result("deduplicated", str(content_id), str(sub_id))
-
         to_addr: str = subscription.channel_config.get("to_addr", "")
         subject = getattr(content, "title", "")
         html_body = self.format_html(content)
 
-        last_err: Exception | None = None
-        for _ in range(MAX_RETRY):
+        async def attempt_fn(
+            _attempt: int, is_last: bool
+        ) -> tuple[bool, str | None, dict[str, Any]]:
             try:
                 await self.send_email(
                     to_addr=to_addr,
                     subject=subject,
                     html_body=html_body,
                 )
-                if self._push_repo is not None:
-                    await self.record_push(
-                        sub_id,
-                        content_id,
-                        channel,
-                        status="sent",
-                        repo=self._push_repo,
-                    )
-                return self._make_result("sent", str(content_id), str(sub_id))
+                return True, None, {}
             except Exception as exc:  # noqa: BLE001
-                last_err = exc
-                await asyncio.sleep(RETRY_INTERVAL)
+                if not is_last:
+                    await asyncio.sleep(RETRY_INTERVAL)
+                return False, str(exc), {}
 
-        error_msg = str(last_err) if last_err else "unknown error"
-        if self._push_repo is not None:
-            await self.record_push(
-                sub_id,
-                content_id,
-                channel,
-                status="failed",
-                retry_count=MAX_RETRY,
-                error_message=error_msg,
-                repo=self._push_repo,
-            )
-        return self._make_result(
-            "failed", str(content_id), str(sub_id), error=error_msg
+        was_deduped, succeeded, _, error, _ = await self._send_with_dedup_lifecycle(
+            sub_id,
+            content_id,
+            channel,
+            attempt_fn=attempt_fn,
+            max_retry=MAX_RETRY,
         )
+
+        if was_deduped:
+            return self._make_result("deduplicated", str(content_id), str(sub_id))
+        if succeeded:
+            return self._make_result("sent", str(content_id), str(sub_id))
+        return self._make_result("failed", str(content_id), str(sub_id), error=error)

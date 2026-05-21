@@ -150,88 +150,59 @@ class WeChatDistributor(BaseDistributor):
         msg_type: str = channel_cfg.get("msg_type", "template")
         channel = "wechat"
 
-        # --- dedup check ---
-        if self._push_repo is not None:
-            is_dup = await self.check_dedup(
-                sub_id, content_id, channel, repo=self._push_repo
-            )
-            if is_dup:
-                return {
-                    "status": "deduplicated",
-                    "channel": channel,
-                    "content_id": content_id,
-                    "subscription_id": sub_id,
-                }
-
-        # --- send with retry ---
-        last_exc: Exception | None = None
-        last_result: dict[str, Any] = {}
-        for attempt in range(MAX_RETRY):
+        async def attempt_fn(
+            _attempt: int, is_last: bool
+        ) -> tuple[bool, str | None, dict[str, Any]]:
+            exc_ref: list[Exception] = []
             try:
                 if msg_type == "news":
                     articles = self.format_news_articles(content)
-                    last_result = await self.send_news_message(
-                        openid=openid,
-                        articles=articles,
-                    )
+                    raw = await self.send_news_message(openid=openid, articles=articles)
                 else:
                     tpl_id: str = channel_cfg.get("template_id", "")
                     tpl_data = self.format_template_data(content)
-                    last_result = await self.send_template_message(
-                        openid=openid,
-                        template_id=tpl_id,
-                        data=tpl_data,
+                    raw = await self.send_template_message(
+                        openid=openid, template_id=tpl_id, data=tpl_data
                     )
-
-                if last_result.get("errcode", -1) == 0:
-                    if self._push_repo is not None:
-                        await self.record_push(
-                            sub_id,
-                            content_id,
-                            channel,
-                            status="success",
-                            repo=self._push_repo,
-                        )
-                    return {
-                        "status": "success",
-                        "channel": channel,
-                        "content_id": content_id,
-                        "subscription_id": sub_id,
-                        **last_result,
-                    }
-
-                last_exc = None
-                last_result = last_result
-
             except Exception as exc:
-                last_exc = exc
-                last_result = {
-                    "errcode": -1,
-                    "errmsg": "network_error",
-                }
+                exc_ref.append(exc)
+                raw = {"errcode": -1, "errmsg": "network_error"}
 
-            if attempt < MAX_RETRY - 1:
+            if raw.get("errcode", -1) == 0:
+                return True, None, raw
+            error = str(exc_ref[0]) if exc_ref else raw.get("errmsg", "unknown error")
+            if not is_last:
                 await asyncio.sleep(RETRY_INTERVAL)
+            return False, error, raw
 
-        # all retries exhausted
-        error_message = (
-            str(last_exc) if last_exc else last_result.get("errmsg", "unknown error")
+        was_deduped, succeeded, _, error, raw = await self._send_with_dedup_lifecycle(
+            sub_id,
+            content_id,
+            channel,
+            attempt_fn=attempt_fn,
+            max_retry=MAX_RETRY,
         )
-        if self._push_repo is not None:
-            await self.record_push(
-                sub_id,
-                content_id,
-                channel,
-                status="failed",
-                retry_count=MAX_RETRY,
-                error_message=error_message,
-                repo=self._push_repo,
-            )
+
+        if was_deduped:
+            return {
+                "status": "deduplicated",
+                "channel": channel,
+                "content_id": content_id,
+                "subscription_id": sub_id,
+            }
+        if succeeded:
+            return {
+                "status": "success",
+                "channel": channel,
+                "content_id": content_id,
+                "subscription_id": sub_id,
+                **raw,
+            }
         return {
             "status": "failed",
             "channel": channel,
             "content_id": content_id,
             "subscription_id": sub_id,
-            "error_code": last_result.get("errcode"),
-            "error_msg": error_message,
+            "error_code": raw.get("errcode"),
+            "error_msg": error,
         }

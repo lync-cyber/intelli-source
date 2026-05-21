@@ -53,54 +53,39 @@ class WeWorkDistributor(BaseDistributor):
         sub_id = getattr(subscription, "id", None)
         channel = "wework"
 
-        # dedup check
-        if self._push_repo is not None:
-            is_dup = await self.check_dedup(
-                sub_id, content_id, channel, repo=self._push_repo
-            )
-            if is_dup:
-                return self._build_result("duplicate", content, subscription)
-
         cfg = subscription.channel_config
         msg_type: str = cfg.get("msg_type", "text")
         user_id: str = cfg.get("user_id", "@all")
-
         formatted = self.format_content(content, msg_type=msg_type)
 
-        last_err: str = ""
-        for _ in range(MAX_RETRY):
+        async def attempt_fn(
+            _attempt: int, is_last: bool
+        ) -> tuple[bool, str | None, dict[str, Any]]:
             if msg_type == "markdown":
                 res = await self.send_markdown_message(user_id, formatted)
             elif msg_type == "news":
                 res = await self.send_news_card(user_id, formatted)
             else:
                 res = await self.send_text_message(user_id, formatted)
-
             if res.get("errcode", -1) == 0:
-                if self._push_repo is not None:
-                    await self.record_push(
-                        sub_id,
-                        content_id,
-                        channel,
-                        status="success",
-                        repo=self._push_repo,
-                    )
-                return self._build_result("success", content, subscription)
+                return True, None, res
+            if not is_last:
+                await asyncio.sleep(RETRY_INTERVAL)
+            return False, res.get("errmsg", "unknown error"), res
 
-            last_err = res.get("errmsg", "unknown error")
-            await asyncio.sleep(RETRY_INTERVAL)
+        was_deduped, succeeded, _, error, _ = await self._send_with_dedup_lifecycle(
+            sub_id,
+            content_id,
+            channel,
+            attempt_fn=attempt_fn,
+            max_retry=MAX_RETRY,
+        )
 
-        if self._push_repo is not None:
-            await self.record_push(
-                sub_id,
-                content_id,
-                channel,
-                status="failed",
-                retry_count=MAX_RETRY,
-                error_message=last_err,
-                repo=self._push_repo,
-            )
-        return self._build_result("failed", content, subscription, error=last_err)
+        if was_deduped:
+            return self._build_result("duplicate", content, subscription)
+        if succeeded:
+            return self._build_result("success", content, subscription)
+        return self._build_result("failed", content, subscription, error=error)
 
     # ------------------------------------------------------------------
     # Access token

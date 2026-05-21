@@ -4,7 +4,7 @@ from __future__ import annotations
 
 
 def mask_email(email: str) -> str:
-    """Return a masked form of *email* — first char of local part preserved, domain unchanged."""
+    """Mask *email*: keep first char of local part + full domain."""
     if "@" not in email:
         if not email:
             return ""
@@ -19,7 +19,7 @@ def mask_email(email: str) -> str:
 
 
 def mask_phone(phone: str) -> str:
-    """Return a masked form of *phone* — first 3 + last 4 digits of local number preserved, middle replaced with ***."""
+    """Mask *phone*: keep first 3 + last 4 digits; middle replaced with ***."""
     if "***" in phone:
         # Already masked — idempotent.
         return phone
