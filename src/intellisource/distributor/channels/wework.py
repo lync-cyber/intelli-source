@@ -61,17 +61,24 @@ class WeWorkDistributor(BaseDistributor):
         async def attempt_fn(
             _attempt: int, is_last: bool
         ) -> tuple[bool, str | None, dict[str, Any]]:
-            if msg_type == "markdown":
-                res = await self.send_markdown_message(user_id, formatted)
-            elif msg_type == "news":
-                res = await self.send_news_card(user_id, formatted)
-            else:
-                res = await self.send_text_message(user_id, formatted)
+            exc_ref: list[Exception] = []
+            try:
+                if msg_type == "markdown":
+                    res = await self.send_markdown_message(user_id, formatted)
+                elif msg_type == "news":
+                    res = await self.send_news_card(user_id, formatted)
+                else:
+                    res = await self.send_text_message(user_id, formatted)
+            except Exception as exc:
+                exc_ref.append(exc)
+                res = {"errcode": -1, "errmsg": "network_error"}
+
             if res.get("errcode", -1) == 0:
                 return True, None, res
+            error = str(exc_ref[0]) if exc_ref else res.get("errmsg", "unknown error")
             if not is_last:
                 await asyncio.sleep(RETRY_INTERVAL)
-            return False, res.get("errmsg", "unknown error"), res
+            return False, error, res
 
         was_deduped, succeeded, _, error, _ = await self._send_with_dedup_lifecycle(
             sub_id,

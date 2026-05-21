@@ -587,3 +587,79 @@ class TestPushResultTracking:
 
         assert result["status"] == "failed"
         assert "error" in result or "errmsg" in result
+
+
+# ===========================================================================
+# R-005: WeWork attempt_fn try/except symmetry
+# ===========================================================================
+
+
+class TestWeWorkExceptionSymmetry:
+    """R-005: Network exceptions in attempt_fn produce a failed record."""
+
+    @pytest.mark.asyncio
+    async def test_network_exception_produces_failed_result(
+        self,
+        mock_redis: AsyncMock,
+        mock_http_client: AsyncMock,
+        corp_id: str,
+        corp_secret: str,
+        agent_id: int,
+    ) -> None:
+        """When http_client.post raises a network exception, returns failed."""
+        from intellisource.distributor.channels.wework import WeWorkDistributor
+
+        mock_http_client.post.side_effect = OSError("Connection refused")
+
+        dist = WeWorkDistributor(
+            redis=mock_redis,
+            http_client=mock_http_client,
+            corp_id=corp_id,
+            corp_secret=corp_secret,
+            agent_id=agent_id,
+        )
+        content = StubContent()
+        subscription = StubSubscription()
+
+        result = await dist.distribute(content, subscription)
+
+        assert result["status"] == "failed"
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_network_exception_records_push_failed_in_repo(
+        self,
+        mock_redis: AsyncMock,
+        mock_http_client: AsyncMock,
+        corp_id: str,
+        corp_secret: str,
+        agent_id: int,
+    ) -> None:
+        """When http_client.post raises, a failed PushRecord is written to the repo."""
+        from unittest.mock import MagicMock
+
+        from intellisource.distributor.channels.wework import WeWorkDistributor
+
+        mock_http_client.post.side_effect = RuntimeError("aiohttp.ClientError: timeout")
+
+        push_repo = MagicMock()
+        push_repo.exists = AsyncMock(return_value=False)
+        push_repo.create = AsyncMock(return_value=MagicMock())
+
+        dist = WeWorkDistributor(
+            redis=mock_redis,
+            http_client=mock_http_client,
+            corp_id=corp_id,
+            corp_secret=corp_secret,
+            agent_id=agent_id,
+            push_repo=push_repo,
+        )
+        content = StubContent()
+        subscription = StubSubscription()
+
+        await dist.distribute(content, subscription)
+
+        push_repo.create.assert_awaited_once()
+        create_kwargs = push_repo.create.await_args[1]
+        assert create_kwargs.get("status") == "failed"
+        assert create_kwargs.get("error_message") is not None

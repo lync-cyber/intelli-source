@@ -119,7 +119,7 @@ class TestAC1:
             sub_id,
             content_id,
             channel,
-            status="success",
+            status="sent",
             repo=repo,
         )
 
@@ -162,7 +162,7 @@ class TestAC1:
             sub_id,
             content_id,
             channel,
-            status="success",
+            status="sent",
             repo=repo,
         )
 
@@ -240,7 +240,7 @@ class TestAC2:
         repo.exists.assert_awaited_once()
         repo.create.assert_awaited_once()
         create_kwargs = repo.create.await_args[1]
-        assert create_kwargs.get("status") == "success"
+        assert create_kwargs.get("status") == "sent"
 
     @pytest.mark.asyncio
     async def test_wechat_calls_record_push_failed_on_exception(self) -> None:
@@ -357,7 +357,7 @@ class TestAC3:
         assert result["status"] == "success"
         repo.create.assert_awaited_once()
         create_kwargs = repo.create.await_args[1]
-        assert create_kwargs.get("status") == "success"
+        assert create_kwargs.get("status") == "sent"
 
     @pytest.mark.asyncio
     async def test_wework_calls_record_push_failed(self) -> None:
@@ -733,7 +733,7 @@ class TestAC7:
             sub_id,
             content_id,
             "wechat",
-            status="success",
+            status="sent",
             extra_recipient=phone,
             repo=repo,
         )
@@ -758,7 +758,7 @@ class TestAC7:
             sub_id,
             content_id,
             "email",
-            status="success",
+            status="sent",
             extra_recipient=email,
             repo=repo,
         )
@@ -781,7 +781,7 @@ class TestAC7:
             sub_id,
             content_id,
             "wechat",
-            status="success",
+            status="sent",
             extra_recipient=phone,
             repo=repo,
         )
@@ -792,3 +792,349 @@ class TestAC7:
         assert phone not in all_string_values, (
             f"Raw phone '{phone}' must not appear in persisted record values"
         )
+
+
+# ---------------------------------------------------------------------------
+# AC-8 (R-001): PII masking applied to error_message before persistence
+# ---------------------------------------------------------------------------
+
+
+class TestAC8PiiMasking:
+    """R-001: error_message containing PII is masked before being written to DB."""
+
+    @pytest.mark.asyncio
+    async def test_error_message_email_is_masked_before_persist(self) -> None:
+        """record_push masks email in error_message before calling repo.create."""
+        sub_id = uuid.uuid4()
+        content_id = uuid.uuid4()
+        repo = _make_push_repo()
+        raw_error = "SMTP error: recipient user@example.com rejected"
+
+        distributor = _make_concrete_distributor()
+        await distributor.record_push(
+            sub_id,
+            content_id,
+            "email",
+            status="failed",
+            error_message=raw_error,
+            repo=repo,
+        )
+
+        repo.create.assert_awaited_once()
+        create_kwargs = repo.create.await_args[1]
+        stored_error = create_kwargs.get("error_message", "")
+        assert "user@example.com" not in (stored_error or ""), (
+            "Raw email address must not appear in persisted error_message"
+        )
+        assert stored_error is not None and stored_error != "", (
+            "Masked error_message must still be non-empty"
+        )
+
+    @pytest.mark.asyncio
+    async def test_error_message_phone_is_masked_before_persist(self) -> None:
+        """record_push masks phone numbers in error_message before repo.create."""
+        sub_id = uuid.uuid4()
+        content_id = uuid.uuid4()
+        repo = _make_push_repo()
+        raw_error = "Delivery failed for +8613812345678: number not found"
+
+        distributor = _make_concrete_distributor()
+        await distributor.record_push(
+            sub_id,
+            content_id,
+            "wechat",
+            status="failed",
+            error_message=raw_error,
+            repo=repo,
+        )
+
+        repo.create.assert_awaited_once()
+        create_kwargs = repo.create.await_args[1]
+        stored_error = create_kwargs.get("error_message", "")
+        assert "+8613812345678" not in (stored_error or ""), (
+            "Raw phone number must not appear in persisted error_message"
+        )
+        assert stored_error is not None and stored_error != "", (
+            "Masked error_message must still be non-empty"
+        )
+
+    @pytest.mark.asyncio
+    async def test_error_message_with_both_email_and_phone_masked(self) -> None:
+        """When error_message contains both an email and a phone, both are masked."""
+        sub_id = uuid.uuid4()
+        content_id = uuid.uuid4()
+        repo = _make_push_repo()
+        raw_email = "alice@corp.com"
+        raw_phone = "+8613987654321"
+        raw_error = f"Error: contact {raw_email} or call {raw_phone} for support"
+
+        distributor = _make_concrete_distributor()
+        await distributor.record_push(
+            sub_id,
+            content_id,
+            "wework",
+            status="failed",
+            error_message=raw_error,
+            repo=repo,
+        )
+
+        repo.create.assert_awaited_once()
+        create_kwargs = repo.create.await_args[1]
+        stored_error = create_kwargs.get("error_message", "")
+        assert raw_email not in (stored_error or ""), (
+            "Raw email must not appear in persisted error_message"
+        )
+        assert raw_phone not in (stored_error or ""), (
+            "Raw phone must not appear in persisted error_message"
+        )
+
+
+# ---------------------------------------------------------------------------
+# R-002: IntegrityError on concurrent dedup race is swallowed (idempotent)
+# ---------------------------------------------------------------------------
+
+
+class TestIntegrityErrorRace:
+    """R-002: Concurrent duplicate INSERT raises IntegrityError; silently ignored."""
+
+    @pytest.mark.asyncio
+    async def test_integrity_error_on_create_does_not_propagate(self) -> None:
+        """When repo.create raises IntegrityError, _record_push_if_repo swallows it."""
+        from sqlalchemy.exc import IntegrityError
+
+        sub_id = uuid.uuid4()
+        content_id = uuid.uuid4()
+
+        repo = MagicMock()
+        repo.exists = AsyncMock(return_value=False)
+        repo.create = AsyncMock(
+            side_effect=IntegrityError(
+                "UniqueViolation",
+                {},
+                Exception("duplicate key value violates unique constraint"),
+            )
+        )
+
+        distributor = _make_concrete_distributor()
+        distributor._push_repo = repo
+
+        # Should NOT raise — the IntegrityError must be swallowed
+        await distributor._record_push_if_repo(
+            sub_id, content_id, "wechat", status="sent"
+        )
+
+        repo.create.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_lifecycle_integrity_error_swallowed(self) -> None:
+        """When _record_push_if_repo encounters IntegrityError, lifecycle completes."""
+        from sqlalchemy.exc import IntegrityError
+
+        sub_id = uuid.uuid4()
+        content_id = uuid.uuid4()
+
+        repo = MagicMock()
+        repo.exists = AsyncMock(return_value=False)
+        repo.create = AsyncMock(
+            side_effect=IntegrityError(
+                "UniqueViolation",
+                {},
+                Exception("duplicate key value violates unique constraint"),
+            )
+        )
+
+        distributor = _make_concrete_distributor()
+        distributor._push_repo = repo
+
+        async def _ok_attempt(attempt: int, is_last: bool) -> tuple[bool, None, dict]:
+            return True, None, {}
+
+        (
+            was_deduped,
+            succeeded,
+            retry_count,
+            error,
+            raw,
+        ) = await distributor._send_with_dedup_lifecycle(
+            sub_id,
+            content_id,
+            "wechat",
+            attempt_fn=_ok_attempt,
+            max_retry=1,
+        )
+
+        assert not was_deduped
+        assert succeeded
+        assert error is None
+
+
+# ---------------------------------------------------------------------------
+# R-003: status enum — "sent" on success, "failed" on failure; invalid raises
+# ---------------------------------------------------------------------------
+
+
+class TestStatusEnum:
+    """R-003: PushRecord.status aligns with arch E-010 allowed values."""
+
+    @pytest.mark.asyncio
+    async def test_success_path_uses_sent_status(self) -> None:
+        """_send_with_dedup_lifecycle writes status='sent' on the success path."""
+        sub_id = uuid.uuid4()
+        content_id = uuid.uuid4()
+        repo = _make_push_repo(exists_return=False)
+
+        distributor = _make_concrete_distributor()
+        distributor._push_repo = repo
+
+        async def _ok_attempt(attempt: int, is_last: bool) -> tuple[bool, None, dict]:
+            return True, None, {}
+
+        await distributor._send_with_dedup_lifecycle(
+            sub_id,
+            content_id,
+            "wechat",
+            attempt_fn=_ok_attempt,
+            max_retry=1,
+        )
+
+        repo.create.assert_awaited_once()
+        create_kwargs = repo.create.await_args[1]
+        assert create_kwargs.get("status") == "sent"
+
+    @pytest.mark.asyncio
+    async def test_failure_path_uses_failed_status(self) -> None:
+        """_send_with_dedup_lifecycle writes status='failed' on the failure path."""
+        sub_id = uuid.uuid4()
+        content_id = uuid.uuid4()
+        repo = _make_push_repo(exists_return=False)
+
+        distributor = _make_concrete_distributor()
+        distributor._push_repo = repo
+
+        async def _fail_attempt(attempt: int, is_last: bool) -> tuple[bool, str, dict]:
+            return False, "error", {}
+
+        await distributor._send_with_dedup_lifecycle(
+            sub_id,
+            content_id,
+            "wechat",
+            attempt_fn=_fail_attempt,
+            max_retry=1,
+        )
+
+        repo.create.assert_awaited_once()
+        create_kwargs = repo.create.await_args[1]
+        assert create_kwargs.get("status") == "failed"
+
+    @pytest.mark.asyncio
+    async def test_invalid_status_raises_value_error(self) -> None:
+        """record_push raises ValueError for status values not in the allowed enum."""
+        sub_id = uuid.uuid4()
+        content_id = uuid.uuid4()
+        repo = _make_push_repo()
+
+        distributor = _make_concrete_distributor()
+        with pytest.raises(ValueError, match="Invalid push record status"):
+            await distributor.record_push(
+                sub_id,
+                content_id,
+                "wechat",
+                status="success",
+                repo=repo,
+            )
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("invalid_status", ["success", "error", "ok", "done", ""])
+    async def test_invalid_status_values_raise(self, invalid_status: str) -> None:
+        """Parametrized check: non-enum status values all raise ValueError."""
+        sub_id = uuid.uuid4()
+        content_id = uuid.uuid4()
+        repo = _make_push_repo()
+
+        distributor = _make_concrete_distributor()
+        with pytest.raises(ValueError):
+            await distributor.record_push(
+                sub_id,
+                content_id,
+                "wechat",
+                status=invalid_status,
+                repo=repo,
+            )
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("valid_status", ["pending", "sent", "delivered", "failed"])
+    async def test_valid_status_values_accepted(self, valid_status: str) -> None:
+        """All arch E-010 allowed status values are accepted without error."""
+        sub_id = uuid.uuid4()
+        content_id = uuid.uuid4()
+        repo = _make_push_repo()
+
+        distributor = _make_concrete_distributor()
+        await distributor.record_push(
+            sub_id,
+            content_id,
+            "wechat",
+            status=valid_status,
+            repo=repo,
+        )
+        repo.create.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# R-006: retry_count reflects actual attempt index on success
+# ---------------------------------------------------------------------------
+
+
+class TestRetryCountTracking:
+    """R-006: retry_count written to PushRecord equals the winning attempt index."""
+
+    @pytest.mark.asyncio
+    async def test_first_attempt_success_retry_count_zero(self) -> None:
+        """When the first attempt succeeds, retry_count=0 is written."""
+        sub_id = uuid.uuid4()
+        content_id = uuid.uuid4()
+        repo = _make_push_repo(exists_return=False)
+
+        distributor = _make_concrete_distributor()
+        distributor._push_repo = repo
+
+        async def _ok_attempt(attempt: int, is_last: bool) -> tuple[bool, None, dict]:
+            return True, None, {}
+
+        await distributor._send_with_dedup_lifecycle(
+            sub_id, content_id, "wechat", attempt_fn=_ok_attempt, max_retry=3
+        )
+
+        create_kwargs = repo.create.await_args[1]
+        assert create_kwargs.get("retry_count") == 0
+
+    @pytest.mark.asyncio
+    async def test_third_attempt_success_retry_count_two(self) -> None:
+        """When attempt 2 succeeds (0,1 fail), retry_count=2 is written."""
+        sub_id = uuid.uuid4()
+        content_id = uuid.uuid4()
+        repo = _make_push_repo(exists_return=False)
+
+        distributor = _make_concrete_distributor()
+        distributor._push_repo = repo
+
+        call_count = 0
+
+        async def _fail_then_succeed(
+            attempt: int, is_last: bool
+        ) -> tuple[bool, str | None, dict]:
+            nonlocal call_count
+            call_count += 1
+            if attempt < 2:
+                return False, "transient error", {}
+            return True, None, {}
+
+        await distributor._send_with_dedup_lifecycle(
+            sub_id, content_id, "wechat", attempt_fn=_fail_then_succeed, max_retry=3
+        )
+
+        assert call_count == 3
+        repo.create.assert_awaited_once()
+        create_kwargs = repo.create.await_args[1]
+        assert create_kwargs.get("status") == "sent"
+        assert create_kwargs.get("retry_count") == 2

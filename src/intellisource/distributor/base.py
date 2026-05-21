@@ -4,17 +4,27 @@ from __future__ import annotations
 
 import abc
 import hashlib
+import re
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
+from sqlalchemy.exc import IntegrityError
+
+from intellisource.distributor.pii import mask_email, mask_phone
+
 if TYPE_CHECKING:
     from intellisource.storage.repositories.push import PushRepository
+
+_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+_PHONE_RE = re.compile(r"\+?\d[\d\s-]{6,}\d")
+
+_VALID_STATUSES = frozenset({"pending", "sent", "delivered", "failed"})
 
 
 class BaseDistributor(abc.ABC):
     """Abstract base class for content distributors."""
 
-    _push_repo: "PushRepository | None"
+    _push_repo: "PushRepository | None" = None
 
     @abc.abstractmethod
     async def distribute(self, content: Any, subscription: Any) -> Any:
@@ -31,6 +41,14 @@ class BaseDistributor(abc.ABC):
         """Return True if a push record already exists for this tuple."""
         return await repo.exists(subscription_id, content_id, channel)
 
+    def _mask_error_message(self, msg: str | None) -> str | None:
+        """Redact any email addresses and phone numbers in *msg* before persistence."""
+        if not msg:
+            return msg
+        masked = _EMAIL_RE.sub(lambda m: mask_email(m.group(0)), msg)
+        masked = _PHONE_RE.sub(lambda m: mask_phone(m.group(0)), masked)
+        return masked
+
     async def record_push(
         self,
         subscription_id: Any,
@@ -44,6 +62,11 @@ class BaseDistributor(abc.ABC):
         repo: "PushRepository",
     ) -> None:
         """Persist a push record; hashes any raw recipient value before storage."""
+        if status not in _VALID_STATUSES:
+            raise ValueError(
+                f"Invalid push record status {status!r};"
+                f" must be one of {sorted(_VALID_STATUSES)}"
+            )
         recipient_hash: str | None = None
         if extra_recipient is not None:
             recipient_hash = hashlib.sha256(extra_recipient.encode()).hexdigest()
@@ -54,7 +77,7 @@ class BaseDistributor(abc.ABC):
             channel=channel,
             status=status,
             retry_count=retry_count,
-            error_message=error_message,
+            error_message=self._mask_error_message(error_message),
             recipient_hash=recipient_hash,
         )
 
@@ -85,16 +108,20 @@ class BaseDistributor(abc.ABC):
         """Persist a push record when a repo is configured."""
         if self._push_repo is None:
             return
-        await self.record_push(
-            subscription_id,
-            content_id,
-            channel,
-            status=status,
-            retry_count=retry_count,
-            error_message=error_message,
-            extra_recipient=extra_recipient,
-            repo=self._push_repo,
-        )
+        try:
+            await self.record_push(
+                subscription_id,
+                content_id,
+                channel,
+                status=status,
+                retry_count=retry_count,
+                error_message=error_message,
+                extra_recipient=extra_recipient,
+                repo=self._push_repo,
+            )
+        except IntegrityError:
+            # Concurrent dedup race — duplicate INSERT is the safe outcome (idempotent).
+            pass
 
     async def _send_with_dedup_lifecycle(
         self,
@@ -127,9 +154,9 @@ class BaseDistributor(abc.ABC):
             last_raw = raw
             if success:
                 await self._record_push_if_repo(
-                    sub_id, content_id, channel, status="success"
+                    sub_id, content_id, channel, status="sent", retry_count=attempt
                 )
-                return False, True, 0, None, raw
+                return False, True, attempt, None, raw
             last_error = error
 
         await self._record_push_if_repo(
