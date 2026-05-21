@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-_VALID_MODES = ("strict", "flexible")
+_VALID_MODES = ("strict", "flexible", "batch")
 _VALID_ON_FAILURE = ("abort", "skip", "retry")
 
 

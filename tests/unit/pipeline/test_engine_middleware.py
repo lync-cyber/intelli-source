@@ -15,16 +15,16 @@ import subprocess
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
 
 from intellisource.pipeline.base import BaseProcessor
-from intellisource.pipeline.condition import ConditionalProcessor, ConditionEvaluator
+from intellisource.pipeline.condition import ConditionalProcessor
 from intellisource.pipeline.context import PipelineContext
 from intellisource.pipeline.engine import PipelineEngine
-from intellisource.pipeline.middleware import BaseMiddleware, MiddlewareChain
+from intellisource.pipeline.middleware import BaseMiddleware
 
 # ---------------------------------------------------------------------------
 # Shared test helpers
@@ -119,7 +119,7 @@ class TestAC1MiddlewareHooksInEngine:
         assert "mw1:after" in mw_log
 
     def test_two_middlewares_onion_order(self) -> None:
-        """Two middlewares must wrap in onion order: mw1.before→mw2.before→…→mw2.after→mw1.after."""
+        """Two middlewares wrap in onion order: mw1→mw2→core→mw2→mw1."""
         proc = _AppendProcessor("core")
         mw1 = _TrackingMiddleware("mw1")
         mw2 = _TrackingMiddleware("mw2")
@@ -140,7 +140,7 @@ class TestAC1MiddlewareHooksInEngine:
         )
 
     def test_no_middleware_still_executes_processors(self) -> None:
-        """PipelineEngine with empty middlewares list still executes processors normally."""
+        """Empty middlewares list still executes processors normally."""
         proc = _AppendProcessor("proc")
         engine = PipelineEngine(processors=[proc], middlewares=[])
         ctx = PipelineContext()
@@ -148,7 +148,7 @@ class TestAC1MiddlewareHooksInEngine:
         assert result.get("order") == ["proc"]
 
     def test_middleware_wraps_all_processors_as_unit(self) -> None:
-        """Single middleware's before fires before first processor; after fires after last."""
+        """Single middleware wraps the whole processor chain as one unit."""
         p1 = _AppendProcessor("p1")
         p2 = _AppendProcessor("p2")
         mw = _TrackingMiddleware("mw")
@@ -170,10 +170,10 @@ class TestAC1MiddlewareHooksInEngine:
 
 
 class TestAC2ConditionalProcessorInEngine:
-    """AC-2: ConditionalProcessor skip (False) and execute (True) paths in PipelineEngine."""
+    """AC-2: ConditionalProcessor skip/execute paths through PipelineEngine."""
 
     def test_condition_false_processor_not_called(self) -> None:
-        """When condition evaluates False, the wrapped processor's process() is NOT called."""
+        """False condition: wrapped processor's process() is NOT called."""
         inner = _MarkerProcessor("should_skip")
         condition = {"field": "type", "operator": "eq", "value": "article"}
         cond_proc = ConditionalProcessor(condition=condition, if_processor=inner)
@@ -183,11 +183,13 @@ class TestAC2ConditionalProcessorInEngine:
         ctx.set("type", "video")  # does NOT match 'article'
         result = engine.execute(ctx)
 
-        assert inner.called is False, "process() must not be called when condition is False"
+        assert inner.called is False, (
+            "process() must not be called when condition is False"
+        )
         assert result.get("marker") is None
 
     def test_condition_true_processor_called(self) -> None:
-        """When condition evaluates True, the wrapped processor's process() IS called."""
+        """True condition: wrapped processor's process() IS called."""
         inner = _MarkerProcessor("should_run")
         condition = {"field": "type", "operator": "eq", "value": "article"}
         cond_proc = ConditionalProcessor(condition=condition, if_processor=inner)
@@ -227,10 +229,10 @@ class TestAC2ConditionalProcessorInEngine:
 
 
 class TestAC3StreamAndBatchPaths:
-    """AC-3: execute_stream() yields per-processor; execute() returns final context only."""
+    """AC-3: execute_stream() yields per processor; execute() is batch."""
 
     async def test_execute_stream_is_async_iterator(self) -> None:
-        """execute_stream() must return an object that implements AsyncIterator protocol."""
+        """execute_stream() returns an AsyncIterator-protocol object."""
         p1 = _AppendProcessor("p1")
         p2 = _AppendProcessor("p2")
         engine = PipelineEngine(processors=[p1, p2], middlewares=[])
@@ -266,7 +268,7 @@ class TestAC3StreamAndBatchPaths:
             assert isinstance(intermediate_ctx, PipelineContext)
 
     async def test_execute_stream_accumulates_state(self) -> None:
-        """Each yielded context reflects cumulative processor results up to that point."""
+        """Each yield carries cumulative processor results so far."""
         p1 = _AppendProcessor("p1")
         p2 = _AppendProcessor("p2")
         engine = PipelineEngine(processors=[p1, p2], middlewares=[])
@@ -291,7 +293,9 @@ class TestAC3StreamAndBatchPaths:
 
         result = engine.execute(ctx)
 
-        assert isinstance(result, PipelineContext), "execute() must return PipelineContext"
+        assert isinstance(result, PipelineContext), (
+            "execute() must return PipelineContext"
+        )
         assert result.get("order") == ["p1", "p2"], (
             "execute() must process all processors before returning"
         )
@@ -314,7 +318,7 @@ class TestAC3StreamAndBatchPaths:
 
 
 class TestAC4ContentProcessYaml:
-    """AC-4: config/pipelines/content-process.yaml has >=3 real steps and mode=='batch'."""
+    """AC-4: content-process.yaml has >=3 real steps and mode == 'batch'."""
 
     @pytest.fixture
     def yaml_config(self) -> dict[str, Any]:
@@ -332,7 +336,9 @@ class TestAC4ContentProcessYaml:
             f"Expected mode='batch', got mode='{yaml_config.get('mode')}'"
         )
 
-    def test_steps_has_at_least_three_entries(self, yaml_config: dict[str, Any]) -> None:
+    def test_steps_has_at_least_three_entries(
+        self, yaml_config: dict[str, Any]
+    ) -> None:
         """content-process.yaml must define at least 3 pipeline steps."""
         steps = yaml_config.get("steps", [])
         assert len(steps) >= 3, f"Expected >=3 steps, got {len(steps)}: {steps}"
@@ -340,9 +346,7 @@ class TestAC4ContentProcessYaml:
     def test_steps_include_html_parser(self, yaml_config: dict[str, Any]) -> None:
         """content-process.yaml steps must include an HTMLParser step."""
         steps = yaml_config.get("steps", [])
-        step_names = [
-            (s.get("processor") or s.get("name") or s) for s in steps
-        ]
+        step_names = [(s.get("processor") or s.get("name") or s) for s in steps]
         html_present = any(
             "html" in str(s).lower() or "HTMLParser" in str(s) for s in step_names
         )
@@ -351,9 +355,7 @@ class TestAC4ContentProcessYaml:
     def test_steps_include_content_dedup(self, yaml_config: dict[str, Any]) -> None:
         """content-process.yaml steps must include a ContentDedup step."""
         steps = yaml_config.get("steps", [])
-        step_names = [
-            (s.get("processor") or s.get("name") or s) for s in steps
-        ]
+        step_names = [(s.get("processor") or s.get("name") or s) for s in steps]
         dedup_present = any(
             "dedup" in str(s).lower() or "ContentDedup" in str(s) for s in step_names
         )
@@ -362,9 +364,7 @@ class TestAC4ContentProcessYaml:
     def test_steps_include_keyword_tagger(self, yaml_config: dict[str, Any]) -> None:
         """content-process.yaml steps must include a KeywordTagger step."""
         steps = yaml_config.get("steps", [])
-        step_names = [
-            (s.get("processor") or s.get("name") or s) for s in steps
-        ]
+        step_names = [(s.get("processor") or s.get("name") or s) for s in steps]
         tagger_present = any(
             "keyword" in str(s).lower() or "KeywordTagger" in str(s) for s in step_names
         )
@@ -377,13 +377,11 @@ class TestAC4ContentProcessYaml:
 
 
 class TestAC5FactoryInstantiatesPipelineEngine:
-    """AC-5: build_agent_runner must instantiate PipelineEngine with content-process.yaml."""
+    """AC-5: build_agent_runner instantiates PipelineEngine from yaml."""
 
     def test_pipeline_engine_instantiated_in_factory(self) -> None:
         """build_agent_runner must create a PipelineEngine instance internally."""
-        with patch(
-            "intellisource.pipeline.engine.PipelineEngine"
-        ) as mock_engine_cls:
+        with patch("intellisource.pipeline.engine.PipelineEngine") as mock_engine_cls:
             mock_engine_cls.return_value = MagicMock()
 
             from intellisource.agent.factory import build_agent_runner
@@ -397,7 +395,7 @@ class TestAC5FactoryInstantiatesPipelineEngine:
             )
 
     def test_pipeline_engine_call_site_exists_in_src(self) -> None:
-        """At least one src/ file must reference PipelineEngine( as a constructor call."""
+        """At least one src/ file references PipelineEngine( as a constructor."""
         result = subprocess.run(
             ["grep", "-rn", "PipelineEngine(", "src/"],
             cwd=str(Path(__file__).parents[3]),
@@ -405,7 +403,8 @@ class TestAC5FactoryInstantiatesPipelineEngine:
             text=True,
         )
         matches = [
-            line for line in result.stdout.splitlines()
+            line
+            for line in result.stdout.splitlines()
             if "test_" not in line and ".pyc" not in line
         ]
         assert len(matches) >= 1, (
@@ -420,7 +419,7 @@ class TestAC5FactoryInstantiatesPipelineEngine:
 
 
 class TestAC6UnitMiddlewareAndConditionalSkip:
-    """AC-6: Direct unit tests for middleware before/after counts and conditional skip."""
+    """AC-6: middleware before/after counts and conditional skip."""
 
     def test_two_processors_one_middleware_before_called_once(self) -> None:
         """With 2 processors and 1 middleware, before hook fires exactly once."""
@@ -438,12 +437,18 @@ class TestAC6UnitMiddlewareAndConditionalSkip:
                 after_count += 1
                 return ctx
 
-        engine = PipelineEngine(processors=[p1, p2], middlewares=[_CountingMiddleware()])
+        engine = PipelineEngine(
+            processors=[p1, p2], middlewares=[_CountingMiddleware()]
+        )
         ctx = PipelineContext()
         engine.execute(ctx)
 
-        assert before_count == 1, f"before hook must fire exactly once, fired {before_count}"
-        assert after_count == 1, f"after hook must fire exactly once, fired {after_count}"
+        assert before_count == 1, (
+            f"before hook must fire exactly once, fired {before_count}"
+        )
+        assert after_count == 1, (
+            f"after hook must fire exactly once, fired {after_count}"
+        )
 
     def test_two_processors_both_called_with_middleware(self) -> None:
         """Both processors run when middleware is present."""
@@ -460,7 +465,7 @@ class TestAC6UnitMiddlewareAndConditionalSkip:
         assert result.get("order") == ["p1", "p2"]
 
     def test_conditional_skip_process_not_called_when_false(self) -> None:
-        """ConditionalProcessor with False condition: inner process() call_count stays 0."""
+        """ConditionalProcessor with False: inner process() call_count stays 0."""
         inner = _MarkerProcessor("skip_me")
         condition = {"field": "run", "operator": "eq", "value": True}
         cond_proc = ConditionalProcessor(condition=condition, if_processor=inner)
@@ -475,7 +480,7 @@ class TestAC6UnitMiddlewareAndConditionalSkip:
         )
 
     def test_conditional_execute_process_called_when_true(self) -> None:
-        """ConditionalProcessor with True condition: inner process() is called exactly once."""
+        """ConditionalProcessor with True: inner process() called exactly once."""
         inner = _MarkerProcessor("run_me")
         condition = {"field": "run", "operator": "eq", "value": True}
         cond_proc = ConditionalProcessor(condition=condition, if_processor=inner)

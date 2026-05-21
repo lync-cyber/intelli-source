@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import intellisource.pipeline.engine as _engine_mod
 from intellisource.agent.runner import AgentRunner
 from intellisource.agent.tools import AgentToolRegistry
 
@@ -14,14 +15,12 @@ def build_agent_runner(
     *,
     pipeline_config: Any = None,
 ) -> AgentRunner:
-    """Build and return a fully-wired AgentRunner.
-
-    Constructs an AgentToolRegistry, registers default tools and atomic
-    tools, then returns an AgentRunner bound to the provided llm_gateway.
-    """
+    """Build and return a fully-wired AgentRunner."""
     registry = AgentToolRegistry()
     registry.register_defaults()
     registry.register_atomic_tools()
+
+    _pipeline_engine = _engine_mod.PipelineEngine(processors=[])
 
     return AgentRunner(
         tool_registry=registry,
