@@ -16,7 +16,6 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -587,5 +586,6 @@ class TestIdempotencyWiringEdgeCases:
             )
         except TypeError as exc:
             raise AssertionError(
-                f"CeleryTasks must accept 'content_repository' kwarg; got TypeError: {exc}"
+                "CeleryTasks must accept 'content_repository' kwarg; "
+                f"got TypeError: {exc}"
             ) from exc
