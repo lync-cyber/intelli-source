@@ -7,8 +7,9 @@ Covers:
 """
 
 import pytest
-from intellisource.config.models import SourceConfig
 from pydantic import ValidationError
+
+from intellisource.config.models import SourceConfig
 
 # ---------------------------------------------------------------------------
 # AC-001: SourceConfig field definitions
@@ -259,8 +260,6 @@ class TestCollectAllErrors:
                 }
             )
         errors = exc_info.value.errors()
-        # At least type, url, tags, schedule_interval should each produce an error
-        error_fields = {str(e["loc"][-1]) for e in errors}
         assert len(errors) >= 3, (
-            f"Expected at least 3 errors for multiple invalid fields, got {len(errors)}: {errors}"
+            f"Expected ≥3 errors for invalid fields, got {len(errors)}: {errors}"
         )

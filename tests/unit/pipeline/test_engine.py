@@ -8,6 +8,7 @@ Covers:
 """
 
 import pytest
+
 from intellisource.pipeline.base import BaseProcessor
 from intellisource.pipeline.context import PipelineContext
 from intellisource.pipeline.engine import PipelineEngine
@@ -18,7 +19,7 @@ from intellisource.pipeline.engine import PipelineEngine
 
 
 class AppendProcessor(BaseProcessor):
-    """Processor that appends its name to a list in context, tracking execution order."""
+    """Append the processor name to a context list, tracking execution order."""
 
     def __init__(self, name: str):
         self._name = name
@@ -72,7 +73,7 @@ class TestBaseProcessorInterface:
             IncompleteProcessor()
 
     def test_concrete_subclass_returns_context(self):
-        """A concrete subclass implementing process() should return a PipelineContext."""
+        """A concrete subclass implementing process() returns a PipelineContext."""
         processor = AppendProcessor("test")
         ctx = PipelineContext()
         result = processor.process(ctx)
@@ -139,7 +140,7 @@ class TestPipelineEngineOrdering:
 
 
 class TestPipelineEngineErrorHandling:
-    """AC-T016-1: Processor exceptions don't break the pipeline by default; fail_fast configurable."""
+    """AC-T016-1: Processor exceptions don't break the pipeline by default; fail_fast opt-in."""  # noqa: E501
 
     def test_default_continues_after_error(self):
         """By default, a failing processor should not stop subsequent processors."""
@@ -166,7 +167,7 @@ class TestPipelineEngineErrorHandling:
         assert len(errors) > 0
 
     def test_fail_fast_stops_on_first_error(self):
-        """With fail_fast=True, the pipeline should stop at the first failing processor."""
+        """With fail_fast=True, the pipeline stops at the first failing processor."""
         processors = [
             AppendProcessor("before"),
             FailingProcessor("broken"),
@@ -178,7 +179,7 @@ class TestPipelineEngineErrorHandling:
             engine.execute(ctx)
 
     def test_fail_fast_false_explicit(self):
-        """Explicitly setting fail_fast=False should behave like the default (continue)."""
+        """Explicitly setting fail_fast=False behaves like the default (continue)."""
         processors = [
             FailingProcessor("broken"),
             AppendProcessor("after"),

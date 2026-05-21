@@ -42,7 +42,9 @@ def _make_celery_tasks(agent_runner, pipeline_config):
     )
 
 
-def _make_celery_tasks_with_session_factory(agent_runner, pipeline_config, session_factory):
+def _make_celery_tasks_with_session_factory(
+    agent_runner, pipeline_config, session_factory
+):
     """Instantiate CeleryTasks with a session_factory for persistence tests."""
     mod = _import_tasks()
     return mod.CeleryTasks(
@@ -235,7 +237,7 @@ class TestTaskChainPersistence:
     """AC-T027-3: Execution state persisted to TaskChain (E-008)."""
 
     def _make_tasks_with_mock_repo(self, mock_agent_runner, mock_pipeline_config):
-        """Build CeleryTasks with session_factory DI and a patched TaskChainRepository."""
+        """Build CeleryTasks with session_factory DI + patched TaskChainRepository."""
         mock_repo = AsyncMock()
 
         mock_session = AsyncMock()
@@ -309,7 +311,7 @@ class TestTaskChainPersistence:
     def test_task_chain_contains_execution_mode(
         self, mock_agent_runner, mock_pipeline_config
     ):
-        """TaskChain passed to create() must carry execution_mode from pipeline config."""
+        """TaskChain passed to create() must carry execution_mode from config."""
         from intellisource.storage.models import TaskChain
 
         mock_repo = AsyncMock()
@@ -343,10 +345,12 @@ class TestTaskChainPersistence:
 
         mock_repo = AsyncMock()
         persisted_id = uuid.uuid4()
+
         # Simulate create() setting the id on the TaskChain object
         async def fake_create(task_chain):
             task_chain.id = persisted_id
             return task_chain
+
         mock_repo.create = AsyncMock(side_effect=fake_create)
 
         mock_session = AsyncMock()
@@ -383,6 +387,7 @@ class TestTaskChainPersistence:
         async def fake_create(task_chain):
             task_chain.id = persisted_id
             return task_chain
+
         mock_repo.create = AsyncMock(side_effect=fake_create)
 
         mock_session = AsyncMock()

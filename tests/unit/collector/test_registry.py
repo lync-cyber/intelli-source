@@ -4,16 +4,17 @@ Covers:
 - AC-T010-1: CollectorRegistry.register(type, collector_cls) registers a collector
 - AC-T010-2: CollectorRegistry.get(type) returns the correct collector instance
 - AC-T010-3: Unregistered type raises CollectorError (IS-COL-001)
-- AC-T010-5: Auto-discovery scans collector/sources/ and registers BaseCollector subclasses
-- AC-T010-6: New sources/ sub-packages only need to implement BaseCollector and export in __init__.py
+- AC-T010-5: Auto-discovery scans collector/sources/ and registers BaseCollector subs
+- AC-T010-6: New sources/ sub-packages need only to implement BaseCollector + export
+  in __init__.py
 """
 
 from __future__ import annotations
 
 import pytest
+
 from intellisource.collector.base import BaseCollector, RawContent
 from intellisource.collector.registry import CollectorRegistry
-
 from intellisource.core.errors import CollectorError, ErrorCategory
 
 # ---------------------------------------------------------------------------

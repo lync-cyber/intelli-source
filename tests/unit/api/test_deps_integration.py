@@ -9,12 +9,11 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
-from fastapi import Depends, Request
+from fastapi import Request
 from fastapi.routing import APIRoute
-
 
 # ---------------------------------------------------------------------------
 # AC-T072-2: get_db_session() yields a real session from app.state.db
@@ -28,6 +27,7 @@ class TestGetDbSessionYieldsRealSession:
     async def test_get_db_session_accepts_request_parameter(self) -> None:
         """AC-T072-2: get_db_session() accepts a Request parameter (not zero-arg)."""
         import inspect
+
         from intellisource.api.deps import get_db_session
 
         sig = inspect.signature(get_db_session)
@@ -39,7 +39,7 @@ class TestGetDbSessionYieldsRealSession:
 
     @pytest.mark.asyncio
     async def test_get_db_session_yields_session_from_state_db(self) -> None:
-        """AC-T072-2: get_db_session() yields the session from request.app.state.db.get_session()."""
+        """AC-T072-2: get_db_session() yields the session from app.state.db."""
         from intellisource.api.deps import get_db_session
         from intellisource.storage.database import DatabaseManager
 
@@ -68,7 +68,7 @@ class TestGetDbSessionYieldsRealSession:
 
     @pytest.mark.asyncio
     async def test_get_db_session_does_not_yield_none(self) -> None:
-        """AC-T072-2: get_db_session() must not yield None (old placeholder behaviour)."""
+        """AC-T072-2: get_db_session() must not yield None (old placeholder)."""
         from intellisource.api.deps import get_db_session
         from intellisource.storage.database import DatabaseManager
 
@@ -106,14 +106,16 @@ class TestRoutersNoLocalGetSession:
     def test_sources_router_has_no_local_get_session(self) -> None:
         """AC-T072-3: intellisource.api.routers.sources defines no local get_session."""
         from intellisource.api.routers import sources
+
         assert not hasattr(sources, "get_session"), (
             "sources.py must not define a local get_session; "
             "use Depends(get_db_session) from intellisource.api.deps instead"
         )
 
     def test_contents_router_has_no_local_get_session(self) -> None:
-        """AC-T072-3: intellisource.api.routers.contents defines no local get_session."""
+        """AC-T072-3: intellisource.api.routers.contents has no local get_session."""
         from intellisource.api.routers import contents
+
         assert not hasattr(contents, "get_session"), (
             "contents.py must not define a local get_session"
         )
@@ -121,13 +123,15 @@ class TestRoutersNoLocalGetSession:
     def test_tasks_router_has_no_local_get_session(self) -> None:
         """AC-T072-3: intellisource.api.routers.tasks defines no local get_session."""
         from intellisource.api.routers import tasks
+
         assert not hasattr(tasks, "get_session"), (
             "tasks.py must not define a local get_session"
         )
 
     def test_subscriptions_router_has_no_local_get_session(self) -> None:
-        """AC-T072-3: intellisource.api.routers.subscriptions defines no local get_session."""
+        """AC-T072-3: api.routers.subscriptions defines no local get_session."""
         from intellisource.api.routers import subscriptions
+
         assert not hasattr(subscriptions, "get_session"), (
             "subscriptions.py must not define a local get_session"
         )
@@ -135,6 +139,7 @@ class TestRoutersNoLocalGetSession:
     def test_search_router_has_no_local_get_session(self) -> None:
         """AC-T072-3: intellisource.api.routers.search defines no local get_session."""
         from intellisource.api.routers import search
+
         assert not hasattr(search, "get_session"), (
             "search.py must not define a local get_session"
         )
@@ -195,7 +200,7 @@ class TestRoutersUseDepsGetDbSession:
         )
 
     def test_subscriptions_router_uses_deps_get_db_session(self) -> None:
-        """AC-T072-3: subscriptions router uses intellisource.api.deps.get_db_session."""
+        """AC-T072-3: subscriptions router uses api.deps.get_db_session."""
         from intellisource.api.deps import get_db_session
         from intellisource.api.routers.subscriptions import router
 
@@ -215,7 +220,7 @@ class TestRoutersUseDepsGetDbSession:
         )
 
     def test_llm_router_uses_deps_get_db_session(self) -> None:
-        """AC-T072-3: llm router (reference shape) uses intellisource.api.deps.get_db_session."""
+        """AC-T072-3: llm router (reference shape) uses api.deps.get_db_session."""
         from intellisource.api.deps import get_db_session
         from intellisource.api.routers.llm import router
 

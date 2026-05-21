@@ -615,7 +615,7 @@ class TestFlexibleResultsAccumulation:
         self,
         tool_registry: MagicMock,
     ) -> None:
-        """Failed tool calls appear in results with error field, not silently dropped."""
+        """Failed tool calls appear in results with error field, not dropped."""
         # Override web_search to raise
         tool_registry.get = MagicMock(
             side_effect=lambda name: {

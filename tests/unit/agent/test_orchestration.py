@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -211,7 +211,7 @@ class TestSummarizeWorkflow:
                             "cluster_contents": [
                                 {
                                     "title": "Article 1",
-                                    "body_text": "First content. Second sentence. Third.",
+                                    "body_text": "First. Second. Third.",
                                 }
                             ]
                         },
@@ -297,8 +297,8 @@ class TestPushOptimizeWorkflow:
                     {
                         "name": "truncate_for_push",
                         "arguments": {
-                            "title": "A very long article title that needs truncation for push",
-                            "body_text": "Detailed content. Multiple sentences. Important info.",
+                            "title": "A long article title needing truncation for push",
+                            "body_text": "Detailed content. Multiple sentences here.",
                         },
                         "id": "tc-1",
                     }

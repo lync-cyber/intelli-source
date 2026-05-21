@@ -11,8 +11,9 @@ import json
 
 import pytest
 import yaml
-from intellisource.config.validator import ConfigValidator
 from pydantic import ValidationError
+
+from intellisource.config.validator import ConfigValidator
 
 # ---------------------------------------------------------------------------
 # Fixtures

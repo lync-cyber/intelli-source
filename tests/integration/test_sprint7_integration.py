@@ -2,92 +2,21 @@
 
 Covers AC-T063-1 through AC-T063-7 with real cross-module paths.
 AC-T063-8 and AC-T063-9 are verified via external commands (see task summary).
+
+Tests in TestLLMStatsEndpoint, TestClustersEndpoint, and
+TestTaskChainRepositoryCRUD now use pg_session / pg_container fixtures from
+conftest.py and skip automatically when Docker is unavailable.
 """
 
 from __future__ import annotations
 
 import uuid
-from typing import Any
+from contextlib import asynccontextmanager
+from typing import Any, AsyncIterator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from sqlalchemy import JSON, Text, event
-from sqlalchemy.dialects.sqlite.base import SQLiteTypeCompiler
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
-from intellisource.storage.models import Base
-
-# ---------------------------------------------------------------------------
-# Patch JSONB → JSON for SQLite (mirrors tests/unit/storage/conftest.py)
-# ---------------------------------------------------------------------------
-
-if not hasattr(SQLiteTypeCompiler, "_visit_jsonb_patched"):
-    _original_visit_jsonb = getattr(SQLiteTypeCompiler, "visit_JSONB", None)
-    if _original_visit_jsonb is None:
-
-        def _visit_jsonb(self: Any, type_: Any, **kw: Any) -> str:  # type: ignore[misc]
-            return self.visit_JSON(JSON(), **kw)
-
-        SQLiteTypeCompiler.visit_JSONB = _visit_jsonb  # type: ignore[attr-defined]
-    SQLiteTypeCompiler._visit_jsonb_patched = True  # type: ignore[attr-defined]
-
-# ---------------------------------------------------------------------------
-# Shared SQLite in-memory DB helpers (reused across test classes)
-# ---------------------------------------------------------------------------
-
-SQLITE_TEST_URL = "sqlite+aiosqlite:///:memory:"
-
-
-def _remove_pg_only_indexes() -> None:
-    """Strip PostgreSQL-specific indexes from metadata so SQLite can create tables."""
-    for table in Base.metadata.tables.values():
-        to_drop = []
-        for idx in table.indexes:
-            pg = getattr(idx, "dialect_options", {}).get("postgresql", {})
-            if pg.get("using") or pg.get("ops"):
-                to_drop.append(idx)
-        for idx in to_drop:
-            table.indexes.discard(idx)
-
-
-def _patch_vector_columns() -> None:
-    """Replace pgvector Vector columns with Text so SQLite can handle them."""
-    for table in Base.metadata.tables.values():
-        for col in table.columns:
-            if type(col.type).__name__ == "Vector":
-                col.type = Text()
-
-
-def _set_sqlite_fk_pragma(dbapi_conn: Any, _connection_record: Any) -> None:
-    cursor = dbapi_conn.cursor()
-    cursor.execute("PRAGMA foreign_keys=ON")
-    cursor.close()
-
-
-@pytest.fixture(scope="function")
-async def sqlite_engine():
-    """Async SQLite in-memory engine with all tables created."""
-    eng = create_async_engine(SQLITE_TEST_URL, echo=False)
-    event.listen(eng.sync_engine, "connect", _set_sqlite_fk_pragma)
-    _remove_pg_only_indexes()
-    _patch_vector_columns()
-    async with eng.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield eng
-    async with eng.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-    await eng.dispose()
-
-
-@pytest.fixture(scope="function")
-async def db_session(sqlite_engine):
-    """Yield a committed-per-test AsyncSession backed by SQLite."""
-    factory = async_sessionmaker(
-        bind=sqlite_engine, class_=AsyncSession, expire_on_commit=False
-    )
-    async with factory() as sess:
-        yield sess
-
 
 # ===========================================================================
 # AC-T063-1: LLM retry + fallback end-to-end
@@ -418,23 +347,51 @@ class TestAgentRunnerCompaction:
 
 
 # ===========================================================================
+# Shared helper: build a DatabaseManager-shaped object from a pg_container URL
+# ===========================================================================
+
+
+def _make_pg_db_manager(pg_url: str) -> Any:
+    """Return a DatabaseManager-shaped object backed by a PostgreSQL engine.
+
+    Uses the pg_container asyncpg URL to create a fresh engine + session_factory
+    for each request, mirroring the FastAPI lifespan pattern.
+    """
+    engine = create_async_engine(pg_url, echo=False)
+    session_factory = async_sessionmaker(
+        bind=engine, class_=AsyncSession, expire_on_commit=False
+    )
+
+    class _PgDB:
+        @asynccontextmanager
+        async def get_session(self) -> AsyncIterator[AsyncSession]:
+            async with session_factory() as sess:
+                yield sess
+
+        async def close(self) -> None:
+            await engine.dispose()
+
+    return _PgDB()
+
+
+# ===========================================================================
 # AC-T063-5: GET /api/v1/llm/stats with real DB session
 # ===========================================================================
 
 
 class TestLLMStatsEndpoint:
-    """AC-T063-5: /api/v1/llm/stats integration test using in-memory SQLite."""
+    """AC-T063-5: /api/v1/llm/stats integration test using PostgreSQL."""
 
     @pytest.mark.asyncio
     async def test_llm_stats_empty_db_returns_zero_aggregates(
-        self, sqlite_engine: Any
+        self, pg_session: AsyncSession, pg_container: str
     ) -> None:
         """With no LLMCallLog rows, /llm/stats returns total_calls=0 and empty lists."""
         from httpx import ASGITransport, AsyncClient
 
         from intellisource.main import create_app
 
-        mock_db = _make_db_manager_for_engine(sqlite_engine)
+        mock_db = _make_pg_db_manager(pg_container)
 
         with patch("intellisource.main.DatabaseManager", return_value=mock_db):
             app = create_app()
@@ -454,7 +411,7 @@ class TestLLMStatsEndpoint:
 
     @pytest.mark.asyncio
     async def test_llm_stats_with_records_returns_aggregated_fields(
-        self, sqlite_engine: Any
+        self, pg_session: AsyncSession, pg_container: str
     ) -> None:
         """After inserting LLMCallLog rows, stats endpoint returns correct
         aggregates."""
@@ -465,41 +422,41 @@ class TestLLMStatsEndpoint:
         from intellisource.main import create_app
         from intellisource.storage.models import LLMCallLog
 
-        # Insert two log rows directly via engine
-        async with sqlite_engine.begin() as conn:
-            await conn.execute(
-                LLMCallLog.__table__.insert(),
-                [
-                    {
-                        "id": uuid.uuid4(),
-                        "model": "gpt-4o-mini",
-                        "provider": "openai",
-                        "call_type": "summarize",
-                        "input_tokens": 100,
-                        "output_tokens": 50,
-                        "latency_ms": 200,
-                        "input_length": 400,
-                        "output_length": 200,
-                        "status": "success",
-                        "created_at": datetime.now(timezone.utc),
-                    },
-                    {
-                        "id": uuid.uuid4(),
-                        "model": "gpt-4o-mini",
-                        "provider": "openai",
-                        "call_type": "extract",
-                        "input_tokens": 200,
-                        "output_tokens": 100,
-                        "latency_ms": 400,
-                        "input_length": 800,
-                        "output_length": 400,
-                        "status": "success",
-                        "created_at": datetime.now(timezone.utc),
-                    },
-                ],
-            )
+        # Insert two log rows via pg_session
+        await pg_session.execute(
+            LLMCallLog.__table__.insert(),
+            [
+                {
+                    "id": uuid.uuid4(),
+                    "model": "gpt-4o-mini",
+                    "provider": "openai",
+                    "call_type": "summarize",
+                    "input_tokens": 100,
+                    "output_tokens": 50,
+                    "latency_ms": 200,
+                    "input_length": 400,
+                    "output_length": 200,
+                    "status": "success",
+                    "created_at": datetime.now(timezone.utc),
+                },
+                {
+                    "id": uuid.uuid4(),
+                    "model": "gpt-4o-mini",
+                    "provider": "openai",
+                    "call_type": "extract",
+                    "input_tokens": 200,
+                    "output_tokens": 100,
+                    "latency_ms": 400,
+                    "input_length": 800,
+                    "output_length": 400,
+                    "status": "success",
+                    "created_at": datetime.now(timezone.utc),
+                },
+            ],
+        )
+        await pg_session.flush()
 
-        mock_db = _make_db_manager_for_engine(sqlite_engine)
+        mock_db = _make_pg_db_manager(pg_container)
 
         with patch("intellisource.main.DatabaseManager", return_value=mock_db):
             app = create_app()
@@ -526,18 +483,18 @@ class TestLLMStatsEndpoint:
 
 
 class TestClustersEndpoint:
-    """AC-T063-6: /api/v1/clusters integration with real SQLite + ClusterRepository."""
+    """AC-T063-6: /api/v1/clusters integration with PostgreSQL + ClusterRepository."""
 
     @pytest.mark.asyncio
     async def test_clusters_empty_db_returns_empty_list(
-        self, sqlite_engine: Any
+        self, pg_session: AsyncSession, pg_container: str
     ) -> None:
         """No clusters in DB → items=[], next_cursor=null, has_more=false."""
         from httpx import ASGITransport, AsyncClient
 
         from intellisource.main import create_app
 
-        mock_db = _make_db_manager_for_engine(sqlite_engine)
+        mock_db = _make_pg_db_manager(pg_container)
 
         with patch("intellisource.main.DatabaseManager", return_value=mock_db):
             app = create_app()
@@ -555,20 +512,14 @@ class TestClustersEndpoint:
 
     @pytest.mark.asyncio
     async def test_clusters_with_tag_filter_returns_only_matching(
-        self, sqlite_engine: Any
+        self, pg_session: AsyncSession, pg_container: str
     ) -> None:
         """tag filter route parameter is accepted; ClusterRepository.list_clusters
-        wires the tag to a JSONB contains() query (PG-only @> operator).
+        wires the tag to a JSONB contains() query (PG @> operator).
 
-        In this SQLite integration test we verify:
-        - the endpoint returns 200 when no tag filter is applied (no-filter path),
-        - the list_clusters route correctly forwards the ``tag`` kwarg to the repo
-          by mocking ClusterRepository and asserting call arguments.
-
-        The actual JSONB @> filtering is only exercisable against PostgreSQL.
+        Verifies the endpoint returns 200 when no tag filter is applied and
+        that list_clusters is called with tag='ai' when that param is passed.
         """
-        from datetime import datetime, timezone
-        from unittest.mock import AsyncMock, patch
 
         from httpx import ASGITransport, AsyncClient
 
@@ -576,22 +527,17 @@ class TestClustersEndpoint:
         from intellisource.storage.models import ContentCluster
 
         cluster_id = uuid.uuid4()
-        async with sqlite_engine.begin() as conn:
-            await conn.execute(
-                ContentCluster.__table__.insert(),
-                [
-                    {
-                        "id": cluster_id,
-                        "topic": "AI News",
-                        "tags": '["ai", "tech"]',
-                        "content_count": 5,
-                        "status": "active",
-                        "created_at": datetime.now(timezone.utc),
-                    },
-                ],
-            )
+        cluster = ContentCluster(
+            id=cluster_id,
+            topic="AI News",
+            tags=["ai", "tech"],
+            content_count=5,
+            status="active",
+        )
+        pg_session.add(cluster)
+        await pg_session.flush()
 
-        mock_db = _make_db_manager_for_engine(sqlite_engine)
+        mock_db = _make_pg_db_manager(pg_container)
         fake_return = {"items": [], "next_cursor": None, "has_more": False}
         mock_list = AsyncMock(return_value=fake_return)
 
@@ -618,31 +564,28 @@ class TestClustersEndpoint:
         assert call_kwargs.get("tag") == "ai"
 
     @pytest.mark.asyncio
-    async def test_clusters_limit_controls_page_size(self, sqlite_engine: Any) -> None:
+    async def test_clusters_limit_controls_page_size(
+        self, pg_session: AsyncSession, pg_container: str
+    ) -> None:
         """limit parameter caps the number of returned items."""
-        from datetime import datetime, timezone
-
         from httpx import ASGITransport, AsyncClient
 
         from intellisource.main import create_app
         from intellisource.storage.models import ContentCluster
 
-        now = datetime.now(timezone.utc)
-        rows = [
-            {
-                "id": uuid.uuid4(),
-                "topic": f"Topic {i}",
-                "tags": "[]",
-                "content_count": i,
-                "status": "active",
-                "created_at": now,
-            }
-            for i in range(5)
-        ]
-        async with sqlite_engine.begin() as conn:
-            await conn.execute(ContentCluster.__table__.insert(), rows)
+        for i in range(5):
+            pg_session.add(
+                ContentCluster(
+                    id=uuid.uuid4(),
+                    topic=f"Topic {i}",
+                    tags=[],
+                    content_count=i,
+                    status="active",
+                )
+            )
+        await pg_session.flush()
 
-        mock_db = _make_db_manager_for_engine(sqlite_engine)
+        mock_db = _make_pg_db_manager(pg_container)
 
         with patch("intellisource.main.DatabaseManager", return_value=mock_db):
             app = create_app()
@@ -661,14 +604,14 @@ class TestClustersEndpoint:
 
     @pytest.mark.asyncio
     async def test_clusters_invalid_cursor_returns_400(
-        self, sqlite_engine: Any
+        self, pg_session: AsyncSession, pg_container: str
     ) -> None:
         """An invalid cursor string (not UUID) must return HTTP 400."""
         from httpx import ASGITransport, AsyncClient
 
         from intellisource.main import create_app
 
-        mock_db = _make_db_manager_for_engine(sqlite_engine)
+        mock_db = _make_pg_db_manager(pg_container)
 
         with patch("intellisource.main.DatabaseManager", return_value=mock_db):
             app = create_app()
@@ -682,34 +625,28 @@ class TestClustersEndpoint:
 
     @pytest.mark.asyncio
     async def test_clusters_per_item_fields_match_api016(
-        self, sqlite_engine: Any
+        self, pg_session: AsyncSession, pg_container: str
     ) -> None:
         """Each cluster item has arch API-016 fields:
         id/topic/tags/content_count/digest/created_at/updated_at."""
-        from datetime import datetime, timezone
-
         from httpx import ASGITransport, AsyncClient
 
         from intellisource.main import create_app
         from intellisource.storage.models import ContentCluster
 
         cluster_id = uuid.uuid4()
-        async with sqlite_engine.begin() as conn:
-            await conn.execute(
-                ContentCluster.__table__.insert(),
-                [
-                    {
-                        "id": cluster_id,
-                        "topic": "Integration Test",
-                        "tags": '["test"]',
-                        "content_count": 1,
-                        "status": "active",
-                        "created_at": datetime.now(timezone.utc),
-                    }
-                ],
+        pg_session.add(
+            ContentCluster(
+                id=cluster_id,
+                topic="Integration Test",
+                tags=["test"],
+                content_count=1,
+                status="active",
             )
+        )
+        await pg_session.flush()
 
-        mock_db = _make_db_manager_for_engine(sqlite_engine)
+        mock_db = _make_pg_db_manager(pg_container)
 
         with patch("intellisource.main.DatabaseManager", return_value=mock_db):
             app = create_app()
@@ -741,16 +678,16 @@ class TestClustersEndpoint:
 
 
 class TestTaskChainRepositoryCRUD:
-    """AC-T063-7: TaskChainRepository create/get/update_status across a real DB
-    session."""
+    """AC-T063-7: TaskChainRepository create/get/update_status across a real
+    PostgreSQL session (pg_session fixture)."""
 
     @pytest.mark.asyncio
-    async def test_create_and_get_roundtrip(self, db_session: AsyncSession) -> None:
+    async def test_create_and_get_roundtrip(self, pg_session: AsyncSession) -> None:
         """create() persists a TaskChain; get() retrieves it with all fields intact."""
         from intellisource.storage.models import TaskChain
         from intellisource.storage.repositories.task_chain import TaskChainRepository
 
-        repo = TaskChainRepository(db_session)
+        repo = TaskChainRepository(pg_session)
         chain_id = uuid.uuid4()
         chain = TaskChain(
             id=chain_id,
@@ -763,7 +700,7 @@ class TestTaskChainRepositoryCRUD:
         )
 
         created = await repo.create(chain)
-        await db_session.commit()
+        await pg_session.flush()
 
         fetched = await repo.get(str(chain_id))
 
@@ -775,12 +712,12 @@ class TestTaskChainRepositoryCRUD:
         assert fetched.total_steps == 4
 
     @pytest.mark.asyncio
-    async def test_update_status_reflects_in_db(self, db_session: AsyncSession) -> None:
+    async def test_update_status_reflects_in_db(self, pg_session: AsyncSession) -> None:
         """update_status() changes the status field that is subsequently readable."""
         from intellisource.storage.models import TaskChain
         from intellisource.storage.repositories.task_chain import TaskChainRepository
 
-        repo = TaskChainRepository(db_session)
+        repo = TaskChainRepository(pg_session)
         chain_id = uuid.uuid4()
         chain = TaskChain(
             id=chain_id,
@@ -792,10 +729,10 @@ class TestTaskChainRepositoryCRUD:
             completed_steps=0,
         )
         await repo.create(chain)
-        await db_session.commit()
+        await pg_session.flush()
 
         await repo.update_status(str(chain_id), "running")
-        await db_session.commit()
+        await pg_session.flush()
 
         fetched = await repo.get(str(chain_id))
         assert fetched is not None
@@ -803,55 +740,23 @@ class TestTaskChainRepositoryCRUD:
 
     @pytest.mark.asyncio
     async def test_get_returns_none_for_missing_id(
-        self, db_session: AsyncSession
+        self, pg_session: AsyncSession
     ) -> None:
         """get() returns None for a random UUID that was never persisted."""
         from intellisource.storage.repositories.task_chain import TaskChainRepository
 
-        repo = TaskChainRepository(db_session)
+        repo = TaskChainRepository(pg_session)
         result = await repo.get(str(uuid.uuid4()))
 
         assert result is None
 
     @pytest.mark.asyncio
     async def test_update_status_missing_id_does_not_raise(
-        self, db_session: AsyncSession
+        self, pg_session: AsyncSession
     ) -> None:
         """update_status() on a non-existent ID completes without raising."""
         from intellisource.storage.repositories.task_chain import TaskChainRepository
 
-        repo = TaskChainRepository(db_session)
+        repo = TaskChainRepository(pg_session)
         await repo.update_status(str(uuid.uuid4()), "failed")
         # No exception means pass
-
-
-# ===========================================================================
-# Shared helpers
-# ===========================================================================
-
-
-def _make_db_manager_for_engine(engine: Any) -> Any:
-    """Return a DatabaseManager-shaped object backed by the given async engine.
-
-    This bridges the integration tests to the FastAPI lifespan which calls
-    app.state.db.get_session() for every request.
-    """
-    from contextlib import asynccontextmanager
-    from typing import AsyncIterator
-
-    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-
-    session_factory = async_sessionmaker(
-        bind=engine, class_=AsyncSession, expire_on_commit=False
-    )
-
-    class _FakeDB:
-        @asynccontextmanager
-        async def get_session(self) -> AsyncIterator[AsyncSession]:
-            async with session_factory() as sess:
-                yield sess
-
-        async def close(self) -> None:
-            await engine.dispose()
-
-    return _FakeDB()

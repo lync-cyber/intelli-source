@@ -168,3 +168,9 @@
 {"ts": "2026-05-05T02:02:38+00:00", "event": "user_decision", "phase": "pre_deploy_checkpoint", "detail": "用户选择 (A) inline 修 R-007 后结束本会话；下次会话直接进入 tdd-engine 编排 T-080→T-081→T-082"}
 {"ts": "2026-05-05T02:02:38+00:00", "event": "state_change", "phase": "pre_deploy_checkpoint", "detail": "CLAUDE.md 状态更新：sprint-7r dev-plan status=approved；当前 Sprint=sprint-7r (计划 approved 待执行)；下一步行动锁定为下次会话 tdd-engine T-080→T-081→T-082；未推进阶段 (仍在 pre_deploy_checkpoint HOLD)"}
 {"ts": "2026-05-05T02:02:38+00:00", "event": "session_end", "phase": "pre_deploy_checkpoint", "detail": "本会话结束 (用户原定 'tech-lead 和 reviewer 完成后结束本次对话'，含 1 轮 revision)；接续点：下次会话从 tdd-engine 编排 sprint-7r 任务执行开始"}
+{"ts": "2026-05-21T06:35:14+00:00", "event": "phase_start", "phase": "development", "detail": "sprint-7r 启动: T-080 → T-081 → T-082 线性执行"}
+{"ts": "2026-05-21T06:41:46+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD LIGHT-DISPATCH: T-080"}
+{"ts": "2026-05-21T06:51:24+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD RED: T-081"}
+{"ts": "2026-05-21T06:57:07+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD GREEN: T-081"}
+{"ts": "2026-05-21T07:09:30+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD SKIP (chore): T-082"}
+{"ts": "2026-05-21T07:31:24+00:00", "event": "tdd_phase", "phase": "development", "detail": "T-082 done: ruff 0 violations + pytest 1854 passed"}

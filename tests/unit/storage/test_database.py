@@ -147,15 +147,16 @@ class TestDatabaseManagerEnvConfig:
             await manager.close()
 
     @pytest.mark.asyncio
-    async def test_missing_url_raises_error(self) -> None:
-        """Instantiating without URL and without IS_DATABASE_URL must raise."""
+    async def test_missing_url_uses_dev_fallback(self) -> None:
+        """No URL env vars and no ENV set results in sqlite dev fallback."""
         from intellisource.storage.database import DatabaseManager
 
         with patch.dict(os.environ, {}, clear=True):
-            # Remove IS_DATABASE_URL if present
-            os.environ.pop("IS_DATABASE_URL", None)
-            with pytest.raises((ValueError, Exception)):
-                DatabaseManager()
+            manager = DatabaseManager()
+            assert (
+                str(manager.engine.url) == "sqlite+aiosqlite:///./intellisource_dev.db"
+            )
+            await manager.close()
 
 
 # ===========================================================================

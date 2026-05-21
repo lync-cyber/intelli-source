@@ -24,7 +24,7 @@ class TestMetricsCollectorImport:
         assert MetricsCollector is not None
 
     def test_metrics_collector_is_instantiable(self) -> None:
-        """MetricsCollector must be instantiable (or obtainable via factory/singleton)."""
+        """MetricsCollector must be instantiable (or obtainable via factory)."""
         from intellisource.observability.metrics import MetricsCollector
 
         collector = MetricsCollector()

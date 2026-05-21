@@ -13,6 +13,7 @@ from typing import Any, Callable
 from unittest.mock import AsyncMock
 
 import pytest
+
 from intellisource.llm.fallback import FallbackManager
 
 # ---------------------------------------------------------------------------
@@ -86,7 +87,7 @@ class TestFallbackSwitchTime:
     ) -> None:
         """Fallback + log recording combined should still be < 500ms."""
         start = time.monotonic()
-        result = await manager.execute_fallback(
+        await manager.execute_fallback(
             task_type="summary_generation",
             input_data="A long article text " * 50,
         )
@@ -185,7 +186,10 @@ class TestFallbackMappingTable:
 
     def test_register_new_fallback(self, manager: FallbackManager) -> None:
         """It should be possible to register additional fallback functions."""
-        custom_fn = lambda x: x
+
+        def custom_fn(x):
+            return x
+
         manager.register_fallback("custom_task", custom_fn)
         assert "custom_task" in manager.fallback_registry
 

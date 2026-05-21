@@ -67,17 +67,17 @@ class TestRealtimeMode:
     """Realtime subscriptions should always send immediately."""
 
     def test_realtime_should_send_now(self):
-        FrequencyController, _ = _import_frequency()
+        controller_cls, _ = _import_frequency()
         clock = FakeClock(datetime(2026, 4, 8, 14, 30, tzinfo=timezone.utc))
-        ctrl = FrequencyController(clock=clock)
+        ctrl = controller_cls(clock=clock)
         sub = StubSubscription(frequency="realtime")
 
         assert ctrl.should_send_now(sub) is True
 
     def test_realtime_not_affected_by_last_sent(self):
-        FrequencyController, _ = _import_frequency()
+        controller_cls, _ = _import_frequency()
         clock = FakeClock(datetime(2026, 4, 8, 14, 30, tzinfo=timezone.utc))
-        ctrl = FrequencyController(clock=clock)
+        ctrl = controller_cls(clock=clock)
         sub = StubSubscription(
             frequency="realtime",
             last_sent_at=datetime(2026, 4, 8, 14, 29, tzinfo=timezone.utc),
@@ -87,9 +87,9 @@ class TestRealtimeMode:
 
     def test_realtime_is_not_in_quiet_hours(self):
         """Realtime mode ignores quiet hours per AC-T035-4."""
-        FrequencyController, _ = _import_frequency()
+        controller_cls, _ = _import_frequency()
         clock = FakeClock(datetime(2026, 4, 8, 23, 0, tzinfo=timezone.utc))
-        ctrl = FrequencyController(clock=clock)
+        ctrl = controller_cls(clock=clock)
         sub = StubSubscription(
             frequency="realtime",
             quiet_hours={"start": "22:00", "end": "08:00"},
@@ -108,18 +108,18 @@ class TestHourlyFrequency:
     """Hourly subscriptions should send at most once per hour."""
 
     def test_hourly_should_send_when_never_sent(self):
-        FrequencyController, _ = _import_frequency()
+        controller_cls, _ = _import_frequency()
         clock = FakeClock(datetime(2026, 4, 8, 14, 30, tzinfo=timezone.utc))
-        ctrl = FrequencyController(clock=clock)
+        ctrl = controller_cls(clock=clock)
         sub = StubSubscription(frequency="hourly", last_sent_at=None)
 
         assert ctrl.should_send_now(sub) is True
 
     def test_hourly_should_not_send_within_hour(self):
-        FrequencyController, _ = _import_frequency()
+        controller_cls, _ = _import_frequency()
         now = datetime(2026, 4, 8, 14, 30, tzinfo=timezone.utc)
         clock = FakeClock(now)
-        ctrl = FrequencyController(clock=clock)
+        ctrl = controller_cls(clock=clock)
         sub = StubSubscription(
             frequency="hourly",
             last_sent_at=now - timedelta(minutes=30),
@@ -128,10 +128,10 @@ class TestHourlyFrequency:
         assert ctrl.should_send_now(sub) is False
 
     def test_hourly_should_send_after_one_hour(self):
-        FrequencyController, _ = _import_frequency()
+        controller_cls, _ = _import_frequency()
         now = datetime(2026, 4, 8, 14, 30, tzinfo=timezone.utc)
         clock = FakeClock(now)
-        ctrl = FrequencyController(clock=clock)
+        ctrl = controller_cls(clock=clock)
         sub = StubSubscription(
             frequency="hourly",
             last_sent_at=now - timedelta(hours=1, seconds=1),
@@ -144,10 +144,10 @@ class TestDailyFrequency:
     """Daily subscriptions should send at most once per day."""
 
     def test_daily_should_not_send_within_day(self):
-        FrequencyController, _ = _import_frequency()
+        controller_cls, _ = _import_frequency()
         now = datetime(2026, 4, 8, 14, 0, tzinfo=timezone.utc)
         clock = FakeClock(now)
-        ctrl = FrequencyController(clock=clock)
+        ctrl = controller_cls(clock=clock)
         sub = StubSubscription(
             frequency="daily",
             last_sent_at=now - timedelta(hours=12),
@@ -156,10 +156,10 @@ class TestDailyFrequency:
         assert ctrl.should_send_now(sub) is False
 
     def test_daily_should_send_after_24h(self):
-        FrequencyController, _ = _import_frequency()
+        controller_cls, _ = _import_frequency()
         now = datetime(2026, 4, 8, 14, 0, tzinfo=timezone.utc)
         clock = FakeClock(now)
-        ctrl = FrequencyController(clock=clock)
+        ctrl = controller_cls(clock=clock)
         sub = StubSubscription(
             frequency="daily",
             last_sent_at=now - timedelta(hours=24, seconds=1),
@@ -172,10 +172,10 @@ class TestWeeklyFrequency:
     """Weekly subscriptions should send at most once per week."""
 
     def test_weekly_should_not_send_within_week(self):
-        FrequencyController, _ = _import_frequency()
+        controller_cls, _ = _import_frequency()
         now = datetime(2026, 4, 8, 14, 0, tzinfo=timezone.utc)
         clock = FakeClock(now)
-        ctrl = FrequencyController(clock=clock)
+        ctrl = controller_cls(clock=clock)
         sub = StubSubscription(
             frequency="weekly",
             last_sent_at=now - timedelta(days=3),
@@ -184,10 +184,10 @@ class TestWeeklyFrequency:
         assert ctrl.should_send_now(sub) is False
 
     def test_weekly_should_send_after_seven_days(self):
-        FrequencyController, _ = _import_frequency()
+        controller_cls, _ = _import_frequency()
         now = datetime(2026, 4, 8, 14, 0, tzinfo=timezone.utc)
         clock = FakeClock(now)
-        ctrl = FrequencyController(clock=clock)
+        ctrl = controller_cls(clock=clock)
         sub = StubSubscription(
             frequency="weekly",
             last_sent_at=now - timedelta(days=7, seconds=1),
@@ -197,10 +197,10 @@ class TestWeeklyFrequency:
 
     def test_weekly_boundary_exactly_seven_days(self):
         """At exactly 7 days, should allow sending."""
-        FrequencyController, _ = _import_frequency()
+        controller_cls, _ = _import_frequency()
         now = datetime(2026, 4, 8, 14, 0, tzinfo=timezone.utc)
         clock = FakeClock(now)
-        ctrl = FrequencyController(clock=clock)
+        ctrl = controller_cls(clock=clock)
         sub = StubSubscription(
             frequency="weekly",
             last_sent_at=now - timedelta(days=7),
@@ -218,10 +218,10 @@ class TestQuietHours:
     """Quiet hours should block non-realtime pushes."""
 
     def test_within_quiet_hours(self):
-        FrequencyController, _ = _import_frequency()
+        controller_cls, _ = _import_frequency()
         # 23:00 is within 22:00-08:00 quiet window
         clock = FakeClock(datetime(2026, 4, 8, 23, 0, tzinfo=timezone.utc))
-        ctrl = FrequencyController(clock=clock)
+        ctrl = controller_cls(clock=clock)
         sub = StubSubscription(
             frequency="hourly",
             quiet_hours={"start": "22:00", "end": "08:00"},
@@ -230,10 +230,10 @@ class TestQuietHours:
         assert ctrl.is_quiet_hours(sub) is True
 
     def test_outside_quiet_hours(self):
-        FrequencyController, _ = _import_frequency()
+        controller_cls, _ = _import_frequency()
         # 14:00 is outside 22:00-08:00 quiet window
         clock = FakeClock(datetime(2026, 4, 8, 14, 0, tzinfo=timezone.utc))
-        ctrl = FrequencyController(clock=clock)
+        ctrl = controller_cls(clock=clock)
         sub = StubSubscription(
             frequency="hourly",
             quiet_hours={"start": "22:00", "end": "08:00"},
@@ -243,9 +243,9 @@ class TestQuietHours:
 
     def test_quiet_hours_cross_midnight_early_morning(self):
         """03:00 should be within 22:00-08:00 quiet window (crosses midnight)."""
-        FrequencyController, _ = _import_frequency()
+        controller_cls, _ = _import_frequency()
         clock = FakeClock(datetime(2026, 4, 8, 3, 0, tzinfo=timezone.utc))
-        ctrl = FrequencyController(clock=clock)
+        ctrl = controller_cls(clock=clock)
         sub = StubSubscription(
             frequency="daily",
             quiet_hours={"start": "22:00", "end": "08:00"},
@@ -255,9 +255,9 @@ class TestQuietHours:
 
     def test_quiet_hours_at_boundary_start(self):
         """Exactly at start time should be in quiet hours."""
-        FrequencyController, _ = _import_frequency()
+        controller_cls, _ = _import_frequency()
         clock = FakeClock(datetime(2026, 4, 8, 22, 0, tzinfo=timezone.utc))
-        ctrl = FrequencyController(clock=clock)
+        ctrl = controller_cls(clock=clock)
         sub = StubSubscription(
             frequency="hourly",
             quiet_hours={"start": "22:00", "end": "08:00"},
@@ -267,9 +267,9 @@ class TestQuietHours:
 
     def test_quiet_hours_at_boundary_end(self):
         """Exactly at end time should NOT be in quiet hours."""
-        FrequencyController, _ = _import_frequency()
+        controller_cls, _ = _import_frequency()
         clock = FakeClock(datetime(2026, 4, 8, 8, 0, tzinfo=timezone.utc))
-        ctrl = FrequencyController(clock=clock)
+        ctrl = controller_cls(clock=clock)
         sub = StubSubscription(
             frequency="hourly",
             quiet_hours={"start": "22:00", "end": "08:00"},
@@ -279,18 +279,18 @@ class TestQuietHours:
 
     def test_no_quiet_hours_configured(self):
         """Empty quiet_hours means no quiet period."""
-        FrequencyController, _ = _import_frequency()
+        controller_cls, _ = _import_frequency()
         clock = FakeClock(datetime(2026, 4, 8, 23, 0, tzinfo=timezone.utc))
-        ctrl = FrequencyController(clock=clock)
+        ctrl = controller_cls(clock=clock)
         sub = StubSubscription(frequency="hourly", quiet_hours={})
 
         assert ctrl.is_quiet_hours(sub) is False
 
     def test_quiet_hours_same_day_range(self):
         """Non-crossing midnight range: 09:00-17:00."""
-        FrequencyController, _ = _import_frequency()
+        controller_cls, _ = _import_frequency()
         clock = FakeClock(datetime(2026, 4, 8, 12, 0, tzinfo=timezone.utc))
-        ctrl = FrequencyController(clock=clock)
+        ctrl = controller_cls(clock=clock)
         sub = StubSubscription(
             frequency="hourly",
             quiet_hours={"start": "09:00", "end": "17:00"},
@@ -300,9 +300,9 @@ class TestQuietHours:
 
     def test_should_send_blocked_by_quiet_hours(self):
         """Even if frequency allows sending, quiet hours should block."""
-        FrequencyController, _ = _import_frequency()
+        controller_cls, _ = _import_frequency()
         clock = FakeClock(datetime(2026, 4, 8, 23, 30, tzinfo=timezone.utc))
-        ctrl = FrequencyController(clock=clock)
+        ctrl = controller_cls(clock=clock)
         sub = StubSubscription(
             frequency="hourly",
             quiet_hours={"start": "22:00", "end": "08:00"},
@@ -322,21 +322,21 @@ class TestGetNextSendTime:
     """get_next_send_time should return correct next window."""
 
     def test_realtime_next_send_is_now(self):
-        FrequencyController, _ = _import_frequency()
+        controller_cls, _ = _import_frequency()
         now = datetime(2026, 4, 8, 14, 0, tzinfo=timezone.utc)
         clock = FakeClock(now)
-        ctrl = FrequencyController(clock=clock)
+        ctrl = controller_cls(clock=clock)
         sub = StubSubscription(frequency="realtime")
 
         result = ctrl.get_next_send_time(sub)
         assert result == now
 
     def test_hourly_next_send_time(self):
-        FrequencyController, _ = _import_frequency()
+        controller_cls, _ = _import_frequency()
         now = datetime(2026, 4, 8, 14, 30, tzinfo=timezone.utc)
         last = datetime(2026, 4, 8, 14, 0, tzinfo=timezone.utc)
         clock = FakeClock(now)
-        ctrl = FrequencyController(clock=clock)
+        ctrl = controller_cls(clock=clock)
         sub = StubSubscription(frequency="hourly", last_sent_at=last)
 
         result = ctrl.get_next_send_time(sub)
@@ -344,11 +344,11 @@ class TestGetNextSendTime:
         assert result == expected
 
     def test_daily_next_send_time(self):
-        FrequencyController, _ = _import_frequency()
+        controller_cls, _ = _import_frequency()
         now = datetime(2026, 4, 8, 14, 0, tzinfo=timezone.utc)
         last = datetime(2026, 4, 7, 10, 0, tzinfo=timezone.utc)
         clock = FakeClock(now)
-        ctrl = FrequencyController(clock=clock)
+        ctrl = controller_cls(clock=clock)
         sub = StubSubscription(frequency="daily", last_sent_at=last)
 
         result = ctrl.get_next_send_time(sub)
@@ -357,11 +357,11 @@ class TestGetNextSendTime:
 
     def test_next_send_time_delayed_by_quiet_hours(self):
         """If next send falls in quiet hours, delay to quiet hours end."""
-        FrequencyController, _ = _import_frequency()
+        controller_cls, _ = _import_frequency()
         now = datetime(2026, 4, 8, 21, 30, tzinfo=timezone.utc)
         last = datetime(2026, 4, 8, 21, 0, tzinfo=timezone.utc)
         clock = FakeClock(now)
-        ctrl = FrequencyController(clock=clock)
+        ctrl = controller_cls(clock=clock)
         sub = StubSubscription(
             frequency="hourly",
             quiet_hours={"start": "22:00", "end": "08:00"},
@@ -374,10 +374,10 @@ class TestGetNextSendTime:
         assert result == quiet_end
 
     def test_next_send_never_sent_returns_now(self):
-        FrequencyController, _ = _import_frequency()
+        controller_cls, _ = _import_frequency()
         now = datetime(2026, 4, 8, 14, 0, tzinfo=timezone.utc)
         clock = FakeClock(now)
-        ctrl = FrequencyController(clock=clock)
+        ctrl = controller_cls(clock=clock)
         sub = StubSubscription(frequency="daily", last_sent_at=None)
 
         result = ctrl.get_next_send_time(sub)
@@ -393,8 +393,8 @@ class TestAggregatePending:
     """Non-realtime modes should aggregate content."""
 
     def test_aggregate_multiple_contents(self):
-        FrequencyController, _ = _import_frequency()
-        ctrl = FrequencyController()
+        controller_cls, _ = _import_frequency()
+        ctrl = controller_cls()
         sub_id = uuid.uuid4()
         contents = [
             {"id": "c1", "title": "Article 1"},
@@ -407,8 +407,8 @@ class TestAggregatePending:
         assert len(result) == 3
 
     def test_aggregate_empty_contents(self):
-        FrequencyController, _ = _import_frequency()
-        ctrl = FrequencyController()
+        controller_cls, _ = _import_frequency()
+        ctrl = controller_cls()
         sub_id = uuid.uuid4()
 
         result = ctrl.aggregate_pending(sub_id, [])
@@ -416,8 +416,8 @@ class TestAggregatePending:
 
     def test_aggregate_deduplicates_by_id(self):
         """Duplicate content IDs should be deduplicated."""
-        FrequencyController, _ = _import_frequency()
-        ctrl = FrequencyController()
+        controller_cls, _ = _import_frequency()
+        ctrl = controller_cls()
         sub_id = uuid.uuid4()
         contents = [
             {"id": "c1", "title": "Article 1"},
@@ -441,9 +441,9 @@ class TestFrequencyOptions:
     """FREQUENCY_OPTIONS constant should contain expected values."""
 
     def test_frequency_options_contains_all_modes(self):
-        _, FREQUENCY_OPTIONS = _import_frequency()
+        _, frequency_options = _import_frequency()
 
-        assert FREQUENCY_OPTIONS == {
+        assert frequency_options == {
             "realtime",
             "hourly",
             "daily",

@@ -248,7 +248,7 @@ class TestTfidfKeywords:
         """Returns space-separated top keywords excluding stop words."""
         result = await tfidf_keywords(
             "Machine Learning",
-            "machine learning is a subset of artificial intelligence and machine learning",
+            "machine learning is a subset of AI and machine learning",
         )
         assert "machine" in result.split()
         assert "learning" in result.split()
@@ -289,7 +289,7 @@ class TestTruncateSummary:
         contents = [
             {
                 "title": "First Doc",
-                "body_text": "Sentence one. Sentence two. Sentence three. Sentence four.",
+                "body_text": "Sentence one. Sentence two. Sentence three. Four.",
             },
         ]
         result = await truncate_summary(contents)

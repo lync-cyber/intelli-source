@@ -1,11 +1,12 @@
 """Tests for MiddlewareChain and BaseMiddleware (AC-T016-3, AC-T016-4).
 
 Covers:
-- AC-T016-3: PipelineEngine supports middleware chain pattern with process(ctx, next) onion model.
-- AC-T016-4: Middleware can execute pre/post processing around next(), supports nested composition.
+- AC-T016-3: PipelineEngine supports middleware chain — process(ctx, next) onion.
+- AC-T016-4: Middleware runs pre/post around next(); supports nested composition.
 """
 
 import pytest
+
 from intellisource.pipeline.context import PipelineContext
 from intellisource.pipeline.middleware import BaseMiddleware, MiddlewareChain
 
@@ -91,7 +92,7 @@ class TestMiddlewareChainBasic:
     """AC-T016-3: MiddlewareChain executes middlewares in onion model."""
 
     def test_empty_chain_passes_through(self):
-        """An empty middleware chain should pass context to the core handler unchanged."""
+        """An empty middleware chain passes context to the core handler unchanged."""
         called = []
 
         def core_handler(ctx):
@@ -143,7 +144,7 @@ class TestMiddlewareChainNesting:
     """AC-T016-4: Middleware supports nested composition with pre/post processing."""
 
     def test_nested_onion_order(self):
-        """Multiple middlewares should execute in onion order: outer-before, inner-before, core, inner-after, outer-after."""
+        """Onion order: outer-before, inner-before, core, inner-after, outer-after."""
 
         def core_handler(ctx):
             log = ctx.get("middleware_log", [])
@@ -200,7 +201,7 @@ class TestMiddlewareChainNesting:
         ]
 
     def test_middleware_modifies_context_before_and_after(self):
-        """Middleware should be able to modify context both before and after calling next."""
+        """Middleware can modify context both before and after calling next()."""
 
         def core_handler(ctx):
             # Core can see pre-processing

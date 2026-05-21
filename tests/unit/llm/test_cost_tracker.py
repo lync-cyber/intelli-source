@@ -14,8 +14,8 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from intellisource.llm.cost_tracker import CostTracker, LLMCallRecord
 
+from intellisource.llm.cost_tracker import CostTracker, LLMCallRecord
 from intellisource.storage.models import LLMCallLog
 
 # ---------------------------------------------------------------------------

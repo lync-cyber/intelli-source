@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
+
 from intellisource.collector.base import BaseCollector, RawContent
 
 # ---------------------------------------------------------------------------
@@ -190,7 +191,7 @@ class TestConditionalFetch:
 
         with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_response
-            result = await collector.conditional_fetch(
+            await collector.conditional_fetch(
                 url="https://example.com/feed",
                 last_modified="Wed, 01 Jan 2025 00:00:00 GMT",
             )

@@ -117,11 +117,10 @@ class TestWeChatDistributorImportAndInit:
 
     def test_inherits_base_distributor(self):
         """WeChatDistributor should inherit from BaseDistributor."""
+        from intellisource.distributor.base import BaseDistributor
         from intellisource.distributor.channels.wechat import (
             WeChatDistributor,
         )
-
-        from intellisource.distributor.base import BaseDistributor
 
         assert issubclass(WeChatDistributor, BaseDistributor)
 

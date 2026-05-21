@@ -198,7 +198,7 @@ async def search_client(search_app: FastAPI) -> AsyncClient:  # type: ignore[mis
 def subscriptions_app() -> FastAPI:
     if _SUBSCRIPTIONS_MISSING:
         pytest.fail(
-            "intellisource.api.routers.subscriptions not implemented: cannot import 'router'"
+            "intellisource.api.routers.subscriptions missing: cannot import 'router'"
         )
     application = FastAPI()
     application.include_router(subscriptions_router, prefix="/api/v1")
@@ -729,9 +729,7 @@ class TestLLMStatsEndpoint:
         assert isinstance(body["by_model"], list)
 
     @pytest.mark.asyncio
-    async def test_llm_stats_period_filter(
-        self, llm_client: AsyncClient
-    ) -> None:
+    async def test_llm_stats_period_filter(self, llm_client: AsyncClient) -> None:
         """GET /api/v1/llm/stats with period filter returns 200."""
         mock_repo = AsyncMock()
         mock_repo.get_stats.return_value = {
@@ -806,7 +804,9 @@ class TestSystemEndpoints:
         with patch(
             "intellisource.api.routers.system.get_metrics",
             new_callable=AsyncMock,
-            return_value="# HELP is_collect_total Total collections\nis_collect_total 42\n",
+            return_value=(
+                "# HELP is_collect_total Total collections\nis_collect_total 42\n"
+            ),  # noqa: E501
         ):
             resp = await system_client.get("/api/v1/metrics")
 

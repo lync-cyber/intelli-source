@@ -15,8 +15,8 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
-from intellisource.collector.adapters.web import WebCollector
 
+from intellisource.collector.adapters.web import WebCollector
 from intellisource.collector.base import BaseCollector, RawContent
 
 # ---------------------------------------------------------------------------

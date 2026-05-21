@@ -308,7 +308,7 @@ class TestTaskDetailEndpoint:
 
     @pytest.mark.asyncio
     async def test_get_task_detail_success(self, client: AsyncClient) -> None:
-        """GET /api/v1/tasks/{id} returns task with status, pipeline_name, execution_mode."""
+        """GET /api/v1/tasks/{id} returns task with status, pipeline_name, mode."""
         mock_repo = AsyncMock()
         task = _make_task_obj(pipeline_name="rss_pipeline", execution_mode="parallel")
         mock_repo.get_by_id.return_value = task
@@ -342,7 +342,7 @@ class TestTaskDetailEndpoint:
 
     @pytest.mark.asyncio
     async def test_get_task_includes_all_key_fields(self, client: AsyncClient) -> None:
-        """Response includes id, source_id, status, trigger_type, items_collected, created_at."""
+        """Response includes id, source_id, status, trigger_type, items, created_at."""
         mock_repo = AsyncMock()
         mock_repo.get_by_id.return_value = _make_task_obj()
 

@@ -94,7 +94,9 @@ def _make_task_chain(**overrides) -> TaskChain:
 class TestTaskChainRepositoryCreate:
     """AC-T074-1: create(task_chain) persists to DB and returns same-ID object."""
 
-    async def test_create_returns_task_chain_with_same_id(self, session: AsyncSession) -> None:
+    async def test_create_returns_task_chain_with_same_id(
+        self, session: AsyncSession
+    ) -> None:
         """create() must return a TaskChain whose id matches the input object."""
         from intellisource.storage.repositories.task_chain import TaskChainRepository
 
@@ -106,7 +108,9 @@ class TestTaskChainRepositoryCreate:
 
         assert result.id == original_id
 
-    async def test_create_persists_to_db_and_can_be_refetched(self, session: AsyncSession) -> None:
+    async def test_create_persists_to_db_and_can_be_refetched(
+        self, session: AsyncSession
+    ) -> None:
         """After create(), the record must be retrievable from the DB session."""
         from intellisource.storage.repositories.task_chain import TaskChainRepository
 
@@ -120,7 +124,9 @@ class TestTaskChainRepositoryCreate:
         assert fetched is not None
         assert fetched.pipeline_name == "persistence-check"
 
-    async def test_create_returns_task_chain_instance(self, session: AsyncSession) -> None:
+    async def test_create_returns_task_chain_instance(
+        self, session: AsyncSession
+    ) -> None:
         """create() must return a TaskChain instance, not None or a raw dict."""
         from intellisource.storage.repositories.task_chain import TaskChainRepository
 
@@ -140,7 +146,9 @@ class TestTaskChainRepositoryCreate:
 class TestTaskChainRepositoryGet:
     """AC-T074-2: get(chain_id) returns full TaskChain or None."""
 
-    async def test_get_returns_none_for_nonexistent_id(self, session: AsyncSession) -> None:
+    async def test_get_returns_none_for_nonexistent_id(
+        self, session: AsyncSession
+    ) -> None:
         """get() must return None when no record matches chain_id."""
         from intellisource.storage.repositories.task_chain import TaskChainRepository
 
@@ -151,7 +159,9 @@ class TestTaskChainRepositoryGet:
 
         assert result is None
 
-    async def test_get_returns_task_chain_with_all_fields(self, session: AsyncSession) -> None:
+    async def test_get_returns_task_chain_with_all_fields(
+        self, session: AsyncSession
+    ) -> None:
         """get() must return a TaskChain with all persisted field values intact."""
         from intellisource.storage.repositories.task_chain import TaskChainRepository
 
@@ -179,7 +189,9 @@ class TestTaskChainRepositoryGet:
         assert result.completed_steps == 2
         assert result.status == "running"
 
-    async def test_get_accepts_string_id_and_converts_to_uuid(self, session: AsyncSession) -> None:
+    async def test_get_accepts_string_id_and_converts_to_uuid(
+        self, session: AsyncSession
+    ) -> None:
         """get() must accept str chain_id and query by the UUID equivalent."""
         from intellisource.storage.repositories.task_chain import TaskChainRepository
 
@@ -203,7 +215,9 @@ class TestTaskChainRepositoryGet:
 class TestTaskChainRepositoryUpdateStatus:
     """AC-T074-3: update_status(chain_id, status) updates the status field."""
 
-    async def test_update_status_changes_status_field(self, session: AsyncSession) -> None:
+    async def test_update_status_changes_status_field(
+        self, session: AsyncSession
+    ) -> None:
         """update_status() must change the status of an existing TaskChain."""
         from intellisource.storage.repositories.task_chain import TaskChainRepository
 
@@ -218,8 +232,10 @@ class TestTaskChainRepositoryUpdateStatus:
         assert result is not None
         assert result.status == "running"
 
-    async def test_update_status_nonexistent_id_does_not_raise(self, session: AsyncSession) -> None:
-        """update_status() on a missing chain_id must not raise and must leave DB unchanged."""
+    async def test_update_status_nonexistent_id_does_not_raise(
+        self, session: AsyncSession
+    ) -> None:
+        """update_status() on a missing chain_id must not raise nor mutate DB."""
         from intellisource.storage.repositories.task_chain import TaskChainRepository
 
         repo = TaskChainRepository(session)
@@ -255,15 +271,15 @@ class TestTaskChainRepositoryUpdateStatus:
 
 
 # ---------------------------------------------------------------------------
-# AC-T074-4: scheduler/tasks.py must not have a module-level TaskChainRepository: Any = None
+# AC-T074-4: scheduler/tasks.py must not have module-level TaskChainRepository:Any=None
 # ---------------------------------------------------------------------------
 
 
 class TestSchedulerTasksNoAnyPlaceholder:
-    """AC-T074-4: TaskChainRepository: Any = None must be removed from scheduler/tasks.py."""
+    """AC-T074-4: `TaskChainRepository: Any = None` removed from scheduler/tasks.py."""
 
     def test_tasks_module_has_no_taskchainrepository_any_placeholder(self) -> None:
-        """scheduler/tasks.py must not expose TaskChainRepository as a module-level Any=None."""
+        """scheduler/tasks.py must not expose TaskChainRepository as module-level Any=None."""  # noqa: E501
         import intellisource.scheduler.tasks as tasks_module
 
         # The module-level name must either not exist at all, or when it exists
@@ -276,8 +292,9 @@ class TestSchedulerTasksNoAnyPlaceholder:
             )
 
     def test_tasks_module_source_contains_no_any_none_placeholder(self) -> None:
-        """The source file must not contain the literal 'TaskChainRepository: Any = None' line."""
+        """Source must not contain literal `TaskChainRepository: Any = None` line."""
         import inspect
+
         import intellisource.scheduler.tasks as tasks_module
 
         source = inspect.getsource(tasks_module)
@@ -288,16 +305,17 @@ class TestSchedulerTasksNoAnyPlaceholder:
 
 
 # ---------------------------------------------------------------------------
-# AC-T074-5: agent/runner.py _persist() must call TaskChainRepository, not a local UUID fallback
+# AC-T074-5: agent/runner.py _persist() must call TaskChainRepository, not UUID fallback
 # ---------------------------------------------------------------------------
 
 
 class TestAgentRunnerPersistCallsRepo:
-    """AC-T074-5: _persist() in runner.py must invoke TaskChainRepository.create(), not a UUID stub."""
+    """AC-T074-5: _persist() must invoke TaskChainRepository.create(), not UUID stub."""
 
     def test_runner_persist_source_has_no_assumption_comment(self) -> None:
         """runner.py must not still contain the [ASSUMPTION] placeholder comment."""
         import inspect
+
         import intellisource.agent.runner as runner_module
 
         source = inspect.getsource(runner_module)
@@ -328,7 +346,7 @@ class TestAgentRunnerPersistCallsRepo:
         mock_repo.create.assert_called_once()
 
     async def test_runner_persist_with_upstream_task_chain_id_uses_it(self) -> None:
-        """When task_chain_id is provided by caller, _persist must use that ID (not generate new)."""
+        """When task_chain_id is provided, _persist must use that ID, not a new one."""
         from intellisource.agent.runner import AgentRunner
 
         upstream_id = str(uuid.uuid4())
@@ -356,14 +374,14 @@ class TestAgentRunnerPersistCallsRepo:
 
 
 class TestTaskChainRepositoryExport:
-    """AC-T074-6: TaskChainRepository must be exported from storage.repositories.__init__."""
+    """AC-T074-6: TaskChainRepository exported from storage.repositories.__init__."""
 
     def test_task_chain_repository_importable_from_repositories_package(self) -> None:
-        """TaskChainRepository must be importable via the repositories package __init__."""
+        """TaskChainRepository importable via the repositories package __init__."""
         from intellisource.storage import repositories
 
         assert hasattr(repositories, "TaskChainRepository"), (
-            "TaskChainRepository is not exported from intellisource.storage.repositories — "
+            "TaskChainRepository not exported from intellisource.storage.repositories "
             "add it to __init__.py (AC-T074-6)"
         )
 

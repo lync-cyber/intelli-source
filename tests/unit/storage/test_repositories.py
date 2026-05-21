@@ -2,10 +2,11 @@
 
 Covers:
   AC-054:     Structured data CRUD operations (create/read/update/delete/list)
-  AC-T004-1:  SourceRepository supports filtering by type/tag/status and cursor pagination
-  AC-T004-2:  ContentRepository supports filtering by source_id/tag/cluster_id/time range and cursor pagination
+  AC-T004-1:  SourceRepository filters by type/tag/status with cursor pagination
+  AC-T004-2:  ContentRepository filters by source_id/tag/cluster_id/time + cursor
+              pagination
   AC-T004-3:  TaskRepository supports filtering by status/type/source_id
-  AC-T004-4:  PushRepository supports deduplication query (subscription_id + content_id + channel)
+  AC-T004-4:  PushRepository dedup query (subscription_id + content_id + channel)
   AC-T004-5:  Cursor pagination returns items + next_cursor + has_more format
 """
 
@@ -934,7 +935,7 @@ class TestPushRepositoryDedup:
     async def test_check_duplicate_different_channel_is_not_dup(
         self, session: AsyncSession
     ) -> None:
-        """Same subscription_id + content_id but different channel is NOT a duplicate."""
+        """Same subscription_id + content_id but different channel is NOT dup."""
         from intellisource.storage.repositories.push import PushRepository
 
         repo = PushRepository(session)

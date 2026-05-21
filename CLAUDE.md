@@ -12,16 +12,16 @@
 - model 继承: AGENT.md 中 `model: inherit` 继承父会话模型
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: pre_deploy_checkpoint (HOLD — 等待 sprint-7r 由 tdd-engine 执行)
-- 下一步行动: orchestrator 启动 tdd-engine 编排执行 T-080 → T-081 → T-082（线性依赖）；完成后回到 pre_deploy_checkpoint 评估 GO/NO-GO 是否进入 Phase 7。任务卡详情见 [dev-plan-intellisource-v1-s7r.md](docs/dev-plan/dev-plan-intellisource-v1-s7r.md)
-- 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing]
-- 当前Sprint: sprint-7r (pre-deploy remediation, 计划 approved, 待执行)
+- 当前阶段: pre_deploy_checkpoint（GO/NO-GO 评估待用户确认 — sprint-7r 全部 done）
+- 下一步行动: orchestrator 汇总 sprint-7r 完成度 + 残余风险，向用户呈现 pre_deploy GO/NO-GO 决策（GO → 进入 Phase 7 deployment 由 devops 编写 deploy-spec；NO-GO → 列出阻断项与补救计划）。sprint-7r 任务卡见 [dev-plan-intellisource-v1-s7r.md](docs/dev-plan/dev-plan-intellisource-v1-s7r.md)
+- 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r]
+- 当前Sprint: sprint-7r (pre-deploy remediation — T-080 / T-081 / T-082 = done)
 - 文档状态: prd / arch / dev-plan / test-report = approved；ui-spec = N/A；deploy-spec = 未开始
 - Learnings Registry:
   - [RETRO-intellisource-v1.md](docs/reviews/retro/RETRO-intellisource-v1.md) — 6 EXP，应用决策 deferred to backlog
   - [SKILL-IMPROVE-*.md](docs/reviews/retro/) — 6 份建议（implementer / refactorer / code-review / tech-lead / tdd-engine / orchestrator）
 - 上游反馈: [docs/feedback/](docs/feedback/) — 1 bug (EVENT-LOG `session_end` schema), 1 suggest (reflector front matter 不一致)
-- Backlog: ① 6 EXP 改进应用到 .cataforge/agents 与 skills（待用户触发）② SR-002 已转 T-081 ③ tests/ ruff 债务已转 T-082
+- Backlog: ① 6 EXP 改进应用到 .cataforge/agents 与 skills（待用户触发）② T-081 pg_* 集成测试在本地无 Docker 时 graceful skip，CI ubuntu-latest 完成最终验证（dev-plan AC-6 首选方案已配置）
 
 ## 执行环境
 - 包管理器: uv（fallback: pip）

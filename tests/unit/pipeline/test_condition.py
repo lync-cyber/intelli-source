@@ -1,15 +1,13 @@
 """Tests for ConditionEvaluator and ConditionalProcessor (AC-014, AC-T017-1, AC-T017-3).
 
 Covers:
-- AC-014: Processors can be configured with condition expressions; skip when not met.
-- AC-T017-1: Condition expressions support rules based on content_type, tags, source_type.
-- AC-T017-3: Conditional branching supports if-else routing to different processor sub-chains.
+- AC-014: Processors can be configured with condition expressions; skip on no match.
+- AC-T017-1: Condition expressions support content_type, tags, source_type rules.
+- AC-T017-3: Conditional branching supports if-else routing to processor sub-chains.
 """
 
-
-from intellisource.pipeline.condition import ConditionalProcessor, ConditionEvaluator
-
 from intellisource.pipeline.base import BaseProcessor
+from intellisource.pipeline.condition import ConditionalProcessor, ConditionEvaluator
 from intellisource.pipeline.context import PipelineContext
 
 # ---------------------------------------------------------------------------
@@ -159,7 +157,7 @@ class TestConditionEvaluatorContainsOperator:
         assert evaluator.evaluate(condition, ctx) is True
 
     def test_tags_contains_no_matching_tag(self):
-        """evaluate should return False when tags list does not contain the target tag."""
+        """evaluate returns False when tags list lacks the target tag."""
         ctx = PipelineContext()
         ctx.set("tags", ["python", "tutorial"])
 
@@ -181,7 +179,7 @@ class TestConditionEvaluatorEdgeCases:
         assert evaluator.evaluate(condition, ctx) is False
 
     def test_tags_field_none_with_contains(self):
-        """evaluate should return False when tags field is None and operator is contains."""
+        """evaluate returns False when tags is None and operator is contains."""
         ctx = PipelineContext()
         ctx.set("tags", None)
 
@@ -199,7 +197,7 @@ class TestConditionalProcessorIfBranch:
     """AC-T017-3: When condition is met, the if_processor should execute."""
 
     def test_if_processor_executes_when_condition_true(self):
-        """ConditionalProcessor should delegate to if_processor when condition is True."""
+        """ConditionalProcessor delegates to if_processor when condition is True."""
         ctx = PipelineContext()
         ctx.set("content_type", "article")
 
@@ -220,7 +218,7 @@ class TestConditionalProcessorElseBranch:
     """AC-T017-3: When condition is not met, the else_processor should execute."""
 
     def test_else_processor_executes_when_condition_false(self):
-        """ConditionalProcessor should delegate to else_processor when condition is False."""
+        """ConditionalProcessor delegates to else_processor when condition False."""
         ctx = PipelineContext()
         ctx.set("content_type", "video")
 
@@ -238,10 +236,10 @@ class TestConditionalProcessorElseBranch:
 
 
 class TestConditionalProcessorNoElse:
-    """AC-T017-3: When else_processor is omitted and condition is False, context passes through."""
+    """AC-T017-3: When else_processor omitted and condition False, ctx flows on."""
 
     def test_no_else_processor_passes_through(self):
-        """ConditionalProcessor without else_processor should return context unchanged when condition is False."""
+        """Without else_processor and condition False, context is returned unchanged."""
         ctx = PipelineContext()
         ctx.set("content_type", "video")
         ctx.set("original_data", "preserved")
@@ -265,7 +263,7 @@ class TestConditionalProcessorSkipBehavior:
     """AC-014: Processor is skipped entirely when condition is not met."""
 
     def test_skip_leaves_context_unmodified(self):
-        """When condition fails and no else_processor, context should not be mutated by if_processor."""
+        """When condition fails and no else_processor, context is not mutated."""
         ctx = PipelineContext()
         ctx.set("source_type", "web")
         ctx.set("step_count", 0)

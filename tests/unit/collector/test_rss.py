@@ -2,10 +2,10 @@
 
 Covers:
 - AC-006: RSSCollector correctly parses RSS 2.0 and Atom 1.0 formats
-- AC-007: Output RawContent contains title/author/body_html/body_text/source_url/published_at
+- AC-007: RawContent contains title/author/body_html/body_text/source_url/published_at
 - AC-008: RSSHub URL works as a source (same RSS logic)
-- AC-T011-1: Parse failure (malformed feed) logs error and returns empty list, no exception
-- AC-T011-2: Each content item gets a fingerprint (SHA-256 of source_url + title + published_at)
+- AC-T011-1: Parse failure (malformed feed) logs error and returns empty list
+- AC-T011-2: Each item gets a fingerprint (SHA-256 of source_url + title + published_at)
 """
 
 from __future__ import annotations
@@ -16,8 +16,8 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
-from intellisource.collector.adapters.rss import RSSCollector
 
+from intellisource.collector.adapters.rss import RSSCollector
 from intellisource.collector.base import BaseCollector, RawContent
 
 # ---------------------------------------------------------------------------

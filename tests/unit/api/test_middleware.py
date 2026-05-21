@@ -3,9 +3,9 @@
 Covers:
   AC-T043-1: AuthMiddleware validates X-API-Key header, returns 401 if invalid
   AC-T043-2: API Key configured via environment variable IS_API_KEY
-  AC-T043-3: Health check (/health) and Webhook (/api/v1/webhooks) endpoints exempt from auth
-  AC-T043-4: RequestLogger logs method/path/status_code/duration_ms for each request
-  AC-T043-5: TracingMiddleware injects trace_id into logging context and response headers (X-Trace-ID)
+  AC-T043-3: Health (/health) and Webhook (/api/v1/webhooks) endpoints exempt from auth
+  AC-T043-4: RequestLogger logs method/path/status_code/duration_ms per request
+  AC-T043-5: TracingMiddleware injects trace_id into logging context + X-Trace-ID header
 """
 
 from __future__ import annotations

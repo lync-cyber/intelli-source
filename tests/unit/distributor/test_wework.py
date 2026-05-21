@@ -379,7 +379,7 @@ class TestDeduplication:
 
         # First call succeeds
         mock_redis.exists.return_value = False
-        result1 = await distributor.distribute(content, subscription)
+        await distributor.distribute(content, subscription)
 
         # Mark as already pushed
         mock_redis.exists.return_value = True
