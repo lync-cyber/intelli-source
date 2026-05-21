@@ -83,6 +83,10 @@ async def engine():
             type_name = type(col.type).__name__
             if type_name == "Vector":
                 col.type = Text()
+            elif type_name == "ARRAY":
+                from sqlalchemy import JSON
+
+                col.type = JSON()
 
     async with eng.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

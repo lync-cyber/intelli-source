@@ -17,14 +17,18 @@
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 
-- 当前阶段: pre_deploy_checkpoint (HOLD — sprint-7r remediation 待 tdd-engine 执行)
-- 上次完成: orchestrator — sprint-7r remediation 计划闭环 (dev-plan-intellisource-v1-s7r approved；reviewer r2 approved_with_notes；R-007 inline 修复) + 本次会话补齐 6 份 SKILL-IMPROVE 文件 + 上游 feedback 打包 (EVENT-LOG schema bug + reflector front matter 不一致)
-- 下一步行动: **下次会话接续** — orchestrator 启动 tdd-engine 编排执行 T-080 → T-081 → T-082；执行完成后回到 pre_deploy_checkpoint 重新评估 GO/NO-GO 是否进入 Phase 7 deployment
-  - T-080 (fix/light, S): runner.py DB_URL 环境变量化
-  - T-081 (feature/standard, L): testcontainers-postgres + pgvector fixture
-  - T-082 (chore/light, S): tests/ ruff 债务清理
-- 已完成阶段: [bootstrap, requirements, architecture, ui_design(跳过-backend-only), dev_planning, sprint-1, sprint-2, sprint-3, sprint-4, sprint-5, sprint-6, sprint-7, retrospective, testing]
-- 当前Sprint: sprint-7r (pre-deploy remediation, 计划 approved，待 tdd-engine 执行)
+- 当前阶段: sprint-8r 批次 1 GREEN 完成 — 检查点暂停（用户选 "本会话收尾不跑 REFACTOR/code-review"）
+- 上次完成: orchestrator — sprint-8r 批次 1 RED+GREEN（T-083 28/28 PASS + T-093 55/55 PASS + 全量 1919 passed/0 failed/ruff+mypy clean）；orchestrator 本会话顺手修 7 处（pytest-timeout 依赖 / regex.TimeoutError→built-in TimeoutError / 2 timing 测试 unskip / dev-plan AC-5 措辞 / test_subscription_timezone.py 两处 ARRAY 断言放宽为 Variant / main.py 行长 / tasks.py mypy type:ignore[untyped-decorator]）
+- 下一步行动: **新会话 /start-orchestrator 接续 sprint-8r**：
+  - 步骤 1 — 批次 1 收尾: T-083 REFACTOR (required) + T-093 REFACTOR (默认 auto，implementer 截断未自报，按 false 默认或 code-review L1 兜底) + code-review for both
+  - 步骤 2 — 批次 2 (5 任务并行): T-084 (PipelineEngine 中间件接入) + T-085 (HybridSearchEngine 真实查询 + chat 方法) + T-086 (LLMGateway.chat + JSON Mode) + T-090 (PushRecord 持久化 + PII) + T-091 (ConfigWatcher 热加载)
+  - 步骤 3 — 批次 3 (4 任务并行): T-087 + T-088 + T-089 + T-092
+  - 步骤 4 — 批次 4: T-094 集成测试与冷启动 e2e
+  - 步骤 5 — pre_deploy 二次 GO/NO-GO 评估（重跑 P0 audit 验证 9 项 broken 消除）
+  - **关键路径**: T-083 → T-084 → T-087 → T-094，权重 10
+  - **r2 残留 R-013/R-014**: R-013 经核实已修（pyproject.toml 已在 T-093 affected_files）；R-014 已 orchestrator 内联修 T-090 security_sensitive=true
+- 已完成阶段: [bootstrap, requirements, architecture, ui_design(跳过-backend-only), dev_planning, sprint-1, sprint-2, sprint-3, sprint-4, sprint-5, sprint-6, sprint-7, retrospective, testing, sprint-7r]
+- 当前Sprint: sprint-8r (in-progress — 2/12 任务卡 GREEN 完成，10 张待启动)
 - Retrospective 状态: 已完成 (2026-05-04，RETRO-intellisource-v1.md status=approved，6 EXP 已记录) + 6 份 SKILL-IMPROVE 文件已补齐 (2026-05-05 by orchestrator continuation)
 - 文档状态:
   - prd: approved

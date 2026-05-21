@@ -121,7 +121,12 @@
       "Bash(cataforge event *)",
       "Skill(tdd-engine)",
       "Skill(tdd-engine:*)",
-      "Bash(findstr testcontainers *)"
+      "Bash(findstr testcontainers *)",
+      "Bash(cataforge skill *)",
+      "Bash(Get-Content docs/dev-plan/dev-plan-intellisource-v1-s8r.md)",
+      "Bash(Measure-Object -Line)",
+      "Bash(Select-Object -ExpandProperty Lines)",
+      "Bash(gh pr *)"
     ]
   }
 }

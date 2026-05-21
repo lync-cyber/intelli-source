@@ -174,3 +174,11 @@
 {"ts": "2026-05-21T06:57:07+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD GREEN: T-081"}
 {"ts": "2026-05-21T07:09:30+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD SKIP (chore): T-082"}
 {"ts": "2026-05-21T07:31:24+00:00", "event": "tdd_phase", "phase": "development", "detail": "T-082 done: ruff 0 violations + pytest 1854 passed"}
+{"ts": "2026-05-21T08:21:39+00:00", "event": "doc_finalize", "phase": "pre_deploy_checkpoint", "detail": "文档finalize: dev-plan-intellisource-v1-s8r", "ref": "dev-plan-intellisource-v1-s8r"}
+{"ts": "2026-05-21T08:23:00+00:00", "event": "state_change", "phase": "development", "detail": "skill-run: doc-review Layer 1 passed", "agent": "reviewer", "status": "completed", "ref": "skill:doc-review/doc_check"}
+{"ts": "2026-05-21T08:35:38+00:00", "event": "state_change", "phase": "development", "detail": "skill-run: doc-review Layer 1 passed", "agent": "reviewer", "status": "completed", "ref": "skill:doc-review/doc_check"}
+{"ts": "2026-05-21T08:44:54+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD RED: T-083 (B-01+B-12 应用组合根)"}
+{"ts": "2026-05-21T08:44:54+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD RED: T-093 (B-10+B-14+B-15 时区/ReDoS/解析器)"}
+{"ts": "2026-05-21T09:02:43+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD GREEN: T-083 (应用组合根)"}
+{"ts": "2026-05-21T09:02:44+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD GREEN: T-093 (时区/ReDoS/解析器)"}
+{"ts": "2026-05-21T09:24:23+00:00", "event": "tdd_phase", "phase": "development", "detail": "sprint-8r 批次 1 GREEN checkpoint — T-083+T-093 done (REFACTOR+code-review pending next session); 全量回归 1919 passed/0 failed"}
