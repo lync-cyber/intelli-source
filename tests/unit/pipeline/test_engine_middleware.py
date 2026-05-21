@@ -577,3 +577,56 @@ class TestExecuteStreamFailFastParity:
         with pytest.raises(RuntimeError, match="critical error"):
             async for _ in engine.execute_stream(ctx):
                 pass
+
+
+# ===========================================================================
+# R-001 (r3): ctx["errors"] schema consistency — execute() vs execute_stream()
+# ===========================================================================
+
+
+class TestCtxErrorsSchemaConsistency:
+    """Both execute() and execute_stream() must produce list[dict] for ctx["errors"]."""
+
+    def test_execute_errors_are_list_of_dicts(self) -> None:
+        """execute() fail_fast=False: ctx["errors"] entries are dicts with processor+error keys."""
+        engine = PipelineEngine(processors=[_RaisingProcessor("p", "oops")], fail_fast=False)
+        ctx = PipelineContext()
+        result = engine.execute(ctx)
+        errors = result.get("errors")
+        assert errors is not None and len(errors) == 1
+        entry = errors[0]
+        assert isinstance(entry, dict), f"Expected dict, got {type(entry)}: {entry}"
+        assert "processor" in entry, f"Missing 'processor' key: {entry}"
+        assert "error" in entry, f"Missing 'error' key: {entry}"
+        assert entry["processor"] == "_RaisingProcessor"
+        assert "oops" in entry["error"]
+
+    async def test_execute_stream_errors_are_list_of_dicts(self) -> None:
+        """execute_stream() fail_fast=False: ctx["errors"] entries are dicts with processor+error keys."""
+        engine = PipelineEngine(processors=[_RaisingProcessor("p", "oops")], fail_fast=False)
+        ctx = PipelineContext()
+        yielded: list[PipelineContext] = []
+        async for intermediate_ctx in engine.execute_stream(ctx):
+            yielded.append(intermediate_ctx)
+        errors = yielded[0].get("errors")
+        assert errors is not None and len(errors) == 1
+        entry = errors[0]
+        assert isinstance(entry, dict), f"Expected dict, got {type(entry)}: {entry}"
+        assert "processor" in entry, f"Missing 'processor' key: {entry}"
+        assert "error" in entry, f"Missing 'error' key: {entry}"
+        assert entry["processor"] == "_RaisingProcessor"
+        assert "oops" in entry["error"]
+
+    def test_execute_multiple_errors_all_dicts(self) -> None:
+        """execute() with 2 failing processors: both errors use dict schema."""
+        engine = PipelineEngine(
+            processors=[_RaisingProcessor("p1", "err1"), _RaisingProcessor("p2", "err2")],
+            fail_fast=False,
+        )
+        ctx = PipelineContext()
+        result = engine.execute(ctx)
+        errors = result.get("errors")
+        assert errors is not None and len(errors) == 2
+        for entry in errors:
+            assert isinstance(entry, dict)
+            assert {"processor", "error"} <= entry.keys()

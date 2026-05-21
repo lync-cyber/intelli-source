@@ -33,14 +33,16 @@ class PipelineEngine:
 
     def _run_processors(self, context: PipelineContext) -> PipelineContext:
         """Run all processors sequentially, collecting errors when not fail_fast."""
-        errors: list[str] = []
+        errors: list[dict[str, str]] = []
         for processor in self._processors:
             try:
                 context = processor.process(context)
             except Exception as exc:
                 if self._fail_fast:
                     raise
-                errors.append(str(exc))
+                errors.append(
+                    {"processor": type(processor).__name__, "error": str(exc)}
+                )
         if errors:
             context.set("errors", errors)
         return context

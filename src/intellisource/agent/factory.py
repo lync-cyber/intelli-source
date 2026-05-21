@@ -23,7 +23,7 @@ _DEFAULT_PIPELINE_YAML = (
 class _PassThroughProcessor(BaseProcessor):
     """No-op placeholder when real processor class is unavailable.
 
-    # [ASSUMPTION] yaml step → processor class mapping deferred to T-094
+    [ASSUMPTION] yaml step → processor class mapping deferred to T-094
     """
 
     def __init__(self, name: str) -> None:
@@ -37,7 +37,7 @@ def _build_processors_from_config(config: PipelineConfig) -> list[BaseProcessor]
     """Build a processor list from a PipelineConfig.
 
     Uses _PassThroughProcessor for each step; concrete class lookup is
-    # [ASSUMPTION] yaml step → processor class mapping deferred to T-094
+    [ASSUMPTION] yaml step → processor class mapping deferred to T-094
     """
     processors: list[BaseProcessor] = []
     for step in config.steps:
@@ -57,12 +57,12 @@ def build_agent_runner(
     registry.register_defaults()
     registry.register_atomic_tools()
 
-    yaml_path = (
-        str(pipeline_config)
-        if pipeline_config is not None
-        else str(_DEFAULT_PIPELINE_YAML)
+    resolved_yaml = (
+        Path(pipeline_config) if pipeline_config is not None else _DEFAULT_PIPELINE_YAML
     )
-    loaded_config = PipelineConfig.from_yaml(yaml_path)
+    if not resolved_yaml.exists():
+        raise FileNotFoundError(f"Pipeline yaml not found: {resolved_yaml.resolve()}")
+    loaded_config = PipelineConfig.from_yaml(str(resolved_yaml))
     processors = _build_processors_from_config(loaded_config)
     pipeline_engine = _engine_mod.PipelineEngine(processors=processors)
 
