@@ -230,3 +230,6 @@
 {"ts": "2026-05-21T14:10:43.565759+00:00", "event": "review_verdict", "phase": "development", "detail": "T-091 closed — r3 implementer landed all r2 net-new fixes; orchestrator inline-approves (user waived r3 reviewer)", "agent": "orchestrator", "status": "approved"}
 {"ts": "2026-05-21T14:12:52.104244+00:00", "event": "review_verdict", "phase": "development", "detail": "T-090 r2 — all r1 (1 HIGH security + 3 MEDIUM + 2 LOW) RESOLVED, no net-new; batch 2 closed", "agent": "reviewer", "status": "approved"}
 {"ts": "2026-05-21T14:12:52.133361+00:00", "event": "state_change", "phase": "development", "detail": "sprint-8r batch 2 (T-084/T-085/T-086/T-090/T-091) closed — all approved. Batch 3 (T-087/088/089/092) and batch 4 (T-094) pending."}
+{"event": "tdd_phase", "phase": "development", "detail": "TDD RED: T-087+T-089 bundle (shared agent/tools.py + ToolDeps introduction; C2 batching per ORCHESTRATOR §RED batch)", "ts": "2026-05-21T22:47:37+00:00"}
+{"event": "tdd_phase", "phase": "development", "detail": "TDD RED: T-088", "ts": "2026-05-21T22:47:37+00:00"}
+{"event": "tdd_phase", "phase": "development", "detail": "TDD RED: T-092", "ts": "2026-05-21T22:47:37+00:00"}
