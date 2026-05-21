@@ -17,6 +17,7 @@ Security-sensitive coverage:
 from __future__ import annotations
 
 import subprocess
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -414,7 +415,7 @@ class TestT086GrepEvidence:
             ],
             capture_output=True,
             text=True,
-            cwd="/home/user/intelli-source",
+            cwd=str(Path(__file__).resolve().parents[3]),
         )
         lines = [ln for ln in result.stdout.splitlines() if ln.strip()]
         assert len(lines) >= 2, (

@@ -10,10 +10,13 @@ Covers:
 from __future__ import annotations
 
 import subprocess
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from intellisource.main import create_app
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -427,7 +430,7 @@ class TestYamlSafeLoadOnlyInConfigDir:
             ],
             capture_output=True,
             text=True,
-            cwd="/home/user/intelli-source",
+            cwd=str(_REPO_ROOT),
         )
         # Filter out lines that explicitly use Loader=yaml.SafeLoader (acceptable)
         unsafe_lines = [
@@ -452,7 +455,7 @@ class TestYamlSafeLoadOnlyInConfigDir:
             ],
             capture_output=True,
             text=True,
-            cwd="/home/user/intelli-source",
+            cwd=str(_REPO_ROOT),
         )
         unsafe_lines = [
             line
