@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from typing import Any, Final
+from typing import Any, Final, get_args
 
 import yaml
 from pydantic import ValidationError
@@ -17,7 +17,7 @@ _ENV_VAR_PATTERN: Final[re.Pattern[str]] = re.compile(r"\$\{([^}]+)\}")
 _JsonValue = str | int | float | bool | None | dict[str, Any] | list[Any]
 
 _ALLOWED_SOURCE_TYPES: Final[frozenset[str]] = frozenset(
-    {"rss", "atom", "html", "api", "web"}
+    get_args(SourceConfig.model_fields["type"].annotation)
 )
 _ALLOWED_URL_SCHEMES: Final[frozenset[str]] = frozenset({"http://", "https://"})
 _PATH_TRAVERSAL_CHARS: Final[frozenset[str]] = frozenset({"..", "/", "\\"})

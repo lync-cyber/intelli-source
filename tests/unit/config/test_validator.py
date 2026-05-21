@@ -8,12 +8,14 @@ Covers:
 """
 
 import json
+from unittest.mock import patch
 
 import pytest
 import yaml
 from pydantic import ValidationError
 
-from intellisource.config.validator import ConfigValidator
+from intellisource.config.models import SourceConfig
+from intellisource.config.validator import ConfigValidationError, ConfigValidator
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -245,3 +247,94 @@ class TestEnvVarPlaceholder:
         content = yaml.dump(source_data)
         results = validator.validate_sources_file(content, format="yaml")
         assert results[0].url == "https://api.example.com/v1"
+
+
+# ---------------------------------------------------------------------------
+# ConfigValidator.validate() — semantic security rules
+# ---------------------------------------------------------------------------
+
+_GOOD_CONFIG = SourceConfig(name="ok", type="rss", url="https://example.com")
+
+
+class TestConfigValidatorValidate:
+    """ConfigValidator.validate() enforces 5 semantic security rules."""
+
+    @pytest.fixture
+    def validator(self):
+        return ConfigValidator()
+
+    # -- name rules --
+
+    def test_empty_name_raises(self, validator):
+        config = SourceConfig(name="placeholder", type="rss", url="https://example.com")
+        with patch.object(config, "name", new=""):
+            # Rebuild via object attribute override (Pydantic model is frozen-ish;
+            # use model_copy to set name to empty via private workaround)
+            pass
+        # Use object.__setattr__ to bypass Pydantic validation on the instance
+        cfg = _GOOD_CONFIG.model_copy(update={"name": "placeholder"})
+        object.__setattr__(cfg, "name", "")
+        with pytest.raises(ConfigValidationError, match="non-empty"):
+            validator.validate(cfg)
+
+    def test_name_too_long_raises(self, validator):
+        cfg = _GOOD_CONFIG.model_copy(update={"name": "a" * 101})
+        with pytest.raises(ConfigValidationError, match="exceeds maximum"):
+            validator.validate(cfg)
+
+    def test_name_exactly_100_chars_passes(self, validator):
+        cfg = _GOOD_CONFIG.model_copy(update={"name": "a" * 100})
+        result = validator.validate(cfg)
+        assert result.name == "a" * 100
+
+    @pytest.mark.parametrize("forbidden", ["..", "/", "\\"])
+    def test_name_with_path_traversal_char_raises(self, validator, forbidden):
+        cfg = _GOOD_CONFIG.model_copy(update={"name": f"valid{forbidden}name"})
+        with pytest.raises(ConfigValidationError, match="forbidden character"):
+            validator.validate(cfg)
+
+    # -- type rule --
+
+    def test_unknown_type_raises(self, validator):
+        cfg = _GOOD_CONFIG.model_copy()
+        object.__setattr__(cfg, "type", "unknown")
+        with pytest.raises(ConfigValidationError, match="not one of"):
+            validator.validate(cfg)
+
+    def test_atom_type_raises(self, validator):
+        """'atom' is not in SourceConfig Literal — should be blocked by whitelist."""
+        cfg = _GOOD_CONFIG.model_copy()
+        object.__setattr__(cfg, "type", "atom")
+        with pytest.raises(ConfigValidationError, match="not one of"):
+            validator.validate(cfg)
+
+    # -- url scheme rule --
+
+    @pytest.mark.parametrize(
+        "bad_url",
+        [
+            "javascript:alert(1)",
+            "ftp://example.com",
+            "file:///etc/passwd",
+            " https://example.com",  # leading space
+        ],
+    )
+    def test_disallowed_url_scheme_raises(self, validator, bad_url):
+        cfg = _GOOD_CONFIG.model_copy(update={"url": "https://placeholder.com"})
+        object.__setattr__(cfg, "url", bad_url)
+        with pytest.raises(ConfigValidationError, match="http"):
+            validator.validate(cfg)
+
+    # -- happy path --
+
+    @pytest.mark.parametrize(
+        "source_type",
+        ["rss", "api", "web"],
+    )
+    def test_valid_config_passes_all_rules(self, validator, source_type):
+        cfg = SourceConfig(
+            name="valid-source", type=source_type, url="https://example.com/feed"
+        )
+        result = validator.validate(cfg)
+        assert result.name == "valid-source"
+        assert result.type == source_type

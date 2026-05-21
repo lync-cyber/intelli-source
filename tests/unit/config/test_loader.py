@@ -438,3 +438,91 @@ class TestConfigVersionManager:
         mgr.record_version(configs)
 
         assert isinstance(mgr.current_version, int)
+
+
+# ===========================================================================
+# Path-traversal guard + load_source_configs scan
+# ===========================================================================
+
+
+class TestConfigLoaderPathGuard:
+    """Path-traversal guard in load_file() and directory-scan in load_source_configs."""
+
+    def test_load_file_rejects_path_traversal(self, tmp_path, monkeypatch) -> None:
+        """load_file() raises ConfigPathError when path escapes the config dir."""
+        from intellisource.config.loader import ConfigLoader, ConfigPathError
+
+        monkeypatch.setenv("IS_SOURCE_CONFIG_DIR", str(tmp_path))
+        loader = ConfigLoader()
+
+        outside = str(tmp_path / ".." / "escape.yaml")
+        with pytest.raises(ConfigPathError):
+            loader.load_file(outside)
+
+    def test_load_file_rejects_absolute_escape(self, tmp_path, monkeypatch) -> None:
+        """load_file() raises ConfigPathError for absolute path outside config_dir."""
+        from intellisource.config.loader import ConfigLoader, ConfigPathError
+
+        monkeypatch.setenv("IS_SOURCE_CONFIG_DIR", str(tmp_path))
+        loader = ConfigLoader()
+
+        outside = "/tmp/should_not_load.yaml"
+        with pytest.raises(ConfigPathError):
+            loader.load_file(outside)
+
+    def test_load_file_accepts_legitimate_file(self, tmp_path, monkeypatch) -> None:
+        """load_file() succeeds for a file inside the configured config_dir."""
+        from intellisource.config.loader import ConfigLoader
+
+        monkeypatch.setenv("IS_SOURCE_CONFIG_DIR", str(tmp_path))
+        loader = ConfigLoader()
+
+        config_file = tmp_path / "sources.yaml"
+        config_file.write_text(yaml.dump({"sources": [VALID_SOURCE_A]}))
+
+        result = loader.load_file(str(config_file))
+        assert len(result) == 1
+        assert result[0].name == "arxiv-cs"
+
+    def test_load_source_configs_scans_directory(self, tmp_path, monkeypatch) -> None:
+        """load_source_configs() returns configs from all YAML files in the dir."""
+        from intellisource.config.loader import ConfigLoader
+
+        monkeypatch.setenv("IS_SOURCE_CONFIG_DIR", str(tmp_path))
+
+        (tmp_path / "a.yaml").write_text(yaml.dump({"sources": [VALID_SOURCE_A]}))
+        (tmp_path / "b.yaml").write_text(yaml.dump({"sources": [VALID_SOURCE_B]}))
+
+        loader = ConfigLoader()
+        result = loader.load_source_configs()
+
+        names = {c.name for c in result}
+        assert "arxiv-cs" in names
+        assert "hackernews" in names
+
+    def test_load_source_configs_skips_non_yaml(self, tmp_path, monkeypatch) -> None:
+        """load_source_configs() ignores non-YAML files in the directory."""
+        from intellisource.config.loader import ConfigLoader
+
+        monkeypatch.setenv("IS_SOURCE_CONFIG_DIR", str(tmp_path))
+
+        (tmp_path / "sources.yaml").write_text(yaml.dump({"sources": [VALID_SOURCE_A]}))
+        (tmp_path / "readme.txt").write_text("this is not a yaml config")
+
+        loader = ConfigLoader()
+        result = loader.load_source_configs()
+
+        assert len(result) == 1
+        assert result[0].name == "arxiv-cs"
+
+    def test_load_source_configs_empty_dir_returns_empty_list(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        """load_source_configs() returns [] when the config directory is empty."""
+        from intellisource.config.loader import ConfigLoader
+
+        monkeypatch.setenv("IS_SOURCE_CONFIG_DIR", str(tmp_path))
+        loader = ConfigLoader()
+
+        result = loader.load_source_configs()
+        assert result == []
