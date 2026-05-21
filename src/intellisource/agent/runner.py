@@ -110,6 +110,7 @@ class AgentRunner:
         session: dict[str, Any],
         *,
         max_tokens_budget: int | None = None,
+        tool_deps: Any = None,
     ) -> dict[str, Any]:
         """Run LLM agent loop with tool access.
 

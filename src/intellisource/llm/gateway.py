@@ -32,9 +32,9 @@ from tenacity import (
 )
 
 from intellisource.core.errors import ErrorCategory, IntelliSourceError, LLMError
-from intellisource.llm.priority_queue import PriorityLevel, PriorityQueue, QueuedRequest
 from intellisource.llm.cost_tracker import LLMCallRecord
 from intellisource.llm.model_config import ModelRoutingConfig, load_model_config
+from intellisource.llm.priority_queue import PriorityLevel, PriorityQueue, QueuedRequest
 from intellisource.llm.prompt_builder import PromptBuilder
 
 logger = logging.getLogger(__name__)
