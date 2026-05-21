@@ -14,15 +14,21 @@
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 
-- 当前阶段: sprint-8r 批次 1 完成 — T-083 + T-093 全部 approved (T-093 r2 clean，T-083 经 r3 后 approved)，准备进入批次 2
-- 下一步行动: ① 启动批次 2 RED+GREEN（5 任务并行：T-084 PipelineEngine 中间件 / T-085 HybridSearchEngine + chat / T-086 LLMGateway chat + JSON Mode (security_sensitive) / T-090 三渠道 PushRecord + dedup (security_sensitive) / T-091 ConfigWatcher 热加载 (security_sensitive)）→ 全部 tdd_mode: standard，需 RED → GREEN → 视触发器决定 REFACTOR ② 批次 3 (T-087/088/089/092) ③ 批次 4 T-094 集成测试 ④ pre_deploy 二次评估
+- 当前阶段: sprint-8r 批次 1 + 批次 2 完成 — 7 任务全部 approved，准备进入批次 3
+- 下一步行动: ① 批次 3 RED+GREEN（4 任务：T-087 LLM 智能处理链路 / T-088 hybrid_search_optimizer / T-089 配置热加载边界 / T-092 Celery task_routes + worker_init + 幂等三组件）② 批次 4 T-094 集成测试 ③ pre_deploy 二次评估
 - 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r]
-- 当前Sprint: sprint-8r (in-progress — 批次 1 全 approved 2/12；待批次 2-4)
+- 当前Sprint: sprint-8r (in-progress — 批次 1 + 批次 2 全 approved 7/12；待批次 3-4)
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r) / test-report = approved；ui-spec = N/A；dev-plan-s8(P2 backlog) = draft；deploy-spec = 未开始
 - 批次 1 闭环检查点:
-  - T-083 status=approved（r1 needs_revision → r2 approved_with_notes（R-007 net-new MEDIUM datetime in JSONResponse）→ r3 approved。最终 commit chain: f567ad1 (R-001 schema align) + 74a7252 (R-007 datetime fix)。报告: r1/r2/r3 三份。R-002~R-005 deferred 到后续 sprint）
-  - T-093 status=approved（r1 needs_revision → r2 approved，无 net-new。最终 commit: b567e46。报告: r1/r2 两份）
-  - 本会话全量回归: 1950 passed / 0 failed / 29 skipped；ruff format + check + mypy --strict 全部 clean
+  - T-083 status=approved（r1→r2→r3。final: f567ad1 + 74a7252。报告 r1/r2/r3）
+  - T-093 status=approved（r1→r2。final: b567e46。报告 r1/r2）
+- 批次 2 闭环检查点:
+  - T-084 status=approved（GREEN+REFACTOR → r1 approved_with_notes（2 MEDIUM 用户全修）→ r2 approved_with_notes（1 MEDIUM ctx errors schema + 2 LOW 用户全修）→ r3 approved。final: 374e8ef + 49d6d1b + df7b24d + c7a9ed9。报告 r1/r2/r3）
+  - T-085 status=approved（r1 needs_revision（2 HIGH: search_mode kwarg drop, ChatResponse schema） → r2 approved。final: 8d6b075 + 2511a8e。报告 r1/r2）
+  - T-086 status=approved_with_notes（r1 needs_revision（1 HIGH LLMResult shape ≠ runner consumer） → r2 approved_with_notes（1 LOW N-001 silent downgrade log），用户接受并继续。final: 5f40f4e + 9fd0204。报告 r1/r2）
+  - T-090 status=approved（GREEN+REFACTOR → r1 needs_revision（1 HIGH security: pii.py 未接入 record_push） → r2 approved。final: 55ea9b0 + dca8be9 + c78e90a。报告 r1/r2）
+  - T-091 status=approved（GREEN → r1 needs_revision（1 HIGH security: validator no-op） → r2 approved_with_notes（1 MEDIUM allowed-types drift + 2 LOW 测试缺口），用户全修无 r3 reviewer → orchestrator inline approve。final: e91d444 + a3caef2 + 74f093a。报告 r1/r2）
+  - 全量回归: 2154 passed / 0 failed / 29 skipped; ruff + mypy --strict clean
 - Learnings Registry:
   - [RETRO-intellisource-v1.md](docs/reviews/retro/RETRO-intellisource-v1.md) — 6 EXP，应用决策 deferred to backlog
   - [SKILL-IMPROVE-*.md](docs/reviews/retro/) — 6 份建议（implementer / refactorer / code-review / tech-lead / tdd-engine / orchestrator）
