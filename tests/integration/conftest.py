@@ -124,8 +124,11 @@ async def pg_container() -> AsyncIterator[str]:
             conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
             conn.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
 
-        # Set DATABASE_URL so alembic env.py can pick it up
-        os.environ["DATABASE_URL"] = async_url
+        # Set DATABASE_URL so alembic env.py can pick it up. alembic runs sync
+        # so the URL must drop the asyncpg driver suffix; otherwise env.py
+        # overrides the sync URL set on cfg below and SQLAlchemy hits
+        # MissingGreenlet while bridging asyncpg through sync engine_from_config.
+        os.environ["DATABASE_URL"] = sync_url
 
         # Patch alembic.op.execute to skip zhparser DDL
         from alembic import op as alembic_op  # type: ignore[import-untyped]
