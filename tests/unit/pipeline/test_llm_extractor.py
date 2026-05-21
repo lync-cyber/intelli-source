@@ -189,9 +189,7 @@ class TestAtomicToolsCallVectorStoreMethods:
 
         called: list[bool] = []
 
-        async def _async_find(
-            embedding: list[float], *, threshold: float
-        ) -> None:
+        async def _async_find(embedding: list[float], *, threshold: float) -> None:
             called.append(True)
             return None
 
@@ -292,14 +290,10 @@ class TestLLMExtractorCallsGateway:
         }
         mock_gateway = AsyncMock()
         mock_gateway.complete = AsyncMock(
-            return_value=LLMResult(
-                content='{"title": "Extracted Title"}', metadata={}
-            )
+            return_value=LLMResult(content='{"title": "Extracted Title"}', metadata={})
         )
         mock_gateway.chat = AsyncMock(
-            return_value=LLMResult(
-                content='{"title": "Extracted Title"}', metadata={}
-            )
+            return_value=LLMResult(content='{"title": "Extracted Title"}', metadata={})
         )
 
         enforcer = SchemaEnforcer(schema)

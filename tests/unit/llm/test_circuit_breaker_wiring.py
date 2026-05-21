@@ -59,7 +59,7 @@ def _make_gateway(
     circuit_breaker: Any = None,
     priority_queue: Any = None,
 ) -> LLMGateway:
-    """Construct LLMGateway with injected circuit_breaker/priority_queue and fast retry."""
+    """Construct LLMGateway with injected circuit_breaker/priority_queue."""
     return LLMGateway(
         circuit_breaker=circuit_breaker,
         priority_queue=priority_queue,
@@ -98,11 +98,11 @@ class TestCircuitBreakerInit:
 
 
 class TestCircuitBreakerAllowRequest:
-    """AC-2: _call_with_retry calls allow_request(); OPEN state raises, litellm not called."""
+    """AC-2: _call_with_retry calls allow_request(); OPEN raises, litellm skipped."""
 
     @pytest.mark.asyncio
     async def test_circuit_open_raises_and_skips_litellm(self) -> None:
-        """When allow_request() returns False, CircuitOpenError is raised and litellm is not called."""
+        """allow_request()==False raises CircuitOpenError and skips litellm."""
         cb = _make_mock_circuit_breaker(allow=False)
         gw = _make_gateway(circuit_breaker=cb)
 
@@ -207,7 +207,7 @@ class TestCircuitBreakerRecording:
 
     @pytest.mark.asyncio
     async def test_no_circuit_breaker_no_recording_calls(self) -> None:
-        """Without circuit_breaker, no recording methods are invoked (no AttributeError)."""
+        """Without circuit_breaker, recording methods are not invoked."""
         gw = _make_gateway(circuit_breaker=None)
 
         fake_response = _make_litellm_response()
@@ -271,7 +271,7 @@ class TestPriorityQueueWiring:
 
     @pytest.mark.asyncio
     async def test_interactive_priority_higher_than_background(self) -> None:
-        """Interactive priority < background priority numerically (HIGH < NORMAL/LOW in sort order)."""
+        """Interactive priority < background priority (HIGH before NORMAL/LOW)."""
         mock_queue = AsyncMock(spec=PriorityQueue)
         gw = _make_gateway(priority_queue=mock_queue)
 
@@ -294,7 +294,7 @@ class TestPriorityQueueWiring:
         background_req: QueuedRequest = (
             calls[1].args[0] if calls[1].args else calls[1][0][0]
         )
-        # HIGH is sorted before NORMAL / LOW in PriorityLevel.value ordering used by PriorityQueue
+        # HIGH sorts before NORMAL/LOW in PriorityLevel.value ordering
         assert interactive_req.priority == PriorityLevel.HIGH
         assert background_req.priority in (PriorityLevel.NORMAL, PriorityLevel.LOW)
 
@@ -328,7 +328,7 @@ class TestPriorityQueueWiring:
 
 @pytest.fixture()
 def llm_status_app() -> FastAPI:
-    """Minimal FastAPI app mounting only the llm router (IS_API_KEY unset → auth passthrough)."""
+    """Minimal FastAPI app with only the llm router (IS_API_KEY unset)."""
     from intellisource.api.routers.llm import router as llm_router
 
     application = FastAPI()

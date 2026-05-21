@@ -10,11 +10,10 @@ Covers T-087 AC-1 and AC-2:
 from __future__ import annotations
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock
 from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # AC-1: VectorStore.search_similar
@@ -92,8 +91,7 @@ class TestVectorStoreSearchSimilar:
 
         # Only the high-score result should survive threshold filtering
         scores = [
-            (r.score if hasattr(r, "score") else r.get("score", r[1]))
-            for r in results
+            (r.score if hasattr(r, "score") else r.get("score", r[1])) for r in results
         ]
         assert all(s >= 0.7 for s in scores), (
             f"All returned scores must be >= threshold 0.7, got: {scores}"
@@ -217,7 +215,7 @@ class TestVectorStoreFindNearestCluster:
 
     @pytest.mark.asyncio
     async def test_find_nearest_cluster_none_when_score_below_threshold(self) -> None:
-        """find_nearest_cluster returns None when the best cluster is below threshold."""
+        """find_nearest_cluster returns None when best cluster below threshold."""
         from intellisource.storage.vector import VectorStore
 
         session = AsyncMock()
