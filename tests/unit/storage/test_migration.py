@@ -42,10 +42,12 @@ EXPECTED_TABLES = [
 
 
 def _find_migration_files() -> list[pathlib.Path]:
-    """Return all .py migration files in alembic/versions/ (excluding __pycache__)."""
+    """Return all .py migration files in alembic/versions/ sorted by filename
+    so 001_initial_schema.py precedes later revisions, regardless of filesystem order.
+    """
     if not VERSIONS_DIR.exists():
         return []
-    return [f for f in VERSIONS_DIR.glob("*.py") if f.name != "__init__.py"]
+    return sorted(f for f in VERSIONS_DIR.glob("*.py") if f.name != "__init__.py")
 
 
 def _read_migration_source() -> str:

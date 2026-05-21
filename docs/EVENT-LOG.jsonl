@@ -182,3 +182,7 @@
 {"ts": "2026-05-21T09:02:43+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD GREEN: T-083 (应用组合根)"}
 {"ts": "2026-05-21T09:02:44+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD GREEN: T-093 (时区/ReDoS/解析器)"}
 {"ts": "2026-05-21T09:24:23+00:00", "event": "tdd_phase", "phase": "development", "detail": "sprint-8r 批次 1 GREEN checkpoint — T-083+T-093 done (REFACTOR+code-review pending next session); 全量回归 1919 passed/0 failed"}
+{"ts": "2026-05-21T10:28:46+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD REFACTOR: T-083 (required — factory + module-level singleton, GREEN done in prior session)"}
+{"event": "review_verdict", "phase": "development", "agent": "reviewer", "status": "needs_revision", "detail": "T-083 r1 — strict rule (1 HIGH R-001 /tasks/collect schema drift from arch API-007); reviewer self-labelled approved_with_notes, orchestrator adjudicated per COMMON-RULES §三态判定", "ts": "2026-05-21T10:50:08+00:00"}
+{"event": "review_verdict", "phase": "development", "agent": "reviewer", "status": "needs_revision", "detail": "T-093 r1 — strict rule (1 HIGH R-002 is_quiet_hours ZoneInfo no fallback); reviewer self-corrected at report end", "ts": "2026-05-21T10:50:08+00:00"}
+{"event": "state_change", "phase": "development", "detail": "sprint-8r batch 1 r1 reviews complete; T-083/T-093 needs_revision deferred to next session per user decision", "ts": "2026-05-21T10:50:08+00:00"}

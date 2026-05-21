@@ -6,21 +6,15 @@ import os
 
 from celery import Celery
 
-# ---------------------------------------------------------------------------
-# Broker / backend resolution — reads environment, falls back to memory://
-# ---------------------------------------------------------------------------
 
-_CELERY_BROKER_URL: str = (
-    os.environ.get("IS_CELERY_BROKER_URL")
-    or os.environ.get("IS_REDIS_URL")
-    or "memory://"
-)
+def _resolve_url(*env_keys: str, default: str) -> str:
+    """Return the first non-empty value from *env_keys*, or *default*."""
+    for key in env_keys:
+        value = os.environ.get(key)
+        if value:
+            return value
+    return default
 
-_CELERY_RESULT_BACKEND: str = (
-    os.environ.get("IS_CELERY_RESULT_BACKEND")
-    or os.environ.get("IS_REDIS_URL")
-    or "cache+memory://"
-)
 
 # ---------------------------------------------------------------------------
 # Module-level singleton
@@ -28,8 +22,10 @@ _CELERY_RESULT_BACKEND: str = (
 
 celery_app = Celery(
     "intellisource",
-    broker=_CELERY_BROKER_URL,
-    backend=_CELERY_RESULT_BACKEND,
+    broker=_resolve_url("IS_CELERY_BROKER_URL", "IS_REDIS_URL", default="memory://"),
+    backend=_resolve_url(
+        "IS_CELERY_RESULT_BACKEND", "IS_REDIS_URL", default="cache+memory://"
+    ),
 )
 
 celery_app.conf.broker_connection_retry_on_startup = False
