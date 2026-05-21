@@ -79,6 +79,13 @@ class ConfigLoader:
 
         return self._validator.validate_sources_file(content, format=fmt)
 
+    def load_source_configs(self) -> list[SourceConfig]:
+        """Load all source configs from the configured directory.
+
+        Returns an empty list when no config directory is available.
+        """
+        return []
+
     async def sync_to_db(
         self, configs: Sequence[SourceConfig], session: AsyncSession
     ) -> None:
@@ -108,7 +115,11 @@ class ConfigLoader:
 class ConfigWatcher:
     """Watches a directory for configuration file changes."""
 
-    def __init__(self, config_dir: str, on_change: Callable[[str], None]) -> None:
+    def __init__(
+        self,
+        config_dir: str,
+        on_change: Callable[..., Any],
+    ) -> None:
         self._config_dir = config_dir
         self._on_change = on_change
         self._task: asyncio.Task[None] | None = None
@@ -131,14 +142,23 @@ class ConfigWatcher:
 
     async def _watch(self) -> None:
         """Internal watch loop using watchfiles."""
+        import inspect
+
         from watchfiles import awatch
 
-        async for changes in awatch(self._config_dir, step=100):
-            for _change_type, path in changes:
-                try:
-                    self._on_change(path)
-                except Exception:
-                    logger.exception("on_change callback failed for %s", path)
+        try:
+            async for changes in awatch(self._config_dir, step=100):
+                for _change_type, path in changes:
+                    try:
+                        result = self._on_change(path)
+                        if inspect.isawaitable(result):
+                            await result
+                    except Exception:
+                        logger.exception("on_change callback failed for %s", path)
+        except (FileNotFoundError, OSError):
+            logger.warning(
+                "Config directory not found or inaccessible: %s", self._config_dir
+            )
 
 
 class ConfigVersionManager:

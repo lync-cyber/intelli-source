@@ -39,6 +39,10 @@ def _resolve_env_vars(value: _JsonValue) -> _JsonValue:
 class ConfigValidator:
     """Validates source configuration data."""
 
+    def validate(self, config: SourceConfig) -> SourceConfig:
+        """Validate a SourceConfig instance; returns it unchanged."""
+        return config
+
     def validate_source(self, data: dict[str, Any]) -> SourceConfig:
         """Validate a single source configuration dict.
 

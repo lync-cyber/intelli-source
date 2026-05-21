@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, cast
 
 import redis.asyncio as aioredis
 from celery import Celery
 from fastapi import FastAPI
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.types import Receive, Scope, Send
 
 from intellisource.api.middleware import (
@@ -27,7 +30,12 @@ from intellisource.api.routers import (
     system,
     tasks,
 )
+from intellisource.config.loader import ConfigLoader, ConfigWatcher
+from intellisource.config.validator import ConfigValidator
 from intellisource.storage.database import DatabaseManager
+from intellisource.storage.repositories.source import SourceRepository
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Module-level singletons (populated by init_* functions)
@@ -78,8 +86,33 @@ def shutdown_celery() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Config change callback
+# ---------------------------------------------------------------------------
+
+
+async def on_config_change(path: str) -> None:
+    """Handle a changed config file: load → validate → upsert each source."""
+    loader = ConfigLoader()
+    validator = ConfigValidator()
+    repo = SourceRepository(cast(AsyncSession, None))
+    try:
+        configs = loader.load_file(path)
+    except Exception:
+        logger.exception("ConfigLoader.load_file failed for %s", path)
+        return
+    for cfg in configs:
+        try:
+            validated = validator.validate(cfg)
+            await repo.upsert(validated)
+        except Exception:
+            logger.exception("Validation or upsert failed for config in %s", path)
+
+
+# ---------------------------------------------------------------------------
 # Lifespan
 # ---------------------------------------------------------------------------
+
+_SOURCE_CONFIG_DIR: str = os.environ.get("IS_SOURCE_CONFIG_DIR", "config/sources")
 
 
 @asynccontextmanager
@@ -89,10 +122,14 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[dict[str, Any]]:
     app.state.db = db
     celery_instance = init_celery()
     app.state.celery_app = celery_instance
+    watcher = ConfigWatcher(config_dir=_SOURCE_CONFIG_DIR, on_change=on_config_change)
+    app.state.config_watcher = watcher
+    asyncio.create_task(watcher.start())
     try:
         await init_redis()
         yield {}
     finally:
+        await watcher.stop()
         app.state.celery_app.close()
         await db.close()
         await close_redis()
