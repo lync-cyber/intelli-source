@@ -383,6 +383,42 @@ class LLMGateway:
             if "function" not in tool:
                 raise ValueError(f"tools[{i}] missing required key 'function'")
 
+    async def _chat_call_with_retry(
+        self,
+        call_kwargs: dict[str, Any],
+    ) -> Any:
+        """Invoke litellm.acompletion for chat() with retry.
+
+        Retries RECOVERABLE_TRANSIENT errors up to 3 times (4 total calls).
+        On UnsupportedParamsError, retries once without tools/response_format.
+        """
+        async for attempt in AsyncRetrying(
+            stop=stop_after_attempt(4),
+            wait=self._retry_wait,
+            retry=retry_if_exception(
+                lambda e: _classify_error(e) is ErrorCategory.RECOVERABLE_TRANSIENT
+            ),
+            reraise=True,
+        ):
+            with attempt:
+                try:
+                    return await litellm.acompletion(**call_kwargs)
+                except Exception as exc:
+                    if type(exc).__name__ == "UnsupportedParamsError":
+                        logger.warning(
+                            "Provider does not support tools/response_format; "
+                            "retrying without them: %s",
+                            exc,
+                        )
+                        degraded_kwargs = {
+                            k: v
+                            for k, v in call_kwargs.items()
+                            if k not in ("tools", "response_format")
+                        }
+                        return await litellm.acompletion(**degraded_kwargs)
+                    raise
+        return None  # unreachable; satisfies mypy
+
     async def chat(
         self,
         messages: list[dict[str, Any]],
@@ -390,7 +426,6 @@ class LLMGateway:
         response_format: dict[str, Any] | None = None,
         schema: dict[str, Any] | None = None,
         model: str | None = None,
-        **kwargs: Any,
     ) -> LLMResult:
         """Call an LLM with a messages-style API (function calling / JSON mode).
 
@@ -405,10 +440,9 @@ class LLMGateway:
                 invalid JSON, SchemaEnforcer.validate() is called exactly once
                 (AC-4 / SS-3). Raises LLMOutputError if enforcement also fails.
             model: Model identifier override.
-            **kwargs: Additional kwargs forwarded to litellm.
 
         Returns:
-            LLMResult with content and metadata.
+            LLMResult with content and metadata (tool_calls, finish_reason, usage).
 
         Raises:
             ValueError: If tools fails structural validation (SS-1).
@@ -429,11 +463,14 @@ class LLMGateway:
             call_kwargs["response_format"] = response_format
 
         start_time = time.monotonic()
-        response = await litellm.acompletion(**call_kwargs)
+        response = await self._chat_call_with_retry(call_kwargs)
         elapsed_ms = (time.monotonic() - start_time) * 1000
 
-        content: str = response.choices[0].message.content
+        content: str = response.choices[0].message.content or ""
         metadata: dict[str, Any] = {
+            "tool_calls": response.choices[0].message.tool_calls,
+            "finish_reason": response.choices[0].finish_reason,
+            "usage": dict(response.usage) if response.usage else {},
             "input_tokens": response.usage.prompt_tokens,
             "output_tokens": response.usage.completion_tokens,
             "latency_ms": elapsed_ms,

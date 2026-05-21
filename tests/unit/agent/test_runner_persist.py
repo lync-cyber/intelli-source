@@ -17,6 +17,7 @@ import pytest
 
 from intellisource.agent.pipeline import PipelineConfig
 from intellisource.agent.runner import AgentRunner
+from intellisource.llm.gateway import LLMResult
 from intellisource.storage.models import TaskChain
 
 # ---------------------------------------------------------------------------
@@ -192,11 +193,10 @@ class TestRunFlexiblePassesExecutionMode:
         """After run_flexible completes, the _persist spy must have been called
         with execution_mode='flexible' in its keyword arguments."""
         llm_gateway = AsyncMock()
-        llm_gateway.chat.return_value = {
-            "tool_calls": [],
-            "content": "done",
-            "done": True,
-        }
+        llm_gateway.chat.return_value = LLMResult(
+            content="done",
+            metadata={"tool_calls": None, "finish_reason": "stop", "usage": {}},
+        )
 
         registry = MagicMock()
         registry.list_tools.return_value = []

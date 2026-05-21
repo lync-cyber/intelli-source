@@ -19,6 +19,39 @@ import pytest
 
 from intellisource.agent.pipeline import PipelineConfig
 from intellisource.agent.runner import AgentRunner
+from intellisource.llm.gateway import LLMResult
+
+
+def _llm_result_done(content: str = "done") -> LLMResult:
+    """LLMResult representing a final LLM answer (no tool calls)."""
+    return LLMResult(
+        content=content,
+        metadata={"tool_calls": None, "finish_reason": "stop", "usage": {}},
+    )
+
+
+def _llm_result_with_tool_calls(
+    tool_calls: list[dict],
+    content: str = "",
+) -> LLMResult:
+    """LLMResult representing an LLM response requesting tool calls."""
+    return LLMResult(
+        content=content,
+        metadata={"tool_calls": tool_calls, "finish_reason": "tool_calls", "usage": {}},
+    )
+
+
+def _llm_result_with_usage(total_tokens: int) -> LLMResult:
+    """LLMResult with token usage for budget tracking tests."""
+    return LLMResult(
+        content="",
+        metadata={
+            "tool_calls": None,
+            "finish_reason": "stop",
+            "usage": {"total_tokens": total_tokens},
+        },
+    )
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -62,12 +95,11 @@ def tool_registry() -> MagicMock:
 def llm_gateway() -> AsyncMock:
     """Mock LLM gateway for flexible mode."""
     gateway = AsyncMock()
-    # Simulate LLM returning a tool call then a final answer
-    gateway.chat.return_value = {
-        "tool_calls": [],
-        "content": "Task completed successfully.",
-        "done": True,
-    }
+    # Simulate LLM returning a final answer (no tool calls)
+    gateway.chat.return_value = LLMResult(
+        content="Task completed successfully.",
+        metadata={"tool_calls": None, "finish_reason": "stop", "usage": {}},
+    )
     return gateway
 
 
@@ -368,11 +400,9 @@ class TestFlexibleMaxSteps:
         """AC-T030-3: flexible mode stops after max_steps iterations."""
         # LLM gateway that always requests another tool call (never done)
         llm_gw = AsyncMock()
-        llm_gw.chat.return_value = {
-            "tool_calls": [{"name": "web_search", "arguments": {"q": "test"}}],
-            "content": "",
-            "done": False,
-        }
+        llm_gw.chat.return_value = _llm_result_with_tool_calls(
+            tool_calls=[{"name": "web_search", "arguments": {"q": "test"}}],
+        )
         runner = AgentRunner(tool_registry=tool_registry, llm_gateway=llm_gw)
         config = PipelineConfig.from_dict(
             {
@@ -490,7 +520,7 @@ class TestRunFlexibleSystemPrompt:
     ) -> None:
         """AC-T054-1: system_prompt from config sent to LLM gateway."""
         llm_gw = AsyncMock()
-        llm_gw.chat.return_value = {"tool_calls": [], "content": "done", "done": True}
+        llm_gw.chat.return_value = _llm_result_done()
         runner = AgentRunner(tool_registry=tool_registry, llm_gateway=llm_gw)
         config = PipelineConfig.from_dict(
             {
@@ -525,18 +555,16 @@ class TestToolResultSerialization:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                return {
-                    "tool_calls": [
+                return _llm_result_with_tool_calls(
+                    tool_calls=[
                         {
                             "name": "web_search",
                             "arguments": {"q": "test"},
                             "id": "tc-1",
                         }
                     ],
-                    "content": "",
-                    "done": False,
-                }
-            return {"tool_calls": [], "content": "done", "done": True}
+                )
+            return _llm_result_done()
 
         llm_gw.chat.side_effect = _chat_side_effect
         runner = AgentRunner(tool_registry=tool_registry, llm_gateway=llm_gw)
@@ -577,18 +605,16 @@ class TestFlexibleResultsAccumulation:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                return {
-                    "tool_calls": [
+                return _llm_result_with_tool_calls(
+                    tool_calls=[
                         {
                             "name": "web_search",
                             "arguments": {"q": "hello"},
                             "id": "tc-1",
                         }
                     ],
-                    "content": "",
-                    "done": False,
-                }
-            return {"tool_calls": [], "content": "done", "done": True}
+                )
+            return _llm_result_done()
 
         llm_gw.chat.side_effect = _chat_side_effect
         runner = AgentRunner(tool_registry=tool_registry, llm_gateway=llm_gw)
@@ -631,18 +657,16 @@ class TestFlexibleResultsAccumulation:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                return {
-                    "tool_calls": [
+                return _llm_result_with_tool_calls(
+                    tool_calls=[
                         {
                             "name": "web_search",
                             "arguments": {},
                             "id": "tc-1",
                         }
                     ],
-                    "content": "",
-                    "done": False,
-                }
-            return {"tool_calls": [], "content": "done", "done": True}
+                )
+            return _llm_result_done()
 
         llm_gw.chat.side_effect = _chat_side_effect
         runner = AgentRunner(tool_registry=tool_registry, llm_gateway=llm_gw)
@@ -680,18 +704,20 @@ class TestMaxTokensBudget:
         async def _chat_side_effect(**kwargs):
             nonlocal call_count
             call_count += 1
-            return {
-                "tool_calls": [
-                    {
-                        "name": "web_search",
-                        "arguments": {"q": "test"},
-                        "id": f"tc-{call_count}",
-                    }
-                ],
-                "content": "",
-                "done": False,
-                "usage": {"total_tokens": 5000},
-            }
+            return LLMResult(
+                content="",
+                metadata={
+                    "tool_calls": [
+                        {
+                            "name": "web_search",
+                            "arguments": {"q": "test"},
+                            "id": f"tc-{call_count}",
+                        }
+                    ],
+                    "finish_reason": "tool_calls",
+                    "usage": {"total_tokens": 5000},
+                },
+            )
 
         llm_gw.chat.side_effect = _chat_side_effect
         runner = AgentRunner(tool_registry=tool_registry, llm_gateway=llm_gw)

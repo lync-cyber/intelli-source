@@ -532,3 +532,160 @@ class TestT086Security:
                 f"Message content was altered: expected {original['content']!r}, "
                 f"got {sent['content']!r}"
             )
+
+
+# ===========================================================================
+# R-003 / R-006: content=None guard for Function Calling responses
+# ===========================================================================
+
+
+class TestT086ContentNoneGuard:
+    """R-003/R-006: chat() handles content=None when litellm returns tool_calls only."""
+
+    @pytest.mark.asyncio
+    async def test_content_none_with_tool_calls_returns_empty_string(self) -> None:
+        """R-003: content=None in Function Calling returns LLMResult(content='')."""
+        from intellisource.llm.gateway import LLMResult
+
+        gw = _make_gateway()
+
+        resp = MagicMock()
+        resp.choices = [MagicMock()]
+        resp.choices[0].message.content = None
+        mock_tc = MagicMock()
+        mock_tc.function.name = "get_weather"
+        mock_tc.function.arguments = '{"location": "Paris"}'
+        mock_tc.id = "call-123"
+        resp.choices[0].message.tool_calls = [mock_tc]
+        resp.choices[0].finish_reason = "tool_calls"
+        resp.usage.prompt_tokens = 25
+        resp.usage.completion_tokens = 0
+        resp.model = "gpt-4o-mini"
+
+        with patch("intellisource.llm.gateway.litellm") as mock_litellm:
+            mock_litellm.acompletion = AsyncMock(return_value=resp)
+            result = await gw.chat(
+                messages=_SAMPLE_MESSAGES,
+                tools=_SAMPLE_TOOLS,
+            )
+
+        assert isinstance(result, LLMResult)
+        assert result.content == "", (
+            f"Expected content='' when litellm returns None, got {result.content!r}"
+        )
+        assert result.metadata["tool_calls"] is not None
+        assert len(result.metadata["tool_calls"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_content_none_does_not_raise_type_error(self) -> None:
+        """R-003: len(content) in CostTracker path safe when content is None."""
+        mock_session = AsyncMock()
+        mock_session.add = MagicMock()
+        mock_session.commit = AsyncMock()
+
+        from intellisource.llm.cost_tracker import CostTracker
+
+        tracker = CostTracker(session=mock_session)
+        gw = _make_gateway(cost_tracker=tracker)
+
+        resp = MagicMock()
+        resp.choices = [MagicMock()]
+        resp.choices[0].message.content = None
+        mock_tc = MagicMock()
+        resp.choices[0].message.tool_calls = [mock_tc]
+        resp.choices[0].finish_reason = "tool_calls"
+        resp.usage.prompt_tokens = 10
+        resp.usage.completion_tokens = 0
+        resp.model = "gpt-4o-mini"
+
+        with patch("intellisource.llm.gateway.litellm") as mock_litellm:
+            mock_litellm.acompletion = AsyncMock(return_value=resp)
+            with patch.object(tracker, "log_call", new_callable=AsyncMock) as mock_log:
+                await gw.chat(messages=_SAMPLE_MESSAGES, tools=_SAMPLE_TOOLS)
+
+        mock_log.assert_awaited_once()
+        record = mock_log.call_args[0][0]
+        assert record.output_length == 0
+
+
+# ===========================================================================
+# R-004: chat() retry and UnsupportedParamsError downgrade
+# ===========================================================================
+
+
+class TestT086ChatRetry:
+    """R-004: chat() uses _chat_call_with_retry for retry and UnsupportedParamsError."""
+
+    @pytest.mark.asyncio
+    async def test_transient_rate_limit_error_retried_successfully(self) -> None:
+        """R-004a: RateLimitError on first call is retried; second call succeeds."""
+        from tenacity import wait_none
+
+        from intellisource.llm.gateway import LLMResult
+
+        gw = _make_gateway(_retry_wait=wait_none())
+        success_resp = _make_litellm_response(content="retry success")
+
+        call_count = 0
+
+        class _FakeRateLimitError(Exception):
+            pass
+
+        _FakeRateLimitError.__name__ = "RateLimitError"
+
+        async def _side_effect(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise _FakeRateLimitError("rate limited")
+            return success_resp
+
+        with patch("intellisource.llm.gateway.litellm") as mock_litellm:
+            mock_litellm.acompletion = AsyncMock(side_effect=_side_effect)
+            result = await gw.chat(messages=_SAMPLE_MESSAGES)
+
+        assert isinstance(result, LLMResult)
+        assert result.content == "retry success"
+        assert call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_unsupported_params_error_downgrades_without_tools(self) -> None:
+        """R-004b: UnsupportedParamsError triggers a degraded retry without tools."""
+        from intellisource.llm.gateway import LLMResult
+
+        gw = _make_gateway()
+        degraded_resp = _make_litellm_response(content="degraded response")
+
+        call_count = 0
+        captured_kwargs: list[dict] = []
+
+        class _FakeUnsupportedParamsError(Exception):
+            pass
+
+        _FakeUnsupportedParamsError.__name__ = "UnsupportedParamsError"
+
+        async def _side_effect(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            captured_kwargs.append(dict(kwargs))
+            if call_count == 1:
+                raise _FakeUnsupportedParamsError("tools not supported")
+            return degraded_resp
+
+        with patch("intellisource.llm.gateway.litellm") as mock_litellm:
+            mock_litellm.acompletion = AsyncMock(side_effect=_side_effect)
+            result = await gw.chat(
+                messages=_SAMPLE_MESSAGES,
+                tools=_SAMPLE_TOOLS,
+                response_format={"type": "json_object"},
+            )
+
+        assert isinstance(result, LLMResult)
+        assert result.content == "degraded response"
+        assert call_count == 2
+        assert "tools" not in captured_kwargs[1], (
+            "Second call should not contain 'tools'"
+        )
+        assert "response_format" not in captured_kwargs[1], (
+            "Second call should not contain 'response_format'"
+        )
