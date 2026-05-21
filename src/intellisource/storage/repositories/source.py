@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 from sqlalchemy import select
@@ -14,6 +15,12 @@ class SourceRepository(BaseRepository[Source]):
     """CRUD and filtered listing for :class:`Source` entities."""
 
     _model_class = Source
+
+    async def list_active_source_ids(self) -> list[uuid.UUID]:
+        """Return the IDs of all sources with status='active'."""
+        stmt = select(Source.id).where(Source.status == "active")
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
 
     async def create(
         self,

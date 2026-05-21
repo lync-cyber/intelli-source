@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session
+from intellisource.storage.repositories.source import SourceRepository
 from intellisource.storage.repositories.task import TaskRepository
 
 router = APIRouter(tags=["tasks"])
@@ -22,8 +23,8 @@ router = APIRouter(tags=["tasks"])
 
 
 class CollectRequest(BaseModel):
-    source_id: str
-    trigger_type: str
+    source_ids: list[str] | None = None
+    priority: str = "normal"
 
 
 class TaskUpdateRequest(BaseModel):
@@ -52,6 +53,16 @@ def _serialize_task(task: Any) -> dict[str, Any]:
         "created_at": task.created_at,
         "pipeline_name": task.pipeline_name,
         "execution_mode": task.execution_mode,
+    }
+
+
+def _task_brief(task: Any) -> dict[str, Any]:
+    """Return a TaskBrief dict for use in TaskTriggerResponse."""
+    return {
+        "id": str(task.id),
+        "type": "collect",
+        "status": task.status,
+        "created_at": task.created_at,
     }
 
 
@@ -94,29 +105,70 @@ async def trigger_collect(
     body: CollectRequest,
     session: AsyncSession = Depends(get_db_session),
 ) -> Any:
-    repo = TaskRepository(session)
-    try:
-        task = await repo.create(
-            source_id=uuid.UUID(body.source_id),
-            trigger_type=body.trigger_type,
-        )
-    except ValueError:
-        return JSONResponse(status_code=404, content={"detail": "source not found"})
+    source_repo = SourceRepository(session)
+    task_repo = TaskRepository(session)
+    priority = body.priority
 
-    serialized = _serialize_task(task)
+    if body.source_ids:
+        # Validate all requested source IDs.
+        invalid: list[str] = []
+        resolved: list[uuid.UUID] = []
+        for raw in body.source_ids:
+            try:
+                resolved.append(uuid.UUID(raw))
+            except ValueError:
+                invalid.append(raw)
+        if invalid:
+            return JSONResponse(
+                status_code=400,
+                content={"detail": f"invalid source_ids: {invalid}"},
+            )
+        source_uuids = resolved
+    else:
+        source_uuids = await source_repo.list_active_source_ids()
+
+    if not source_uuids:
+        return JSONResponse(
+            status_code=202,
+            content={
+                "task_chain_id": str(uuid.uuid4()),
+                "tasks": [],
+                "message": "无活跃信源可采集",
+            },
+        )
+
+    task_chain_id = str(uuid.uuid4())
+    tasks: list[Any] = []
+    for sid in source_uuids:
+        task = await task_repo.create(
+            source_id=sid,
+            trigger_type="manual",
+            priority=priority,
+            task_chain_id=uuid.UUID(task_chain_id),
+        )
+        tasks.append(task)
 
     celery_instance = getattr(request.app.state, "celery_app", None)
     if celery_instance is not None:
-        async_result = celery_instance.send_task(
-            "run_pipeline",
-            kwargs={
-                "source_id": str(body.source_id),
-                "trigger_type": body.trigger_type,
-            },
-        )
-        serialized["task_id"] = async_result.id
+        for task in tasks:
+            celery_instance.send_task(
+                "run_pipeline",
+                kwargs={
+                    "source_id": str(task.source_id),
+                    "task_id": str(task.id),
+                    "task_chain_id": task_chain_id,
+                    "priority": priority,
+                },
+            )
 
-    return serialized
+    return JSONResponse(
+        status_code=202,
+        content={
+            "task_chain_id": task_chain_id,
+            "tasks": [_task_brief(t) for t in tasks],
+            "message": f"已创建 {len(tasks)} 个采集任务",
+        },
+    )
 
 
 @router.get("/tasks/{id}")
