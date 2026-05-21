@@ -117,7 +117,11 @@
       "Bash(where cataforge *)",
       "Bash(docker --version)",
       "Bash(docker info *)",
-      "Bash(awk '{print $2}')"
+      "Bash(awk '{print $2}')",
+      "Bash(cataforge event *)",
+      "Skill(tdd-engine)",
+      "Skill(tdd-engine:*)",
+      "Bash(findstr testcontainers *)"
     ]
   }
 }

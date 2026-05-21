@@ -1,6 +1,6 @@
 # Orchestrator Protocols
 
-> 协议快速定位 — 核心协议: Bootstrap, **Mode Routing**, Interrupt-Resume, Revision, Approved-with-Notes, **Phase Transition**, **Manual Review Checkpoint**, Rolled-back Recovery, TDD Blocked Recovery, **Parallel Task Dispatch**, Sprint Review, Change Request, Agent Crash Recovery, needs_revision 计数 | 基础设施: Event Log | 学习协议: On-Correction Learning, **Adaptive Review (含反向降级)**, Retrospective & Improvement | 模板: CLAUDE.md Update Template
+> 协议快速定位 — 核心协议: Bootstrap, **Mode Routing**, Interrupt-Resume, Revision, Approved-with-Notes, **Phase Transition**, **Manual Review Checkpoint**, Rolled-back Recovery, TDD Blocked Recovery, **Parallel Task Dispatch**, Sprint Review, Change Request, Agent Crash Recovery, **Sub-Agent Truncation Recovery**, needs_revision 计数 | 基础设施: Event Log | 学习协议: On-Correction Learning, **Adaptive Review (含反向降级)**, Retrospective & Improvement | 模板: CLAUDE.md Update Template
 
 ---
 # Part 1: 核心协议 (Core Protocols)
@@ -18,6 +18,35 @@
 3. **创建目录结构**: 根据执行模式:
     - `standard` / `agile-lite`: `mkdir -p docs/{prd,arch,dev-plan,ui-spec,test-report,deploy-spec,research,changelog,reviews/{doc,code,sprint,retro}}`
     - `agile-prototype`: `mkdir -p docs/{brief,research,reviews/{doc,code}}`
+3a. **写入跨平台 `.gitattributes`** — 治理 Windows `core.autocrlf=true` + fixture/snapshot 字节哈希漂移。项目根无 `.gitattributes` 时写入下列最小集；已存在则**只读**判断（含 `eol=` 视为已归一化），不覆盖用户自定义：
+
+    ```
+    # cataforge default — 跨平台行尾归一化
+    * text=auto eol=lf
+    *.md text eol=lf
+    *.json text eol=lf
+    *.yaml text eol=lf
+    *.yml text eol=lf
+    *.ts text eol=lf
+    *.tsx text eol=lf
+    *.js text eol=lf
+    *.mjs text eol=lf
+    *.py text eol=lf
+    *.sh text eol=lf
+    *.snap text eol=lf
+    *.bat text eol=crlf
+    *.cmd text eol=crlf
+    *.png binary
+    *.jpg binary
+    *.jpeg binary
+    *.gif binary
+    *.ico binary
+    *.pdf binary
+    *.zip binary
+    *.tar.gz binary
+    ```
+
+    > 适用：Node / Python / 含 fixture 的多平台项目。纯 Linux/macOS 服务端项目可裁剪至首行 `* text=auto eol=lf`。
 4. **创建 CLAUDE.md** — 按下方 Update Template 生成，所有文档状态设为"未开始"，§框架元信息.执行模式填入步骤 2 选定值；当前阶段按模式设置:
     - `standard` → `requirements`
     - `agile-lite` → `planning`（Phase 1+2 合并）
@@ -112,13 +141,19 @@ Mode Routing Protocol 在以下时刻被调用:
    ```
 2. 从 REVIEW 报告中提取 MEDIUM/LOW 问题列表
 3. 使用 AskUserQuestion 向用户展示问题摘要，提供选项:
-   - "接受并继续": 将文档状态变更为 approved，进入下一 Phase
-   - "要求修复选中的问题": 将用户选中的问题标记为待修复，文档状态变更为 needs_revision，进入 Revision Protocol
+   - **(1) 接受并继续**: 文档状态 → approved，进入下一 Phase
+   - **(2) 要求修复选中的问题**: 选中问题 → needs_revision，进入 Revision Protocol
+   - **(3) 暂停等待人工**: 不动文档状态，§当前阶段 标 hold
+   - **(4) 全量 inline-fix 后继续**（仅在下列条件**全部**成立时展示）: orchestrator/reviewer 主线程逐条扫 LOW 并 Edit / doc-gen write-section 直接修复（同会话），verdict 保持 approved_with_notes 但实质等价 approved，文档 status: draft → approved
+     - MEDIUM+LOW 问题数 ≥ 8（少量手修更直接）
+     - 全部为表述漂移 / 格式 / 引用对齐 / 完整性补充（非设计缺陷）
+     - 单次修改 ≤ 50 行（超过走 (2)）
+     - 不适用 PRD / ARCH 等需求冻结类文档（仍走 (2)，防止冻结后静默改动）
 4. **[EVENT]** 记录用户决策:
    ```bash
-   cataforge event log --event user_decision --phase {当前阶段} --detail "用户选择: {接受并继续|要求修复}"
+   cataforge event log --event user_decision --phase {当前阶段} --detail "用户选择: {接受并继续|要求修复|暂停|全量 inline-fix}"
    ```
-5. 用户选择"接受"时，MEDIUM/LOW 问题记录保留在 REVIEW 报告中供后续参考
+5. 选"接受"→ MEDIUM/LOW 保留在 REVIEW 供后续参考；选"全量 inline-fix"→ REVIEW 末尾追加 §Inline-Fix 闭环记录 表（每条 LOW 一行：编号 / 原问题 / 修复 commit-or-diff hash / closed-by-orchestrator）
 
 ## Phase Transition Protocol
 当 reviewer 返回 approved 或 approved_with_notes 且用户选择"接受并继续"时，执行以下状态持久化步骤:
@@ -343,6 +378,22 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
 3. 每Agent每阶段最多 1 次 Crash Recovery，第 2 次崩溃请求人工介入
 4. 崩溃事件记录到 docs/reviews/CORRECTIONS-LOG.md 供 reflector 分析
 
+> **与 §Sub-Agent Truncation Recovery 的区分**：本协议针对 process 死（无任何输出 / agent-dispatch 端兜底无法推断状态）。task-notification truncation 是另一回事 —— 子代理走完全程但 token budget 耗尽，artifact 已部分落地，仅 `<agent-result>` JSON 没回。后者由下一节专门处理。
+
+## Sub-Agent Truncation Recovery Protocol
+
+当子代理被 task-notification truncation 打断（征兆：100+ tools / 100K+ tokens / 5min+ / `<agent-result>` 缺失，但 `git status` 显示已有未提交 artifact），主线程**接管收尾**而非 blocked：
+
+1. **评估完成度**（按任务类型选 1-2 项）：代码任务跑 `{test_command}` 看 PASS 率 + `biome lint` / `ruff check` / `tsc --noEmit` 看类型/lint 错数；文档任务核对 deliverables 齐全 + frontmatter 完整
+2. **决策**：
+   - **≥ 70% AC PASS（或 deliverables 齐全）** → 主线程接管：inline-fix 残留 lint/typecheck 错 + 补落盘缺漏 + 补 `<agent-result>` 等价信息到 EVENT-LOG（`event=state_change`，`detail="truncation recovery: main-thread takeover"`）
+   - **< 70%** → blocked，请求人工介入（不允许从零接管，成本不可控）
+   - **无任何 artifact** → 走 §Agent Crash Recovery（process 死，本协议不适用）
+3. **每任务最多 1 次**；第 2 次截断说明 prompt 设计有问题，blocked + 标 backlog 给下次 retrospective
+4. 事件记录：`event=state_change` + `agent={truncated_agent_id}` + `detail="truncation recovery: <70%|≥70%>"`，供 reflector 检测频次（≥5 次/月触发 SKILL-IMPROVE）
+
+**与 tdd-engine §Mid-Progress Drop Contract 的关系**：mid-progress 是**预防**（边推进边落盘，降低末尾批量 finalize 的截断概率）；本协议是**事后兜底**。两者协同：契约把 truncation 后的完成度从 0% 抬到 70%+，让本协议阈值可达。
+
 ## needs_revision 计数规范
 `needs_revision(N)` 中的 N 为本阶段累计返工次数，格式为 `needs_revision(2)` 而非独立字段。
 - N=1: 正常修订流程
@@ -449,18 +500,22 @@ cataforge event log --event phase_start --phase architecture --detail "进入架
 
 ## Retrospective & Improvement Protocol
 触发条件: 所有 Phase 完成后执行一次（不阻塞项目交付）
+
+**执行模式: inline** —— 与 change-guard / Adaptive Review 一致，orchestrator 直接执行 reflector AGENT.md §Retrospective Protocol；reflector 的 `inline_dispatch: true` frontmatter 即此 hint。
+
 步骤:
 1. **触发门槛判定**: 满足以下任一条件才触发 retrospective，否则跳过:
    - `docs/reviews/CORRECTIONS-LOG.md` 中 `偏差类型` 累计命中 self-caused 的条目数 ≥ `RETRO_TRIGGER_SELF_CAUSED`，或
-   - 本项目任一 REVIEW / CODE-REVIEW / CODE-SCAN / FRAMEWORK-REVIEW 报告包含 CRITICAL 级别问题（CODE-SCAN/FRAMEWORK-REVIEW 自 v0.1.15 起纳入触发集，使项目级腐化与元资产质量问题同样能驱动 EXP 经验提炼）
+   - 本项目任一 REVIEW / CODE-REVIEW / CODE-SCAN / FRAMEWORK-REVIEW 报告包含 CRITICAL 级别问题
    跳过时在 CLAUDE.md `Learnings Registry` 字段记录 `retro skipped (below threshold)` 并**[EVENT]** 写入 `review_verdict`（agent=reflector, status=approved, detail="retro skipped (below threshold)"）
-2. 通过 agent-dispatch 激活 reflector (task_type=retrospective)
-3. reflector 产出:
+2. **执行 reflector §Retrospective Protocol**: orchestrator 自行加载 `.cataforge/agents/reflector/AGENT.md` §Retrospective Protocol（含 EVENT-LOG.jsonl 扫描），按其步骤 1-7 完成产出
+3. 产出文件:
    - docs/reviews/retro/RETRO-{project}-{cycle}.md（`{cycle}` = sprint 编号或迭代标签，仅 slug；版本号写入 frontmatter `version:`，含 EXP 经验条目）
    - docs/reviews/retro/SKILL-IMPROVE-{skill_id}.md（含每条 EXP 对应的具体 Agent/Skill 文件修改建议）
 4. orchestrator 向用户展示 RETRO 报告中的经验条目和改进建议
 5. 用户审批后执行修改，git commit，message 格式: `learn: apply EXP-{NNN} to {target_file}`
-6. 如果 reflector 返回 blocked 或失败，仅记录日志，不影响项目完成状态
+6. reflector 协议遇到不可恢复错误（docs/reviews/ 子目录不存在或全空、EVENT-LOG.jsonl 解析失败）时仅记录 `incident` 事件，不影响项目完成状态
+7. **fallback to subagent**: 主对话上下文饱和或用户显式偏好独立 retro 报告时，降级使用 `cataforge agent run reflector --task-type retrospective`；这是逃生通道，不是默认路径
 
 ## CLAUDE.md Update Template
 每次阶段转换时更新:
