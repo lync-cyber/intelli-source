@@ -50,14 +50,11 @@ class PipelineEngine:
         logger.debug("Pipeline start: %d processors", len(self._processors))
         start = time.monotonic()
 
-        if self._middlewares:
-            chain = MiddlewareChain(
-                middlewares=self._middlewares,
-                handler=self._run_processors,
-            )
-            context = chain.execute(context)
-        else:
-            context = self._run_processors(context)
+        chain = MiddlewareChain(
+            middlewares=self._middlewares,
+            handler=self._run_processors,
+        )
+        context = chain.execute(context)
 
         elapsed = time.monotonic() - start
         context.set("elapsed_time", elapsed)
