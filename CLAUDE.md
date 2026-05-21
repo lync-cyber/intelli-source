@@ -14,8 +14,8 @@
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 
-- 当前阶段: sprint-8r 批次 1 + 批次 2 完成 — 7 任务全部 approved，准备进入批次 3
-- 下一步行动: ① 批次 3 RED+GREEN（4 任务：T-087 F-005 LLM 智能处理链路接驳（B-04） / T-088 CircuitBreaker + PriorityQueue 接驳 LLMGateway（B-05） / T-089 Agent 工具 6 个 execute stub 真实实现（B-08） / T-092 Celery task_routes + boot.py worker_init + 幂等三组件串入（B-12 + B-13））② 批次 4 T-094 集成测试与冷启动验证 ③ pre_deploy 二次评估
+- 当前阶段: sprint-8r 批次 3 RED+GREEN 完成 — code-review r1 全部落账，**4 任务全 needs_revision**，待 implementer 统一修订
+- 下一步行动: ① 批次 3 r1 修订（4 任务，建议合并一次 implementer 调度）：T-087 修 1 HIGH（pipeline 两处缺 await，CODE-REVIEW-T-087-r1）/ T-088 修 2 HIGH（3008bce）/ T-089 修 2 HIGH（runner tool_deps 未注入 + factory ToolDeps 未构建，CODE-REVIEW-T-089-r1，与 T-092 R-002 同模式）/ T-092 修 3 HIGH + 3 MEDIUM（boot 单例 + 守卫装配 + 空套测试，CODE-REVIEW-T-092-r1）② r2 review ③ 批次 4 T-094 集成测试与冷启动 ④ pre_deploy 二次评估
 - 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r]
 - 当前Sprint: sprint-8r (in-progress — 批次 1 + 批次 2 全 approved 7/12；待批次 3-4)
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r) / test-report = approved；ui-spec = N/A；dev-plan-s8(P2 backlog) = draft；deploy-spec = 未开始
@@ -29,6 +29,13 @@
   - T-090 status=approved（GREEN+REFACTOR → r1 needs_revision（1 HIGH security: pii.py 未接入 record_push） → r2 approved。final: 55ea9b0 + dca8be9 + c78e90a。报告 r1/r2）
   - T-091 status=approved（GREEN → r1 needs_revision（1 HIGH security: validator no-op） → r2 approved_with_notes（1 MEDIUM allowed-types drift + 2 LOW 测试缺口），用户全修无 r3 reviewer → orchestrator inline approve。final: e91d444 + a3caef2 + 74f093a。报告 r1/r2）
   - 全量回归: 2154 passed / 0 failed / 29 skipped; ruff + mypy --strict clean
+- 批次 3 r1 检查点（全部 needs_revision，待 implementer 修订）:
+  - T-087 status=needs_revision r1（1 HIGH pipeline/processors/tools.py 两处缺 await + 2 MEDIUM + 1 LOW；报告 r1）
+  - T-088 status=needs_revision r1（2 HIGH，reviewer 报告 commit 3008bce；待 implementer 修订）
+  - T-089 status=needs_revision r1（2 HIGH: R-001 runner.run_flexible 未注入 tool_deps + R-002 factory build_agent_runner 接受但丢弃 session_factory/llm_gateway，ToolDeps 从未构建（与 T-092 R-002 同"装配缺口"反模式）+ 2 MEDIUM + 1 LOW；报告 r1）
+  - T-092 status=needs_revision r1（3 HIGH + 3 MEDIUM + 4 LOW；reviewer 子代理 task-notification 截断 → orchestrator 主线程内联 L1+L2，独立性损失记录在 CORRECTIONS-LOG 2026-05-21 条目；阻断项 R-001 boot 未取 celery_app 单例致 worker 冷启动 NPE / R-002 三守卫装配缺失致 AC-3/4/5 prod 失效 / R-003 ContentRepository.create 空套测试；报告 r1）
+  - **批次 3 共性反模式**: T-089 R-002 + T-092 R-002 + 共 R-003 三处独立指向"测试通过 mock / 生产装配为空"——sprint-8r 立项要消除的核心模式正在重演，必须本轮根治
+  - 批次 3 阶段测试: 108 new tests passing（commit ace6b99）；mypy --strict clean
 - Learnings Registry:
   - [RETRO-intellisource-v1.md](docs/reviews/retro/RETRO-intellisource-v1.md) — 6 EXP，应用决策 deferred to backlog
   - [SKILL-IMPROVE-*.md](docs/reviews/retro/) — 6 份建议（implementer / refactorer / code-review / tech-lead / tdd-engine / orchestrator）

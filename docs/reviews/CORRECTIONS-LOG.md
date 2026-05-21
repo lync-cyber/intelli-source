@@ -50,3 +50,13 @@ deps: []
 - 基线/推荐: 现在应用 EXP-002 + EXP-005 两条高优先并推进 (Recommended)
 - 实际/选择: 暂停，我要先设读 RETRO 报告
 - 偏差类型: preference
+
+### 2026-05-21 | orchestrator | T-092 r1
+- 触发信号: agent-truncation
+- 问题/假设: T-092 reviewer 子代理 Layer 2 阶段被 task-notification 截断（88 tools / 91K tokens / 5min），未返回 `<agent-result>` 且 CODE-REVIEW-T-092-r1.md 未落盘。无可恢复中间产出。按 §Sub-Agent Truncation Recovery Protocol 应走 §Agent Crash Recovery；选项为：① 重派 reviewer ② orchestrator 主线程内联接管 ③ 跳过待 sprint-review 兜底。
+- 基线/推荐: 重派 reviewer 用更紧凑 prompt（保留独立性，但耗预算）
+- 实际/选择: orchestrator 主线程内联 L1+L2，独立性损失换响应速度
+- 偏差类型: preference
+- 原因: 用户指定选项，明确接受独立性损失换响应速度
+- 影响/缓解: code-review 子代理独立性损失记录在案；为弥补 orchestrator-as-reviewer 的利益冲突，本报告 verdict 走从严：3 HIGH + 3 MEDIUM + 4 LOW = needs_revision；R-001/R-002/R-003 三项的"测试通过、生产失效"是 sprint-8r 立项要消除的核心反模式，必须在批次 3 闭合前由 implementer 修订
+- 关联: docs/reviews/code/CODE-REVIEW-T-092-r1.md
