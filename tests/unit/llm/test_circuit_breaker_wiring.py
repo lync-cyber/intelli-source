@@ -344,7 +344,16 @@ async def llm_status_client(llm_status_app: FastAPI) -> AsyncClient:  # type: ig
 
 
 class TestLLMStatusEndpoint:
-    """AC-5: GET /api/v1/llm/status returns circuit_state and queue_lengths."""
+    """AC-5: GET /api/v1/llm/status returns circuit_state and queue_lengths.
+
+    All tests in this class run with IS_API_KEY unset, so require_api_key
+    short-circuits (no key required). See TestLLMStatusAuth for auth scenarios.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _unset_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Ensure IS_API_KEY is unset so auth is skipped in this test class."""
+        monkeypatch.delenv("IS_API_KEY", raising=False)
 
     @pytest.mark.asyncio
     async def test_status_returns_200(self, llm_status_client: AsyncClient) -> None:

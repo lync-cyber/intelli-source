@@ -31,6 +31,9 @@ from intellisource.api.routers import (
 )
 from intellisource.config.loader import ConfigLoader, ConfigWatcher
 from intellisource.config.validator import ConfigValidator
+from intellisource.llm.circuit_breaker import CircuitBreaker
+from intellisource.llm.gateway import LLMGateway
+from intellisource.llm.priority_queue import PriorityQueue
 from intellisource.storage.database import DatabaseManager
 from intellisource.storage.repositories.source import SourceRepository
 
@@ -137,6 +140,13 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[dict[str, Any]]:
     app.state.config_watcher_task = watcher_task
     try:
         await init_redis()
+        circuit_breaker = CircuitBreaker(redis=_redis_client)
+        priority_queue = PriorityQueue()
+        llm_gateway = LLMGateway(
+            circuit_breaker=circuit_breaker,
+            priority_queue=priority_queue,
+        )
+        app.state.llm_gateway = llm_gateway
         yield {}
     finally:
         await watcher.stop()
