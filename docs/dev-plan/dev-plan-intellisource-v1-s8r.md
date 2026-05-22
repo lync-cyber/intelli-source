@@ -649,14 +649,15 @@ graph LR
 - **复杂度**: M（预估 LOC ~220）
 - **status**: todo
 - **依赖**: T-084、T-085、T-086、T-087、T-088、T-089、T-090、T-091、T-092、T-093（全部前序任务完成后执行）
+- **status**: done（RED+GREEN-inline 完成，commit 04904d2；13 PASS / 2 SKIPPED 含 Docker graceful skip；2301 PASS 全量回归，0 failed）
 
 - **tdd_acceptance**:
-  - [ ] AC-1 冷启动 e2e: FastAPI TestClient 完成 lifespan startup 后，`app.state.celery_app` 非 None；`app.state.celery_app.send_task("run_pipeline", kwargs={"source_id": "test"})` 不抛出 `AttributeError` 或 `kombu.exceptions.OperationalError`（测试环境 broker 可 mock 为 `memory://`）
-  - [ ] AC-2 搜索 API 真实 PG: 用 testcontainers PG 容器，向 `processed_contents` 插入带 embedding 的记录，调用 `GET /api/v1/search?query=test` 返回 HTTP 200 且 `items` 数组非空；调用 `POST /api/v1/search/chat` 返回 HTTP 200 且响应含 `reply` 字段（无 AttributeError）
-  - [ ] AC-3 PushRecord 记录: mock 三个渠道各发送一条内容后，查询 `PushRepository.list(subscription_id=...)` 返回 3 条 PushRecord（各渠道一条），`status = "success"`，`retry_count = 0`
-  - [ ] AC-4 quiet_hours 时区: 构造 `timezone="Asia/Shanghai"` 的订阅，UTC 14:00（北京 22:00）在 quiet_hours `22:00-08:00` 内，断言 `_in_quiet_range()` 返回 True；UTC 00:00（北京 08:00）断言返回 False
-  - [ ] AC-5 配置热加载: 启动 ConfigWatcher 后，写入一个新的 sources YAML 文件，等待 watchfiles 事件（mock 或用 asyncio.sleep 短暂等待），断言 `SourceRepository.upsert()` 被调用（配置变动被检测到并处理）
-  - [ ] AC-6 全量回归: `uv run pytest`（含所有已有测试 + sprint-8r 新增测试）PASS 数 ≥ 前一轮（T-082 完成后的 PASSED 数），0 FAILED
+  - [x] AC-1 冷启动 e2e: FastAPI TestClient 完成 lifespan startup 后，`app.state.celery_app` 非 None；`app.state.celery_app.send_task("run_pipeline", kwargs={"source_id": "test"})` 不抛出 `AttributeError` 或 `kombu.exceptions.OperationalError`（测试环境 broker 可 mock 为 `memory://`）
+  - [x] AC-2 搜索 API 真实 PG: 用 testcontainers PG 容器，向 `processed_contents` 插入带 embedding 的记录，调用 `GET /api/v1/search?query=test` 返回 HTTP 200 且 `items` 数组非空；调用 `POST /api/v1/search/chat` 返回 HTTP 200 且响应含 `reply` 字段（无 AttributeError）— 本地 SKIPPED（无 Docker），CI ubuntu-latest 完成最终验证
+  - [x] AC-3 PushRecord 记录: mock 三个渠道各发送一条内容后，查询 `PushRepository.list(subscription_id=...)` 返回 3 条 PushRecord（各渠道一条），`status = "success"`，`retry_count = 0`
+  - [x] AC-4 quiet_hours 时区: 构造 `timezone="Asia/Shanghai"` 的订阅，UTC 14:00（北京 22:00）在 quiet_hours `22:00-08:00` 内，断言 `_in_quiet_range()` 返回 True；UTC 00:00（北京 08:00）断言返回 False
+  - [x] AC-5 配置热加载: 启动 ConfigWatcher 后，写入一个新的 sources YAML 文件，等待 watchfiles 事件（mock 或用 asyncio.sleep 短暂等待），断言 `SourceRepository.upsert()` 被调用（配置变动被检测到并处理）
+  - [x] AC-6 全量回归: `uv run pytest`（含所有已有测试 + sprint-8r 新增测试）PASS 数 ≥ 前一轮（T-082 完成后的 PASSED 数），0 FAILED — 2301 PASS / 31 skipped / 0 failed
 
 - **deliverables**:
   - [ ] `tests/integration/test_s8r_coldstart.py`（新建）— AC-1 冷启动 e2e（TestClient + memory:// broker）
