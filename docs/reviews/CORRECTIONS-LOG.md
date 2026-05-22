@@ -74,3 +74,13 @@ deps: []
   - 不重写历史（无用户授权 amend/force push）
   - 长期改进 carryover：①修订 implementer AGENT.md / SKILL.md，revision task_type 显式要求 "do not run git add/commit/push; orchestrator handles git" ②修订 orchestrator §revision protocol，并发派工时强制 "agents leave working tree dirty; orchestrator collects & commits sequentially in dispatch order"
 - 关联: commit 2019cbc, commit 7798139, T-088 / T-087 / T-089 r2 revision dispatch
+
+### 2026-05-22 | orchestrator | sprint-8r batch 3 r3 inline approve
+- 触发信号: option-override
+- 问题/假设: 批次 3 r3 三任务全部完成 commit + push（b16f971 / bedd6f4 / db2be0d），2288 PASS / mypy strict / ruff clean。是否对全部 3 任务派 reviewer 还是部分 inline approve？
+- 基线/推荐: 派 3 reviewer 完整闭环
+- 实际/选择: 只派 T-088 r3 reviewer（重点验证 EXP-005 装配缺口闭环）；T-087 r3（R-005 caplog 单行断言）+ T-092 r3（_RawContentResultRepo adapter + integration test）由 orchestrator inline approve
+- 偏差类型: preference
+- 原因: 用户判断 T-087/T-092 r3 风险低（implementer self-report 含完整反证测试说明"删修复后必 fail"；改动局部、可读）；T-088 r3 是 sprint-8r 核心反模式闭环点，必须独立 reviewer 视角
+- 影响/缓解: T-087/T-092 损失独立审查视角；implementer self-report 中的反证测试声明 + orchestrator 主线程 git 历史检查 + 全量回归通过共同构成代偿。如 T-094 集成测试发现装配缺口再回溯
+- 关联: commits b16f971 (T-087 r3) / bedd6f4 (T-088 r3, 仍待 reviewer) / db2be0d (T-092 r3); CODE-REVIEW-T-088-r3.md (in-progress)

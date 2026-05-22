@@ -17,7 +17,7 @@
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 
-- 当前阶段: sprint-8r 批次 3 RED+GREEN 完成 — code-review r1 全部落账（T-087 / T-088 / T-089 / T-092 = 全部 needs_revision，待 implementer 统一修订）
+- 当前阶段: sprint-8r 批次 3 r3 完成 — T-087/T-089/T-092 approved（T-087 + T-092 inline approve；T-089 r2 reviewer approved），T-088 r3 reviewer 后台进行中
 - 上次完成: orchestrator — 批次 2 收尾：T-084 r3 approved（374e8ef + 49d6d1b + df7b24d + c7a9ed9）/ T-085 r2 approved（8d6b075 + 2511a8e）/ T-086 r2 approved_with_notes 用户接受（5f40f4e + 9fd0204）/ T-090 r2 approved（55ea9b0 + dca8be9 + c78e90a）/ T-091 r2 approved_with_notes 用户全修后 orchestrator inline approve（e91d444 + a3caef2 + 74f093a）；全量回归 2154 passed/0 failed/29 skipped；ruff+mypy --strict clean
 - 下一步行动: **新会话 /start-orchestrator 接续 sprint-8r 批次 3**
   - 步骤 1 — 批次 3 RED+GREEN（4 任务，按 dev-plan-s8r 实际任务卡定义，sprint_group 并发上限 3，分 2 轮）:
@@ -70,6 +70,19 @@
     - R-007~R-010 LOW：2 个 test 文件 ruff format / celery_app.py noqa E402 import / shutdown 静默 RuntimeError / 设计阶段 TODO 注释残留
   - **批次 3 共性反模式**: T-089 R-001/R-002 + T-092 R-001/R-002/R-003 五处独立指向 EXP-005（生产接驳缺失：DI / signal / lifespan 定义但无人调用）；本批次必须根治，否则 T-094 冷启动 e2e 必然失败
   - 批次 3 阶段测试: 108 new tests passing（commit ace6b99）；mypy --strict clean
+- 批次 3 r2 检查点（reviewer 独立 r2 审查）:
+  - T-087 r2 = approved_with_notes（1 LOW R-005 warning 日志测试未覆盖）；CODE-REVIEW-T-087-r2.md
+  - T-088 r2 = approved_with_notes（1 MED R-007 main.py _lifespan 未注入 LLMGateway 致 /llm/status 永远 UNKNOWN — EXP-005 装配缺口 carryover + 1 LOW R-008 IS_API_KEY 隐式前提）；CODE-REVIEW-T-088-r2.md
+  - T-089 r2 = approved（0 新发现，tools.py 6 execute 真消费 tool_deps 独立确认）；CODE-REVIEW-T-089-r2.md，无 r3
+  - T-092 r2 = approved_with_notes（1 MED N-001 build_celery_tasks 漏传 content_repository 致 R-003 生产路径断裂 — EXP-005 carryover + 2 LOW N-002/N-003）；CODE-REVIEW-T-092-r2.md
+  - 用户决策：修全部 r2 新发现后接受 → 批次 3 r3
+- 批次 3 r3 闭环检查点:
+  - T-087 r3 = approved（orchestrator inline，CORRECTIONS-LOG 2026-05-22 记录；commit b16f971 — caplog 断言 warning 实际发出，18 PASS）
+  - T-088 r3 = in-review（implementer commit bedd6f4 — main.py _lifespan 构造 CircuitBreaker(redis=_redis_client) + PriorityQueue() + LLMGateway(...) 赋 app.state.llm_gateway；新建 tests/integration/test_llm_gateway_lifespan.py 5 测试；R-008 autouse fixture；521 PASS。reviewer agentId=a8c0e209cce50cf41 后台运行中，重点核查 EXP-005 真实闭环）
+  - T-089: 无 r3（r2 已 approved）
+  - T-092 r3 = approved（orchestrator inline，CORRECTIONS-LOG 2026-05-22 记录；commit db2be0d — _RawContentResultRepo adapter 接入 CeleryTasks.content_repository；TestBuildCeleryTasks 断言 3 守卫均非 None；TestWorkerInitHandlerRealBuild 不 mock build_celery_tasks 跑真实装配；148 PASS targeted, 2288 PASS 全量。N-002 选项 b：fingerprint 由 collection 层 RawContent INSERT 唯一约束完成，record_fingerprint 文档化注释 + 接口契约保留可测）
+  - **EXP-005 闭环现状**：T-088 R-007 + T-092 N-001 两端 r3 真实修；T-089 r2 独立确认 tools 消费 tool_deps；待 T-088 r3 reviewer verdict 完成最后独立确认
+  - 批次 3 r3 全量回归: 2288 PASS / 29 skip / 0 fail；mypy --strict + ruff check + format all clean
 - Learnings Registry:
   - **RETRO-intellisource-v1** (2026-05-04, sprint-1~7, 6 EXP, **应用决策: defer to backlog (用户 2026-05-05)**)
     - EXP-001: implementer 弱测试断言，target=implementer/code-review SKILL — deferred；建议见 [SKILL-IMPROVE-implementer.md](../docs/reviews/retro/SKILL-IMPROVE-implementer.md)、[SKILL-IMPROVE-code-review.md](../docs/reviews/retro/SKILL-IMPROVE-code-review.md)
