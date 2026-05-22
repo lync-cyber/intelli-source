@@ -12,10 +12,10 @@
 - model 继承: AGENT.md 中 `model: inherit` 继承父会话模型
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: sprint-9 批次 1 — T-095 RED+GREEN+REFACTOR 完成，code-review 待执行（sprint-9 立项依据 = 外部 code-scan 识别 8 HIGH + 6 MEDIUM 装配缺口，详见 plan `effervescent-seeking-goose.md`）
-- 下一步行动: ① agent-dispatch reviewer + code-review skill 审 T-095（基于 commit 1b1fbf4 / PR #47） ② 根据 verdict 推进：approved → 批次 2 (T-096/097/098/099) 并行调度；needs_revision → Revision Protocol
+- 当前阶段: sprint-9 批次 1 — T-095 code-review r1 = approved_with_notes（2 MEDIUM R-001/R-002 + 4 LOW R-003~R-006，无 HIGH/CRITICAL）；Approved-with-Notes Protocol 待用户裁决
+- 下一步行动: ① 用户裁决 T-095 r1 接受范围（全接受 / 指定修 / 全修） ② 按裁决推进：全接受 → 批次 2 (T-096/097/098/099) 并行调度规划；指定修/全修 → implementer r2
 - 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r 批次 1-3]
-- 当前Sprint: sprint-9 (in-progress — T-095 in_review；sprint-8r 批次 4 T-094 暂挂，与 sprint-9 完成后一并 sprint-review)
+- 当前Sprint: sprint-9 (in-progress — T-095 r1 approved_with_notes 主线程接手 inline 完成；sprint-8r 批次 4 T-094 暂挂，与 sprint-9 完成后一并 sprint-review)
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report = approved；ui-spec = N/A；dev-plan-s8(P2 backlog) = draft；deploy-spec = 未开始
 - sprint-9 任务清单:
   - T-095 [standard] composition.py + Celery 单例统一 + PipelineLoader + tasks API 契约 — 批次 1，无前置
