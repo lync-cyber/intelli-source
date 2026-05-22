@@ -145,6 +145,9 @@ class TestWorkerInitHandlerSignature:
         mock_runner = MagicMock()
         mock_factory = MagicMock()
         mock_tasks = MagicMock()
+        mock_composition = MagicMock()
+        mock_composition.agent_runner = mock_runner
+        mock_composition.pipeline_loader = MagicMock()
 
         with (
             patch(
@@ -152,12 +155,16 @@ class TestWorkerInitHandlerSignature:
                 return_value=mock_factory,
             ),
             patch(
-                "intellisource.scheduler.boot.build_celery_tasks",
-                return_value=mock_tasks,
+                "intellisource.scheduler.boot._build_redis_client",
+                return_value=MagicMock(),
             ),
             patch(
-                "intellisource.agent.factory.get_agent_runner",
-                return_value=mock_runner,
+                "intellisource.scheduler.boot.build_worker_composition",
+                return_value=mock_composition,
+            ),
+            patch(
+                "intellisource.scheduler.boot.build_celery_tasks",
+                return_value=mock_tasks,
             ),
         ):
             # Must NOT raise TypeError — no required positional / keyword args
@@ -171,6 +178,9 @@ class TestWorkerInitHandlerSignature:
         mock_runner = MagicMock()
         mock_factory = MagicMock()
         mock_tasks = MagicMock()
+        mock_composition = MagicMock()
+        mock_composition.agent_runner = mock_runner
+        mock_composition.pipeline_loader = MagicMock()
 
         with (
             patch(
@@ -178,55 +188,35 @@ class TestWorkerInitHandlerSignature:
                 return_value=mock_factory,
             ),
             patch(
-                "intellisource.scheduler.boot.build_celery_tasks",
-                return_value=mock_tasks,
+                "intellisource.scheduler.boot._build_redis_client",
+                return_value=MagicMock(),
             ),
             patch(
-                "intellisource.agent.factory.get_agent_runner",
-                return_value=mock_runner,
+                "intellisource.scheduler.boot.build_worker_composition",
+                return_value=mock_composition,
+            ),
+            patch(
+                "intellisource.scheduler.boot.build_celery_tasks",
+                return_value=mock_tasks,
             ),
         ):
             worker_init_handler(sender=object())
 
-    def test_handler_uses_get_agent_runner_singleton(self) -> None:
-        """worker_init_handler must call get_agent_runner() to obtain the runner
-        rather than requiring it to be passed as a kwarg."""
-        from intellisource.scheduler.boot import worker_init_handler
+    def test_handler_uses_build_worker_composition(self) -> None:
+        """worker_init_handler must call build_worker_composition() to obtain
+        the runner + pipeline_loader rather than requiring them as kwargs.
 
-        mock_runner = MagicMock()
-        mock_factory = MagicMock()
-        mock_tasks = MagicMock()
-
-        with (
-            patch(
-                "intellisource.scheduler.boot.init_worker_session_factory",
-                return_value=mock_factory,
-            ),
-            patch(
-                "intellisource.scheduler.boot.build_celery_tasks",
-                return_value=mock_tasks,
-            ),
-            patch(
-                "intellisource.agent.factory.get_agent_runner",
-                return_value=mock_runner,
-            ) as mock_get_runner,
-        ):
-            worker_init_handler()
-
-        mock_get_runner.assert_called_once()
-
-    def test_handler_does_not_require_agent_runner_kwarg(self) -> None:
-        """Passing agent_runner=None explicitly must not bypass the singleton fetch.
-
-        The handler should ignore the kwarg and always call get_agent_runner().
-        Specifically this verifies the old signature (requiring agent_runner)
-        is replaced.
+        Updated by T-095: legacy assertion targeted get_agent_runner();
+        composition root now flows through build_worker_composition.
         """
         from intellisource.scheduler.boot import worker_init_handler
 
         mock_runner = MagicMock()
         mock_factory = MagicMock()
         mock_tasks = MagicMock()
+        mock_composition = MagicMock()
+        mock_composition.agent_runner = mock_runner
+        mock_composition.pipeline_loader = MagicMock()
 
         with (
             patch(
@@ -234,18 +224,58 @@ class TestWorkerInitHandlerSignature:
                 return_value=mock_factory,
             ),
             patch(
+                "intellisource.scheduler.boot._build_redis_client",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "intellisource.scheduler.boot.build_worker_composition",
+                return_value=mock_composition,
+            ) as mock_build_composition,
+            patch(
                 "intellisource.scheduler.boot.build_celery_tasks",
                 return_value=mock_tasks,
             ),
-            patch(
-                "intellisource.agent.factory.get_agent_runner",
-                return_value=mock_runner,
-            ) as mock_get_runner,
         ):
-            # Should not raise; get_agent_runner must still be called
             worker_init_handler()
 
-        mock_get_runner.assert_called_once()
+        mock_build_composition.assert_called_once()
+
+    def test_handler_does_not_require_agent_runner_kwarg(self) -> None:
+        """worker_init_handler must accept no kwargs and assemble its own deps.
+
+        Updated by T-095: the legacy assertion required get_agent_runner() to
+        be called; composition now flows through build_worker_composition.
+        """
+        from intellisource.scheduler.boot import worker_init_handler
+
+        mock_runner = MagicMock()
+        mock_factory = MagicMock()
+        mock_tasks = MagicMock()
+        mock_composition = MagicMock()
+        mock_composition.agent_runner = mock_runner
+        mock_composition.pipeline_loader = MagicMock()
+
+        with (
+            patch(
+                "intellisource.scheduler.boot.init_worker_session_factory",
+                return_value=mock_factory,
+            ),
+            patch(
+                "intellisource.scheduler.boot._build_redis_client",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "intellisource.scheduler.boot.build_worker_composition",
+                return_value=mock_composition,
+            ) as mock_build_composition,
+            patch(
+                "intellisource.scheduler.boot.build_celery_tasks",
+                return_value=mock_tasks,
+            ),
+        ):
+            worker_init_handler()
+
+        mock_build_composition.assert_called_once()
 
 
 class TestGetAgentRunnerSingletonExists:
@@ -263,24 +293,30 @@ class TestGetAgentRunnerSingletonExists:
         )
 
     def test_get_agent_runner_returns_without_args(self) -> None:
-        """get_agent_runner() must be callable with no positional arguments
-        (lazy init returns the cached singleton or raises a clear config error,
-        not TypeError)."""
+        """get_agent_runner() must accept zero positional arguments.
+
+        Updated by T-095: legacy behaviour was a silent fallback constructing
+        a None-wired runner. The function now raises RuntimeError when no
+        composition root has installed an instance — which is still a
+        zero-arg signature; we just guard TypeError specifically.
+        """
         import intellisource.agent.factory as factory_mod
 
-        # Must not raise TypeError (wrong signature).
-        # Allowed to raise a configuration error (e.g. FileNotFoundError for
-        # missing pipeline yaml) — that's expected in unit context.
+        original = factory_mod._agent_runner
+        factory_mod._agent_runner = None
         try:
-            factory_mod.get_agent_runner()
-        except TypeError as exc:
-            raise AssertionError(
-                f"get_agent_runner() raised TypeError — "
-                f"must accept zero arguments: {exc}"
-            ) from exc
-        except Exception:
-            # Any non-TypeError is fine; it just means real deps are absent
-            pass
+            try:
+                factory_mod.get_agent_runner()
+            except TypeError as exc:
+                raise AssertionError(
+                    f"get_agent_runner() raised TypeError — "
+                    f"must accept zero arguments: {exc}"
+                ) from exc
+            except RuntimeError:
+                # Expected when no composition root has installed an instance.
+                pass
+        finally:
+            factory_mod._agent_runner = original
 
 
 # ---------------------------------------------------------------------------
@@ -313,6 +349,9 @@ class TestWorkerInitSignalNoAttributeError:
         mock_tasks = MagicMock()
         mock_tasks._idempotency_guard = MagicMock(spec=IdempotencyGuard)
         mock_tasks._fingerprint_checker = MagicMock(spec=FingerprintChecker)
+        mock_composition = MagicMock()
+        mock_composition.agent_runner = mock_runner
+        mock_composition.pipeline_loader = MagicMock()
 
         with (
             patch(
@@ -320,12 +359,16 @@ class TestWorkerInitSignalNoAttributeError:
                 return_value=mock_factory,
             ),
             patch(
-                "intellisource.scheduler.boot.build_celery_tasks",
-                return_value=mock_tasks,
+                "intellisource.scheduler.boot._build_redis_client",
+                return_value=MagicMock(),
             ),
             patch(
-                "intellisource.agent.factory.get_agent_runner",
-                return_value=mock_runner,
+                "intellisource.scheduler.boot.build_worker_composition",
+                return_value=mock_composition,
+            ),
+            patch(
+                "intellisource.scheduler.boot.build_celery_tasks",
+                return_value=mock_tasks,
             ),
         ):
             # Celery dispatches worker_process_init with sender kwarg only.

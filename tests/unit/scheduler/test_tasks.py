@@ -69,16 +69,17 @@ def mock_agent_runner():
 
 @pytest.fixture()
 def mock_pipeline_config():
-    """Provide a mock PipelineConfig with sample pipeline data."""
+    """Provide a mock PipelineLoader whose load() returns a PipelineConfig-like
+    object (attribute access on .mode / .steps, per T-095 contract)."""
     config = MagicMock()
-    config.load.return_value = {
-        "name": "news_collect",
-        "steps": [
-            {"name": "fetch", "processor": "rss_collector"},
-            {"name": "parse", "processor": "html_parser"},
-        ],
-        "execution_mode": "strict",
-    }
+    loaded = MagicMock()
+    loaded.name = "news_collect"
+    loaded.mode = "strict"
+    loaded.steps = [
+        {"name": "fetch", "processor": "rss_collector"},
+        {"name": "parse", "processor": "html_parser"},
+    ]
+    config.load.return_value = loaded
     return config
 
 

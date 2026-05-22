@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-import intellisource.agent.factory as _agent_factory
+from intellisource.composition import build_worker_composition
 from intellisource.scheduler.celery_app import celery_app as _module_celery_app
 from intellisource.scheduler.idempotency import FingerprintChecker, IdempotencyGuard
 from intellisource.scheduler.tasks import CeleryTasks
@@ -131,11 +131,25 @@ def build_celery_tasks(
 
 
 def worker_init_handler(**_: Any) -> None:
-    """Celery worker_process_init signal entry point; idempotent singleton."""
+    """Celery worker_process_init signal entry point; idempotent singleton.
+
+    Assembles the full composition graph via
+    `intellisource.composition.build_worker_composition` and installs the
+    resulting `CeleryTasks` instance on the module-level Celery singleton
+    so the @celery_app.task body can reach it.
+    """
     global _celery_tasks
-    agent_runner = _agent_factory.get_agent_runner()
     factory = init_worker_session_factory()
-    _celery_tasks = build_celery_tasks(agent_runner, None, factory)
+    redis_client = _build_redis_client()
+    composition = build_worker_composition(
+        session_factory=factory,
+        redis_client=redis_client,
+    )
+    _celery_tasks = build_celery_tasks(
+        composition.agent_runner,
+        composition.pipeline_loader,
+        factory,
+    )
     setattr(_module_celery_app, "_celery_tasks_instance", _celery_tasks)
 
 

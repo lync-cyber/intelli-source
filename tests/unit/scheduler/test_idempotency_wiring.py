@@ -26,13 +26,14 @@ def _make_mock_pipeline_config(
     pipeline_name: str = "news_collect",
     execution_mode: str = "strict",
 ) -> MagicMock:
-    """Return a minimal PipelineConfig-like mock."""
+    """Return a minimal PipelineLoader-like mock whose load() returns a
+    PipelineConfig with attribute access on .mode / .steps (T-095 contract)."""
     cfg_mock = MagicMock()
-    cfg_mock.load.return_value = {
-        "name": pipeline_name,
-        "steps": [{"name": "fetch", "processor": "rss_collector"}],
-        "execution_mode": execution_mode,
-    }
+    loaded = MagicMock()
+    loaded.name = pipeline_name
+    loaded.mode = execution_mode
+    loaded.steps = [{"name": "fetch", "processor": "rss_collector"}]
+    cfg_mock.load.return_value = loaded
     return cfg_mock
 
 

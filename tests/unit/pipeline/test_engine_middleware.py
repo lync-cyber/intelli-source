@@ -386,9 +386,15 @@ class TestAC5FactoryInstantiatesPipelineEngine:
 
             from intellisource.agent.factory import build_agent_runner
 
-            session_factory = MagicMock()
-            llm_gateway = MagicMock()
-            build_agent_runner(session_factory, llm_gateway)
+            # T-095 contract: build_agent_runner is keyword-only and requires
+            # five non-None deps.
+            build_agent_runner(
+                session_factory=MagicMock(),
+                llm_gateway=MagicMock(),
+                collector_registry=MagicMock(),
+                distributor=MagicMock(),
+                search_engine_factory=MagicMock(),
+            )
 
             assert mock_engine_cls.called, (
                 "PipelineEngine() constructor must be called inside build_agent_runner"

@@ -176,9 +176,11 @@ class TestStartupInitialisation:
 
     @pytest.mark.asyncio
     async def test_startup_initialises_db_redis_celery(self) -> None:
-        """AC-T045-2: Startup triggers Redis and Celery init.
+        """Startup triggers Redis init and binds the Celery module singleton.
 
-        DB lifecycle is managed by DatabaseManager.
+        Updated by T-095: legacy assertion expected main.init_celery() to be
+        called; the unified-singleton fix removed that function and binds
+        scheduler.celery_app.celery_app to app.state.celery_app instead.
         """
         if _MODULE_MISSING:
             pytest.fail(_SKIP_REASON)
@@ -194,7 +196,6 @@ class TestStartupInitialisation:
 
         app = create_app()
 
-        # Patch the initialisation functions that should be called on startup
         with (
             patch("intellisource.main.DatabaseManager", return_value=mock_db),
             patch(
@@ -202,20 +203,19 @@ class TestStartupInitialisation:
                 new_callable=AsyncMock,
                 return_value=mock_aioredis_client,
             ) as mock_redis,
-            patch(
-                "intellisource.main.init_celery", new_callable=MagicMock
-            ) as mock_celery,
         ):
-            # Trigger lifespan startup by entering the ASGI app lifecycle
+            from intellisource.scheduler.celery_app import (
+                celery_app as module_celery_app,
+            )
+
             transport = ASGITransport(app=app)
             async with AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
                 await client.get("/health")
 
-            # Verify init functions were called during startup
             mock_redis.assert_called_once()
-            mock_celery.assert_called_once()
+            assert app.state.celery_app is module_celery_app
 
 
 # ===========================================================================
@@ -228,7 +228,12 @@ class TestShutdownResourceRelease:
 
     @pytest.mark.asyncio
     async def test_shutdown_releases_resources(self) -> None:
-        """AC-T045-3: Shutdown triggers cleanup for db, Redis, and Celery."""
+        """Shutdown triggers cleanup for db and Redis.
+
+        Updated by T-095: Celery shutdown is no longer driven by the API
+        process (the singleton is owned by the worker side), so
+        main.shutdown_celery was removed.
+        """
         if _MODULE_MISSING:
             pytest.fail(_SKIP_REASON)
 
@@ -245,35 +250,25 @@ class TestShutdownResourceRelease:
                 "intellisource.main.close_redis", new_callable=AsyncMock
             ) as mock_close_redis,
             patch(
-                "intellisource.main.shutdown_celery", new_callable=MagicMock
-            ) as mock_shutdown_celery,
-            # Also patch startup functions so they don't fail
-            patch(
                 "intellisource.main.aioredis.from_url",
                 new_callable=AsyncMock,
                 return_value=AsyncMock(),
             ),
-            patch("intellisource.main.init_celery", new_callable=MagicMock),
         ):
-            # Enter and exit the ASGI lifecycle to trigger startup+shutdown
             transport = ASGITransport(app=app)
             async with AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
                 await client.get("/health")
 
-            # Explicitly trigger shutdown (auto-lifespan defers cleanup)
             await app.shutdown()
 
-            # After shutdown, cleanup should have been called
             mock_db.close.assert_called_once()
             mock_close_redis.assert_called_once()
-            mock_shutdown_celery.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_lifespan_yields_correctly(self) -> None:
-        """AC-T045-3: Lifespan context manager yields (startup) then
-        cleans up (shutdown) without errors."""
+        """Lifespan context manager yields (startup) then cleans up (shutdown)."""
         if _MODULE_MISSING:
             pytest.fail(_SKIP_REASON)
 
@@ -286,7 +281,6 @@ class TestShutdownResourceRelease:
         lifespan = getattr(app.router, "lifespan_context", None)
         assert lifespan is not None, "App must have a lifespan context manager"
 
-        # Patch all init/close functions to avoid real connections
         with (
             patch("intellisource.main.DatabaseManager", return_value=mock_db),
             patch(
@@ -294,12 +288,7 @@ class TestShutdownResourceRelease:
                 new_callable=AsyncMock,
                 return_value=AsyncMock(),
             ),
-            patch("intellisource.main.init_celery", new_callable=MagicMock),
             patch("intellisource.main.close_redis", new_callable=AsyncMock),
-            patch("intellisource.main.shutdown_celery", new_callable=MagicMock),
         ):
-            # Directly invoke the lifespan to confirm it yields
             async with lifespan(app):
-                # After yield the app should be in "running" state
                 pass
-            # If we reach here without error, shutdown completed successfully

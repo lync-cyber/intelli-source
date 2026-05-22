@@ -232,11 +232,11 @@ class TestRunPipelineEndToEndWithSessionFactory:
         mock_agent_runner.execute = AsyncMock(return_value={"status": "success"})
 
         mock_pipeline_config = MagicMock()
-        mock_pipeline_config.load.return_value = {
-            "name": "manual-collect",
-            "steps": [{"name": "fetch", "processor": "rss_collector"}],
-            "execution_mode": "strict",
-        }
+        loaded = MagicMock()
+        loaded.name = "manual-collect"
+        loaded.mode = "strict"
+        loaded.steps = [{"name": "fetch", "processor": "rss_collector"}]
+        mock_pipeline_config.load.return_value = loaded
 
         with patch(
             "intellisource.scheduler.tasks.TaskChainRepository",
@@ -282,11 +282,11 @@ class TestRunPipelineEndToEndWithSessionFactory:
         mock_agent_runner.execute = AsyncMock(return_value={"status": "success"})
 
         mock_pipeline_config = MagicMock()
-        mock_pipeline_config.load.return_value = {
-            "name": "manual-collect",
-            "steps": [],
-            "execution_mode": "strict",
-        }
+        loaded = MagicMock()
+        loaded.name = "manual-collect"
+        loaded.mode = "strict"
+        loaded.steps = []
+        mock_pipeline_config.load.return_value = loaded
 
         with patch(
             "intellisource.scheduler.tasks.TaskChainRepository",

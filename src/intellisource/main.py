@@ -10,7 +10,6 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import redis.asyncio as aioredis
-from celery import Celery
 from fastapi import FastAPI
 from starlette.types import Receive, Scope, Send
 
@@ -29,11 +28,9 @@ from intellisource.api.routers import (
     system,
     tasks,
 )
+from intellisource.composition import build_api_composition
 from intellisource.config.loader import ConfigLoader, ConfigWatcher
 from intellisource.config.validator import ConfigValidator
-from intellisource.llm.circuit_breaker import CircuitBreaker
-from intellisource.llm.gateway import LLMGateway
-from intellisource.llm.priority_queue import PriorityQueue
 from intellisource.storage.database import DatabaseManager
 from intellisource.storage.repositories.source import SourceRepository
 
@@ -44,7 +41,6 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _redis_client: Any = None
-_celery_app: Any = None
 
 
 # ---------------------------------------------------------------------------
@@ -59,17 +55,6 @@ async def init_redis() -> None:
     _redis_client = await aioredis.from_url(redis_url)
 
 
-def init_celery() -> Any:
-    """Instantiate Celery application bound to configured broker/backend."""
-    global _celery_app
-    broker_url = os.environ.get("IS_CELERY_BROKER_URL") or os.environ.get(
-        "IS_REDIS_URL", "redis://localhost:6379/0"
-    )
-    _celery_app = Celery("intellisource", broker=broker_url)
-    _celery_app.conf.broker_connection_retry_on_startup = False
-    return _celery_app
-
-
 async def close_redis() -> None:
     """Close Redis connection."""
     global _redis_client
@@ -79,12 +64,6 @@ async def close_redis() -> None:
         except Exception:
             pass
         _redis_client = None
-
-
-def shutdown_celery() -> None:
-    """Shutdown Celery application."""
-    global _celery_app
-    _celery_app = None
 
 
 # ---------------------------------------------------------------------------
@@ -132,29 +111,22 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[dict[str, Any]]:
     db = DatabaseManager()
     _db_manager = db
     app.state.db = db
-    celery_instance = init_celery()
-    app.state.celery_app = celery_instance
     watcher = ConfigWatcher(config_dir=_SOURCE_CONFIG_DIR, callback=on_config_change)
     app.state.config_watcher = watcher
     watcher_task = asyncio.create_task(watcher.start())
     app.state.config_watcher_task = watcher_task
     try:
         await init_redis()
-        circuit_breaker = CircuitBreaker(redis=_redis_client)
-        priority_queue = PriorityQueue()
-        llm_gateway = LLMGateway(
-            circuit_breaker=circuit_breaker,
-            priority_queue=priority_queue,
-        )
-        app.state.llm_gateway = llm_gateway
+        # Single composition root for the API process — installs
+        # app.state.celery_app (= module-level singleton), .llm_gateway,
+        # .pipeline_loader, and .agent_runner.
+        build_api_composition(app, db, _redis_client)
         yield {}
     finally:
         await watcher.stop()
-        app.state.celery_app.close()
         await db.close()
         _db_manager = None
         await close_redis()
-        shutdown_celery()
 
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,6 @@
 # CataForge
 
 ## 项目信息
-
 - 项目名称: IntelliSource
 - 技术栈: Python 3.11+ / FastAPI / Celery + Redis / PostgreSQL + pgvector / SQLAlchemy 2.0 / litellm
 - 运行时: claude-code
@@ -13,12 +12,25 @@
 - model 继承: AGENT.md 中 `model: inherit` 继承父会话模型
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-
-- 当前阶段: sprint-8r 批次 3 全部 approved（T-087/T-088/T-089/T-092 终态全 approved；EXP-005 装配缺口在 T-088 + T-092 + T-089 三处真实闭环）
-- 下一步行动: ① 批次 4 T-094 集成测试与冷启动验证 ② sprint-8r 全 sprint sprint-review ③ pre_deploy 二次评估
-- 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r]
-- 当前Sprint: sprint-8r (in-progress — 批次 1 + 批次 2 全 approved 7/12；待批次 3-4)
-- 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r) / test-report = approved；ui-spec = N/A；dev-plan-s8(P2 backlog) = draft；deploy-spec = 未开始
+- 当前阶段: sprint-9 批次 1 启动（T-095 RED 启动；sprint-9 立项依据 = 外部 code-scan 识别 8 HIGH + 6 MEDIUM 装配缺口，详见 plan `effervescent-seeking-goose.md`）
+- 下一步行动: ① T-095 RED 写失败测试 (test_worker_pipeline_no_crash + test_celery_singleton_unified + test_tasks_router_send_task_contract) ② GREEN composition.py + Celery 统一 + tasks API 契约 ③ code-review
+- 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r 批次 1-3]
+- 当前Sprint: sprint-9 (in-progress — T-095 启动；sprint-8r 批次 4 T-094 暂挂，与 sprint-9 并行/在 sprint-9 完成后一并 sprint-review)
+- 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report = approved；ui-spec = N/A；dev-plan-s8(P2 backlog) = draft；deploy-spec = 未开始
+- sprint-9 任务清单:
+  - T-095 [standard] composition.py + Celery 单例统一 + PipelineLoader + tasks API 契约 — 批次 1，无前置
+  - T-096 [standard] PROCESSOR_REGISTRY + _process_execute 契约 + _RawContentResultRepo 持久化 — 批次 2，依赖 T-095
+  - T-097 [standard, security_sensitive] CollectorRegistry + DistributorFacade — 批次 2，依赖 T-095
+  - T-098 [standard, security_sensitive] /search/chat + AgentRunner.run_flexible + Webhook + 微信/企微 CS — 批次 2，依赖 T-095
+  - T-099 [light] Pipelines API + System 可观测性 + ConfigVersion — 批次 2，依赖 T-095
+  - T-100 [light] Celery Beat 同步 + push-optimize 触发 + ChatSession DB — 批次 3，依赖 T-097/T-098
+  - MVP 里程碑: T-095 + T-096 + T-098 完成
+- sprint-9 锁定决策（2026-05-22 用户确认）:
+  - HybridSearchEngine.chat() echo stub → 直接删除，逻辑上提到 router 走 AgentRunner.run_flexible
+  - Pipelines API → 只读 + run 触发（合 arch 移除 API-010/011 决策）
+  - Webhook 回调 → 本批接入微信客服消息回调 + 企微镜像
+  - PRD AC-063 灵活组合 → flexible mode + YAML tool palette（不引入 workflow CRUD）
+  - 微信凭证策略 → IS_WECHAT_APP_ID/SECRET env 缺失时启动期硬失败
 - 批次 1 闭环检查点:
   - T-083 status=approved（r1→r2→r3。final: f567ad1 + 74a7252。报告 r1/r2/r3）
   - T-093 status=approved（r1→r2。final: b567e46。报告 r1/r2）
@@ -43,7 +55,6 @@
 - Backlog: ① 6 EXP 改进应用到 .cataforge/agents 与 skills（待用户触发）② sprint-8 (T-064~T-079) 因 P0 audit 重新定位为 post-deploy P2 改进 backlog，与 sprint-8r 阻断项修复解耦 ③ test-report-intellisource-v1 approved 状态需在 sprint-8r 完成后重新评估（当前测试套件未拦截装配缺口）
 
 ## 执行环境
-
 - 包管理器: uv（fallback: pip）
 - 安装: `uv sync`
 - 测试: `uv run pytest`（全量）；`uv run pytest tests/unit/<path>` 单文件
@@ -53,7 +64,6 @@
 - 迁移: `uv run alembic upgrade head`
 
 ## 文档导航
-
 - 索引: `docs/.doc-index.json`（通过 `cataforge docs load` 查询；缺失时 `cataforge docs index` 重建）
 - 通用规则: .cataforge/rules/COMMON-RULES.md
 - 子代理协议: .cataforge/rules/SUB-AGENT-PROTOCOLS.md
@@ -62,7 +72,6 @@
 - 加载原则: 按需通过 `cataforge docs load` 加载章节，不全量加载
 
 ## 全局约定
-
 - 命名: PEP 8（snake_case / PascalCase）
 - Commit: Conventional Commits（feat/fix/docs/chore/refactor/test）
 - 分支: GitHub Flow（main + feature branches）
@@ -72,7 +81,6 @@
 - 效率原则: 最小传递 (doc_id#section)、不确定调研、选择题优先、长文按 `DOC_SPLIT_THRESHOLD_LINES` 拆分
 
 ## 框架机制
-
 - Agent 编排: orchestrator 通过 agent-dispatch skill 激活子代理
 - DEV 阶段: orchestrator 通过 tdd-engine 编排 RED/GREEN/REFACTOR
 - 状态持久化: CLAUDE.md（人面向） + .cataforge/PROJECT-STATE.md（框架镜像） + docs/
