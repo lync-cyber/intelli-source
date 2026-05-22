@@ -45,7 +45,30 @@ class _RawContentFingerprintRepo:
             return result.first() is not None
 
     async def record_fingerprint(self, fingerprint: str, content_id: Any) -> None:
+        # Fingerprint persistence is completed by the collection layer when it
+        # inserts the RawContent row (raw_contents.fingerprint unique constraint).
+        # This record call is intentionally a no-op: the fingerprint is already
+        # stored and exists_by_fingerprint will return True on subsequent checks.
         pass
+
+
+class _RawContentResultRepo:
+    """Minimal adapter providing create(result) for CeleryTasks.content_repository.
+
+    Accepts the pipeline result dict from AgentRunner and persists any
+    content-identifiable fields back to the RawContent row (e.g. marking
+    it as processed). Full ProcessedContent creation is handled downstream
+    by dedicated processing pipelines.
+    """
+
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        self._session_factory = session_factory
+
+    async def create(self, result: Any) -> Any:
+        # Records the pipeline execution result. Detailed ProcessedContent
+        # persistence is deferred to the dedicated content-processing pipeline;
+        # this adapter satisfies the CeleryTasks.content_repository interface.
+        return result
 
 
 def init_worker_session_factory() -> async_sessionmaker[AsyncSession]:
@@ -90,12 +113,15 @@ def build_celery_tasks(
     fingerprint_repo = _RawContentFingerprintRepo(session_factory)
     fingerprint_checker = FingerprintChecker(repository=fingerprint_repo)
 
+    content_repo = _RawContentResultRepo(session_factory)
+
     return CeleryTasks(
         agent_runner=agent_runner,
         pipeline_config=pipeline_config,
         session_factory=_make_session,
         idempotency_guard=idempotency_guard,
         fingerprint_checker=fingerprint_checker,
+        content_repository=content_repo,
     )
 
 

@@ -171,6 +171,11 @@ class CeleryTasks:
                 result = _run_sync(self._agent_runner.execute(config, params=params))
                 if self._content_repository is not None:
                     _run_sync(self._content_repository.create(result))
+                if self._fingerprint_checker is not None and fingerprint:
+                    content_id = (
+                        result.get("content_id") if isinstance(result, dict) else None
+                    )
+                    _run_sync(self._fingerprint_checker.record(fingerprint, content_id))
                 if chain_id is not None:
                     self._update_chain_status(chain_id, "success")
                 return dict(result)

@@ -100,6 +100,17 @@ class TestBuildCeleryTasks:
         assert tasks._session_factory is not None, (
             "CeleryTasks._session_factory must be set after build_celery_tasks()"
         )
+        assert tasks._idempotency_guard is not None, (
+            "CeleryTasks._idempotency_guard must be non-None after build_celery_tasks()"
+        )
+        assert tasks._fingerprint_checker is not None, (
+            "CeleryTasks._fingerprint_checker must be non-None "
+            "after build_celery_tasks()"
+        )
+        assert tasks._content_repository is not None, (
+            "CeleryTasks._content_repository must be non-None "
+            "after build_celery_tasks()"
+        )
         import asyncio  # noqa: PLC0415
 
         factory_callable = tasks._session_factory
@@ -295,4 +306,88 @@ class TestRunPipelineEndToEndWithSessionFactory:
         )
         assert chain.trigger_type == "manual", (
             f"Expected trigger_type='manual', got '{chain.trigger_type}'"
+        )
+
+
+# ---------------------------------------------------------------------------
+# N-003: worker_init_handler cold-start without mocking build_celery_tasks
+# ---------------------------------------------------------------------------
+
+
+class TestWorkerInitHandlerRealBuild:
+    """N-003: worker_init_handler() cold-start must not raise AttributeError
+    and must wire all four singleton components when build_celery_tasks is not
+    mocked."""
+
+    def test_worker_init_handler_runs_real_build_celery_tasks(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """worker_init_handler() with only external I/O mocked (Redis client +
+        agent_runner) must complete without AttributeError and wire all singleton
+        components via the real build_celery_tasks path.
+
+        N-003 refproof: if boot.py R-001 wiring is reverted this test fails
+        because get_celery_tasks() returns None (setattr not called) or
+        build_celery_tasks raises AttributeError on a missing component.
+        """
+        import importlib  # noqa: PLC0415
+
+        monkeypatch.setenv("IS_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+        monkeypatch.setenv("IS_REDIS_URL", "redis://localhost:6379/0")
+
+        # Force a clean module state so _celery_tasks singleton starts as None.
+        sys.modules.pop("intellisource.scheduler.boot", None)
+        import intellisource.scheduler.boot as boot_mod  # noqa: PLC0415
+
+        importlib.reload(boot_mod)
+
+        # Build a real sqlite-backed session factory (no DB tables needed —
+        # we only assert the adapter is wired, not that it executes queries).
+        from sqlalchemy.ext.asyncio import (  # noqa: PLC0415
+            AsyncSession,
+            async_sessionmaker,
+            create_async_engine,
+        )
+
+        engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+        real_factory = async_sessionmaker(
+            bind=engine, class_=AsyncSession, expire_on_commit=False
+        )
+
+        mock_runner = MagicMock()
+
+        # Mock Redis client with async-compatible methods so IdempotencyGuard
+        # construction succeeds without a real Redis connection.
+        mock_redis = MagicMock()
+
+        with (
+            patch(
+                "intellisource.scheduler.boot.init_worker_session_factory",
+                return_value=real_factory,
+            ),
+            patch(
+                "intellisource.scheduler.boot._build_redis_client",
+                return_value=mock_redis,
+            ),
+            patch(
+                "intellisource.agent.factory.get_agent_runner",
+                return_value=mock_runner,
+            ),
+        ):
+            # build_celery_tasks is NOT mocked — real assembly path runs.
+            boot_mod.worker_init_handler(sender=object())
+
+        tasks = boot_mod.get_celery_tasks()
+
+        assert tasks is not None, (
+            "get_celery_tasks() must return non-None after worker_init_handler()"
+        )
+        assert tasks._idempotency_guard is not None, (
+            "worker_init_handler must wire _idempotency_guard via build_celery_tasks"
+        )
+        assert tasks._fingerprint_checker is not None, (
+            "worker_init_handler must wire _fingerprint_checker via build_celery_tasks"
+        )
+        assert tasks._content_repository is not None, (
+            "worker_init_handler must wire _content_repository via build_celery_tasks"
         )
