@@ -71,6 +71,19 @@ class SourceRepository(BaseRepository[Source]):
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
+    async def get_types_by_ids(self, ids: list[uuid.UUID]) -> dict[uuid.UUID, str]:
+        """Return a {source_id: type} mapping for the given source IDs.
+
+        Used by `/tasks/collect` to resolve `Source.type` → pipeline name
+        without loading the full Source rows. Missing IDs are simply absent
+        from the returned dict — callers decide how to fall back.
+        """
+        if not ids:
+            return {}
+        stmt = select(Source.id, Source.type).where(Source.id.in_(ids))
+        result = await self._session.execute(stmt)
+        return {row.id: row.type for row in result.all()}
+
     async def create(
         self,
         name: str,

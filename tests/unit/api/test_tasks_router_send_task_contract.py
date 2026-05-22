@@ -96,12 +96,13 @@ async def celery_client(app_with_celery: FastAPI) -> AsyncClient:  # type: ignor
         yield ac  # type: ignore[misc]
 
 
-def _patched_repos() -> Any:
+def _patched_repos(source_type: str = "rss") -> Any:
     """Context manager bundle: patch SourceRepository + TaskRepository."""
     mock_task_repo = AsyncMock()
     mock_task_repo.create.return_value = _make_task_obj()
     mock_source_repo = AsyncMock()
     mock_source_repo.list_active_source_ids.return_value = [SOURCE_ID]
+    mock_source_repo.get_types_by_ids.return_value = {SOURCE_ID: source_type}
     return mock_task_repo, mock_source_repo
 
 
@@ -240,3 +241,78 @@ async def test_send_task_kwargs_no_longer_flat(
         f"AC-8: legacy flat kwargs still present at top level: {legacy_top_level}; "
         f"these belong under 'params'"
     )
+
+
+# ---------------------------------------------------------------------------
+# r2 R-001: source_type → pipeline_name routes via real Source.type lookup
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_send_task_pipeline_name_routes_by_source_type(
+    celery_client: AsyncClient,
+    app_with_celery: FastAPI,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """r2 R-001: when SOURCE_TYPE_TO_PIPELINE has differentiated entries,
+    /tasks/collect must look up Source.type via SourceRepository.get_types_by_ids
+    and route to the matching pipeline — not silently fall back to "rss"."""
+    from intellisource.composition import SOURCE_TYPE_TO_PIPELINE
+
+    # Inject a differentiated mapping so "web" routes to a distinct pipeline.
+    monkeypatch.setitem(SOURCE_TYPE_TO_PIPELINE, "web", "web-collect")
+
+    mock_task_repo, mock_source_repo = _patched_repos(source_type="web")
+    with (
+        patch(
+            "intellisource.api.routers.tasks.TaskRepository",
+            return_value=mock_task_repo,
+        ),
+        patch(
+            "intellisource.api.routers.tasks.SourceRepository",
+            return_value=mock_source_repo,
+        ),
+    ):
+        resp = await celery_client.post(
+            "/api/v1/tasks/collect", json={"priority": "normal"}
+        )
+
+    assert resp.status_code == 202, resp.text
+    sent_kwargs = app_with_celery.state.celery_app.send_task.call_args.kwargs["kwargs"]
+    assert sent_kwargs["pipeline_name"] == "web-collect", (
+        f"r2 R-001: pipeline_name must be resolved via Source.type lookup "
+        f"('web' → 'web-collect'); got {sent_kwargs['pipeline_name']!r}. "
+        f"This is the EXP-005-shaped 'wired-but-inert' failure."
+    )
+    mock_source_repo.get_types_by_ids.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_send_task_pipeline_name_falls_back_when_source_missing(
+    celery_client: AsyncClient, app_with_celery: FastAPI
+) -> None:
+    """r2 R-001: when Source.type lookup returns no row (race / stale ID),
+    fall back to "scheduled-collect" rather than crashing."""
+    mock_task_repo = AsyncMock()
+    mock_task_repo.create.return_value = _make_task_obj()
+    mock_source_repo = AsyncMock()
+    mock_source_repo.list_active_source_ids.return_value = [SOURCE_ID]
+    mock_source_repo.get_types_by_ids.return_value = {}  # empty — row missing
+
+    with (
+        patch(
+            "intellisource.api.routers.tasks.TaskRepository",
+            return_value=mock_task_repo,
+        ),
+        patch(
+            "intellisource.api.routers.tasks.SourceRepository",
+            return_value=mock_source_repo,
+        ),
+    ):
+        resp = await celery_client.post(
+            "/api/v1/tasks/collect", json={"priority": "normal"}
+        )
+
+    assert resp.status_code == 202, resp.text
+    sent_kwargs = app_with_celery.state.celery_app.send_task.call_args.kwargs["kwargs"]
+    assert sent_kwargs["pipeline_name"] == "scheduled-collect"

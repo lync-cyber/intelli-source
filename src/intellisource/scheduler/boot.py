@@ -131,14 +131,22 @@ def build_celery_tasks(
 
 
 def worker_init_handler(**_: Any) -> None:
-    """Celery worker_process_init signal entry point; idempotent singleton.
+    """Celery worker_process_init signal entry point.
 
     Assembles the full composition graph via
     `intellisource.composition.build_worker_composition` and installs the
     resulting `CeleryTasks` instance on the module-level Celery singleton
     so the @celery_app.task body can reach it.
+
+    Idempotent across repeated signal firings: if `_celery_tasks` is already
+    set (e.g. signal fires twice in pool restart / test fixture scenarios)
+    the handler returns early without re-creating engines or redis clients.
+    Reset via `worker_shutdown_handler` (or `_celery_tasks = None` in tests)
+    before re-invoking.
     """
     global _celery_tasks
+    if _celery_tasks is not None:
+        return
     factory = init_worker_session_factory()
     redis_client = _build_redis_client()
     composition = build_worker_composition(

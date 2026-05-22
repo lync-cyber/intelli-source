@@ -188,28 +188,32 @@ class TestToolDepsWiring:
         and is now removed.
         """
         import intellisource.agent.factory as factory_mod
+        from intellisource.composition import get_agent_runner_holder
 
-        original = factory_mod._agent_runner
-        factory_mod._agent_runner = None
+        holder = get_agent_runner_holder()
+        original = holder._runner
+        holder.reset()
         try:
             with pytest.raises(RuntimeError, match="AgentRunner not initialised"):
                 factory_mod.get_agent_runner()
         finally:
-            factory_mod._agent_runner = original
+            holder._runner = original
 
     def test_get_agent_runner_returns_singleton_once_initialised(self) -> None:
         """After install, get_agent_runner() returns the same instance."""
         import intellisource.agent.factory as factory_mod
         from intellisource.agent.factory import build_agent_runner
+        from intellisource.composition import get_agent_runner_holder
 
-        original = factory_mod._agent_runner
+        holder = get_agent_runner_holder()
+        original = holder._runner
         runner = build_agent_runner(**_kwargs())
-        factory_mod._agent_runner = runner
+        holder.install(runner)
         try:
             assert factory_mod.get_agent_runner() is runner
             assert factory_mod.get_agent_runner() is runner
         finally:
-            factory_mod._agent_runner = original
+            holder._runner = original
 
     def test_build_agent_runner_rejects_none_deps(self) -> None:
         """build_agent_runner with None deps must raise ValueError.

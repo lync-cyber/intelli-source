@@ -151,10 +151,18 @@ async def trigger_collect(
 
     celery_instance = getattr(request.app.state, "celery_app", None)
     if celery_instance is not None:
+        # Resolve source_type for each task in one query so SOURCE_TYPE_TO_PIPELINE
+        # routes by actual type rather than a hardcoded "rss" fallback. Tasks
+        # whose source row is missing fall back to "scheduled-collect".
+        source_type_by_id = await source_repo.get_types_by_ids(
+            [task.source_id for task in tasks]
+        )
         for task in tasks:
-            source_type = getattr(task, "source_type", None) or "rss"
-            pipeline_name = SOURCE_TYPE_TO_PIPELINE.get(
-                source_type, "scheduled-collect"
+            source_type = source_type_by_id.get(task.source_id)
+            pipeline_name = (
+                SOURCE_TYPE_TO_PIPELINE.get(source_type, "scheduled-collect")
+                if source_type is not None
+                else "scheduled-collect"
             )
             celery_instance.send_task(
                 "run_pipeline",

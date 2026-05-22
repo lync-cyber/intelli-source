@@ -12,10 +12,10 @@
 - model 继承: AGENT.md 中 `model: inherit` 继承父会话模型
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: sprint-9 批次 1 启动（T-095 RED 启动；sprint-9 立项依据 = 外部 code-scan 识别 8 HIGH + 6 MEDIUM 装配缺口，详见 plan `effervescent-seeking-goose.md`）
-- 下一步行动: ① T-095 RED 写失败测试 (test_worker_pipeline_no_crash + test_celery_singleton_unified + test_tasks_router_send_task_contract) ② GREEN composition.py + Celery 统一 + tasks API 契约 ③ code-review
+- 当前阶段: sprint-9 批次 1 — T-095 r2 = approved（r1 6 finding 全修：R-001 真实 Source.type 查询 + R-002 idempotent guard + R-003 CompositionError/CompositionNotInitialisedError + R-004 AgentRunnerHolder + R-005 收紧断言 + R-006 拒绝 legacy kwargs）
+- 下一步行动: 批次 2 启动 — T-096/T-097/T-098/T-099 全部依赖 T-095 已解锁，可并行调度规划；先 Phase Transition Protocol 落档 + AskUserQuestion 决定并行度
 - 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r 批次 1-3]
-- 当前Sprint: sprint-9 (in-progress — T-095 启动；sprint-8r 批次 4 T-094 暂挂，与 sprint-9 并行/在 sprint-9 完成后一并 sprint-review)
+- 当前Sprint: sprint-9 (in-progress — T-095 done；批次 2 T-096/097/098/099 ready；sprint-8r 批次 4 T-094 暂挂，与 sprint-9 完成后一并 sprint-review)
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report = approved；ui-spec = N/A；dev-plan-s8(P2 backlog) = draft；deploy-spec = 未开始
 - sprint-9 任务清单:
   - T-095 [standard] composition.py + Celery 单例统一 + PipelineLoader + tasks API 契约 — 批次 1，无前置
@@ -41,7 +41,9 @@
   - T-090 status=approved（GREEN+REFACTOR → r1 needs_revision（1 HIGH security: pii.py 未接入 record_push） → r2 approved。final: 55ea9b0 + dca8be9 + c78e90a。报告 r1/r2）
   - T-091 status=approved（GREEN → r1 needs_revision（1 HIGH security: validator no-op） → r2 approved_with_notes（1 MEDIUM allowed-types drift + 2 LOW 测试缺口），用户全修无 r3 reviewer → orchestrator inline approve。final: e91d444 + a3caef2 + 74f093a。报告 r1/r2）
   - 全量回归: 2154 passed / 0 failed / 29 skipped; ruff + mypy --strict clean
-- 批次 3 r3 闭环检查点:
+- sprint-9 批次 1 闭环检查点:
+  - T-095 status=approved（GREEN+REFACTOR commit 1b1fbf4 / PR #47 → r1 approved_with_notes (2 MEDIUM R-001 source_type-routing-deadcode + R-002 worker_init-non-idempotent, 4 LOW R-003/R-004/R-005/R-006) → 用户裁决「r2 全修 + R-004 Holder 抽象」→ r2 approved。final: 1b1fbf4 + r2 fix commit。报告 r1/r2。EXP-005 ToolDeps 装配半成品在本任务真正闭环：CR-002 worker 启动崩 + CR-012 双 Celery 单例 + ToolDeps 5 字段 silent None 三处全部根治）
+- sprint-8r 批次 3 r3 闭环检查点:
   - T-087 status=approved（r1 needs_revision (1 HIGH await) → r2 approved_with_notes (1 LOW R-005 warning 日志测试未覆盖) → r3 orchestrator inline approve (caplog 断言落地)。final: 2019cbc + b16f971。报告 r1/r2 + CORRECTIONS-LOG 2026-05-22 inline approve）
   - T-088 status=approved（r1 needs_revision (2 HIGH auth + status 桩) → r2 approved_with_notes (1 MED R-007 EXP-005 lifespan 未注入 + 1 LOW) → r3 reviewer approved_with_notes (1 LOW R-009 patch 模式漂移) → orchestrator inline R-009 fix + approve。final: 7798139 + bedd6f4 + b864c30。报告 r1/r2/r3 + CORRECTIONS-LOG 2026-05-22 inline approve）
   - T-089 status=approved（r1 needs_revision (2 HIGH tool_deps 未注入 + ToolDeps 未构建) → r2 approved (5 R-ID 全修 + tools.py 6 execute 真消费 tool_deps 独立确认)。final: 7798139。报告 r1/r2，无 r3）

@@ -61,7 +61,7 @@ graph LR
 - **模块**: M-006（scheduler + agent/factory）、M-005（LLMGateway 装配）、M-011（API tasks router）
 - **接口**: API-006（`POST /tasks/collect` 触发契约变更）
 - **复杂度**: L（composition.py ~150 + boot.py 重构 ~30 + tasks.py 重构 ~30 + tasks router ~20 + main.py 删 init_celery ~20 + factory.py kwargs 强制 ~20 + 测试 ~100）
-- **status**: in_review（RED+GREEN+REFACTOR 完成 — commit 1b1fbf4 / PR #47 已合并入 main；4 新测试文件 43 tests 覆盖 12 AC；11 个 pre-existing test 文件迁移至新契约；全量回归 2342 passed / 14 skipped / 0 failed；ruff + mypy --strict clean。code-review pending — 启动于 /start-orchestrator 接续会话）
+- **status**: approved（RED+GREEN+REFACTOR commit 1b1fbf4 / PR #47 → r1 approved_with_notes (2 MEDIUM + 4 LOW) → 用户裁决 r2 全修 + R-004 取 Holder 抽象重构分支 → r2 修复并新增 14 测试 → r2 = approved。final: 1b1fbf4 + r2 fix commit。全量回归 2356 passed / 31 skipped / 0 failed；ruff + ruff-format + mypy --strict 全 clean。报告: CODE-REVIEW-T-095-r1.md + CODE-REVIEW-T-095-r2.md。EXP-005 ToolDeps 装配半成品根治：CR-002 + CR-012 + ToolDeps 5 字段 silent None 全部闭环）
 - **依赖**: 无（最高优先级，所有下游硬阻断）
 - **expected_tool_budget**: ~120
 

@@ -381,22 +381,25 @@ class TestGetAgentRunnerRaisesWhenNotInitialised:
         """AC-5: get_agent_runner() raises RuntimeError with correct message."""
 
         import intellisource.agent.factory as factory_mod
+        from intellisource.composition import get_agent_runner_holder
 
-        # Reset module-level singleton to None to simulate uninitialised state.
-        original = factory_mod._agent_runner
-        factory_mod._agent_runner = None
+        holder = get_agent_runner_holder()
+        original = holder._runner
+        holder.reset()
         try:
             with pytest.raises(RuntimeError, match="AgentRunner not initialised"):
                 factory_mod.get_agent_runner()
         finally:
-            factory_mod._agent_runner = original
+            holder._runner = original
 
     def test_get_agent_runner_error_message_mentions_build_function(self) -> None:
         """AC-5: RuntimeError message names the required build function."""
         import intellisource.agent.factory as factory_mod
+        from intellisource.composition import get_agent_runner_holder
 
-        original = factory_mod._agent_runner
-        factory_mod._agent_runner = None
+        holder = get_agent_runner_holder()
+        original = holder._runner
+        holder.reset()
         try:
             with pytest.raises(RuntimeError) as exc_info:
                 factory_mod.get_agent_runner()
@@ -407,7 +410,7 @@ class TestGetAgentRunnerRaisesWhenNotInitialised:
                 f"build_api_composition; got: {exc_info.value}"
             )
         finally:
-            factory_mod._agent_runner = original
+            holder._runner = original
 
 
 # ---------------------------------------------------------------------------
@@ -515,20 +518,22 @@ class TestRunPipelineNoAttributeError:
             session_factory=None,
         )
 
-        # Must not raise AttributeError
+        # Must not raise AttributeError or TypeError — these are the wiring
+        # crashes (None.load / .get on dataclass) that AC-7 guards against.
+        # Other exceptions (RuntimeError from missing redis, asyncio etc.) are
+        # acceptable because they're not symptoms of the wire-up bug.
         try:
             tasks.run_pipeline(
                 "scheduled-collect",
                 {"task_id": "test-001", "fingerprint": ""},
             )
-        except AttributeError as exc:
+        except (AttributeError, TypeError) as exc:
             pytest.fail(
-                f"AC-7: run_pipeline raised AttributeError — "
-                f"pipeline_loader not wired correctly: {exc}"
+                f"AC-7: run_pipeline raised {type(exc).__name__} — "
+                f"pipeline_loader / PipelineConfig wiring still broken: {exc}"
             )
-        except Exception:
-            # Other exceptions (RuntimeError, asyncio etc.) are acceptable —
-            # only AttributeError is the failure mode we guard against.
+        except (RuntimeError, ConnectionError):
+            # Acceptable — these are external dependency failures, not wiring.
             pass
 
     def test_run_pipeline_accesses_config_mode_as_attribute(self) -> None:
@@ -580,3 +585,228 @@ class TestMainNoInitCelery:
         assert not hasattr(main_mod, "shutdown_celery"), (
             "AC-9: main.shutdown_celery still exists; it must be deleted"
         )
+
+
+# ---------------------------------------------------------------------------
+# r2 R-003: CompositionError / CompositionNotInitialisedError hierarchy
+# ---------------------------------------------------------------------------
+
+
+class TestCompositionErrorHierarchy:
+    """r2 R-003: composition raises IntelliSourceError-rooted exceptions.
+
+    Multiple inheritance keeps backward compat with `pytest.raises(ValueError)`
+    / `pytest.raises(RuntimeError)` from existing AC-4 / AC-5 tests.
+    """
+
+    def test_composition_error_inherits_intellisource_error(self) -> None:
+        from intellisource.composition import CompositionError
+        from intellisource.core.errors import IntelliSourceError
+
+        assert issubclass(CompositionError, IntelliSourceError)
+        assert issubclass(CompositionError, ValueError)
+
+    def test_composition_error_has_unrecoverable_category(self) -> None:
+        from intellisource.composition import CompositionError
+        from intellisource.core.errors import ErrorCategory
+
+        exc = CompositionError("test")
+        assert exc.category is ErrorCategory.UNRECOVERABLE
+
+    def test_composition_not_initialised_error_inherits_intellisource_error(
+        self,
+    ) -> None:
+        from intellisource.composition import CompositionNotInitialisedError
+        from intellisource.core.errors import IntelliSourceError
+
+        assert issubclass(CompositionNotInitialisedError, IntelliSourceError)
+        assert issubclass(CompositionNotInitialisedError, RuntimeError)
+
+    def test_build_agent_runner_raises_composition_error_on_none(self) -> None:
+        from intellisource.agent.factory import build_agent_runner
+        from intellisource.composition import CompositionError
+
+        with pytest.raises(CompositionError):
+            build_agent_runner(
+                session_factory=None,
+                llm_gateway=MagicMock(),
+                collector_registry=MagicMock(),
+                distributor=MagicMock(),
+                search_engine_factory=MagicMock(),
+            )
+
+    def test_get_agent_runner_raises_composition_not_initialised(self) -> None:
+        from intellisource.agent.factory import get_agent_runner
+        from intellisource.composition import (
+            CompositionNotInitialisedError,
+            get_agent_runner_holder,
+        )
+
+        holder = get_agent_runner_holder()
+        original = holder._runner
+        holder.reset()
+        try:
+            with pytest.raises(CompositionNotInitialisedError):
+                get_agent_runner()
+        finally:
+            holder._runner = original
+
+
+# ---------------------------------------------------------------------------
+# r2 R-004: AgentRunnerHolder API
+# ---------------------------------------------------------------------------
+
+
+class TestAgentRunnerHolder:
+    """r2 R-004: composition.AgentRunnerHolder replaces module-level
+    `agent_factory._agent_runner` mutation."""
+
+    def test_holder_singleton(self) -> None:
+        """get_agent_runner_holder() returns the same instance every call."""
+        from intellisource.composition import get_agent_runner_holder
+
+        assert get_agent_runner_holder() is get_agent_runner_holder()
+
+    def test_holder_install_and_get_round_trip(self) -> None:
+        from intellisource.composition import get_agent_runner_holder
+
+        holder = get_agent_runner_holder()
+        original = holder._runner
+        sentinel = MagicMock(name="runner-sentinel")
+        holder.install(sentinel)
+        try:
+            assert holder.get() is sentinel
+            assert holder.installed is True
+        finally:
+            holder._runner = original
+
+    def test_holder_reset_clears_runner(self) -> None:
+        from intellisource.composition import (
+            CompositionNotInitialisedError,
+            get_agent_runner_holder,
+        )
+
+        holder = get_agent_runner_holder()
+        original = holder._runner
+        holder.install(MagicMock())
+        try:
+            holder.reset()
+            assert holder.installed is False
+            with pytest.raises(CompositionNotInitialisedError):
+                holder.get()
+        finally:
+            holder._runner = original
+
+    def test_factory_no_longer_owns_module_singleton(self) -> None:
+        """factory.py must no longer keep an `_agent_runner` module attribute."""
+        import intellisource.agent.factory as factory_mod
+
+        assert not hasattr(factory_mod, "_agent_runner"), (
+            "r2 R-004: factory._agent_runner module state must be removed; "
+            "singleton lives in composition.AgentRunnerHolder"
+        )
+
+
+# ---------------------------------------------------------------------------
+# r2 R-002: worker_init_handler is idempotent
+# ---------------------------------------------------------------------------
+
+
+class TestWorkerInitHandlerIdempotent:
+    """r2 R-002: worker_init_handler must short-circuit on second invocation."""
+
+    def test_second_invocation_does_not_rebuild(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import intellisource.scheduler.boot as boot_mod
+
+        original = boot_mod._celery_tasks
+        boot_mod._celery_tasks = None
+
+        from unittest.mock import patch
+
+        call_count = {"build_composition": 0}
+
+        def _count_build_composition(*args: Any, **kwargs: Any) -> Any:
+            call_count["build_composition"] += 1
+            mock_composition = MagicMock()
+            mock_composition.agent_runner = MagicMock()
+            mock_composition.pipeline_loader = MagicMock()
+            return mock_composition
+
+        try:
+            with (
+                patch(
+                    "intellisource.scheduler.boot.init_worker_session_factory",
+                    return_value=MagicMock(),
+                ),
+                patch(
+                    "intellisource.scheduler.boot._build_redis_client",
+                    return_value=MagicMock(),
+                ),
+                patch(
+                    "intellisource.scheduler.boot.build_worker_composition",
+                    side_effect=_count_build_composition,
+                ),
+                patch(
+                    "intellisource.scheduler.boot.build_celery_tasks",
+                    return_value=MagicMock(),
+                ),
+            ):
+                boot_mod.worker_init_handler()
+                boot_mod.worker_init_handler()  # second call
+                boot_mod.worker_init_handler()  # third call
+
+            assert call_count["build_composition"] == 1, (
+                f"r2 R-002: build_worker_composition called "
+                f"{call_count['build_composition']} times across 3 invocations; "
+                f"expected idempotent guard to keep it at 1"
+            )
+        finally:
+            boot_mod._celery_tasks = original
+
+
+# ---------------------------------------------------------------------------
+# r2 R-006: tasks.py rejects legacy flat kwargs
+# ---------------------------------------------------------------------------
+
+
+class TestRunPipelineRejectsLegacyFlatKwargs:
+    """r2 R-006: worker-side `run_pipeline` task must reject kwargs lacking
+    a top-level 'params' key (the legacy flat shape AC-8 banned at the API)."""
+
+    def test_run_pipeline_raises_when_params_missing(self) -> None:
+        from intellisource.scheduler.tasks import _run_pipeline_body
+
+        with pytest.raises(RuntimeError, match="legacy flat-kwargs shape"):
+            # Simulate Celery dispatching with the legacy flat shape.
+            _run_pipeline_body(
+                pipeline_name="scheduled-collect",
+                source_id="00000000-0000-0000-0000-000000000001",
+                task_id="legacy-task-id",
+            )
+
+    def test_run_pipeline_accepts_new_contract(self) -> None:
+        from intellisource.scheduler.celery_app import celery_app
+        from intellisource.scheduler.tasks import _run_pipeline_body
+
+        # Wire a stub _celery_tasks_instance so the task body doesn't blow up.
+        stub_instance = MagicMock()
+        stub_instance.run_pipeline.return_value = {"status": "ok"}
+        original = getattr(celery_app, "_celery_tasks_instance", None)
+        celery_app._celery_tasks_instance = stub_instance  # type: ignore[attr-defined]
+        try:
+            result = _run_pipeline_body(
+                pipeline_name="scheduled-collect",
+                params={"task_id": "T-1", "source_id": "S-1"},
+            )
+            assert result == {"status": "ok"}
+            stub_instance.run_pipeline.assert_called_once_with(
+                "scheduled-collect", {"task_id": "T-1", "source_id": "S-1"}
+            )
+        finally:
+            if original is None:
+                if hasattr(celery_app, "_celery_tasks_instance"):
+                    delattr(celery_app, "_celery_tasks_instance")
+            else:
+                celery_app._celery_tasks_instance = original  # type: ignore[attr-defined]
