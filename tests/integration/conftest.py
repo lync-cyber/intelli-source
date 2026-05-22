@@ -7,6 +7,8 @@ pg_truncate (function-scoped teardown TRUNCATE fixture).
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
 import subprocess
 from typing import Any, AsyncIterator
@@ -16,6 +18,15 @@ from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from intellisource.storage.models import Base
+
+_logger = logging.getLogger(__name__)
+
+# Per-fixture teardown deadline. asyncpg engine.dispose() occasionally hangs in
+# CI when several function-scoped fixtures (pg_session + pg_truncate) close
+# back-to-back; the suite-wide pytest --timeout=300 then escalates a fixture
+# stall into a full suite abort. Bound each teardown to 30s and log a warning
+# instead — a leaked connection is preferable to losing the rest of the suite.
+_TEARDOWN_TIMEOUT_S: float = 30.0
 
 # ---------------------------------------------------------------------------
 # Docker availability check — used by pytest_collection_modifyitems to skip
@@ -192,7 +203,13 @@ async def pg_session(pg_container: str) -> AsyncIterator[AsyncSession]:
                 finally:
                     await trans.rollback()
     finally:
-        await engine.dispose()
+        try:
+            await asyncio.wait_for(engine.dispose(), timeout=_TEARDOWN_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            _logger.warning(
+                "pg_session engine.dispose() exceeded %.1fs; leaked async pool",
+                _TEARDOWN_TIMEOUT_S,
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -214,5 +231,15 @@ async def pg_truncate(pg_container: str) -> AsyncIterator[None]:
             await conn.execute(
                 text(f"TRUNCATE TABLE {table_names} RESTART IDENTITY CASCADE")
             )
+    except asyncio.TimeoutError:
+        _logger.warning(
+            "pg_truncate TRUNCATE exceeded teardown deadline; skipping cleanup"
+        )
     finally:
-        await engine.dispose()
+        try:
+            await asyncio.wait_for(engine.dispose(), timeout=_TEARDOWN_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            _logger.warning(
+                "pg_truncate engine.dispose() exceeded %.1fs; leaked async pool",
+                _TEARDOWN_TIMEOUT_S,
+            )
