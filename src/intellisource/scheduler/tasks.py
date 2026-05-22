@@ -201,16 +201,21 @@ class CeleryTasks:
 # ---------------------------------------------------------------------------
 
 
-@celery_app.task(name="run_pipeline", bind=True)  # type: ignore[untyped-decorator]
-def run_pipeline(self: Any, **kwargs: Any) -> dict[str, Any]:
-    """Celery entry point: execute the named pipeline with the given params.
+def _run_pipeline_body(**kwargs: Any) -> dict[str, Any]:
+    """Validate kwargs shape and delegate to the wired CeleryTasks instance.
 
-    The ``bind=True`` flag injects the Celery Task instance as ``self``.
-    Business logic is delegated to :class:`CeleryTasks` wired during
-    worker_process_init via ``celery_app._celery_tasks_instance``.
+    Extracted out of the @celery_app.task decorator so unit tests can call
+    the validation + dispatch logic without going through Celery's Task
+    wrapper (which masks the underlying signature).
     """
+    if "params" not in kwargs:
+        raise RuntimeError(
+            "send_task kwargs missing 'params'; the legacy flat-kwargs shape "
+            "is rejected (T-095 AC-8). Use kwargs={'pipeline_name': ..., "
+            "'params': {...}} instead."
+        )
     pipeline_name: str = kwargs.get("pipeline_name", "default")
-    params: dict[str, Any] = kwargs.get("params", kwargs)
+    params: dict[str, Any] = kwargs["params"]
 
     _celery_tasks_instance: CeleryTasks | None = getattr(
         celery_app, "_celery_tasks_instance", None
@@ -220,3 +225,14 @@ def run_pipeline(self: Any, **kwargs: Any) -> dict[str, Any]:
             "CeleryTasks not wired: worker_process_init handler has not run"
         )
     return _celery_tasks_instance.run_pipeline(pipeline_name, params)
+
+
+@celery_app.task(name="run_pipeline", bind=True)  # type: ignore[untyped-decorator]
+def run_pipeline(self: Any, **kwargs: Any) -> dict[str, Any]:
+    """Celery entry point: execute the named pipeline with the given params.
+
+    The ``bind=True`` flag injects the Celery Task instance as ``self``.
+    Validation + dispatch live in :func:`_run_pipeline_body` so tests can
+    cover them without invoking the Celery Task wrapper.
+    """
+    return _run_pipeline_body(**kwargs)

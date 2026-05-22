@@ -113,6 +113,7 @@ class TestCollectSingleSource:
         mock_task_repo = AsyncMock()
         mock_task_repo.create.return_value = task_obj
         mock_source_repo = AsyncMock()
+        mock_source_repo.get_types_by_ids.return_value = {}
 
         with (
             patch(
@@ -148,6 +149,7 @@ class TestCollectSingleSource:
         mock_task_repo = AsyncMock()
         mock_task_repo.create.return_value = task_obj
         mock_source_repo = AsyncMock()
+        mock_source_repo.get_types_by_ids.return_value = {}
 
         with (
             patch(
@@ -175,6 +177,7 @@ class TestCollectSingleSource:
         mock_task_repo = AsyncMock()
         mock_task_repo.create.return_value = task_obj
         mock_source_repo = AsyncMock()
+        mock_source_repo.get_types_by_ids.return_value = {}
 
         with (
             patch(
@@ -222,6 +225,7 @@ class TestCollectMultipleSources:
         mock_task_repo = AsyncMock()
         mock_task_repo.create.side_effect = [task_obj_1, task_obj_2]
         mock_source_repo = AsyncMock()
+        mock_source_repo.get_types_by_ids.return_value = {}
 
         with (
             patch(
@@ -256,6 +260,7 @@ class TestCollectMultipleSources:
         mock_task_repo = AsyncMock()
         mock_task_repo.create.side_effect = [task_obj_1, task_obj_2]
         mock_source_repo = AsyncMock()
+        mock_source_repo.get_types_by_ids.return_value = {}
 
         with (
             patch(
@@ -291,6 +296,7 @@ class TestCollectMultipleSources:
         mock_task_repo = AsyncMock()
         mock_task_repo.create.side_effect = [task_obj_1, task_obj_2]
         mock_source_repo = AsyncMock()
+        mock_source_repo.get_types_by_ids.return_value = {}
 
         with (
             patch(
@@ -428,6 +434,7 @@ class TestCollectInvalidSourceIds:
         """Non-UUID string in source_ids returns 400 with detail."""
         mock_task_repo = AsyncMock()
         mock_source_repo = AsyncMock()
+        mock_source_repo.get_types_by_ids.return_value = {}
 
         with (
             patch(
@@ -455,6 +462,7 @@ class TestCollectInvalidSourceIds:
         """Mix of valid and invalid UUIDs returns 400 listing only the invalid ones."""
         mock_task_repo = AsyncMock()
         mock_source_repo = AsyncMock()
+        mock_source_repo.get_types_by_ids.return_value = {}
 
         with (
             patch(
@@ -491,6 +499,7 @@ class TestCollectSendTaskPrecision:
         mock_task_repo = AsyncMock()
         mock_task_repo.create.return_value = task_obj
         mock_source_repo = AsyncMock()
+        mock_source_repo.get_types_by_ids.return_value = {}
 
         with (
             patch(
@@ -519,6 +528,7 @@ class TestCollectSendTaskPrecision:
         mock_task_repo = AsyncMock()
         mock_task_repo.create.return_value = task_obj
         mock_source_repo = AsyncMock()
+        mock_source_repo.get_types_by_ids.return_value = {}
 
         with (
             patch(
@@ -549,6 +559,7 @@ class TestCollectSendTaskPrecision:
         mock_task_repo = AsyncMock()
         mock_task_repo.create.return_value = task_obj
         mock_source_repo = AsyncMock()
+        mock_source_repo.get_types_by_ids.return_value = {}
 
         with (
             patch(
@@ -579,6 +590,7 @@ class TestCollectSendTaskPrecision:
         mock_task_repo = AsyncMock()
         mock_task_repo.create.return_value = task_obj
         mock_source_repo = AsyncMock()
+        mock_source_repo.get_types_by_ids.return_value = {}
 
         with (
             patch(
@@ -621,6 +633,7 @@ class TestCollectDatetimeSerialization:
         mock_task_repo = AsyncMock()
         mock_task_repo.create.return_value = task_obj
         mock_source_repo = AsyncMock()
+        mock_source_repo.get_types_by_ids.return_value = {}
 
         with (
             patch(

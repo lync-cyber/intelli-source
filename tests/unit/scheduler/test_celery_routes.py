@@ -14,6 +14,8 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 # ---------------------------------------------------------------------------
 # AC-1: task_routes and task_queues present in celery_app.conf
 # ---------------------------------------------------------------------------
@@ -132,6 +134,18 @@ class TestWorkerInitHandlerSignature:
     """AC-2: worker_init_handler obtains agent_runner from get_agent_runner()
     singleton; calling it with no kwargs (or only framework kwargs) must not
     raise TypeError."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_celery_tasks_singleton(self) -> Any:
+        """Reset boot._celery_tasks before each test so the idempotency guard
+        in worker_init_handler does not short-circuit the assembly path under
+        test."""
+        import intellisource.scheduler.boot as boot_mod
+
+        original = boot_mod._celery_tasks
+        boot_mod._celery_tasks = None
+        yield
+        boot_mod._celery_tasks = original
 
     def test_handler_callable_with_no_kwargs(self) -> None:
         """Calling worker_init_handler() with no kwargs must not raise TypeError.
@@ -301,9 +315,11 @@ class TestGetAgentRunnerSingletonExists:
         zero-arg signature; we just guard TypeError specifically.
         """
         import intellisource.agent.factory as factory_mod
+        from intellisource.composition import get_agent_runner_holder
 
-        original = factory_mod._agent_runner
-        factory_mod._agent_runner = None
+        holder = get_agent_runner_holder()
+        original = holder._runner
+        holder.reset()
         try:
             try:
                 factory_mod.get_agent_runner()
@@ -316,7 +332,7 @@ class TestGetAgentRunnerSingletonExists:
                 # Expected when no composition root has installed an instance.
                 pass
         finally:
-            factory_mod._agent_runner = original
+            holder._runner = original
 
 
 # ---------------------------------------------------------------------------
@@ -327,6 +343,15 @@ class TestGetAgentRunnerSingletonExists:
 class TestWorkerInitSignalNoAttributeError:
     """R-001: worker_init_handler uses the module-level celery_app singleton,
     not a kwarg, so it must never raise AttributeError on signal dispatch."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_celery_tasks_singleton(self) -> Any:
+        import intellisource.scheduler.boot as boot_mod
+
+        original = boot_mod._celery_tasks
+        boot_mod._celery_tasks = None
+        yield
+        boot_mod._celery_tasks = original
 
     def test_worker_init_signal_does_not_raise_attribute_error(self) -> None:
         """Simulates Celery dispatching worker_process_init with no celery_app kwarg.

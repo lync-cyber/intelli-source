@@ -71,10 +71,10 @@ def test_worker_init_handler_assembles_complete_tool_deps(env_for_worker: None) 
     ):
         # Reload boot to clear any module-level cache picked up before patches.
         # Reset agent factory singleton
-        import intellisource.agent.factory as factory_mod
         import intellisource.scheduler.boot as boot_mod
+        from intellisource.composition import get_agent_runner_holder
 
-        factory_mod._agent_runner = None
+        get_agent_runner_holder().reset()
 
         # Trigger the handler (Celery normally fires this via signal).
         boot_mod.worker_init_handler(sender=object())
@@ -114,11 +114,10 @@ def test_run_pipeline_does_not_raise_attribute_error(
             return_value=MagicMock(),
         ),
     ):
-        import intellisource.agent.factory as factory_mod
-
-        factory_mod._agent_runner = None
-
         import intellisource.scheduler.boot as boot_mod
+        from intellisource.composition import get_agent_runner_holder
+
+        get_agent_runner_holder().reset()
 
         boot_mod.worker_init_handler(sender=object())
 

@@ -60,24 +60,19 @@ def _build_processors_from_config(config: PipelineConfig) -> list[BaseProcessor]
     return processors
 
 
-_agent_runner: AgentRunner | None = None
-
-
 def get_agent_runner() -> AgentRunner:
-    """Return the module-level AgentRunner singleton.
+    """Return the process-wide AgentRunner singleton.
 
-    Raises RuntimeError when the composition root has not yet installed an
-    instance. Callers in the Worker process must run
-    `intellisource.composition.build_worker_composition` first; callers in
-    the API process rely on `intellisource.composition.build_api_composition`
-    invoked during FastAPI lifespan startup.
+    Delegates to `intellisource.composition.get_agent_runner_holder().get()`.
+    Raises CompositionNotInitialisedError (also a RuntimeError) when the
+    composition root has not yet installed an instance — Worker processes
+    must run `build_worker_composition` first; API processes rely on
+    `build_api_composition` from FastAPI lifespan startup.
     """
-    if _agent_runner is None:
-        raise RuntimeError(
-            "AgentRunner not initialised; call build_worker_composition() or "
-            "build_api_composition() first"
-        )
-    return _agent_runner
+    # Lazy import — composition imports from this module at runtime.
+    from intellisource.composition import get_agent_runner_holder
+
+    return get_agent_runner_holder().get()
 
 
 def build_agent_runner(
@@ -91,20 +86,24 @@ def build_agent_runner(
 ) -> AgentRunner:
     """Build a fully-wired AgentRunner.
 
-    All dependencies are required keyword arguments. Passing `None` for any
-    of them raises ValueError so wiring bugs fail loudly at composition
-    time rather than silently producing degraded tool responses at runtime.
+    All dependencies are required keyword arguments. Passing `None` raises
+    CompositionError (also a ValueError) so wiring bugs fail loudly at
+    composition time rather than silently producing degraded tool responses
+    at runtime.
     """
+    # Lazy import — composition imports build_agent_runner from this module.
+    from intellisource.composition import CompositionError
+
     if session_factory is None:
-        raise ValueError("session_factory is required (got None)")
+        raise CompositionError("session_factory is required (got None)")
     if llm_gateway is None:
-        raise ValueError("llm_gateway is required (got None)")
+        raise CompositionError("llm_gateway is required (got None)")
     if collector_registry is None:
-        raise ValueError("collector_registry is required (got None)")
+        raise CompositionError("collector_registry is required (got None)")
     if distributor is None:
-        raise ValueError("distributor is required (got None)")
+        raise CompositionError("distributor is required (got None)")
     if search_engine_factory is None:
-        raise ValueError("search_engine_factory is required (got None)")
+        raise CompositionError("search_engine_factory is required (got None)")
 
     registry = AgentToolRegistry()
     registry.register_defaults()

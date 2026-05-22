@@ -46,6 +46,7 @@ from intellisource.collector.adapters.api import APICollector
 from intellisource.collector.adapters.rss import RSSCollector
 from intellisource.collector.adapters.web import WebCollector
 from intellisource.collector.registry import CollectorRegistry
+from intellisource.core.errors import ErrorCategory, IntelliSourceError
 from intellisource.llm.circuit_breaker import CircuitBreaker
 from intellisource.llm.gateway import LLMGateway
 from intellisource.llm.priority_queue import PriorityQueue
@@ -63,6 +64,49 @@ SOURCE_TYPE_TO_PIPELINE: dict[str, str] = {
     "web": "scheduled-collect",
 }
 """Source.type → pipeline yaml name. Used by `/tasks/collect` send_task."""
+
+
+# ---------------------------------------------------------------------------
+# Composition errors (arch §5.3 — IntelliSourceError hierarchy)
+# ---------------------------------------------------------------------------
+
+
+class CompositionError(IntelliSourceError, ValueError):
+    """Raised when the composition root receives invalid dependencies.
+
+    Multiple inheritance keeps `isinstance(exc, ValueError)` true so callers
+    that catch the built-in `ValueError` (and existing tests) still match.
+    """
+
+    def __init__(self, message: str) -> None:
+        IntelliSourceError.__init__(
+            self,
+            message,
+            category=ErrorCategory.UNRECOVERABLE,
+            recovery_hint=(
+                "Wire dependencies via build_worker_composition() or "
+                "build_api_composition()"
+            ),
+        )
+
+
+class CompositionNotInitialisedError(IntelliSourceError, RuntimeError):
+    """Raised when a process-wide singleton is read before composition root ran.
+
+    Multiple inheritance preserves `isinstance(exc, RuntimeError)` for callers
+    catching the built-in.
+    """
+
+    def __init__(self, message: str) -> None:
+        IntelliSourceError.__init__(
+            self,
+            message,
+            category=ErrorCategory.UNRECOVERABLE,
+            recovery_hint=(
+                "Call build_worker_composition() (Worker) or "
+                "build_api_composition() (API) before reaching this code path"
+            ),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -187,6 +231,53 @@ def build_search_engine_factory() -> Callable[[AsyncSession], HybridSearchEngine
 
 
 # ---------------------------------------------------------------------------
+# AgentRunner singleton holder — replaces the dead `agent_factory._agent_runner`
+# module-level state. The holder is process-wide; both Worker and API
+# composition roots install into the same global instance so legacy
+# `get_agent_runner()` callers resolve to whichever runner was built last.
+# ---------------------------------------------------------------------------
+
+
+class AgentRunnerHolder:
+    """Mutable single-slot container for the process-wide AgentRunner.
+
+    Owned by the composition root. `install()` puts the assembled runner in;
+    `get()` reads it (raising CompositionNotInitialisedError when empty);
+    `reset()` clears the slot (test fixture support only).
+    """
+
+    def __init__(self) -> None:
+        self._runner: AgentRunner | None = None
+
+    def install(self, runner: AgentRunner) -> None:
+        self._runner = runner
+
+    def get(self) -> AgentRunner:
+        if self._runner is None:
+            raise CompositionNotInitialisedError(
+                "AgentRunner not initialised; call build_worker_composition() "
+                "or build_api_composition() first"
+            )
+        return self._runner
+
+    def reset(self) -> None:
+        self._runner = None
+
+    @property
+    def installed(self) -> bool:
+        return self._runner is not None
+
+
+_global_agent_runner_holder = AgentRunnerHolder()
+"""Process-wide AgentRunner holder. Read via get_agent_runner_holder()."""
+
+
+def get_agent_runner_holder() -> AgentRunnerHolder:
+    """Return the process-wide AgentRunnerHolder singleton."""
+    return _global_agent_runner_holder
+
+
+# ---------------------------------------------------------------------------
 # WorkerComposition + assembly entry points
 # ---------------------------------------------------------------------------
 
@@ -223,10 +314,10 @@ def _build_deps_bundle(session_factory: Any, redis_client: Any) -> _DepsBundle:
 
 
 def _install_agent_runner(session_factory: Any, bundle: _DepsBundle) -> AgentRunner:
-    """Build an AgentRunner from the deps bundle and install it as the
-    `intellisource.agent.factory` module-level singleton so legacy callers
-    of `get_agent_runner()` keep resolving to the same instance both
-    processes assembled.
+    """Build an AgentRunner from the deps bundle and install it into the
+    process-wide AgentRunnerHolder so `get_agent_runner_holder().get()`
+    (and the legacy `agent.factory.get_agent_runner()` wrapper) resolve to
+    the same instance both processes assembled.
     """
     # Import here to avoid circular import via agent.factory.
     from intellisource.agent import factory as agent_factory
@@ -238,7 +329,7 @@ def _install_agent_runner(session_factory: Any, bundle: _DepsBundle) -> AgentRun
         distributor=bundle.distributor,
         search_engine_factory=bundle.search_engine_factory,
     )
-    agent_factory._agent_runner = runner
+    _global_agent_runner_holder.install(runner)
     return runner
 
 
