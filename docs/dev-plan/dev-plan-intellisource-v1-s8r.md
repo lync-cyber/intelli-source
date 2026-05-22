@@ -146,7 +146,7 @@ graph LR
 - **模块**: M-003（处理管道）、M-006（任务编排调度）
 - **接口**: 内部接口 — `PipelineEngine.execute(ctx)` / `PipelineEngine.execute_stream(ctx) async generator`
 - **复杂度**: M（预估 LOC ~220）
-- **status**: todo
+- **status**: approved（批次 2 r3 — final commit 374e8ef + 49d6d1b + df7b24d + c7a9ed9；CODE-REVIEW r1/r2/r3）
 - **依赖**: T-083（应用组合根，提供 `build_agent_runner` 中 PipelineEngine 实例化入口）
 
 - **tdd_acceptance**:
@@ -196,7 +196,7 @@ graph LR
 - **模块**: M-008（检索与对话）、M-009（存储 — HybridIndex 位于 storage/vector.py）
 - **接口**: API-012（混合检索 `/api/v1/search`）、API-013（即时问答 `/api/v1/search/chat`）
 - **复杂度**: M（预估 LOC ~160）
-- **status**: todo
+- **status**: approved（批次 2 r2 — final commit 8d6b075 + 2511a8e；CODE-REVIEW r1/r2）
 - **依赖**: T-083（应用组合根提供 session_factory 注入路径，HybridSearchEngine 需要 DB session）
 
 - **tdd_acceptance**:
@@ -241,7 +241,7 @@ graph LR
 - **模块**: M-005（LLM 服务治理）、M-006（Agent 调度层使用 chat 方法）
 - **接口**: API-017（LLM 用量统计，chat 方法需一并纳入统计）
 - **复杂度**: M（预估 LOC ~180）
-- **status**: todo
+- **status**: approved_with_notes（批次 2 r2 — final commit 5f40f4e + 9fd0204；CODE-REVIEW r1/r2；1 LOW N-001 silent downgrade log 用户接受）
 - **依赖**: T-083（应用组合根，LLMGateway 实例由 factory.py 注入 AgentRunner）
 
 - **tdd_acceptance**:
@@ -285,7 +285,7 @@ graph LR
 - **模块**: M-004（原子处理工具）、M-005（LLM 网关）、M-006（Agent 调度）、M-009（存储）
 - **接口**: 内部接口 — `VectorStore.search_similar()` / `VectorStore.find_nearest_cluster()` / 结构化提取处理器
 - **复杂度**: L（预估 LOC ~280）
-- **status**: todo
+- **status**: approved（批次 3 r3 orchestrator inline — final commit 2019cbc + b16f971；CODE-REVIEW r1/r2 + CORRECTIONS-LOG 2026-05-22 inline approve）
 - **依赖**: T-083（应用组合根）、T-084（PipelineEngine 接入，提供管道注册点）、T-086（LLMGateway.chat 方法，`_llm_complete_execute` 需要调用它）
 
 - **tdd_acceptance**:
@@ -342,7 +342,7 @@ graph LR
 - **模块**: M-005（LLM 服务治理）、M-011（API 路由 — 状态端点）
 - **接口**: API-017（LLM 管理端点，扩展熔断/队列状态查询）
 - **复杂度**: S（预估 LOC ~140，但算法简单，主要是接驳调用链）
-- **status**: todo
+- **status**: approved（批次 3 r3 reviewer + R-009 inline — final commit 7798139 + bedd6f4 + b864c30；CODE-REVIEW r1/r2/r3；EXP-005 lifespan 闭环关键端 1/3）
 - **依赖**: T-083（应用组合根）、T-086（LLMGateway.chat 方法，接驳需要在 chat/complete 路径上挂 CircuitBreaker 检查）
 
 - **tdd_acceptance**:
@@ -386,7 +386,7 @@ graph LR
 - **模块**: M-006（agent/tools.py）、M-002（采集器触发）、M-003（管道触发）、M-007（分发触发）、M-008（检索调用）、M-009（内容详情）
 - **接口**: 内部接口 — `AgentToolRegistry` 注册的工具函数
 - **复杂度**: M（预估 LOC ~200）
-- **status**: todo
+- **status**: approved（批次 3 r2 — final commit 7798139；CODE-REVIEW r1/r2；EXP-005 tools.py tool_deps 闭环关键端 2/3）
 - **依赖**: T-083（应用组合根，ToolDeps 依赖注入路径由 factory.py 建立）、T-084（PipelineEngine 接入，process 工具调用 PipelineEngine）、T-086（LLMGateway.chat，summarize_for_user 工具调用 LLMGateway）
 
 - **tdd_acceptance**:
@@ -435,7 +435,7 @@ graph LR
 - **模块**: M-007（分发渠道）、M-009（存储 — PushRepository）
 - **接口**: 无直接 API 变更（内部行为修复）
 - **复杂度**: M（预估 LOC ~180）
-- **status**: todo
+- **status**: approved（批次 2 r2 — final commit 55ea9b0 + dca8be9 + c78e90a；CODE-REVIEW r1/r2）
 - **依赖**: T-083（应用组合根，PushRepository 实例通过依赖注入传入 distributor）
 
 - **tdd_acceptance**:
@@ -490,7 +490,7 @@ graph LR
 - **模块**: M-001（配置管理 — ConfigWatcher / ConfigLoader）、M-011（API 路由 — reload 端点）
 - **接口**: API-005（reload source configs — `/api/v1/sources/reload`）
 - **复杂度**: M（预估 LOC ~160）
-- **status**: todo
+- **status**: approved_with_notes（批次 2 r2 + orchestrator inline — final commit e91d444 + a3caef2 + 74f093a；CODE-REVIEW r1/r2；1 MED ALLOWED_TYPES drift + 2 LOW，用户全修无 r3 reviewer → orchestrator inline approve）
 - **依赖**: T-083（应用组合根，lifespan 中 ConfigWatcher 实例化需要 settings 对象）
 
 - **tdd_acceptance**:
@@ -538,7 +538,7 @@ graph LR
 - **模块**: M-006（scheduler — Celery 配置 + boot.py + 幂等保护）、M-009（存储 — 指纹检查 DB 查询）
 - **接口**: 内部接口 — Celery task routing；IdempotencyGuard / FingerprintChecker API
 - **复杂度**: M（预估 LOC ~180）
-- **status**: todo
+- **status**: approved（批次 3 r3 orchestrator inline — final commit 1d8e24f + db2be0d；CODE-REVIEW r1/r2 + CORRECTIONS-LOG 2026-05-22 inline approve；EXP-005 build_celery_tasks 闭环关键端 3/3）
 - **依赖**: T-083（应用组合根，`celery_app.py` 已建立）、T-090（PushDeduplicator 与 PushRepository 接驳已完成）
 
 - **tdd_acceptance**:
@@ -647,7 +647,6 @@ graph LR
 - **模块**: M-001（配置热加载）、M-006（Celery 冷启动）、M-007（三渠道推送记录）、M-008（搜索 API）、M-009（存储 PG 验证）
 - **接口**: API-006（任务触发）、API-012（混合检索）、API-013（即时问答）
 - **复杂度**: M（预估 LOC ~220）
-- **status**: todo
 - **依赖**: T-084、T-085、T-086、T-087、T-088、T-089、T-090、T-091、T-092、T-093（全部前序任务完成后执行）
 - **status**: done（RED+GREEN-inline 完成，commit 04904d2；13 PASS / 2 SKIPPED 含 Docker graceful skip；2301 PASS 全量回归，0 failed）
 

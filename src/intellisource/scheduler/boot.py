@@ -30,7 +30,15 @@ _worker_engine: AsyncEngine | None = None
 
 
 class _RawContentFingerprintRepo:
-    """Minimal adapter providing exists_by_fingerprint for FingerprintChecker."""
+    """FingerprintChecker adapter backed by RawContent.fingerprint.
+
+    Persistence protocol (see arch-intellisource-v1-modules#§M-002 内容指纹持久化协议):
+    fingerprint write responsibility lives in the M-002 collection layer — the
+    collector inserts RawContent with fingerprint set, and the DB unique constraint
+    handles dedup. This adapter exposes exists_by_fingerprint() over that column
+    and intentionally keeps record_fingerprint() as a no-op so the
+    FingerprintChecker contract stays stable across future protocol changes.
+    """
 
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
@@ -45,10 +53,7 @@ class _RawContentFingerprintRepo:
             return result.first() is not None
 
     async def record_fingerprint(self, fingerprint: str, content_id: Any) -> None:
-        # Fingerprint persistence is completed by the collection layer when it
-        # inserts the RawContent row (raw_contents.fingerprint unique constraint).
-        # This record call is intentionally a no-op: the fingerprint is already
-        # stored and exists_by_fingerprint will return True on subsequent checks.
+        # No-op by design: see class docstring + arch M-002 fingerprint protocol.
         pass
 
 
