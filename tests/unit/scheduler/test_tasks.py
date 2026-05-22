@@ -177,54 +177,30 @@ class TestSingleStepRetry:
 
 
 class TestErrorRecording:
-    """AC-T027-2: Step failure records error_message on
-    CollectTask."""
+    """AC-T027-2: Step failure propagates as a raised exception."""
 
-    def test_step_failure_records_error_message(self, celery_tasks, mock_agent_runner):
-        """When a step fails the error should be recorded in
-        CollectTask.error_message."""
+    def test_step_failure_propagates_exception(self, celery_tasks, mock_agent_runner):
+        """When all retries are exhausted, run_pipeline must re-raise
+        the last exception."""
         mock_agent_runner.execute = AsyncMock(
             side_effect=RuntimeError("parse step timeout")
         )
-        with patch("intellisource.scheduler.tasks.TaskRepository") as mock_repo_cls:
-            mock_repo = AsyncMock()
-            mock_repo_cls.return_value = mock_repo
+        with pytest.raises(RuntimeError, match="parse step timeout"):
+            celery_tasks.run_pipeline(
+                "news_collect",
+                params={"task_id": "t-1"},
+            )
 
-            try:
-                celery_tasks.run_pipeline(
-                    "news_collect",
-                    params={"task_id": "t-1"},
-                )
-            except RuntimeError:
-                pass
-
-            mock_repo.update.assert_called()
-            update_call = mock_repo.update.call_args
-            assert "error_message" in str(update_call)
-
-    def test_error_message_contains_failure_detail(
+    def test_error_message_preserved_in_raised_exception(
         self, celery_tasks, mock_agent_runner
     ):
-        """The recorded error_message should contain enough
-        detail to identify the failure."""
+        """The raised exception must preserve the original error message."""
         error_msg = "Connection refused to rss.example.com"
         mock_agent_runner.execute = AsyncMock(side_effect=RuntimeError(error_msg))
-        with patch("intellisource.scheduler.tasks.TaskRepository") as mock_repo_cls:
-            mock_repo = AsyncMock()
-            mock_repo_cls.return_value = mock_repo
-
-            try:
-                celery_tasks.run_pipeline(
-                    "news_collect",
-                    params={"task_id": "t-1"},
-                )
-            except RuntimeError:
-                pass
-
-            calls = mock_repo.update.call_args_list
-            error_recorded = any(error_msg in str(c) for c in calls)
-            assert error_recorded, (
-                f"Expected '{error_msg}' in update calls, got: {calls}"
+        with pytest.raises(RuntimeError, match=error_msg):
+            celery_tasks.run_pipeline(
+                "news_collect",
+                params={"task_id": "t-1"},
             )
 
 

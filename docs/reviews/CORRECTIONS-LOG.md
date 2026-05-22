@@ -50,3 +50,47 @@ deps: []
 - 基线/推荐: 现在应用 EXP-002 + EXP-005 两条高优先并推进 (Recommended)
 - 实际/选择: 暂停，我要先设读 RETRO 报告
 - 偏差类型: preference
+
+### 2026-05-21 | orchestrator | T-092 r1
+- 触发信号: agent-truncation
+- 问题/假设: T-092 reviewer 子代理 Layer 2 阶段被 task-notification 截断（88 tools / 91K tokens / 5min），未返回 `<agent-result>` 且 CODE-REVIEW-T-092-r1.md 未落盘。无可恢复中间产出。按 §Sub-Agent Truncation Recovery Protocol 应走 §Agent Crash Recovery；选项为：① 重派 reviewer ② orchestrator 主线程内联接管 ③ 跳过待 sprint-review 兜底。
+- 基线/推荐: 重派 reviewer 用更紧凑 prompt（保留独立性，但耗预算）
+- 实际/选择: orchestrator 主线程内联 L1+L2，独立性损失换响应速度
+- 偏差类型: preference
+- 原因: 用户指定选项，明确接受独立性损失换响应速度
+- 影响/缓解: code-review 子代理独立性损失记录在案；为弥补 orchestrator-as-reviewer 的利益冲突，本报告 verdict 走从严：3 HIGH + 3 MEDIUM + 4 LOW = needs_revision；R-001/R-002/R-003 三项的"测试通过、生产失效"是 sprint-8r 立项要消除的核心反模式，必须在批次 3 闭合前由 implementer 修订
+- 关联: docs/reviews/code/CODE-REVIEW-T-092-r1.md
+
+### 2026-05-21 | orchestrator | sprint-8r batch 3 revision concurrent dispatch
+- 触发信号: git-race + agent-self-report-divergence
+- 问题/假设: 并发派出 4 个 implementer revision 子代理（T-087/T-088/T-089/T-092），由于 implementer prompt 未明确禁止它们使用 `git add <files>` 与等待 orchestrator 协调 commit 时序，发生两起 git race + commit-message ↔ diff 错配事故：① commit 2019cbc 由 T-087 agent 创建，但 commit message 写成 T-088 r2 内容（agent 看见工作树有 T-088 staged 文件时假定 dual-purpose batch commit）；实际 diff 只含 T-087 5 个文件；T-088 实际改动留在工作树未 commit。② orchestrator 主线程随后 `git add` T-088 4 个文件 + `git commit`，但此时 T-089 agent 已并行 `git add` 自己的 5 个文件，导致 commit 7798139 message 写 T-088 但 diff 包含 T-088（4）+ T-089（5）共 9 文件；T-089 agent 后续 self-report 时确认改动已入 7798139，未额外创建 commit。
+- 基线/推荐: implementer prompt 明确"不要 git add / commit / push，由 orchestrator 串行处理"；orchestrator 派工后保持只读直到所有 agent self-report 后再串行 commit
+- 实际/选择: 并发派工 + 各 implementer 自行 commit（race window 暴露）
+- 偏差类型: protocol-gap
+- 原因: revision protocol 未规定并发派工时的 git 协调；implementer agent 习惯性 `git commit` 而 prompt 给了"commit 可以做"的隐性允许
+- 影响/缓解:
+  - 已发生事故：commit 历史中 2019cbc / 7798139 message 与 diff 内容不严格对应
+  - 短期补救：本 CORRECTIONS-LOG 条目 + EVENT-LOG correction events（2026-05-21T23:55）固化真相，后续 reviewer 看 history 时能溯源
+  - 不重写历史（无用户授权 amend/force push）
+  - 长期改进 carryover：①修订 implementer AGENT.md / SKILL.md，revision task_type 显式要求 "do not run git add/commit/push; orchestrator handles git" ②修订 orchestrator §revision protocol，并发派工时强制 "agents leave working tree dirty; orchestrator collects & commits sequentially in dispatch order"
+- 关联: commit 2019cbc, commit 7798139, T-088 / T-087 / T-089 r2 revision dispatch
+
+### 2026-05-22 | orchestrator | sprint-8r batch 3 r3 inline approve
+- 触发信号: option-override
+- 问题/假设: 批次 3 r3 三任务全部完成 commit + push（b16f971 / bedd6f4 / db2be0d），2288 PASS / mypy strict / ruff clean。是否对全部 3 任务派 reviewer 还是部分 inline approve？
+- 基线/推荐: 派 3 reviewer 完整闭环
+- 实际/选择: 只派 T-088 r3 reviewer（重点验证 EXP-005 装配缺口闭环）；T-087 r3（R-005 caplog 单行断言）+ T-092 r3（_RawContentResultRepo adapter + integration test）由 orchestrator inline approve
+- 偏差类型: preference
+- 原因: 用户判断 T-087/T-092 r3 风险低（implementer self-report 含完整反证测试说明"删修复后必 fail"；改动局部、可读）；T-088 r3 是 sprint-8r 核心反模式闭环点，必须独立 reviewer 视角
+- 影响/缓解: T-087/T-092 损失独立审查视角；implementer self-report 中的反证测试声明 + orchestrator 主线程 git 历史检查 + 全量回归通过共同构成代偿。如 T-094 集成测试发现装配缺口再回溯
+- 关联: commits b16f971 (T-087 r3) / bedd6f4 (T-088 r3, 仍待 reviewer) / db2be0d (T-092 r3); CODE-REVIEW-T-088-r3.md (in-progress)
+
+### 2026-05-22 | orchestrator | T-088 r3 R-009 inline fix
+- 触发信号: option-override（用户选"inline 修 R-009 后接受"）
+- 问题: T-088 r3 reviewer 发现 R-009 LOW — test_app_entry.py 3 处 `patch("intellisource.main.init_redis", new_callable=AsyncMock)` 让 `_redis_client = None`，与生产路径 `_redis_client = aioredis.from_url()` 模式不一致；当前测试不触发 Redis 调用故 2288 PASS，但未来扩展会 `AttributeError`
+- 基线/推荐: 派 implementer 修
+- 实际/选择: orchestrator 主线程 inline 修 — 3 处替换为 `patch("intellisource.main.aioredis.from_url", new_callable=AsyncMock, return_value=AsyncMock())` 对齐 test_llm_gateway_lifespan.py 成熟模式
+- 偏差类型: preference
+- 原因: 单文件 patch 模式微调（无逻辑改动），inline 比派 implementer 更快更精准；与 sprint-8r 装配缺口主题正交
+- 影响/缓解: 10/10 test_app_entry.py PASS；2288 全量回归 PASS；mypy strict + ruff clean
+- 关联: CODE-REVIEW-T-088-r3.md R-009; T-088 r3 final = approved

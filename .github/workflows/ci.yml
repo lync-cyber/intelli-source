@@ -34,6 +34,7 @@ jobs:
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
@@ -49,8 +50,11 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras
 
+      - name: Pre-pull pgvector image (testcontainers warm-up)
+        run: docker pull pgvector/pgvector:pg16
+
       - name: Run integration tests
-        run: uv run pytest tests/integration/ -q --tb=short
+        run: uv run pytest tests/integration/ -v --tb=short --timeout=300 --timeout-method=thread
 
   lint:
     name: Lint & Format

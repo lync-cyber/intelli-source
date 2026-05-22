@@ -5,7 +5,7 @@
 - 项目名称: IntelliSource
 - 技术栈: Python 3.11+ / FastAPI / Celery + Redis / PostgreSQL + pgvector / SQLAlchemy 2.0 / litellm
 - 运行时: claude-code
-- 框架版本: 0.3.1
+- 框架版本: 0.4.0
 - 语言定位: 中文框架（提示词/文档/交互用中文；代码/变量/CLI参数用英文）
 - 执行模式: standard
   <!-- 可选值: standard | agile-lite | agile-prototype。矩阵见 COMMON-RULES §执行模式矩阵 -->
@@ -14,8 +14,8 @@
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 
-- 当前阶段: sprint-8r 批次 1 + 批次 2 完成 — 7 任务全部 approved，准备进入批次 3
-- 下一步行动: ① 批次 3 RED+GREEN（4 任务：T-087 LLM 智能处理链路 / T-088 hybrid_search_optimizer / T-089 配置热加载边界 / T-092 Celery task_routes + worker_init + 幂等三组件）② 批次 4 T-094 集成测试 ③ pre_deploy 二次评估
+- 当前阶段: sprint-8r 批次 3 全部 approved（T-087/T-088/T-089/T-092 终态全 approved；EXP-005 装配缺口在 T-088 + T-092 + T-089 三处真实闭环）
+- 下一步行动: ① 批次 4 T-094 集成测试与冷启动验证 ② sprint-8r 全 sprint sprint-review ③ pre_deploy 二次评估
 - 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r]
 - 当前Sprint: sprint-8r (in-progress — 批次 1 + 批次 2 全 approved 7/12；待批次 3-4)
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r) / test-report = approved；ui-spec = N/A；dev-plan-s8(P2 backlog) = draft；deploy-spec = 未开始
@@ -29,6 +29,13 @@
   - T-090 status=approved（GREEN+REFACTOR → r1 needs_revision（1 HIGH security: pii.py 未接入 record_push） → r2 approved。final: 55ea9b0 + dca8be9 + c78e90a。报告 r1/r2）
   - T-091 status=approved（GREEN → r1 needs_revision（1 HIGH security: validator no-op） → r2 approved_with_notes（1 MEDIUM allowed-types drift + 2 LOW 测试缺口），用户全修无 r3 reviewer → orchestrator inline approve。final: e91d444 + a3caef2 + 74f093a。报告 r1/r2）
   - 全量回归: 2154 passed / 0 failed / 29 skipped; ruff + mypy --strict clean
+- 批次 3 r3 闭环检查点:
+  - T-087 status=approved（r1 needs_revision (1 HIGH await) → r2 approved_with_notes (1 LOW R-005 warning 日志测试未覆盖) → r3 orchestrator inline approve (caplog 断言落地)。final: 2019cbc + b16f971。报告 r1/r2 + CORRECTIONS-LOG 2026-05-22 inline approve）
+  - T-088 status=approved（r1 needs_revision (2 HIGH auth + status 桩) → r2 approved_with_notes (1 MED R-007 EXP-005 lifespan 未注入 + 1 LOW) → r3 reviewer approved_with_notes (1 LOW R-009 patch 模式漂移) → orchestrator inline R-009 fix + approve。final: 7798139 + bedd6f4 + b864c30。报告 r1/r2/r3 + CORRECTIONS-LOG 2026-05-22 inline approve）
+  - T-089 status=approved（r1 needs_revision (2 HIGH tool_deps 未注入 + ToolDeps 未构建) → r2 approved (5 R-ID 全修 + tools.py 6 execute 真消费 tool_deps 独立确认)。final: 7798139。报告 r1/r2，无 r3）
+  - T-092 status=approved（r1 needs_revision (3 HIGH，reviewer 截断 → orchestrator inline L1+L2) → r2 approved_with_notes (1 MED N-001 + 2 LOW EXP-005 carryover: build_celery_tasks 漏传 content_repository) → r3 orchestrator inline approve (_RawContentResultRepo adapter + 集成测试去 mock)。final: 1d8e24f + db2be0d。报告 r1/r2 + CORRECTIONS-LOG inline approve）
+  - **EXP-005 装配缺口闭环**: T-088 R-007 + T-092 N-001 两端 r3 真正闭环；T-089 r2 独立 reviewer 已确认 tools 真消费 tool_deps；sprint-8r 立项核心目标在本批次根治
+  - 批次 3 阶段测试: 108 new tests passing (ace6b99) + r3 后新增 11 反证/集成测试 → 全量 2288 PASS / 29 skip / 0 fail；mypy --strict clean；ruff check + format clean
 - Learnings Registry:
   - [RETRO-intellisource-v1.md](docs/reviews/retro/RETRO-intellisource-v1.md) — 6 EXP，应用决策 deferred to backlog
   - [SKILL-IMPROVE-*.md](docs/reviews/retro/) — 6 份建议（implementer / refactorer / code-review / tech-lead / tdd-engine / orchestrator）

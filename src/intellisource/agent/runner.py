@@ -16,6 +16,7 @@ from intellisource.storage.models import TaskChain
 from intellisource.storage.repositories.task_chain import TaskChainRepository
 
 if TYPE_CHECKING:
+    from intellisource.agent.deps import ToolDeps
     from intellisource.pipeline.engine import PipelineEngine
 
 logger = logging.getLogger(__name__)
@@ -32,10 +33,12 @@ class AgentRunner:
         llm_gateway: Any | None = None,
         *,
         pipeline_engine: PipelineEngine | None = None,
+        tool_deps: ToolDeps | None = None,
     ) -> None:
         self._tool_registry = tool_registry
         self._llm_gateway = llm_gateway
         self._pipeline_engine = pipeline_engine
+        self._tool_deps = tool_deps
 
     # -- public API --------------------------------------------------
 
@@ -46,26 +49,36 @@ class AgentRunner:
         **kwargs: Any,
     ) -> dict[str, Any]:
         """Dispatch to run_strict or run_flexible based on config.mode."""
+        tool_deps = kwargs.pop("tool_deps", self._tool_deps)
         if config.mode == "strict":
-            return await self.run_strict(config, params=params or {})
+            return await self.run_strict(
+                config, params=params or {}, tool_deps=tool_deps
+            )
         return await self.run_flexible(
             config,
             user_message=kwargs.get("user_message", ""),
             session=kwargs.get("session", {}),
+            tool_deps=tool_deps,
         )
 
     async def run_strict(
         self,
         config: Any,
         params: dict[str, Any],
+        *,
+        tool_deps: Any = None,
     ) -> dict[str, Any]:
         """Execute pipeline steps sequentially without LLM."""
+        effective_deps = tool_deps if tool_deps is not None else self._tool_deps
         results: list[dict[str, Any]] = []
         steps_executed = 0
 
         for step in config.steps:
             tool_name: str = step["tool"]
-            step_params: dict[str, Any] = {**step.get("params", {})}
+            step_params: dict[str, Any] = {
+                **step.get("params", {}),
+                **({"tool_deps": effective_deps} if effective_deps is not None else {}),
+            }
             tool_raw = self._tool_registry.get(tool_name)
             tool_fn = self._resolve_callable(tool_raw)
 
@@ -110,6 +123,7 @@ class AgentRunner:
         session: dict[str, Any],
         *,
         max_tokens_budget: int | None = None,
+        tool_deps: Any = None,
     ) -> dict[str, Any]:
         """Run LLM agent loop with tool access.
 
@@ -119,7 +133,10 @@ class AgentRunner:
             session: Session state dict.
             max_tokens_budget: Optional total token budget. When exceeded
                 the loop stops and returns with budget_exhausted=True.
+            tool_deps: Optional dependency container injected into each tool call.
+                Falls back to self._tool_deps when not provided.
         """
+        effective_deps = tool_deps if tool_deps is not None else self._tool_deps
         available_tools = self._filter_tools(config)
         tool_descriptors = [{"name": t} for t in available_tools]
 
@@ -171,6 +188,8 @@ class AgentRunner:
                     )
                 else:
                     tc_args = tc.get("arguments", {})
+                if effective_deps is not None:
+                    tc_args = {**tc_args, "tool_deps": effective_deps}
                 tool_raw = self._tool_registry.get(tc_name)
                 if tool_raw is not None:
                     tool_fn = self._resolve_callable(tool_raw)

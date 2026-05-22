@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from intellisource.api.deps import get_db_session
+from intellisource.api.deps import get_db_session, require_api_key
 from intellisource.storage.repositories.llm_call_log import LLMCallLogRepository
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["llm"])
 
@@ -30,3 +33,50 @@ async def llm_stats(
         )
     except ValueError as exc:
         return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+
+async def get_llm_gateway_status(request: Request) -> dict[str, Any]:
+    """Return current circuit breaker state and queue lengths.
+
+    Reads LLMGateway from request.app.state.llm_gateway when available.
+    Returns circuit_state="UNKNOWN" with a runtime warning when the gateway
+    is not injected (e.g. during testing or misconfigured deployments).
+
+    Returns a dict with keys:
+    - circuit_state: one of CLOSED, OPEN, HALF_OPEN, UNKNOWN
+    - queue_lengths: dict with interactive and background integer counts
+    """
+    gateway = getattr(request.app.state, "llm_gateway", None)
+    if gateway is None:
+        logger.warning(
+            "llm_gateway not found in app.state; returning UNKNOWN circuit state"
+        )
+        return {
+            "circuit_state": "UNKNOWN",
+            "queue_lengths": {"interactive": 0, "background": 0},
+        }
+
+    circuit_state = "UNKNOWN"
+    if gateway.circuit_breaker is not None:
+        state = await gateway.circuit_breaker.get_state()
+        circuit_state = state.value
+
+    interactive = 0
+    background = 0
+    if gateway._priority_queue is not None:
+        interactive = gateway._priority_queue.interactive_queue_size()
+        background = gateway._priority_queue.background_queue_size()
+
+    return {
+        "circuit_state": circuit_state,
+        "queue_lengths": {"interactive": interactive, "background": background},
+    }
+
+
+@router.get("/llm/status")
+async def llm_status(
+    request: Request,
+    _: str = Depends(require_api_key),
+) -> Any:
+    """Return LLM gateway health: circuit state and queue depths."""
+    return await get_llm_gateway_status(request)

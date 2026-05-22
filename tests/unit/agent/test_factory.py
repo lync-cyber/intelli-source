@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+
 # ---------------------------------------------------------------------------
 # AC-2: build_agent_runner factory exists and returns AgentRunner
 # ---------------------------------------------------------------------------
@@ -200,3 +202,91 @@ class TestPipelineEngineWiring:
         engine = runner._pipeline_engine
         assert engine is not None
         assert len(list(engine._processors)) >= 3
+
+
+# ---------------------------------------------------------------------------
+# R-002: build_agent_runner constructs ToolDeps and binds it to AgentRunner
+# ---------------------------------------------------------------------------
+
+
+class TestToolDepsWiring:
+    """R-002: build_agent_runner must build ToolDeps and wire it into AgentRunner."""
+
+    def test_runner_has_tool_deps_set(self) -> None:
+        """build_agent_runner returns a runner with _tool_deps set (not None)."""
+        from intellisource.agent.deps import ToolDeps
+        from intellisource.agent.factory import build_agent_runner
+
+        session_factory = MagicMock()
+        llm_gateway = MagicMock()
+
+        runner = build_agent_runner(session_factory, llm_gateway)
+
+        assert runner._tool_deps is not None, (
+            "_tool_deps must be set after factory build"
+            " (R-002: ToolDeps must be constructed)"
+        )
+        assert isinstance(runner._tool_deps, ToolDeps), (
+            f"_tool_deps must be a ToolDeps instance, got {type(runner._tool_deps)}"
+        )
+
+    def test_tool_deps_session_factory_bound(self) -> None:
+        """ToolDeps.session_factory must be the provided session_factory."""
+        from intellisource.agent.factory import build_agent_runner
+
+        session_factory = MagicMock()
+        llm_gateway = MagicMock()
+
+        runner = build_agent_runner(session_factory, llm_gateway)
+
+        assert runner._tool_deps is not None
+        assert runner._tool_deps.session_factory is session_factory, (
+            "ToolDeps.session_factory must reference the provided session_factory"
+        )
+
+    def test_tool_deps_llm_gateway_bound(self) -> None:
+        """ToolDeps.llm_gateway must be the provided llm_gateway."""
+        from intellisource.agent.factory import build_agent_runner
+
+        session_factory = MagicMock()
+        llm_gateway = MagicMock()
+
+        runner = build_agent_runner(session_factory, llm_gateway)
+
+        assert runner._tool_deps is not None
+        assert runner._tool_deps.llm_gateway is llm_gateway, (
+            "ToolDeps.llm_gateway must reference the provided llm_gateway"
+        )
+
+    def test_get_agent_runner_no_args_backward_compat(self) -> None:
+        """get_agent_runner() must remain callable with no arguments (T-092 compat)."""
+        from intellisource.agent.factory import get_agent_runner
+        from intellisource.agent.runner import AgentRunner
+
+        runner = get_agent_runner()
+
+        assert isinstance(runner, AgentRunner), (
+            "get_agent_runner() must return an AgentRunner when called with no args"
+        )
+
+    def test_get_agent_runner_returns_singleton(self) -> None:
+        """get_agent_runner() returns the same instance on repeated calls."""
+        from intellisource.agent.factory import get_agent_runner
+
+        runner1 = get_agent_runner()
+        runner2 = get_agent_runner()
+
+        assert runner1 is runner2, "get_agent_runner() must return a singleton"
+
+    @pytest.mark.asyncio
+    async def test_build_agent_runner_none_deps_allowed(self) -> None:
+        """build_agent_runner(None, None) must succeed; ToolDeps fields may be None."""
+        from intellisource.agent.factory import build_agent_runner
+        from intellisource.agent.runner import AgentRunner
+
+        runner = build_agent_runner(session_factory=None, llm_gateway=None)
+
+        assert isinstance(runner, AgentRunner)
+        assert runner._tool_deps is not None
+        assert runner._tool_deps.session_factory is None
+        assert runner._tool_deps.llm_gateway is None

@@ -25,6 +25,12 @@ _SEMANTIC_SQL: str = (
     "ORDER BY score DESC LIMIT :top_k"
 )
 
+_CLUSTER_SIMILARITY_SQL: str = (
+    "SELECT id, 1 - (centroid <=> :query) AS score "
+    "FROM content_clusters "
+    "ORDER BY score DESC LIMIT :top_k"
+)
+
 _KEYWORD_SQL: str = (
     "SELECT id, ts_rank(to_tsvector('simple', body_text), "
     "to_tsquery('simple', :query)) AS score "
@@ -95,6 +101,38 @@ class VectorStore:
             text(_SEMANTIC_SQL), {"query": str(query_vector), "top_k": top_k}
         )
         return _rows_to_results(result.all())
+
+    async def search_similar(
+        self,
+        query_vector: list[float],
+        threshold: float,
+        top_k: int = 10,
+    ) -> list[SearchResult]:
+        """Return results with cosine similarity score >= threshold."""
+        result = await self._session.execute(
+            text(_SEMANTIC_SQL), {"query": str(query_vector), "top_k": top_k}
+        )
+        rows = _rows_to_results(result.all())
+        return [r for r in rows if r.score >= threshold]
+
+    async def find_nearest_cluster(
+        self,
+        embedding: list[float],
+        threshold: float,
+    ) -> dict[str, Any] | None:
+        """Return the nearest cluster dict if similarity >= threshold, else None."""
+        result = await self._session.execute(
+            text(_CLUSTER_SIMILARITY_SQL),
+            {"query": str(embedding), "top_k": 1},
+        )
+        rows = result.all()
+        if not rows:
+            return None
+        row = rows[0]
+        score = float(row[1])
+        if score < threshold:
+            return None
+        return {"id": row[0], "score": score}
 
 
 # ---------------------------------------------------------------------------

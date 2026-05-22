@@ -6,6 +6,8 @@ by AgentRunner, and load_pipeline_config for loading YAML pipelines.
 
 from __future__ import annotations
 
+import logging
+import uuid as _uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Coroutine
@@ -14,6 +16,8 @@ from intellisource.agent.pipeline import PipelineConfig
 from intellisource.pipeline.processors import tools as atomic_tools
 
 _PIPELINES_DIR = Path(__file__).resolve().parents[3] / "config" / "pipelines"
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -96,39 +100,180 @@ def load_pipeline_config(name: str) -> PipelineConfig:
 # -------------------------------------------------------------------
 
 
-async def _collect_execute(**kwargs: Any) -> dict[str, Any]:
-    """Placeholder: invoke M-002 collector engine."""
-    return {"status": "ok", "tool": "collect", **kwargs}
+async def _collect_execute(
+    source_id: str = "",
+    source_type: str = "",
+    tool_deps: Any = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Invoke CollectorRegistry.get(source_type).collect() for the given source."""
+    if tool_deps is not None and tool_deps.collector_registry is not None:
+        collector = tool_deps.collector_registry.get(source_type)
+        if collector is not None:
+            collected = await collector.collect(source_id=source_id, **kwargs)
+            return {"status": "ok", "tool": "collect", "collected": collected}
+    logger.warning("tool_deps not injected for collect, returning placeholder")
+    return {
+        "status": "degraded",
+        "tool": "collect",
+        "reason": "tool_deps not injected",
+        "collected": [],
+        "source_id": source_id,
+    }
 
 
-async def _process_execute(**kwargs: Any) -> dict[str, Any]:
-    """Placeholder: invoke M-003 processing pipeline."""
-    return {"status": "ok", "tool": "process", **kwargs}
+async def _process_execute(
+    content_id: str = "",
+    tool_deps: Any = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Invoke PipelineEngine.execute() for the given content_id."""
+    if tool_deps is not None and tool_deps.pipeline_engine is not None:
+        result = await tool_deps.pipeline_engine.execute(
+            content_id=content_id, **kwargs
+        )
+        return {"status": "ok", "tool": "process", "result": result}
+    logger.warning("tool_deps not injected for process, returning placeholder")
+    return {
+        "status": "degraded",
+        "tool": "process",
+        "reason": "tool_deps not injected",
+        "content_id": content_id,
+    }
 
 
-async def _distribute_execute(**kwargs: Any) -> dict[str, Any]:
-    """Placeholder: invoke M-007 distribution."""
-    return {"status": "ok", "tool": "distribute", **kwargs}
+async def _distribute_execute(
+    content_id: str = "",
+    subscription_id: str = "",
+    tool_deps: Any = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Invoke distributor.distribute() for the given content and subscription."""
+    if tool_deps is not None and tool_deps.distributor is not None:
+        result = await tool_deps.distributor.distribute(
+            content_id=content_id,
+            subscription_id=subscription_id,
+            **kwargs,
+        )
+        return {"status": "ok", "tool": "distribute", "result": result}
+    logger.warning("tool_deps not injected for distribute, returning placeholder")
+    return {
+        "status": "degraded",
+        "tool": "distribute",
+        "reason": "tool_deps not injected",
+        "content_id": content_id,
+    }
 
 
-async def _search_execute(**kwargs: Any) -> dict[str, Any]:
-    """Placeholder: invoke M-008 hybrid search engine."""
-    return {"status": "ok", "tool": "search", **kwargs}
+async def _search_execute(
+    query: str = "",
+    top_k: int = 10,
+    tool_deps: Any = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Invoke HybridSearchEngine.search() with the given query."""
+    if tool_deps is not None and tool_deps.search_engine is not None:
+        response = await tool_deps.search_engine.search(
+            query=query, top_k=top_k, **kwargs
+        )
+        return {"status": "ok", "tool": "search", "response": response}
+    logger.warning("tool_deps not injected for search, returning placeholder")
+    return {
+        "status": "degraded",
+        "tool": "search",
+        "reason": "tool_deps not injected",
+        "query": query,
+    }
 
 
-async def _get_content_detail_execute(**kwargs: Any) -> dict[str, Any]:
-    """Placeholder: invoke M-009 content detail retrieval."""
-    return {"status": "ok", "tool": "get_content_detail", **kwargs}
+async def _get_content_detail_execute(
+    content_id: str = "",
+    tool_deps: Any = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Invoke ContentRepository.get_by_id() for the given content_id."""
+    from intellisource.storage.repositories.content import ContentRepository
+
+    if tool_deps is not None and tool_deps.session_factory is not None:
+        session = tool_deps.session_factory()
+        async with session as s:
+            repo = ContentRepository(session=s)
+            content = await repo.get_by_id(_uuid.UUID(content_id))
+            return {
+                "status": "ok",
+                "tool": "get_content_detail",
+                "content": content,
+                "content_id": content_id,
+            }
+    logger.warning(
+        "tool_deps not injected for get_content_detail, returning placeholder"
+    )
+    return {
+        "status": "degraded",
+        "tool": "get_content_detail",
+        "reason": "tool_deps not injected",
+        "content_id": content_id,
+    }
 
 
-async def _summarize_for_user_execute(**kwargs: Any) -> dict[str, Any]:
-    """Placeholder: summarize content for user in flexible mode."""
-    return {"status": "ok", "tool": "summarize_for_user", **kwargs}
+async def _summarize_for_user_execute(
+    content_id: str = "",
+    content: str = "",
+    tool_deps: Any = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Invoke LLMGateway.complete() to generate a user-facing summary."""
+    if tool_deps is not None and tool_deps.llm_gateway is not None:
+        prompt = f"Summarize the following content:\n\n{content}"
+        result = await tool_deps.llm_gateway.complete(
+            prompt=prompt, task_type="summarize"
+        )
+        return {
+            "status": "ok",
+            "tool": "summarize_for_user",
+            "summary": result.content,
+            "content_id": content_id,
+        }
+    logger.warning(
+        "tool_deps not injected for summarize_for_user, returning placeholder"
+    )
+    return {
+        "status": "degraded",
+        "tool": "summarize_for_user",
+        "reason": "tool_deps not injected",
+        "content_id": content_id,
+    }
 
 
-async def _llm_complete_execute(**kwargs: Any) -> dict[str, Any]:
-    """Placeholder: invoke LLMGateway for a specific call_type."""
-    return {"status": "ok", "tool": "llm_complete", **kwargs}
+async def _llm_complete_execute(
+    call_type: str = "",
+    prompt_vars: dict[str, Any] | None = None,
+    tool_deps: Any = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Invoke LLMGateway for a specific call_type with prompt_vars."""
+    if prompt_vars is None:
+        prompt_vars = {}
+    prompt = (
+        " ".join(f"{k}: {v}" for k, v in prompt_vars.items())
+        if prompt_vars
+        else call_type
+    )
+    gateway = tool_deps.llm_gateway if tool_deps is not None else None
+    if gateway is None:
+        logger.warning("tool_deps not injected for llm_complete, returning placeholder")
+        return {
+            "status": "degraded",
+            "tool": "llm_complete",
+            "reason": "tool_deps not injected",
+            "call_type": call_type,
+        }
+    result = await gateway.complete(prompt=prompt, task_type=call_type or None)
+    return {
+        "content": result.content,
+        "call_type": call_type,
+        "metadata": result.metadata,
+    }
 
 
 def _atomic_tool_defs() -> list[ToolDefinition]:

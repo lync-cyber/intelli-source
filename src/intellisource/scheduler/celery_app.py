@@ -1,10 +1,13 @@
-"""Module-level Celery application singleton for IntelliSource (T-083 AC-1)."""
+"""Module-level Celery application singleton for IntelliSource."""
 
 from __future__ import annotations
 
 import os
 
 from celery import Celery
+from kombu import Queue
+
+from intellisource.scheduler.queues import PRIORITY_QUEUES, TRIGGER_TYPE_QUEUES
 
 
 def _resolve_url(*env_keys: str, default: str) -> str:
@@ -29,3 +32,18 @@ celery_app = Celery(
 )
 
 celery_app.conf.broker_connection_retry_on_startup = False
+
+# ---------------------------------------------------------------------------
+# Task routing — queues and routes derived from shared queue constants
+# ---------------------------------------------------------------------------
+
+_all_queue_names: list[str] = list(PRIORITY_QUEUES.values()) + list(
+    TRIGGER_TYPE_QUEUES.values()
+)
+
+celery_app.conf.update(
+    task_queues=[Queue(name) for name in _all_queue_names],
+    task_routes={
+        "run_pipeline": {"queue": PRIORITY_QUEUES["normal"]},
+    },
+)

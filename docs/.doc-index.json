@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-05-21T10:28:33.331569+00:00",
+  "generated_at": "2026-05-22T01:02:32.377149+00:00",
   "documents": {
     "arch-intellisource-v1-api": {
       "file_path": "docs/arch/arch-intellisource-v1-api.md",
@@ -1339,8 +1339,8 @@
       "doc_type": "dev-plan",
       "volume": "s8r",
       "status": "approved",
-      "total_lines": 716,
-      "est_tokens": 15400,
+      "total_lines": 717,
+      "est_tokens": 15468,
       "sections": {
         "2": {
           "heading": "## 2. 依赖图",
@@ -1355,8 +1355,8 @@
           "heading": "## 3. 任务卡详细",
           "level": 2,
           "line_start": 77,
-          "line_end": 691,
-          "est_tokens": 13974,
+          "line_end": 692,
+          "est_tokens": 14042,
           "deps": [],
           "items": {
             "T-083": {
@@ -1439,8 +1439,8 @@
             "T-094": {
               "heading": "### T-094: Sprint-8r 集成测试与冷启动验证",
               "line_start": 640,
-              "line_end": 691,
-              "est_tokens": 1091,
+              "line_end": 692,
+              "est_tokens": 1159,
               "deps": []
             }
           }
@@ -1448,50 +1448,50 @@
         "4": {
           "heading": "## 4. 风险项",
           "level": 2,
-          "line_start": 692,
-          "line_end": 716,
+          "line_start": 693,
+          "line_end": 717,
           "est_tokens": 625,
           "deps": [],
           "items": {
             "R-001": {
               "heading": "### R-001: 应用组合根改动影响面广（CRITICAL）",
-              "line_start": 694,
-              "line_end": 697,
+              "line_start": 695,
+              "line_end": 698,
               "est_tokens": 78,
               "deps": []
             },
             "R-002": {
               "heading": "### R-002: testcontainers 在 CI 或本地无 Docker 时的跳过策略",
-              "line_start": 698,
-              "line_end": 701,
+              "line_start": 699,
+              "line_end": 702,
               "est_tokens": 94,
               "deps": []
             },
             "R-003": {
               "heading": "### R-003: ReDoS 防护依赖第三方 `regex` 库（HIGH）",
-              "line_start": 702,
-              "line_end": 705,
+              "line_start": 703,
+              "line_end": 706,
               "est_tokens": 94,
               "deps": []
             },
             "R-004": {
               "heading": "### R-004: Alembic 迁移顺序与 PG 兼容性（MEDIUM）",
-              "line_start": 706,
-              "line_end": 709,
+              "line_start": 707,
+              "line_end": 710,
               "est_tokens": 103,
               "deps": []
             },
             "R-005": {
               "heading": "### R-005: `PriorityQueue` asyncio.Queue 与 Celery worker 线程模型冲突（MEDIUM）",
-              "line_start": 710,
-              "line_end": 713,
+              "line_start": 711,
+              "line_end": 714,
               "est_tokens": 134,
               "deps": []
             },
             "R-006": {
               "heading": "### R-006: F-005 四模块跨度任务卡（T-087）执行风险（MEDIUM）",
-              "line_start": 714,
-              "line_end": 716,
+              "line_start": 715,
+              "line_end": 717,
               "est_tokens": 115,
               "deps": []
             }
@@ -2086,8 +2086,8 @@
       "doc_type": "correction-log",
       "volume": "main",
       "status": "approved",
-      "total_lines": 52,
-      "est_tokens": 737,
+      "total_lines": 96,
+      "est_tokens": 2069,
       "sections": {}
     },
     "code-review-T-057-r1": {
@@ -2372,6 +2372,306 @@
       "sections": {},
       "deps": [
         "T-075"
+      ]
+    },
+    "code-review-T-083-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-083-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 163,
+      "est_tokens": 2771,
+      "sections": {},
+      "deps": [
+        "T-083"
+      ]
+    },
+    "code-review-T-083-r2": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-083-r2.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 109,
+      "est_tokens": 1450,
+      "sections": {},
+      "deps": [
+        "T-083"
+      ]
+    },
+    "code-review-T-083-r3": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-083-r3.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 114,
+      "est_tokens": 1134,
+      "sections": {},
+      "deps": [
+        "T-083"
+      ]
+    },
+    "code-review-T-084-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-084-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 159,
+      "est_tokens": 2336,
+      "sections": {},
+      "deps": [
+        "T-084"
+      ]
+    },
+    "code-review-T-084-r2": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-084-r2.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 82,
+      "est_tokens": 1702,
+      "sections": {},
+      "deps": [
+        "T-084"
+      ]
+    },
+    "code-review-T-084-r3": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-084-r3.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 83,
+      "est_tokens": 1262,
+      "sections": {},
+      "deps": [
+        "T-084"
+      ]
+    },
+    "code-review-T-085-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-085-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 79,
+      "est_tokens": 1197,
+      "sections": {},
+      "deps": [
+        "T-085"
+      ]
+    },
+    "code-review-T-085-r2": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-085-r2.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 117,
+      "est_tokens": 1251,
+      "sections": {},
+      "deps": [
+        "T-085"
+      ]
+    },
+    "code-review-T-086-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-086-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 137,
+      "est_tokens": 2585,
+      "sections": {},
+      "deps": [
+        "T-086"
+      ]
+    },
+    "code-review-T-086-r2": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-086-r2.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 95,
+      "est_tokens": 1589,
+      "sections": {},
+      "deps": [
+        "T-086"
+      ]
+    },
+    "code-review-T-087-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-087-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "draft",
+      "total_lines": 110,
+      "est_tokens": 1464,
+      "sections": {},
+      "deps": [
+        "T-087"
+      ]
+    },
+    "code-review-T-087-r2": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-087-r2.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 99,
+      "est_tokens": 983,
+      "sections": {},
+      "deps": [
+        "T-087"
+      ]
+    },
+    "code-review-T-088-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-088-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 83,
+      "est_tokens": 1633,
+      "sections": {},
+      "deps": [
+        "T-088"
+      ]
+    },
+    "code-review-T-088-r2": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-088-r2.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 82,
+      "est_tokens": 1420,
+      "sections": {},
+      "deps": [
+        "T-088"
+      ]
+    },
+    "code-review-T-088-r3": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-088-r3.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 157,
+      "est_tokens": 2028,
+      "sections": {},
+      "deps": [
+        "T-088"
+      ]
+    },
+    "code-review-T-089-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-089-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "draft",
+      "total_lines": 120,
+      "est_tokens": 1587,
+      "sections": {},
+      "deps": [
+        "T-089"
+      ]
+    },
+    "code-review-T-089-r2": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-089-r2.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 170,
+      "est_tokens": 2140,
+      "sections": {},
+      "deps": [
+        "T-089"
+      ]
+    },
+    "code-review-T-090-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-090-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 114,
+      "est_tokens": 2183,
+      "sections": {},
+      "deps": [
+        "T-090"
+      ]
+    },
+    "code-review-T-090-r2": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-090-r2.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 95,
+      "est_tokens": 1621,
+      "sections": {},
+      "deps": [
+        "T-090"
+      ]
+    },
+    "code-review-T-091-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-091-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 129,
+      "est_tokens": 2631,
+      "sections": {},
+      "deps": [
+        "T-091"
+      ]
+    },
+    "code-review-T-091-r2": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-091-r2.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 86,
+      "est_tokens": 1778,
+      "sections": {},
+      "deps": [
+        "T-091"
+      ]
+    },
+    "code-review-T-092-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-092-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 181,
+      "est_tokens": 3673,
+      "sections": {},
+      "deps": [
+        "T-092"
+      ]
+    },
+    "code-review-T-092-r2": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-092-r2.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 135,
+      "est_tokens": 2423,
+      "sections": {},
+      "deps": [
+        "T-092"
+      ]
+    },
+    "code-review-T-093-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-093-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 132,
+      "est_tokens": 2441,
+      "sections": {},
+      "deps": [
+        "T-093"
+      ]
+    },
+    "code-review-T-093-r2": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-093-r2.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 95,
+      "est_tokens": 1238,
+      "sections": {},
+      "deps": [
+        "T-093"
       ]
     },
     "code-review-deliverable-compliance-r1": {
@@ -2955,6 +3255,18 @@
       "sections": {},
       "deps": [
         "dev-plan-intellisource-v1-s7"
+      ]
+    },
+    "sprint-review-s8r-r1": {
+      "file_path": "docs/reviews/sprint/SPRINT-REVIEW-s8r-r1.md",
+      "doc_type": "sprint-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 284,
+      "est_tokens": 5415,
+      "sections": {},
+      "deps": [
+        "dev-plan-intellisource-v1-s8r"
       ]
     },
     "test-report-intellisource-v1": {

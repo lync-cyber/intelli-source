@@ -16,8 +16,10 @@ from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from intellisource.llm.cache import LLMCache
+    from intellisource.llm.circuit_breaker import CircuitBreaker
     from intellisource.llm.cost_tracker import CostTracker
     from intellisource.llm.fallback import FallbackManager
+    from intellisource.llm.priority_queue import PriorityQueue
 
 import jsonschema
 import litellm
@@ -30,8 +32,10 @@ from tenacity import (
 )
 
 from intellisource.core.errors import ErrorCategory, IntelliSourceError, LLMError
+from intellisource.llm.circuit_breaker import CircuitOpenError as CircuitOpenError
 from intellisource.llm.cost_tracker import LLMCallRecord
 from intellisource.llm.model_config import ModelRoutingConfig, load_model_config
+from intellisource.llm.priority_queue import PriorityLevel, PriorityQueue, QueuedRequest
 from intellisource.llm.prompt_builder import PromptBuilder
 
 logger = logging.getLogger(__name__)
@@ -194,6 +198,8 @@ class LLMGateway:
         cost_tracker: CostTracker | None = None,
         fallback_manager: FallbackManager | None = None,
         _retry_wait: Any = None,
+        circuit_breaker: CircuitBreaker | None = None,
+        priority_queue: PriorityQueue | None = None,
     ) -> None:
         self._default_temperature: float = 0.7
         self._default_max_tokens: int = 4096
@@ -207,6 +213,8 @@ class LLMGateway:
             if _retry_wait is not None
             else wait_exponential(multiplier=1, min=1, max=30)
         )
+        self.circuit_breaker: CircuitBreaker | None = circuit_breaker
+        self._priority_queue: PriorityQueue | None = priority_queue
 
     async def complete(
         self,
@@ -526,6 +534,13 @@ class LLMGateway:
         Logs each retry attempt via cost_tracker when available.
         Raises on exhaustion; caller handles fallback.
         """
+        if self.circuit_breaker is not None:
+            allowed = await self.circuit_breaker.allow_request()
+            if not allowed:
+                raise CircuitOpenError()
+
+        _last_exc: BaseException | None = None
+        _response: Any = None
         async for attempt in AsyncRetrying(
             stop=stop_after_attempt(4),
             wait=self._retry_wait,
@@ -542,8 +557,16 @@ class LLMGateway:
                         retry_attempt=attempt_num - 1,
                         call_type=task_type or "unknown",
                     )
-                return await litellm.acompletion(**call_kwargs)
-        return None  # unreachable; satisfies mypy
+                try:
+                    _response = await litellm.acompletion(**call_kwargs)
+                except Exception as exc:
+                    _last_exc = exc
+                    if self.circuit_breaker is not None:
+                        await self.circuit_breaker.record_failure()
+                    raise
+        if self.circuit_breaker is not None:
+            await self.circuit_breaker.record_success()
+        return _response
 
     async def _try_fallback(
         self,
@@ -627,6 +650,50 @@ class LLMGateway:
             await self._cost_tracker.log_call(record)
         except Exception as exc:  # pragma: no cover - defensive
             logger.warning("Failed to log cache-hit to LLMCallLog: %s", exc)
+
+    _INTERACTIVE_TASK_TYPES: frozenset[str] = frozenset(
+        ["search", "chat", "interactive", "query"]
+    )
+
+    async def enqueue_request(
+        self,
+        prompt: str,
+        model: str,
+        task_type: str | None = None,
+    ) -> None:
+        """Enqueue an LLM request into the priority queue.
+
+        Interactive task types (search, chat, interactive, query) use
+        PriorityLevel.HIGH; all other task types — including task_type=None —
+        use PriorityLevel.NORMAL.
+        """
+        if self._priority_queue is None:
+            raise RuntimeError("No priority_queue configured on LLMGateway")
+        priority = (
+            PriorityLevel.HIGH
+            if task_type in self._INTERACTIVE_TASK_TYPES
+            else PriorityLevel.NORMAL
+        )
+        req = QueuedRequest(prompt=prompt, model=model, priority=priority)
+        await self._priority_queue.enqueue(req)
+
+    async def process_queue_item(self) -> Any:
+        """Dequeue one request from the priority queue and execute it via litellm.
+
+        Returns the LLM response or None if no queue is configured.
+        """
+        if self._priority_queue is None:
+            return None
+        req = await self._priority_queue.dequeue()
+        call_kwargs: dict[str, Any] = {
+            "model": req.model,
+            "messages": [{"role": "user", "content": req.prompt}],
+        }
+        return await self._call_with_retry(
+            call_kwargs=call_kwargs,
+            prompt=req.prompt,
+            task_type=None,
+        )
 
     def estimate_tokens(self, text: str, model: str) -> int:
         """Estimate token count for text.

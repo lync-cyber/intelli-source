@@ -10,6 +10,8 @@ import time
 from enum import Enum
 from typing import Any, Protocol
 
+from intellisource.core.errors import ErrorCategory, LLMError
+
 
 class AsyncRedis(Protocol):
     """Protocol for async Redis client methods used by CircuitBreaker."""
@@ -25,6 +27,13 @@ class CircuitState(Enum):
     CLOSED = "CLOSED"
     OPEN = "OPEN"
     HALF_OPEN = "HALF_OPEN"
+
+
+class CircuitOpenError(LLMError):
+    """Raised when a request is blocked because the circuit breaker is OPEN."""
+
+    def __init__(self, message: str = "Circuit breaker is OPEN") -> None:
+        super().__init__(message, category=ErrorCategory.RECOVERABLE_DEGRADED)
 
 
 class CircuitBreaker:

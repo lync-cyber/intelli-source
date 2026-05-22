@@ -17,6 +17,12 @@ class ClusterRepository(BaseRepository[ContentCluster]):
 
     _model_class = ContentCluster
 
+    async def create(self, cluster: ContentCluster) -> ContentCluster:
+        """Persist a new ContentCluster and return the managed instance."""
+        self._session.add(cluster)
+        await self._session.flush()
+        return cluster
+
     async def list_clusters(
         self,
         *,

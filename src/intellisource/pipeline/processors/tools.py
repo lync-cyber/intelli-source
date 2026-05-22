@@ -101,7 +101,7 @@ async def vector_search_similar(
     Returns:
         List of candidate dicts (id, score, title, body_text).
     """
-    candidates = vector_store.search_similar(embedding, threshold=threshold)
+    candidates = await vector_store.search_similar(embedding, threshold=threshold)
     return [
         {
             "id": getattr(c, "id", None),
@@ -155,7 +155,7 @@ async def find_nearest_cluster(
     Returns:
         Dict with cluster ``id`` or *None* if no match.
     """
-    cluster = vector_store.find_nearest_cluster(embedding, threshold=threshold)
+    cluster = await vector_store.find_nearest_cluster(embedding, threshold=threshold)
     if cluster is None:
         return None
     return {"id": getattr(cluster, "id", None)}

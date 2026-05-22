@@ -124,7 +124,7 @@ class TestVectorSearchSimilar:
         ]
 
         class MockStore:
-            def search_similar(
+            async def search_similar(
                 self, embedding: list[float], *, threshold: float
             ) -> list[Any]:
                 return candidates
@@ -142,7 +142,7 @@ class TestVectorSearchSimilar:
         """When no candidates match, returns empty list."""
 
         class MockStore:
-            def search_similar(
+            async def search_similar(
                 self, embedding: list[float], *, threshold: float
             ) -> list[Any]:
                 return []
@@ -155,7 +155,7 @@ class TestVectorSearchSimilar:
         candidate = SimpleNamespace()  # no id, score, title, body_text
 
         class MockStore:
-            def search_similar(
+            async def search_similar(
                 self, embedding: list[float], *, threshold: float
             ) -> list[Any]:
                 return [candidate]
@@ -203,7 +203,7 @@ class TestFindNearestCluster:
         cluster = SimpleNamespace(id="cluster-42")
 
         class MockStore:
-            def find_nearest_cluster(
+            async def find_nearest_cluster(
                 self, embedding: list[float], *, threshold: float
             ) -> Any:
                 return cluster
@@ -215,7 +215,7 @@ class TestFindNearestCluster:
         """When no cluster matches, returns None."""
 
         class MockStore:
-            def find_nearest_cluster(
+            async def find_nearest_cluster(
                 self, embedding: list[float], *, threshold: float
             ) -> None:
                 return None
@@ -228,7 +228,7 @@ class TestFindNearestCluster:
         cluster = SimpleNamespace()  # no id attribute
 
         class MockStore:
-            def find_nearest_cluster(
+            async def find_nearest_cluster(
                 self, embedding: list[float], *, threshold: float
             ) -> Any:
                 return cluster

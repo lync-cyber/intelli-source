@@ -53,6 +53,8 @@ consumers: [tech-lead, developer, devops]
   - `RateLimiter` — 请求速率限制器，基于 Redis 令牌桶算法，按信源独立配置（AC-011）
   - `ProxyManager` — HTTP 代理管理器，按信源配置独立代理（AC-010）
 
+- **内容指纹持久化协议**: `RawContent.fingerprint`（SHA-256, NOT NULL UNIQUE，见 arch-data#§RawContent）的写入责任**属于 M-002 collection 层**。collector 在落库 RawContent 时计算并写入 fingerprint；DB 唯一约束保证去重。M-006 scheduler 层的 `FingerprintChecker.exists_by_fingerprint(fp)` 通过查询 `RawContent.fingerprint` 字段做幂等判断，**不在 scheduler 层重复写入**；`FingerprintChecker.record_fingerprint(...)` 在 `_RawContentFingerprintRepo` adapter 中是 documented no-op（参见 `src/intellisource/scheduler/boot.py` 的注释），调用方约定保留接口契约（供未来若 fingerprint 持久化从 collection 层迁移至 scheduler 层时无需改协议）。
+
 ### M-003: 处理管道模块 (pipeline)
 
 - **职责**: 提供可编排的内容处理管道框架，支持处理器的动态组合、条件分支和上下文传递
