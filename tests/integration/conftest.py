@@ -108,9 +108,7 @@ async def pg_container() -> AsyncIterator[str]:
     patched out (not available in the pgvector image). Also creates pg_trgm
     extension required for gin_trgm_ops indexes.
     """
-    from testcontainers.postgres import (
-        PostgresContainer,  # type: ignore[import-untyped]
-    )
+    from testcontainers.postgres import PostgresContainer
 
     container = PostgresContainer("pgvector/pgvector:pg16", driver="asyncpg")
     container.start()
@@ -133,7 +131,7 @@ async def pg_container() -> AsyncIterator[str]:
         sync_url = async_url.replace("+asyncpg", "+psycopg")
 
         # Install required extensions via psycopg (sync) before alembic
-        import psycopg  # type: ignore[import-untyped]
+        import psycopg
 
         with psycopg.connect(libpq_url, autocommit=True) as conn:
             conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
@@ -146,7 +144,7 @@ async def pg_container() -> AsyncIterator[str]:
         os.environ["DATABASE_URL"] = sync_url
 
         # Patch alembic.op.execute to skip zhparser DDL
-        from alembic import op as alembic_op  # type: ignore[import-untyped]
+        from alembic import op as alembic_op
 
         original_op_execute = _patch_alembic_for_zhparser(alembic_op)
 
@@ -163,7 +161,7 @@ async def pg_container() -> AsyncIterator[str]:
         # Restore alembic.op.execute if patched
         if original_op_execute is not None:
             try:
-                from alembic import op as alembic_op  # type: ignore[import-untyped]
+                from alembic import op as alembic_op
 
                 alembic_op.execute = original_op_execute
             except Exception:
