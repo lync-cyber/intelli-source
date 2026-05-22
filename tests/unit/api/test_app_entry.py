@@ -188,13 +188,19 @@ class TestStartupInitialisation:
         mock_db = MagicMock(spec=DatabaseManager)
         mock_db.close = AsyncMock()
 
+        mock_aioredis_client = AsyncMock()
+        mock_aioredis_client.hgetall = AsyncMock(return_value={})
+        mock_aioredis_client.hset = AsyncMock(return_value=None)
+
         app = create_app()
 
         # Patch the initialisation functions that should be called on startup
         with (
             patch("intellisource.main.DatabaseManager", return_value=mock_db),
             patch(
-                "intellisource.main.init_redis", new_callable=AsyncMock
+                "intellisource.main.aioredis.from_url",
+                new_callable=AsyncMock,
+                return_value=mock_aioredis_client,
             ) as mock_redis,
             patch(
                 "intellisource.main.init_celery", new_callable=MagicMock
@@ -242,7 +248,11 @@ class TestShutdownResourceRelease:
                 "intellisource.main.shutdown_celery", new_callable=MagicMock
             ) as mock_shutdown_celery,
             # Also patch startup functions so they don't fail
-            patch("intellisource.main.init_redis", new_callable=AsyncMock),
+            patch(
+                "intellisource.main.aioredis.from_url",
+                new_callable=AsyncMock,
+                return_value=AsyncMock(),
+            ),
             patch("intellisource.main.init_celery", new_callable=MagicMock),
         ):
             # Enter and exit the ASGI lifecycle to trigger startup+shutdown
@@ -279,7 +289,11 @@ class TestShutdownResourceRelease:
         # Patch all init/close functions to avoid real connections
         with (
             patch("intellisource.main.DatabaseManager", return_value=mock_db),
-            patch("intellisource.main.init_redis", new_callable=AsyncMock),
+            patch(
+                "intellisource.main.aioredis.from_url",
+                new_callable=AsyncMock,
+                return_value=AsyncMock(),
+            ),
             patch("intellisource.main.init_celery", new_callable=MagicMock),
             patch("intellisource.main.close_redis", new_callable=AsyncMock),
             patch("intellisource.main.shutdown_celery", new_callable=MagicMock),

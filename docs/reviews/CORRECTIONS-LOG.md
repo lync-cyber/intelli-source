@@ -84,3 +84,13 @@ deps: []
 - 原因: 用户判断 T-087/T-092 r3 风险低（implementer self-report 含完整反证测试说明"删修复后必 fail"；改动局部、可读）；T-088 r3 是 sprint-8r 核心反模式闭环点，必须独立 reviewer 视角
 - 影响/缓解: T-087/T-092 损失独立审查视角；implementer self-report 中的反证测试声明 + orchestrator 主线程 git 历史检查 + 全量回归通过共同构成代偿。如 T-094 集成测试发现装配缺口再回溯
 - 关联: commits b16f971 (T-087 r3) / bedd6f4 (T-088 r3, 仍待 reviewer) / db2be0d (T-092 r3); CODE-REVIEW-T-088-r3.md (in-progress)
+
+### 2026-05-22 | orchestrator | T-088 r3 R-009 inline fix
+- 触发信号: option-override（用户选"inline 修 R-009 后接受"）
+- 问题: T-088 r3 reviewer 发现 R-009 LOW — test_app_entry.py 3 处 `patch("intellisource.main.init_redis", new_callable=AsyncMock)` 让 `_redis_client = None`，与生产路径 `_redis_client = aioredis.from_url()` 模式不一致；当前测试不触发 Redis 调用故 2288 PASS，但未来扩展会 `AttributeError`
+- 基线/推荐: 派 implementer 修
+- 实际/选择: orchestrator 主线程 inline 修 — 3 处替换为 `patch("intellisource.main.aioredis.from_url", new_callable=AsyncMock, return_value=AsyncMock())` 对齐 test_llm_gateway_lifespan.py 成熟模式
+- 偏差类型: preference
+- 原因: 单文件 patch 模式微调（无逻辑改动），inline 比派 implementer 更快更精准；与 sprint-8r 装配缺口主题正交
+- 影响/缓解: 10/10 test_app_entry.py PASS；2288 全量回归 PASS；mypy strict + ruff clean
+- 关联: CODE-REVIEW-T-088-r3.md R-009; T-088 r3 final = approved
