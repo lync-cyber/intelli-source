@@ -136,35 +136,41 @@ class TestInitRedis:
             assert mock_aioredis_mod.from_url.call_count == 1
 
 
-class TestInitCelery:
-    """init_celery() instantiates a Celery application."""
+class TestLifespanCeleryWiring:
+    """Lifespan binds the module-level Celery singleton to app.state.
 
-    def test_init_celery_creates_celery_app(self) -> None:
-        """AC-T072-4: init_celery() creates a Celery instance (not a no-op stub)."""
+    Updated by T-095: legacy AC-T072-4 asserted `init_celery()` constructed
+    a Celery instance during startup; the unified-singleton fix removes that
+    function. The API process now consumes the same Celery() instance the
+    Worker exposes from `intellisource.scheduler.celery_app`.
+    """
+
+    def test_main_module_no_longer_defines_init_celery(self) -> None:
+        """main.init_celery() is removed; consult scheduler.celery_app instead."""
         import intellisource.main as main_module
 
-        mock_celery_instance = MagicMock()
+        assert not hasattr(main_module, "init_celery"), (
+            "main.init_celery was removed by T-095 (CR-012 dual-singleton fix); "
+            "use scheduler.celery_app.celery_app directly"
+        )
 
-        with patch(
-            "intellisource.main.Celery", return_value=mock_celery_instance
-        ) as mock_celery_cls:
-            main_module.init_celery()
-            mock_celery_cls.assert_called_once()
+    @pytest.mark.asyncio
+    async def test_lifespan_binds_module_celery_singleton(self) -> None:
+        """app.state.celery_app IS the scheduler.celery_app module singleton."""
+        from intellisource.storage.database import DatabaseManager
 
-    def test_init_celery_returns_or_stores_celery_app(self) -> None:
-        """AC-T072-4: init_celery() returns the Celery app or stores it module-level."""
-        import intellisource.main as main_module
+        mock_db = MagicMock(spec=DatabaseManager)
+        mock_db.close = AsyncMock()
 
-        mock_celery_instance = MagicMock()
+        with (
+            patch("intellisource.main.DatabaseManager", return_value=mock_db),
+            patch("intellisource.main.aioredis") as mock_aioredis_mod,
+        ):
+            mock_aioredis_mod.from_url = AsyncMock(return_value=AsyncMock())
+            from intellisource.scheduler.celery_app import (
+                celery_app as module_celery_app,
+            )
 
-        with patch(
-            "intellisource.main.Celery", return_value=mock_celery_instance
-        ) as mock_celery_cls:
-            result = main_module.init_celery()
-            # Celery must have been instantiated — this is the core assertion
-            mock_celery_cls.assert_called_once()
-            # Additionally: returned value (if any) must be the Celery instance
-            if result is not None:
-                assert result is mock_celery_instance, (
-                    "init_celery() must return the Celery instance on return"
-                )
+            app = create_app()
+            async with app.router.lifespan_context(app):
+                assert app.state.celery_app is module_celery_app

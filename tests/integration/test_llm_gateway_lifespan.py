@@ -14,7 +14,7 @@ import pytest
 from intellisource.main import create_app
 
 # ---------------------------------------------------------------------------
-# Shared lifespan helper — patches all external I/O so tests are self-contained
+# Shared lifespan helper - patches all external I/O so tests are self-contained
 # ---------------------------------------------------------------------------
 
 
@@ -25,7 +25,7 @@ def _make_lifespan_patches() -> tuple[MagicMock, MagicMock, AsyncMock]:
     mock_celery = MagicMock()
     mock_celery.close = MagicMock()
     mock_redis = AsyncMock()
-    # CircuitBreaker calls hgetall to read state; return empty dict → CLOSED
+    # CircuitBreaker calls hgetall to read state; return empty dict -> CLOSED
     mock_redis.hgetall = AsyncMock(return_value={})
     mock_redis.hset = AsyncMock(return_value=None)
     return mock_db, mock_celery, mock_redis
@@ -41,7 +41,6 @@ class TestLLMGatewayLifespanInjection:
 
         with (
             patch("intellisource.main.DatabaseManager", return_value=mock_db),
-            patch("intellisource.main.init_celery", return_value=mock_celery),
             patch(
                 "intellisource.main.aioredis.from_url",
                 new_callable=AsyncMock,
@@ -68,7 +67,6 @@ class TestLLMGatewayLifespanInjection:
 
         with (
             patch("intellisource.main.DatabaseManager", return_value=mock_db),
-            patch("intellisource.main.init_celery", return_value=mock_celery),
             patch(
                 "intellisource.main.aioredis.from_url",
                 new_callable=AsyncMock,
@@ -92,7 +90,6 @@ class TestLLMGatewayLifespanInjection:
 
         with (
             patch("intellisource.main.DatabaseManager", return_value=mock_db),
-            patch("intellisource.main.init_celery", return_value=mock_celery),
             patch(
                 "intellisource.main.aioredis.from_url",
                 new_callable=AsyncMock,
@@ -118,7 +115,6 @@ class TestLLMGatewayLifespanInjection:
 
         with (
             patch("intellisource.main.DatabaseManager", return_value=mock_db),
-            patch("intellisource.main.init_celery", return_value=mock_celery),
             patch(
                 "intellisource.main.aioredis.from_url",
                 new_callable=AsyncMock,

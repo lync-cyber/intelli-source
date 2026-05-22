@@ -15,6 +15,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from intellisource.composition import PipelineLoader
 from intellisource.scheduler.celery_app import celery_app
 from intellisource.scheduler.queues import PRIORITY_QUEUES, TRIGGER_TYPE_QUEUES
 from intellisource.storage.models import TaskChain
@@ -75,7 +76,7 @@ class CeleryTasks:
     def __init__(
         self,
         agent_runner: Any,
-        pipeline_config: Any,
+        pipeline_config: PipelineLoader | None,
         session_factory: Callable[[], Awaitable[AsyncSession]] | None = None,
         *,
         idempotency_guard: Any = None,
@@ -83,7 +84,7 @@ class CeleryTasks:
         content_repository: Any = None,
     ) -> None:
         self._agent_runner = agent_runner
-        self._pipeline_config = pipeline_config
+        self._pipeline_config: PipelineLoader | None = pipeline_config
         self._session_factory = session_factory
         self._idempotency_guard = idempotency_guard
         self._fingerprint_checker = fingerprint_checker
@@ -147,10 +148,15 @@ class CeleryTasks:
             if is_dup:
                 return {"status": "skipped", "reason": "duplicate"}
 
+        if self._pipeline_config is None:
+            raise RuntimeError(
+                "CeleryTasks.run_pipeline: pipeline_config (PipelineLoader) is None; "
+                "worker_init_handler must wire it via build_worker_composition()"
+            )
         config = self._pipeline_config.load(pipeline_name)
         trigger_type = params.get("trigger_type", "scheduled")
-        execution_mode = config.get("execution_mode", "strict")
-        total_steps = len(config.get("steps", []))
+        execution_mode = config.mode
+        total_steps = len(config.steps)
 
         # Persist TaskChain record via session_factory when wired (production path).
         chain_id: uuid.UUID | None = None

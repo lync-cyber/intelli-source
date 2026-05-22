@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session
+from intellisource.composition import SOURCE_TYPE_TO_PIPELINE
 from intellisource.storage.repositories.source import SourceRepository
 from intellisource.storage.repositories.task import TaskRepository
 
@@ -151,13 +152,22 @@ async def trigger_collect(
     celery_instance = getattr(request.app.state, "celery_app", None)
     if celery_instance is not None:
         for task in tasks:
+            source_type = getattr(task, "source_type", None) or "rss"
+            pipeline_name = SOURCE_TYPE_TO_PIPELINE.get(
+                source_type, "scheduled-collect"
+            )
             celery_instance.send_task(
                 "run_pipeline",
                 kwargs={
-                    "source_id": str(task.source_id),
-                    "task_id": str(task.id),
-                    "task_chain_id": task_chain_id,
-                    "priority": priority,
+                    "pipeline_name": pipeline_name,
+                    "params": {
+                        "task_id": str(task.id),
+                        "task_chain_id": task_chain_id,
+                        "source_id": str(task.source_id),
+                        "trigger_type": task.trigger_type or "manual",
+                        "priority": priority,
+                        "fingerprint": "",
+                    },
                 },
             )
 

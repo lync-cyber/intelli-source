@@ -546,11 +546,11 @@ class TestContentClusterCreateCallPath:
                 if os.path.normpath(fpath) == os.path.normpath(definition_file):
                     continue
                 try:
-                    with open(fpath) as f:
+                    with open(fpath, encoding="utf-8") as f:
                         source = f.read()
                     if "ClusterRepository" in source or "cluster_repo" in source:
                         call_sites.append(fpath)
-                except OSError:
+                except (OSError, UnicodeDecodeError):
                     continue
 
         # Additionally accept if the pipeline or processors use ClusterRepository.create
