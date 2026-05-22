@@ -14,8 +14,8 @@
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 
-- 当前阶段: sprint-8r 批次 3 r3 完成 — T-087/T-092 orchestrator inline approve，T-089 r2 = approved，T-088 r3 reviewer 后台运行中
-- 下一步行动: ① 等 T-088 r3 reviewer verdict（EXP-005 装配缺口闭环验证）② 批次 4 T-094 集成测试与冷启动 ③ pre_deploy 二次评估
+- 当前阶段: sprint-8r 批次 3 全部 approved（T-087/T-088/T-089/T-092 终态全 approved；EXP-005 装配缺口在 T-088 + T-092 + T-089 三处真实闭环）
+- 下一步行动: ① 批次 4 T-094 集成测试与冷启动验证 ② sprint-8r 全 sprint sprint-review ③ pre_deploy 二次评估
 - 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r]
 - 当前Sprint: sprint-8r (in-progress — 批次 1 + 批次 2 全 approved 7/12；待批次 3-4)
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r) / test-report = approved；ui-spec = N/A；dev-plan-s8(P2 backlog) = draft；deploy-spec = 未开始
@@ -31,7 +31,7 @@
   - 全量回归: 2154 passed / 0 failed / 29 skipped; ruff + mypy --strict clean
 - 批次 3 r3 闭环检查点:
   - T-087 status=approved（r1 needs_revision (1 HIGH await) → r2 approved_with_notes (1 LOW R-005 warning 日志测试未覆盖) → r3 orchestrator inline approve (caplog 断言落地)。final: 2019cbc + b16f971。报告 r1/r2 + CORRECTIONS-LOG 2026-05-22 inline approve）
-  - T-088 status=in-review r3（r1 needs_revision (2 HIGH auth + status 桩) → r2 approved_with_notes (1 MED R-007 EXP-005 lifespan 未注入 + 1 LOW) → r3 implementer 已修 + 待 r3 reviewer 闭环验证 EXP-005。final pending: 7798139 + bedd6f4。报告 r1/r2 + r3 in-progress）
+  - T-088 status=approved（r1 needs_revision (2 HIGH auth + status 桩) → r2 approved_with_notes (1 MED R-007 EXP-005 lifespan 未注入 + 1 LOW) → r3 reviewer approved_with_notes (1 LOW R-009 patch 模式漂移) → orchestrator inline R-009 fix + approve。final: 7798139 + bedd6f4 + b864c30。报告 r1/r2/r3 + CORRECTIONS-LOG 2026-05-22 inline approve）
   - T-089 status=approved（r1 needs_revision (2 HIGH tool_deps 未注入 + ToolDeps 未构建) → r2 approved (5 R-ID 全修 + tools.py 6 execute 真消费 tool_deps 独立确认)。final: 7798139。报告 r1/r2，无 r3）
   - T-092 status=approved（r1 needs_revision (3 HIGH，reviewer 截断 → orchestrator inline L1+L2) → r2 approved_with_notes (1 MED N-001 + 2 LOW EXP-005 carryover: build_celery_tasks 漏传 content_repository) → r3 orchestrator inline approve (_RawContentResultRepo adapter + 集成测试去 mock)。final: 1d8e24f + db2be0d。报告 r1/r2 + CORRECTIONS-LOG inline approve）
   - **EXP-005 装配缺口闭环**: T-088 R-007 + T-092 N-001 两端 r3 真正闭环；T-089 r2 独立 reviewer 已确认 tools 真消费 tool_deps；sprint-8r 立项核心目标在本批次根治

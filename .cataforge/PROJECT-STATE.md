@@ -17,7 +17,7 @@
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 
-- 当前阶段: sprint-8r 批次 3 r3 完成 — T-087/T-089/T-092 approved（T-087 + T-092 inline approve；T-089 r2 reviewer approved），T-088 r3 reviewer 后台进行中
+- 当前阶段: sprint-8r 批次 3 全部 approved — T-087/T-088/T-089/T-092 终态全 approved；T-088 r3 reviewer 完成（approved_with_notes 1 LOW R-009）+ orchestrator inline R-009 fix；EXP-005 装配缺口三端真实闭环
 - 上次完成: orchestrator — 批次 2 收尾：T-084 r3 approved（374e8ef + 49d6d1b + df7b24d + c7a9ed9）/ T-085 r2 approved（8d6b075 + 2511a8e）/ T-086 r2 approved_with_notes 用户接受（5f40f4e + 9fd0204）/ T-090 r2 approved（55ea9b0 + dca8be9 + c78e90a）/ T-091 r2 approved_with_notes 用户全修后 orchestrator inline approve（e91d444 + a3caef2 + 74f093a）；全量回归 2154 passed/0 failed/29 skipped；ruff+mypy --strict clean
 - 下一步行动: **新会话 /start-orchestrator 接续 sprint-8r 批次 3**
   - 步骤 1 — 批次 3 RED+GREEN（4 任务，按 dev-plan-s8r 实际任务卡定义，sprint_group 并发上限 3，分 2 轮）:
@@ -78,7 +78,7 @@
   - 用户决策：修全部 r2 新发现后接受 → 批次 3 r3
 - 批次 3 r3 闭环检查点:
   - T-087 r3 = approved（orchestrator inline，CORRECTIONS-LOG 2026-05-22 记录；commit b16f971 — caplog 断言 warning 实际发出，18 PASS）
-  - T-088 r3 = in-review（implementer commit bedd6f4 — main.py _lifespan 构造 CircuitBreaker(redis=_redis_client) + PriorityQueue() + LLMGateway(...) 赋 app.state.llm_gateway；新建 tests/integration/test_llm_gateway_lifespan.py 5 测试；R-008 autouse fixture；521 PASS。reviewer agentId=a8c0e209cce50cf41 后台运行中，重点核查 EXP-005 真实闭环）
+  - T-088 r3 = approved（implementer commit bedd6f4 — main.py _lifespan 构造 CircuitBreaker(redis=_redis_client) + PriorityQueue() + LLMGateway(...) 赋 app.state.llm_gateway；新建 tests/integration/test_llm_gateway_lifespan.py 5 测试；R-008 autouse fixture。reviewer verdict=approved_with_notes 仅 1 LOW R-009：test_app_entry.py 3 处 patch init_redis no-op 漂移于 patch aioredis.from_url 成熟模式；orchestrator inline fix commit b864c30 对齐 patch 模式；EXP-005 lifespan 真实闭环独立确认 — CircuitBreaker(redis=) prod 非 None；5 lifespan 测试通过 app.router.lifespan_context 真触发 startup，无 dependency_overrides 短路）
   - T-089: 无 r3（r2 已 approved）
   - T-092 r3 = approved（orchestrator inline，CORRECTIONS-LOG 2026-05-22 记录；commit db2be0d — _RawContentResultRepo adapter 接入 CeleryTasks.content_repository；TestBuildCeleryTasks 断言 3 守卫均非 None；TestWorkerInitHandlerRealBuild 不 mock build_celery_tasks 跑真实装配；148 PASS targeted, 2288 PASS 全量。N-002 选项 b：fingerprint 由 collection 层 RawContent INSERT 唯一约束完成，record_fingerprint 文档化注释 + 接口契约保留可测）
   - **EXP-005 闭环现状**：T-088 R-007 + T-092 N-001 两端 r3 真实修；T-089 r2 独立确认 tools 消费 tool_deps；待 T-088 r3 reviewer verdict 完成最后独立确认
