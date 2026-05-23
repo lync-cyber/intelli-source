@@ -46,7 +46,6 @@ class TestDistributorFacadeClassShape:
     def test_facade_init_accepts_session_factory_matcher_channels(self) -> None:
         """DistributorFacade.__init__ accepts (session_factory, matcher, channels)."""
         from intellisource.distributor.facade import DistributorFacade
-
         from intellisource.distributor.matcher import SubscriptionMatcher
 
         mock_session_factory = MagicMock()
@@ -253,6 +252,24 @@ class TestDistributeFiveSteps:
         sub.quiet_hours = None
         return sub
 
+    def _make_mock_session_factory(
+        self, mock_content: MagicMock, subscriptions: list[MagicMock]
+    ) -> MagicMock:
+        """Build a mock session_factory with proper scalars().all() setup."""
+        mock_scalars_result = MagicMock()
+        mock_scalars_result.all = MagicMock(return_value=subscriptions)
+
+        mock_session = AsyncMock()
+        mock_session.get = AsyncMock(return_value=mock_content)
+        mock_session.scalars = AsyncMock(return_value=mock_scalars_result)
+
+        mock_session_factory = MagicMock()
+        mock_session_factory.return_value.__aenter__ = AsyncMock(
+            return_value=mock_session
+        )
+        mock_session_factory.return_value.__aexit__ = AsyncMock(return_value=False)
+        return mock_session_factory
+
     async def test_step1_loads_processed_content_from_db(
         self,
         content_id: str,
@@ -262,7 +279,6 @@ class TestDistributeFiveSteps:
     ) -> None:
         """Step 1: facade loads ProcessedContent by content_id before matching."""
         from intellisource.distributor.facade import DistributorFacade
-
         from intellisource.distributor.matcher import SubscriptionMatcher
 
         mock_matcher = MagicMock(spec=SubscriptionMatcher)
@@ -271,14 +287,12 @@ class TestDistributeFiveSteps:
         mock_channel = AsyncMock()
         mock_channel.distribute = AsyncMock(return_value={"status": "sent"})
 
-        # session_factory returns context manager yielding session
-        mock_session = AsyncMock()
-        mock_session.get = AsyncMock(return_value=mock_processed_content)
-        mock_session_factory = MagicMock()
-        mock_session_factory.return_value.__aenter__ = AsyncMock(
-            return_value=mock_session
+        # session_factory returns context manager yielding session with proper
+        # scalars().all() mock following the R-003 convention fix.
+        mock_session_factory = self._make_mock_session_factory(
+            mock_processed_content, []
         )
-        mock_session_factory.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_session = mock_session_factory.return_value.__aenter__.return_value
 
         facade = DistributorFacade(
             session_factory=mock_session_factory,
@@ -299,7 +313,6 @@ class TestDistributeFiveSteps:
     ) -> None:
         """Step 2: SubscriptionMatcher.match is called with the loaded content."""
         from intellisource.distributor.facade import DistributorFacade
-
         from intellisource.distributor.matcher import SubscriptionMatcher
 
         mock_matcher = MagicMock(spec=SubscriptionMatcher)
@@ -308,13 +321,9 @@ class TestDistributeFiveSteps:
         mock_channel = AsyncMock()
         mock_channel.distribute = AsyncMock(return_value={"status": "sent"})
 
-        mock_session = AsyncMock()
-        mock_session.get = AsyncMock(return_value=mock_processed_content)
-        mock_session_factory = MagicMock()
-        mock_session_factory.return_value.__aenter__ = AsyncMock(
-            return_value=mock_session
+        mock_session_factory = self._make_mock_session_factory(
+            mock_processed_content, [mock_subscription]
         )
-        mock_session_factory.return_value.__aexit__ = AsyncMock(return_value=False)
 
         facade = DistributorFacade(
             session_factory=mock_session_factory,
@@ -340,7 +349,6 @@ class TestDistributeFiveSteps:
     ) -> None:
         """Step 3: when dedup gate returns already-sent, channel.send is NOT called."""
         from intellisource.distributor.facade import DistributorFacade
-
         from intellisource.distributor.matcher import SubscriptionMatcher
 
         mock_matcher = MagicMock(spec=SubscriptionMatcher)
@@ -349,13 +357,9 @@ class TestDistributeFiveSteps:
         mock_channel = AsyncMock()
         mock_channel.distribute = AsyncMock(return_value={"status": "sent"})
 
-        mock_session = AsyncMock()
-        mock_session.get = AsyncMock(return_value=mock_processed_content)
-        mock_session_factory = MagicMock()
-        mock_session_factory.return_value.__aenter__ = AsyncMock(
-            return_value=mock_session
+        mock_session_factory = self._make_mock_session_factory(
+            mock_processed_content, [mock_subscription]
         )
-        mock_session_factory.return_value.__aexit__ = AsyncMock(return_value=False)
 
         facade = DistributorFacade(
             session_factory=mock_session_factory,
@@ -388,7 +392,6 @@ class TestDistributeFiveSteps:
     ) -> None:
         """Step 4: channel distributor.distribute() called for matched subscriptions."""
         from intellisource.distributor.facade import DistributorFacade
-
         from intellisource.distributor.matcher import SubscriptionMatcher
 
         mock_matcher = MagicMock(spec=SubscriptionMatcher)
@@ -397,13 +400,9 @@ class TestDistributeFiveSteps:
         mock_channel = AsyncMock()
         mock_channel.distribute = AsyncMock(return_value={"status": "sent"})
 
-        mock_session = AsyncMock()
-        mock_session.get = AsyncMock(return_value=mock_processed_content)
-        mock_session_factory = MagicMock()
-        mock_session_factory.return_value.__aenter__ = AsyncMock(
-            return_value=mock_session
+        mock_session_factory = self._make_mock_session_factory(
+            mock_processed_content, [mock_subscription]
         )
-        mock_session_factory.return_value.__aexit__ = AsyncMock(return_value=False)
 
         facade = DistributorFacade(
             session_factory=mock_session_factory,
@@ -429,7 +428,6 @@ class TestDistributeFiveSteps:
     ) -> None:
         """Step 5: record_push is called after channel.distribute succeeds."""
         from intellisource.distributor.facade import DistributorFacade
-
         from intellisource.distributor.matcher import SubscriptionMatcher
 
         mock_matcher = MagicMock(spec=SubscriptionMatcher)
@@ -438,13 +436,9 @@ class TestDistributeFiveSteps:
         mock_channel = AsyncMock()
         mock_channel.distribute = AsyncMock(return_value={"status": "sent"})
 
-        mock_session = AsyncMock()
-        mock_session.get = AsyncMock(return_value=mock_processed_content)
-        mock_session_factory = MagicMock()
-        mock_session_factory.return_value.__aenter__ = AsyncMock(
-            return_value=mock_session
+        mock_session_factory = self._make_mock_session_factory(
+            mock_processed_content, [mock_subscription]
         )
-        mock_session_factory.return_value.__aexit__ = AsyncMock(return_value=False)
 
         facade = DistributorFacade(
             session_factory=mock_session_factory,
@@ -468,7 +462,6 @@ class TestDistributeFiveSteps:
     ) -> None:
         """distribute() returns dict with status/matched/sent/skipped keys."""
         from intellisource.distributor.facade import DistributorFacade
-
         from intellisource.distributor.matcher import SubscriptionMatcher
 
         mock_matcher = MagicMock(spec=SubscriptionMatcher)
@@ -477,13 +470,9 @@ class TestDistributeFiveSteps:
         mock_channel = AsyncMock()
         mock_channel.distribute = AsyncMock(return_value={"status": "sent"})
 
-        mock_session = AsyncMock()
-        mock_session.get = AsyncMock(return_value=mock_processed_content)
-        mock_session_factory = MagicMock()
-        mock_session_factory.return_value.__aenter__ = AsyncMock(
-            return_value=mock_session
+        mock_session_factory = self._make_mock_session_factory(
+            mock_processed_content, [mock_subscription]
         )
-        mock_session_factory.return_value.__aexit__ = AsyncMock(return_value=False)
 
         facade = DistributorFacade(
             session_factory=mock_session_factory,
@@ -508,19 +497,14 @@ class TestDistributeFiveSteps:
     ) -> None:
         """When matcher returns no subscriptions, sent=0 and skipped=0."""
         from intellisource.distributor.facade import DistributorFacade
-
         from intellisource.distributor.matcher import SubscriptionMatcher
 
         mock_matcher = MagicMock(spec=SubscriptionMatcher)
         mock_matcher.match.return_value = []
 
-        mock_session = AsyncMock()
-        mock_session.get = AsyncMock(return_value=mock_processed_content)
-        mock_session_factory = MagicMock()
-        mock_session_factory.return_value.__aenter__ = AsyncMock(
-            return_value=mock_session
+        mock_session_factory = self._make_mock_session_factory(
+            mock_processed_content, []
         )
-        mock_session_factory.return_value.__aexit__ = AsyncMock(return_value=False)
 
         facade = DistributorFacade(
             session_factory=mock_session_factory,
@@ -548,7 +532,6 @@ class TestDistributePIIMask:
     async def test_pii_mask_applied_to_recipient_before_record(self) -> None:
         """The recipient email stored in push record must not contain '@'."""
         from intellisource.distributor.facade import DistributorFacade
-
         from intellisource.distributor.matcher import SubscriptionMatcher
 
         content_id = str(uuid.uuid4())
@@ -575,8 +558,11 @@ class TestDistributePIIMask:
         mock_channel = AsyncMock()
         mock_channel.distribute = AsyncMock(return_value={"status": "sent"})
 
+        mock_scalars_result = MagicMock()
+        mock_scalars_result.all = MagicMock(return_value=[sub])
         mock_session = AsyncMock()
         mock_session.get = AsyncMock(return_value=content)
+        mock_session.scalars = AsyncMock(return_value=mock_scalars_result)
         mock_session_factory = MagicMock()
         mock_session_factory.return_value.__aenter__ = AsyncMock(
             return_value=mock_session

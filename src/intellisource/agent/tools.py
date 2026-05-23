@@ -151,7 +151,18 @@ async def _collect_execute(
             "source_type": source_type,
         }
 
-    collector = tool_deps.collector_registry.get(source_type)
+    from intellisource.core.errors import CollectorError  # noqa: PLC0415
+
+    try:
+        collector = tool_deps.collector_registry.get(source_type)
+    except CollectorError:
+        return {
+            "status": "degraded",
+            "tool": "collect",
+            "reason": f"unknown source_type: {source_type}",
+            "collected": [],
+            "source_id": source_id,
+        }
     collected = await collector.collect(source_config=source_config, **kwargs)
     return {"status": "ok", "tool": "collect", "collected": collected}
 

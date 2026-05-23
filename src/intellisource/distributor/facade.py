@@ -134,7 +134,8 @@ class DistributorFacade:
                     return None, []
                 stmt = select(Subscription).where(Subscription.id == sub_uuid)
 
-            subscriptions: list[Any] = list(await session.scalars(stmt))
+            result = await session.scalars(stmt)
+            subscriptions: list[Any] = list(result.all())
 
         return content, subscriptions
 
@@ -167,13 +168,23 @@ class DistributorFacade:
 
         async with self._session_factory() as session:
             repo = PushRepository(session=session)
-            await repo.create(
-                subscription_id=sub_uuid,
-                content_id=content_uuid,
-                channel=channel,
-                status="sent",
-            )
-            await session.commit()
+            try:
+                await repo.create(
+                    subscription_id=sub_uuid,
+                    content_id=content_uuid,
+                    channel=channel,
+                    status="sent",
+                    recipient_id=recipient_id,
+                )
+                await session.commit()
+            except Exception as exc:
+                from sqlalchemy.exc import IntegrityError  # noqa: PLC0415
+
+                if isinstance(exc, IntegrityError):
+                    # Channel layer already recorded; idempotent skip
+                    pass
+                else:
+                    raise
 
 
 def _extract_recipient(sub: Any) -> str:
@@ -190,7 +201,11 @@ def _extract_recipient(sub: Any) -> str:
 
 
 def _mask_recipient(raw: str) -> str | None:
-    """Apply PII mask to a raw recipient identifier."""
+    """Mask PII in recipient.
+
+    Email/phone are masked; opaque platform IDs (wechat openid, wework user_id)
+    pass through as they are not traditional PII.
+    """
     if not raw:
         return None
     if "@" in raw:

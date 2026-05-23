@@ -271,3 +271,23 @@ class TestCollectToolNotDegraded:
             f"got keys: {list(received_kwargs.keys()) if received_kwargs else []}. "
             "T-097 must build source_config dict from the DB Source row."
         )
+
+    async def test_collect_execute_unregistered_source_type_returns_degraded(
+        self,
+    ) -> None:
+        """Anti-regression (R-005): unregistered source_type must return degraded,
+        not raise CollectorError."""
+        tool_deps = _make_tool_deps_with_registry()
+        result = await _collect_execute(
+            source_id=str(uuid.uuid4()),
+            source_type="nonexistent_type_xyz",
+            tool_deps=tool_deps,
+        )
+        assert result["status"] == "degraded", (
+            f"_collect_execute with unknown source_type must return status='degraded'; "
+            f"got {result['status']!r}. R-005: CollectorError must be caught."
+        )
+        assert "unknown source_type" in result.get("reason", ""), (
+            f"degraded reason must mention 'unknown source_type'; "
+            f"got reason={result.get('reason')!r}"
+        )

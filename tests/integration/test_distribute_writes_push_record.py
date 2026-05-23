@@ -82,9 +82,12 @@ def _make_mock_session_factory(
     mock_sub.frequency = "realtime"
     mock_sub.quiet_hours = None
 
+    mock_scalars_result = MagicMock()
+    mock_scalars_result.all = MagicMock(return_value=[mock_sub])
+
     mock_session = AsyncMock()
     mock_session.get = AsyncMock(return_value=mock_content)
-    mock_session.scalars = AsyncMock(return_value=iter([mock_sub]))
+    mock_session.scalars = AsyncMock(return_value=mock_scalars_result)
 
     @asynccontextmanager
     async def _session_factory() -> AsyncIterator[Any]:
@@ -283,4 +286,78 @@ class TestDistributeWritesPushRecord:
         assert "reason" not in inner or inner.get("status") == "ok", (
             f"stub-only 'reason' key still present: result={inner!r}. "
             "T-097 must drop the placeholder envelope."
+        )
+
+    async def test_distribute_pushrecord_recipient_id_is_masked_and_persisted(
+        self,
+    ) -> None:
+        """Anti-regression (R-002): PushRepository.create must receive recipient_id
+        and its value must be PII-masked (not plaintext email)."""
+        from intellisource.storage.repositories.push import PushRepository
+
+        tool_deps = _make_tool_deps_with_real_facade()
+        content_id = str(uuid.uuid4())
+        subscription_id = str(uuid.uuid4())
+
+        captured: list[dict[str, Any]] = []
+
+        async def _spy_create(self_: object, **kwargs: Any) -> MagicMock:
+            captured.append(kwargs)
+            rec = MagicMock()
+            rec.id = uuid.uuid4()
+            return rec
+
+        with patch.object(PushRepository, "create", new=_spy_create):
+            await _distribute_execute(
+                content_id=content_id,
+                subscription_id=subscription_id,
+                tool_deps=tool_deps,
+            )
+
+        assert len(captured) >= 1, (
+            "PushRepository.create must be called; "
+            "R-002 requires recipient_id to be persisted."
+        )
+        for idx, kw in enumerate(captured):
+            assert "recipient_id" in kw, (
+                f"call #{idx}: PushRepository.create must receive recipient_id kwarg; "
+                f"got keys={list(kw.keys())}. R-002 not fixed."
+            )
+            rid = kw["recipient_id"]
+            # Must not be plaintext email (mock sub has to_addr=user@example.com)
+            assert not _EMAIL_PLAINTEXT_RE.search(str(rid or "")), (
+                f"call #{idx}: recipient_id must be masked, got {rid!r}. "
+                "R-002 facade must pass _mask_recipient() output to repo.create."
+            )
+
+    async def test_distribute_dedup_integrity_error_is_idempotent(self) -> None:
+        """Anti-regression (R-004): when PushRepository.create raises IntegrityError
+        (duplicate push record), facade must still return status='ok' rather than
+        raising."""
+        from sqlalchemy.exc import IntegrityError
+
+        from intellisource.storage.repositories.push import PushRepository
+
+        tool_deps = _make_tool_deps_with_real_facade()
+        content_id = str(uuid.uuid4())
+        subscription_id = str(uuid.uuid4())
+
+        async def _raise_integrity(self_: object, **kwargs: Any) -> None:
+            raise IntegrityError(
+                statement="INSERT INTO push_records",
+                params={},
+                orig=Exception("uq_push_records_dedup"),
+            )
+
+        with patch.object(PushRepository, "create", new=_raise_integrity):
+            envelope = await _distribute_execute(
+                content_id=content_id,
+                subscription_id=subscription_id,
+                tool_deps=tool_deps,
+            )
+
+        # Facade must not propagate IntegrityError; outer tool envelope must be ok.
+        assert envelope.get("status") == "ok", (
+            f"distribute must not raise on IntegrityError from PushRepository; "
+            f"got envelope={envelope!r}. R-004 idempotent dedup not in place."
         )

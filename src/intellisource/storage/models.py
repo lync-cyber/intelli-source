@@ -483,6 +483,7 @@ class PushRecord(CreatedAtMixin, Base):
     delivered_at: Mapped[Optional[datetime]] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True
     )
+    recipient_id: Mapped[Optional[str]] = mapped_column(VARCHAR(255), nullable=True)
 
     # Relationships
     subscription: Mapped["Subscription"] = relationship(back_populates="push_records")
