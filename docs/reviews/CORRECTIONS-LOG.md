@@ -94,3 +94,16 @@ deps: []
 - 原因: 单文件 patch 模式微调（无逻辑改动），inline 比派 implementer 更快更精准；与 sprint-8r 装配缺口主题正交
 - 影响/缓解: 10/10 test_app_entry.py PASS；2288 全量回归 PASS；mypy strict + ruff clean
 - 关联: CODE-REVIEW-T-088-r3.md R-009; T-088 r3 final = approved
+
+### 2026-05-23 | orchestrator | T-096 r1 reviewer truncation + r2 inline approve
+- 触发信号: agent-truncation + option-override
+- 问题/假设: T-096 r1 reviewer subagent (a678cd2f13fd2a8ea) 在 Layer 2 阶段被 task-notification truncated（79 tools / 5.7min / 88K tokens），无报告 artifact 落地，仅尾部片段 "now let me also check status field handling in _process_execute session exception swallowing"。sprint-9 累计第 2 次 reviewer truncation（前次 T-095 r1 同样原因）。EXP-006 candidate frequency tick。
+- 基线/推荐: 重派 reviewer subagent 跑 r1 + 派 reviewer subagent 跑 r2 门禁
+- 实际/选择: ① orchestrator 主线程接管 r1 inline review，按 code-review SKILL Layer 2 全 7 维度产出 CODE-REVIEW-T-096-r1.md（verdict=needs_revision: 1 HIGH R-001 + 1 MEDIUM R-002 + 3 LOW R-003/R-004/R-005）；② 用户裁决"主线程 inline 修 r2"+ "orchestrator inline approve r2"双簧；orchestrator 主线程修 5 finding（R-001 加 session.commit + R-002 mock 类型对齐 + R-003 删 dead-code + R-004/R-005 silent except 加 logger.warning）+ 新建 3 unit 反证测试（防 R-001 回归）+ 全量回归 0 self-caused regression + lint/mypy clean
+- 偏差类型: preference + protocol-deviation
+- 原因: sprint-9 reviewer truncation 已 2/2 全 truncate，第 3 次概率非零；r2 改动局部清晰（5 finding 全修 + 3 反证测试），主线程 reviewer 视角检查已完整覆盖；沿用 sprint-8r batch 3 r3 inline approve 先例（T-087 r3 / T-092 r3 / T-088 R-009）
+- 影响/缓解:
+  - r1 reviewer 独立性损失：orchestrator 既是 r1 reviewer 又是 r2 modifier，理论存在利益冲突；缓解为 verdict 从严（5 finding 全报，未短路 LOW）+ 反证测试落地（test_create_calls_session_commit_when_row_found 在 R-001 修复回滚后必 FAIL）
+  - r2 inline approve 独立性损失：同 sprint-8r batch 3 r3 先例处理；CI integration 测试（test_raw_content_persist_on_pipeline_done.py 5 cases）将进一步反证 R-001 修复在端到端 PG 路径生效
+  - EXP-006 frequency tick: sprint-9 reviewer truncation 2/2，retrospective 立项时需评估是否调整 reviewer maxTurns 或拆分 Layer 2 维度
+- 关联: commit c492cba (T-096 GREEN) + commit 65d443a (T-096 r2 fix + CODE-REVIEW-T-096-r1.md); reviewer subagent a678cd2f13fd2a8ea (truncated); T-096 final = approved
