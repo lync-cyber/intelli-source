@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from intellisource.agent.tools import load_pipeline_config
 from intellisource.api.deps import get_db_session
+from intellisource.api.schemas.search import ChatSearchRequest, ChatSearchResponse
 from intellisource.search.hybrid import HybridSearchEngine
 
 router = APIRouter(tags=["search"])
@@ -27,16 +30,6 @@ class SearchRequest(BaseModel):
     date_from: str | None = None
     date_to: str | None = None
     limit: int | None = None
-
-
-class ChatRequest(BaseModel):
-    message: str
-    session_id: str | None = None
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------
@@ -63,15 +56,42 @@ async def search(
 
 @router.post("/search/chat")
 async def chat_search(
-    body: ChatRequest,
-    session: AsyncSession = Depends(get_db_session),
+    request: Request,
+    body: ChatSearchRequest,
 ) -> Any:
-    engine: Any = HybridSearchEngine(session)
-    try:
-        result: dict[str, Any] = await engine.chat(
-            messages=[{"role": "user", "content": body.message}],
-            session_id=body.session_id,
+    """Flexible-mode chat search via AgentRunner.run_flexible."""
+    runner = getattr(request.app.state, "agent_runner", None)
+    if runner is None:
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "agent_runner not initialised"},
         )
-    except ValueError as exc:
-        return JSONResponse(status_code=400, content={"detail": str(exc)})
-    return result
+
+    config = load_pipeline_config("instant-search")
+    flex_result: dict[str, Any] = await runner.run_flexible(
+        config,
+        user_message=body.message,
+        session=body.session or {},
+        max_tokens_budget=body.max_tokens_budget,
+    )
+
+    # Extract answer from last summarize_for_user tool output
+    answer = ""
+    for step in reversed(flex_result.get("results", [])):
+        text = step.get("output", {}).get("text", "")
+        if text:
+            answer = str(text)
+            break
+
+    session_id = body.session_id or str(uuid.uuid4())
+    steps_executed: int = int(flex_result.get("steps_executed", 0))
+    task_chain_id: str = str(flex_result.get("task_chain_id", ""))
+
+    resp = ChatSearchResponse(
+        session_id=session_id,
+        answer=answer,
+        sources=[],
+        steps_executed=steps_executed,
+        task_chain_id=task_chain_id,
+    )
+    return resp

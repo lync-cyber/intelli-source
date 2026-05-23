@@ -107,3 +107,30 @@ class WeWorkWebhookHandler:
         return _verify_sha1_signature(
             self._token, signature=signature, timestamp=timestamp, nonce=nonce
         )
+
+    def parse_message(self, xml_body: str) -> dict[str, str] | None:
+        """Parse incoming XML message body into a dict of fields."""
+        try:
+            root = ET.fromstring(xml_body)  # noqa: S314
+        except ET.ParseError:
+            return None
+        result: dict[str, str] = {}
+        for child in root:
+            if child.text is not None:
+                result[child.tag] = child.text
+        return result if result else None
+
+    async def handle_message(self, xml_body: str, cs_messenger: Any = None) -> str:
+        """Handle an incoming WeWork message and return an XML ack string."""
+        msg = self.parse_message(xml_body)
+
+        if (
+            cs_messenger is not None
+            and msg is not None
+            and msg.get("MsgType") == "text"
+        ):
+            from_user = msg.get("FromUserName", "")
+            content = msg.get("Content", "")
+            await cs_messenger.send_text(openid=from_user, content=content)
+
+        return ""

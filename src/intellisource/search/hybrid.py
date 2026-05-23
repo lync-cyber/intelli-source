@@ -141,34 +141,6 @@ class HybridSearchEngine:
             query_time_ms=elapsed_ms,
         )
 
-    async def chat(
-        self,
-        messages: list[dict[str, Any]],
-        session_id: str | None = None,
-        **kwargs: Any,
-    ) -> dict[str, Any]:
-        """Return a chat reply for the given conversation messages.
-
-        # [ASSUMPTION] stateless echo stub — session_id/answer/sources/query_time_ms
-        # are placeholders; full LLM integration deferred to T-094.
-        """
-        if not messages:
-            raise ValueError("messages must contain at least one entry")
-        start = time.monotonic()
-        last_content: str = ""
-        for msg in reversed(messages):
-            if msg.get("role") == "user":
-                last_content = str(msg.get("content", ""))
-                break
-        elapsed_ms = int((time.monotonic() - start) * 1000)
-        return {
-            "session_id": session_id or str(uuid.uuid4()),
-            # [ASSUMPTION] stateless echo; T-094 wires LLMGateway.chat()
-            "answer": last_content,
-            "sources": [],
-            "query_time_ms": elapsed_ms,
-        }
-
 
 def _extract_rows(result: Any) -> list[Any]:
     """Extract row list from a query result object."""
