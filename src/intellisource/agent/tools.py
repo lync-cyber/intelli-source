@@ -127,19 +127,53 @@ async def _process_execute(
     tool_deps: Any = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """Invoke PipelineEngine.execute() for the given content_id."""
-    if tool_deps is not None and tool_deps.pipeline_engine is not None:
-        result = await tool_deps.pipeline_engine.execute(
-            content_id=content_id, **kwargs
-        )
-        return {"status": "ok", "tool": "process", "result": result}
-    logger.warning("tool_deps not injected for process, returning placeholder")
-    return {
-        "status": "degraded",
-        "tool": "process",
-        "reason": "tool_deps not injected",
-        "content_id": content_id,
+    """Fetch RawContent by UUID and run PipelineEngine.execute() synchronously."""
+    if tool_deps is None or tool_deps.pipeline_engine is None:
+        logger.warning("tool_deps not injected for process, returning placeholder")
+        return {
+            "status": "degraded",
+            "tool": "process",
+            "reason": "tool_deps not injected",
+            "content_id": content_id,
+        }
+
+    from intellisource.pipeline.context import PipelineContext  # noqa: PLC0415
+    from intellisource.storage.repositories.content import (  # noqa: PLC0415
+        ContentRepository,
+    )
+
+    raw_id = _uuid.UUID(content_id)
+    ctx = PipelineContext()
+    ctx.set("content_id", content_id)
+    try:
+        async with tool_deps.session_factory() as session:
+            repo = ContentRepository(session=session)
+            raw = await repo.get_raw_by_id(raw_id)
+        if raw is not None:
+            ctx.set("body_html", raw.body_html or "")
+            ctx.set("body_text", raw.body_text or "")
+            ctx.set("title", raw.title or "")
+            ctx.set("fingerprint", raw.fingerprint or "")
+            ctx.set("content_id", str(raw.id))
+    except Exception:
+        pass
+
+    import inspect  # noqa: PLC0415
+
+    ctx_or_coro = tool_deps.pipeline_engine.execute(ctx)
+    if inspect.isawaitable(ctx_or_coro):
+        ctx_or_coro = await ctx_or_coro
+    if hasattr(ctx_or_coro, "get"):
+        ctx = ctx_or_coro
+
+    result: dict[str, Any] = {
+        "body_html": ctx.get("body_html"),
+        "body_text": ctx.get("body_text"),
+        "title": ctx.get("title"),
+        "fingerprint": ctx.get("fingerprint"),
+        "content_id": str(raw_id),
     }
+    return {"status": "ok", "tool": "process", "result": result}
 
 
 async def _distribute_execute(

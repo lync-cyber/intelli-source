@@ -221,6 +221,12 @@ class RawContent(CreatedAtMixin, Base):
     raw_metadata: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, default=dict
     )
+    status: Mapped[str] = mapped_column(
+        VARCHAR(20), nullable=False, server_default="pending"
+    )
+    processed_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
 
     # Relationships
     source: Mapped["Source"] = relationship(back_populates="raw_contents")

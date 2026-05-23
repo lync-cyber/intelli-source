@@ -70,9 +70,32 @@ class _RawContentResultRepo:
         self._session_factory = session_factory
 
     async def create(self, result: Any) -> Any:
-        # Records the pipeline execution result. Detailed ProcessedContent
-        # persistence is deferred to the dedicated content-processing pipeline;
-        # this adapter satisfies the CeleryTasks.content_repository interface.
+        if not isinstance(result, dict):
+            return result
+        content_id_val = result.get("content_id")
+        if not content_id_val:
+            return result
+        try:
+            import uuid as _uuid_mod  # noqa: PLC0415
+            from datetime import datetime, timezone  # noqa: PLC0415
+
+            from sqlalchemy import select  # noqa: PLC0415
+
+            from intellisource.storage.models import RawContent  # noqa: PLC0415
+
+            raw_id = _uuid_mod.UUID(str(content_id_val))
+            async with self._session_factory() as session:
+                row = (
+                    await session.execute(
+                        select(RawContent).where(RawContent.id == raw_id).limit(1)
+                    )
+                ).scalar_one_or_none()
+                if row is not None:
+                    row.status = "processed"
+                    row.processed_at = datetime.now(tz=timezone.utc)
+                    await session.flush()
+        except Exception:
+            pass
         return result
 
 
