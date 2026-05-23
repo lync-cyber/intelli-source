@@ -31,6 +31,7 @@ Public surface:
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -380,6 +381,84 @@ def build_api_composition(
     app.state.llm_gateway = bundle.llm_gateway
     app.state.pipeline_loader = pipeline_loader
     app.state.agent_runner = agent_runner
+
+    _install_webhook_state(app, redis_client=redis_client)
+    app.state.background_tasks = set()
+
+
+def _install_webhook_state(app: FastAPI, *, redis_client: Any) -> None:
+    """Wire webhook tokens + CS messenger clients onto `app.state`.
+
+    Env presence rules:
+
+    - `IS_WECHAT_WEBHOOK_TOKEN` / `IS_WEWORK_WEBHOOK_TOKEN` — when missing,
+      the corresponding token state is set to "" and the router's signature
+      check rejects every callback with 403 (no silent bypass). A startup
+      warning is logged so operators notice the gap.
+    - `IS_WECHAT_APP_ID` + `IS_WECHAT_APP_SECRET` — when **partially** set,
+      `WeChatCustomerServiceClient.from_env` raises ValueError and that
+      propagates out of `_install_webhook_state` to crash startup loud,
+      matching the sprint-9 locked credential policy. When fully unset,
+      construction is skipped and `wechat_cs_messenger` stays None.
+    - `IS_WEWORK_CORP_ID` + `IS_WEWORK_CORP_SECRET` + `IS_WEWORK_AGENT_ID`
+      follow the same partial-set hard-fail / fully-unset skip rule.
+    """
+    import logging
+
+    from intellisource.distributor.wechat_cs_client import (
+        WeChatCustomerServiceClient,
+    )
+    from intellisource.distributor.wework_cs_client import (
+        WeWorkCustomerServiceClient,
+    )
+
+    logger = logging.getLogger(__name__)
+
+    wechat_token = os.environ.get("IS_WECHAT_WEBHOOK_TOKEN", "")
+    wework_token = os.environ.get("IS_WEWORK_WEBHOOK_TOKEN", "")
+    app.state.wechat_webhook_token = wechat_token
+    app.state.wework_webhook_token = wework_token
+
+    http_client = _maybe_build_http_client()
+
+    wechat_app_id_set = bool(os.environ.get("IS_WECHAT_APP_ID"))
+    wechat_secret_set = bool(os.environ.get("IS_WECHAT_APP_SECRET"))
+    if wechat_app_id_set or wechat_secret_set:
+        # Partial-set → from_env raises and we let it propagate (hard fail).
+        app.state.wechat_cs_messenger = WeChatCustomerServiceClient.from_env(
+            redis_client=redis_client, http_client=http_client
+        )
+    else:
+        app.state.wechat_cs_messenger = None
+
+    wework_keys = (
+        bool(os.environ.get("IS_WEWORK_CORP_ID")),
+        bool(os.environ.get("IS_WEWORK_CORP_SECRET")),
+        bool(os.environ.get("IS_WEWORK_AGENT_ID")),
+    )
+    if any(wework_keys):
+        # Partial-set → from_env raises and we let it propagate (hard fail).
+        app.state.wework_cs_messenger = WeWorkCustomerServiceClient.from_env(
+            redis_client=redis_client, http_client=http_client
+        )
+    else:
+        app.state.wework_cs_messenger = None
+
+    if not wechat_token and not wework_token:
+        logger.warning(
+            "Both IS_WECHAT_WEBHOOK_TOKEN and IS_WEWORK_WEBHOOK_TOKEN are unset"
+            " — /api/v1/webhooks/{wechat,wework} will reject all callbacks (403)"
+        )
+
+
+def _maybe_build_http_client() -> Any:
+    """Return an `httpx.AsyncClient` instance, or `None` if httpx is unavailable."""
+    try:
+        import httpx
+
+        return httpx.AsyncClient(timeout=10.0)
+    except ImportError:
+        return None
 
 
 class _DatabaseManagerSessionFactory:

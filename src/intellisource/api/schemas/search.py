@@ -28,5 +28,6 @@ class ChatSearchResponse(BaseModel):
     session_id: str
     answer: str
     sources: list[ChatSource]
+    query_time_ms: int
     steps_executed: int
     task_chain_id: str

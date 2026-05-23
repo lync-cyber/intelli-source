@@ -121,16 +121,15 @@ class WeWorkWebhookHandler:
         return result if result else None
 
     async def handle_message(self, xml_body: str, cs_messenger: Any = None) -> str:
-        """Handle an incoming WeWork message and return an XML ack string."""
-        msg = self.parse_message(xml_body)
+        """Legacy no-op stub.
 
-        if (
-            cs_messenger is not None
-            and msg is not None
-            and msg.get("MsgType") == "text"
-        ):
-            from_user = msg.get("FromUserName", "")
-            content = msg.get("Content", "")
-            await cs_messenger.send_text(openid=from_user, content=content)
-
+        Inbound message routing is owned by `intellisource.api.routers.webhooks`
+        (`_dispatch_chat_reply` → AgentRunner). This method is retained only so
+        AC-10 imports of `WeWorkWebhookHandler.handle_message` keep resolving;
+        new code should not call it.
+        """
+        # Parse-only for callers that may want to introspect the XML structure
+        # via the return surface in a future revision.
+        self.parse_message(xml_body)
+        _ = cs_messenger
         return ""

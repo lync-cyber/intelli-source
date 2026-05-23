@@ -38,7 +38,9 @@ class TestWeWorkCsClientFromEnv:
         mock_redis = MagicMock()
         with patch.dict(os.environ, env_without_corp_id, clear=True):
             with pytest.raises(ValueError, match="IS_WEWORK_CORP_ID"):
-                WeWorkCustomerServiceClient.from_env(redis_client=mock_redis)
+                WeWorkCustomerServiceClient.from_env(
+                    redis_client=mock_redis, http_client=MagicMock()
+                )
 
     def test_from_env_raises_when_corp_secret_missing(self) -> None:
         """from_env raises ValueError when IS_WEWORK_CORP_SECRET is not set."""
@@ -56,7 +58,35 @@ class TestWeWorkCsClientFromEnv:
         mock_redis = MagicMock()
         with patch.dict(os.environ, env_without_secret, clear=True):
             with pytest.raises(ValueError, match="IS_WEWORK_CORP_SECRET"):
-                WeWorkCustomerServiceClient.from_env(redis_client=mock_redis)
+                WeWorkCustomerServiceClient.from_env(
+                    redis_client=mock_redis, http_client=MagicMock()
+                )
+
+    def test_from_env_raises_when_agent_id_missing(self) -> None:
+        """from_env raises ValueError when IS_WEWORK_AGENT_ID is not set."""
+        from intellisource.distributor.wework_cs_client import (
+            WeWorkCustomerServiceClient,
+        )
+
+        env_without_agent_id = {
+            k: v
+            for k, v in os.environ.items()
+            if k
+            not in (
+                "IS_WEWORK_CORP_ID",
+                "IS_WEWORK_CORP_SECRET",
+                "IS_WEWORK_AGENT_ID",
+            )
+        }
+        env_without_agent_id["IS_WEWORK_CORP_ID"] = "test_corp_id"
+        env_without_agent_id["IS_WEWORK_CORP_SECRET"] = "test_corp_secret"
+
+        mock_redis = MagicMock()
+        with patch.dict(os.environ, env_without_agent_id, clear=True):
+            with pytest.raises(ValueError, match="IS_WEWORK_AGENT_ID"):
+                WeWorkCustomerServiceClient.from_env(
+                    redis_client=mock_redis, http_client=MagicMock()
+                )
 
     def test_from_env_returns_instance_when_credentials_present(self) -> None:
         """from_env returns WeWorkCustomerServiceClient when env vars are set."""
@@ -70,9 +100,12 @@ class TestWeWorkCsClientFromEnv:
             {
                 "IS_WEWORK_CORP_ID": "ww_test_corp_id",
                 "IS_WEWORK_CORP_SECRET": "ww_test_secret",
+                "IS_WEWORK_AGENT_ID": "1000002",
             },
         ):
-            client = WeWorkCustomerServiceClient.from_env(redis_client=mock_redis)
+            client = WeWorkCustomerServiceClient.from_env(
+                redis_client=mock_redis, http_client=MagicMock()
+            )
 
         assert isinstance(client, WeWorkCustomerServiceClient), (
             "from_env must return WeWorkCustomerServiceClient instance"
@@ -110,6 +143,7 @@ class TestWeWorkCsClientAccessToken:
         client = WeWorkCustomerServiceClient(
             corp_id="ww_corp_id",
             corp_secret="ww_secret",
+            agent_id=1000002,
             redis_client=mock_redis,
             http_client=mock_http_client,
         )
@@ -140,6 +174,7 @@ class TestWeWorkCsClientAccessToken:
         client = WeWorkCustomerServiceClient(
             corp_id="ww_corp_id",
             corp_secret="ww_secret",
+            agent_id=1000002,
             redis_client=mock_redis,
             http_client=mock_http_client,
         )
@@ -178,6 +213,7 @@ class TestWeWorkCsClientSendText:
         client = WeWorkCustomerServiceClient(
             corp_id="ww_corp_id",
             corp_secret="ww_secret",
+            agent_id=1000002,
             redis_client=mock_redis,
             http_client=mock_http_client,
         )
@@ -210,6 +246,7 @@ class TestWeWorkCsClientSendText:
         client = WeWorkCustomerServiceClient(
             corp_id="ww_corp_id",
             corp_secret="ww_secret",
+            agent_id=1000002,
             redis_client=mock_redis,
             http_client=mock_http_client,
         )
@@ -223,6 +260,103 @@ class TestWeWorkCsClientSendText:
         assert target_content in post_call_str, (
             f"content '{target_content}' missing from POST payload: {post_call_str}"
         )
+
+    async def test_send_text_payload_contains_agentid(self) -> None:
+        """R-003: WeWork message/send payload must include agentid (required by API).
+
+        Without agentid the WeWork API returns errcode=40056 invalid agentid.
+        """
+        from intellisource.distributor.wework_cs_client import (
+            WeWorkCustomerServiceClient,
+        )
+
+        mock_redis = AsyncMock()
+        mock_redis.get = AsyncMock(return_value="wework_token_xyz")
+
+        mock_http_response = MagicMock()
+        mock_http_response.json.return_value = {"errcode": 0, "errmsg": "ok"}
+        mock_http_client = AsyncMock()
+        mock_http_client.post = AsyncMock(return_value=mock_http_response)
+
+        client = WeWorkCustomerServiceClient(
+            corp_id="ww_corp_id",
+            corp_secret="ww_secret",
+            agent_id=1000007,
+            redis_client=mock_redis,
+            http_client=mock_http_client,
+        )
+
+        await client.send_text(openid="u", content="hi")
+
+        payload = (
+            mock_http_client.post.call_args.kwargs.get("json")
+            or mock_http_client.post.call_args.args[1]
+        )
+        assert payload.get("agentid") == 1000007, (
+            f"Expected agentid=1000007 in send payload, got: {payload}"
+        )
+
+
+class TestWeWorkCsClientErrcodeHandling:
+    """R-008: get_access_token + send_text raise DistributorError on errcode != 0."""
+
+    async def test_get_access_token_raises_on_errcode_response(self) -> None:
+        """Token fetch returning errcode=40013 must raise DistributorError."""
+        from intellisource.core.errors import DistributorError
+        from intellisource.distributor.wework_cs_client import (
+            WeWorkCustomerServiceClient,
+        )
+
+        mock_redis = AsyncMock()
+        mock_redis.get = AsyncMock(return_value=None)
+
+        mock_http_response = MagicMock()
+        mock_http_response.json.return_value = {
+            "errcode": 40013,
+            "errmsg": "invalid corpid",
+        }
+        mock_http_client = AsyncMock()
+        mock_http_client.get = AsyncMock(return_value=mock_http_response)
+
+        client = WeWorkCustomerServiceClient(
+            corp_id="bad_corp",
+            corp_secret="bad",
+            agent_id=1,
+            redis_client=mock_redis,
+            http_client=mock_http_client,
+        )
+
+        with pytest.raises(DistributorError, match="40013"):
+            await client.get_access_token()
+
+    async def test_send_text_raises_on_errcode_response(self) -> None:
+        """send_text receiving errcode=40056 must raise DistributorError."""
+        from intellisource.core.errors import DistributorError
+        from intellisource.distributor.wework_cs_client import (
+            WeWorkCustomerServiceClient,
+        )
+
+        mock_redis = AsyncMock()
+        mock_redis.get = AsyncMock(return_value="tok")
+
+        mock_http_response = MagicMock()
+        mock_http_response.json.return_value = {
+            "errcode": 40056,
+            "errmsg": "invalid agentid",
+        }
+        mock_http_client = AsyncMock()
+        mock_http_client.post = AsyncMock(return_value=mock_http_response)
+
+        client = WeWorkCustomerServiceClient(
+            corp_id="ww",
+            corp_secret="ww",
+            agent_id=99,
+            redis_client=mock_redis,
+            http_client=mock_http_client,
+        )
+
+        with pytest.raises(DistributorError, match="40056"):
+            await client.send_text(openid="u", content="c")
 
 
 # ---------------------------------------------------------------------------

@@ -39,7 +39,9 @@ class TestWeChatCsClientFromEnv:
         mock_redis = MagicMock()
         with patch.dict(os.environ, env_without_app_id, clear=True):
             with pytest.raises(ValueError, match="IS_WECHAT_APP_ID"):
-                WeChatCustomerServiceClient.from_env(redis_client=mock_redis)
+                WeChatCustomerServiceClient.from_env(
+                    redis_client=mock_redis, http_client=MagicMock()
+                )
 
     def test_from_env_raises_when_app_secret_missing(self) -> None:
         """from_env raises ValueError when IS_WECHAT_APP_SECRET is not set."""
@@ -58,7 +60,9 @@ class TestWeChatCsClientFromEnv:
         mock_redis = MagicMock()
         with patch.dict(os.environ, env_without_secret, clear=True):
             with pytest.raises(ValueError, match="IS_WECHAT_APP_SECRET"):
-                WeChatCustomerServiceClient.from_env(redis_client=mock_redis)
+                WeChatCustomerServiceClient.from_env(
+                    redis_client=mock_redis, http_client=MagicMock()
+                )
 
     def test_from_env_returns_instance_when_both_present(self) -> None:
         """from_env returns WeChatCustomerServiceClient when both env vars are set."""
@@ -74,7 +78,9 @@ class TestWeChatCsClientFromEnv:
                 "IS_WECHAT_APP_SECRET": "wx_test_secret",
             },
         ):
-            client = WeChatCustomerServiceClient.from_env(redis_client=mock_redis)
+            client = WeChatCustomerServiceClient.from_env(
+                redis_client=mock_redis, http_client=MagicMock()
+            )
 
         assert isinstance(client, WeChatCustomerServiceClient), (
             "from_env must return WeChatCustomerServiceClient instance"
@@ -267,3 +273,81 @@ class TestWeChatCsClientSendText:
         assert target_content in post_call_str, (
             f"content '{target_content}' missing from POST payload: {post_call_str}"
         )
+
+
+class TestWeChatCsClientErrcodeHandling:
+    """R-008: get_access_token + send_text raise DistributorError on errcode != 0."""
+
+    async def test_get_access_token_raises_on_errcode_response(self) -> None:
+        """Token fetch returning errcode=40013 must raise DistributorError."""
+        from intellisource.core.errors import DistributorError
+        from intellisource.distributor.wechat_cs_client import (
+            WeChatCustomerServiceClient,
+        )
+
+        mock_redis = AsyncMock()
+        mock_redis.get = AsyncMock(return_value=None)
+
+        mock_http_response = MagicMock()
+        mock_http_response.json.return_value = {
+            "errcode": 40013,
+            "errmsg": "invalid appid",
+        }
+        mock_http_client = AsyncMock()
+        mock_http_client.get = AsyncMock(return_value=mock_http_response)
+
+        client = WeChatCustomerServiceClient(
+            app_id="bad",
+            app_secret="bad",
+            redis_client=mock_redis,
+            http_client=mock_http_client,
+        )
+
+        with pytest.raises(DistributorError, match="40013"):
+            await client.get_access_token()
+
+    async def test_send_text_raises_on_errcode_response(self) -> None:
+        """send_text receiving errcode=45015 must raise DistributorError."""
+        from intellisource.core.errors import DistributorError
+        from intellisource.distributor.wechat_cs_client import (
+            WeChatCustomerServiceClient,
+        )
+
+        mock_redis = AsyncMock()
+        mock_redis.get = AsyncMock(return_value="tok")
+
+        mock_http_response = MagicMock()
+        mock_http_response.json.return_value = {
+            "errcode": 45015,
+            "errmsg": "response out of time limit",
+        }
+        mock_http_client = AsyncMock()
+        mock_http_client.post = AsyncMock(return_value=mock_http_response)
+
+        client = WeChatCustomerServiceClient(
+            app_id="wx",
+            app_secret="wx",
+            redis_client=mock_redis,
+            http_client=mock_http_client,
+        )
+
+        with pytest.raises(DistributorError, match="45015"):
+            await client.send_text(openid="u", content="c")
+
+
+class TestWeChatCsClientRequiresHttpClient:
+    """R-007: __init__ rejects http_client=None instead of late AttributeError."""
+
+    def test_init_raises_when_http_client_is_none(self) -> None:
+        """Constructor must raise ValueError when http_client is None."""
+        from intellisource.distributor.wechat_cs_client import (
+            WeChatCustomerServiceClient,
+        )
+
+        with pytest.raises(ValueError, match="http_client"):
+            WeChatCustomerServiceClient(
+                app_id="wx",
+                app_secret="wx",
+                redis_client=MagicMock(),
+                http_client=None,
+            )

@@ -22,10 +22,11 @@ class TestChatSearchRequest:
 
     def test_message_is_required(self) -> None:
         """message field is required; omitting it raises ValidationError."""
+        from pydantic import ValidationError
+
         from intellisource.api.schemas.search import (
             ChatSearchRequest,
         )
-        from pydantic import ValidationError
 
         with pytest.raises(ValidationError):
             ChatSearchRequest()
@@ -135,6 +136,7 @@ class TestChatSearchResponse:
             session_id="sess-1",
             answer="Here is the summary.",
             sources=[],
+            query_time_ms=42,
             steps_executed=2,
             task_chain_id="tc-abc",
         )
@@ -150,6 +152,7 @@ class TestChatSearchResponse:
             session_id="sess-1",
             answer="Here is the summary.",
             sources=[],
+            query_time_ms=42,
             steps_executed=2,
             task_chain_id="tc-abc",
         )
@@ -165,6 +168,7 @@ class TestChatSearchResponse:
             session_id="sess-1",
             answer="result",
             sources=[],
+            query_time_ms=11,
             steps_executed=1,
             task_chain_id="tc-xyz",
         )
@@ -180,6 +184,7 @@ class TestChatSearchResponse:
             session_id="sess-2",
             answer="done",
             sources=[],
+            query_time_ms=12,
             steps_executed=3,
             task_chain_id="tc-def",
         )
@@ -195,13 +200,30 @@ class TestChatSearchResponse:
             session_id="sess-3",
             answer="done",
             sources=[],
+            query_time_ms=13,
             steps_executed=1,
             task_chain_id="tc-ghi",
         )
         assert resp.task_chain_id == "tc-ghi"
 
-    def test_response_serializes_five_fields(self) -> None:
-        """model_dump() returns a dict containing all five AC-2 keys."""
+    def test_response_has_query_time_ms(self) -> None:
+        """ChatSearchResponse contains query_time_ms field (arch API-013 SLA)."""
+        from intellisource.api.schemas.search import (
+            ChatSearchResponse,
+        )
+
+        resp = ChatSearchResponse(
+            session_id="sess-q",
+            answer="done",
+            sources=[],
+            query_time_ms=128,
+            steps_executed=1,
+            task_chain_id="tc-q",
+        )
+        assert resp.query_time_ms == 128
+
+    def test_response_serializes_six_fields(self) -> None:
+        """model_dump() returns a dict containing all six fields."""
         from intellisource.api.schemas.search import (
             ChatSearchResponse,
         )
@@ -210,6 +232,7 @@ class TestChatSearchResponse:
             session_id="s",
             answer="a",
             sources=[],
+            query_time_ms=14,
             steps_executed=1,
             task_chain_id="t",
         )
@@ -218,6 +241,7 @@ class TestChatSearchResponse:
             "session_id",
             "answer",
             "sources",
+            "query_time_ms",
             "steps_executed",
             "task_chain_id",
         }
@@ -235,6 +259,7 @@ class TestChatSearchResponse:
             session_id="sess-4",
             answer="summary",
             sources=[source],
+            query_time_ms=15,
             steps_executed=2,
             task_chain_id="tc-jkl",
         )

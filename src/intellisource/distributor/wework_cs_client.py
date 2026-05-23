@@ -5,35 +5,42 @@ from __future__ import annotations
 import os
 from typing import Any
 
-_WEWORK_API_BASE = "https://qyapi.weixin.qq.com"
-_TOKEN_CACHE_KEY = "wework:access_token"
+from intellisource.distributor.base_cs_client import BaseCustomerServiceClient
 
 
-class WeWorkCustomerServiceClient:
-    """Send customer service messages via WeWork cgi-bin API."""
+class WeWorkCustomerServiceClient(BaseCustomerServiceClient):
+    """Send customer-service messages via the WeWork cgi-bin API."""
+
+    api_base = "https://qyapi.weixin.qq.com"
+    token_path = "/cgi-bin/gettoken"
+    send_path = "/cgi-bin/message/send"
+    token_cache_key = "wework:access_token"
 
     def __init__(
         self,
         corp_id: str,
         corp_secret: str,
+        agent_id: int,
         redis_client: Any,
-        http_client: Any | None = None,
+        http_client: Any,
     ) -> None:
+        super().__init__(redis_client=redis_client, http_client=http_client)
         self._corp_id = corp_id
         self._corp_secret = corp_secret
-        self._redis = redis_client
-        self._http = http_client
+        self._agent_id = agent_id
 
     @classmethod
     def from_env(
-        cls, redis_client: Any, http_client: Any | None = None
+        cls, redis_client: Any, http_client: Any
     ) -> "WeWorkCustomerServiceClient":
-        """Create instance from IS_WEWORK_CORP_ID / IS_WEWORK_CORP_SECRET env vars.
+        """Create instance from IS_WEWORK_* env vars (corp id / secret / agent id).
 
-        Raises ValueError when either variable is absent.
+        Raises ValueError when any of IS_WEWORK_CORP_ID,
+        IS_WEWORK_CORP_SECRET, IS_WEWORK_AGENT_ID is absent.
         """
         corp_id = os.environ.get("IS_WEWORK_CORP_ID")
         corp_secret = os.environ.get("IS_WEWORK_CORP_SECRET")
+        agent_id_str = os.environ.get("IS_WEWORK_AGENT_ID")
         if not corp_id:
             raise ValueError(
                 "IS_WEWORK_CORP_ID missing — required for WeWorkCustomerServiceClient"
@@ -43,47 +50,25 @@ class WeWorkCustomerServiceClient:
                 "IS_WEWORK_CORP_SECRET missing"
                 " — required for WeWorkCustomerServiceClient"
             )
+        if not agent_id_str:
+            raise ValueError(
+                "IS_WEWORK_AGENT_ID missing — required for WeWorkCustomerServiceClient"
+            )
         return cls(
             corp_id=corp_id,
             corp_secret=corp_secret,
+            agent_id=int(agent_id_str),
             redis_client=redis_client,
             http_client=http_client,
         )
 
-    async def get_access_token(self) -> str:
-        """Return cached token or fetch a fresh one from cgi-bin/gettoken."""
-        cached = await self._redis.get(_TOKEN_CACHE_KEY)
-        if cached is not None:
-            if isinstance(cached, bytes):
-                return cached.decode()
-            return str(cached)
+    def _build_token_query(self) -> str:
+        return f"corpid={self._corp_id}&corpsecret={self._corp_secret}"
 
-        url = (
-            f"{_WEWORK_API_BASE}/cgi-bin/gettoken"
-            f"?corpid={self._corp_id}"
-            f"&corpsecret={self._corp_secret}"
-        )
-        assert self._http is not None, "http_client must be provided"
-        resp = await self._http.get(url)
-        data: dict[str, Any] = resp.json()
-
-        token: str = data["access_token"]
-        expires_in: int = int(data.get("expires_in", 7200))
-        ttl = expires_in - 200
-
-        await self._redis.set(_TOKEN_CACHE_KEY, token, ex=ttl)
-        return token
-
-    async def send_text(self, openid: str, content: str) -> dict[str, Any]:
-        """Send a text customer service message to the given openid."""
-        token = await self.get_access_token()
-        url = f"{_WEWORK_API_BASE}/cgi-bin/message/send?access_token={token}"
-        payload: dict[str, Any] = {
+    def _build_send_payload(self, openid: str, content: str) -> dict[str, Any]:
+        return {
             "touser": openid,
             "msgtype": "text",
+            "agentid": self._agent_id,
             "text": {"content": content},
         }
-        assert self._http is not None, "http_client must be provided"
-        resp = await self._http.post(url, json=payload)
-        result: dict[str, Any] = resp.json()
-        return result

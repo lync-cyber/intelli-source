@@ -11,11 +11,14 @@ from typing import Any
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import PlainTextResponse
 
+from intellisource.agent.tools import load_pipeline_config
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 _FALLBACK_TEXT = "抱歉，服务暂时不可用，请稍后再试。"
+_MAX_USER_TEXT_CHARS: int = 1024
 
 
 # ---------------------------------------------------------------------------
@@ -24,7 +27,7 @@ _FALLBACK_TEXT = "抱歉，服务暂时不可用，请稍后再试。"
 
 
 def _verify_sha1(token: str, *, signature: str, timestamp: str, nonce: str) -> bool:
-    if not signature:
+    if not token or not signature:
         return False
     raw = "".join(sorted([token, timestamp, nonce]))
     expected = hashlib.sha1(raw.encode("utf-8")).hexdigest()
@@ -59,8 +62,6 @@ async def _dispatch_chat_reply(
     user_text: str,
 ) -> None:
     """Call run_flexible, extract answer, and send via cs_messenger.send_text."""
-    from intellisource.agent.tools import load_pipeline_config
-
     try:
         config = load_pipeline_config("instant-search")
         flex_result = await runner.run_flexible(
@@ -73,11 +74,46 @@ async def _dispatch_chat_reply(
             answer = _FALLBACK_TEXT
         await cs_messenger.send_text(openid=openid, content=answer)
     except Exception:
-        logger.exception("_dispatch_chat_reply failed for openid=%s", openid)
+        logger.exception(
+            "_dispatch_chat_reply failed for openid=%s", openid, extra={"alert": True}
+        )
         try:
             await cs_messenger.send_text(openid=openid, content=_FALLBACK_TEXT)
         except Exception:
-            logger.exception("Fallback send_text also failed for openid=%s", openid)
+            logger.exception(
+                "Fallback send_text also failed for openid=%s",
+                openid,
+                extra={"alert": True},
+            )
+
+
+def _spawn_background_dispatch(
+    app: Any,
+    runner: Any,
+    cs_messenger: Any,
+    openid: str,
+    user_text: str,
+) -> None:
+    """Spawn `_dispatch_chat_reply` and retain a strong task reference.
+
+    `asyncio.create_task` only holds a weak reference to the task; without
+    retaining the result the task can be garbage-collected mid-flight,
+    producing "Task was destroyed but it is pending" and silently dropping
+    chat replies. We pin tasks to `app.state.background_tasks` and let the
+    done-callback evict them when they finish.
+    """
+    background_tasks = getattr(app.state, "background_tasks", None)
+    task = asyncio.create_task(
+        _dispatch_chat_reply(
+            runner=runner,
+            cs_messenger=cs_messenger,
+            openid=openid,
+            user_text=user_text,
+        )
+    )
+    if background_tasks is not None:
+        background_tasks.add(task)
+        task.add_done_callback(background_tasks.discard)
 
 
 # ---------------------------------------------------------------------------
@@ -124,15 +160,14 @@ async def wechat_message(
 
     if runner is not None and cs_messenger is not None and msg is not None:
         openid = msg.get("FromUserName", "")
-        user_text = msg.get("Content", "")
+        user_text = msg.get("Content", "")[:_MAX_USER_TEXT_CHARS]
         if openid and user_text:
-            asyncio.create_task(
-                _dispatch_chat_reply(
-                    runner=runner,
-                    cs_messenger=cs_messenger,
-                    openid=openid,
-                    user_text=user_text,
-                )
+            _spawn_background_dispatch(
+                app=request.app,
+                runner=runner,
+                cs_messenger=cs_messenger,
+                openid=openid,
+                user_text=user_text,
             )
 
     ack = "<xml><Content><![CDATA[success]]></Content></xml>"
@@ -169,6 +204,12 @@ async def wework_message(
     nonce: str = "",
 ) -> Response:
     """WeWork message callback (POST). Returns synchronous XML ack."""
+    token: str = getattr(request.app.state, "wework_webhook_token", "")
+    if not _verify_sha1(
+        token, signature=msg_signature, timestamp=timestamp, nonce=nonce
+    ):
+        return PlainTextResponse("forbidden", status_code=403)
+
     try:
         body = (await request.body()).decode("utf-8")
     except Exception:
@@ -181,15 +222,14 @@ async def wework_message(
 
     if runner is not None and cs_messenger is not None and msg is not None:
         openid = msg.get("FromUserName", "")
-        user_text = msg.get("Content", "")
+        user_text = msg.get("Content", "")[:_MAX_USER_TEXT_CHARS]
         if openid and user_text:
-            asyncio.create_task(
-                _dispatch_chat_reply(
-                    runner=runner,
-                    cs_messenger=cs_messenger,
-                    openid=openid,
-                    user_text=user_text,
-                )
+            _spawn_background_dispatch(
+                app=request.app,
+                runner=runner,
+                cs_messenger=cs_messenger,
+                openid=openid,
+                user_text=user_text,
             )
 
     ack = "<xml><Content><![CDATA[success]]></Content></xml>"

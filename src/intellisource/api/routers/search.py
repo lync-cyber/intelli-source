@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 import uuid
 from typing import Any
 
@@ -12,7 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.agent.tools import load_pipeline_config
 from intellisource.api.deps import get_db_session
-from intellisource.api.schemas.search import ChatSearchRequest, ChatSearchResponse
+from intellisource.api.schemas.search import (
+    ChatSearchRequest,
+    ChatSearchResponse,
+    ChatSource,
+)
 from intellisource.search.hybrid import HybridSearchEngine
 
 router = APIRouter(tags=["search"])
@@ -54,6 +59,28 @@ async def search(
     return result
 
 
+def _extract_sources(flex_result: dict[str, Any]) -> list[ChatSource]:
+    """Pull hybrid_search step output (if any) and map to ChatSource list."""
+    for step in flex_result.get("results", []):
+        if step.get("tool") != "hybrid_search":
+            continue
+        output = step.get("output", {})
+        items = output.get("contents") or output.get("items") or []
+        sources: list[ChatSource] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            sources.append(
+                ChatSource(
+                    title=str(item.get("title", "")),
+                    url=item.get("url"),
+                    content_id=item.get("content_id") or item.get("id"),
+                )
+            )
+        return sources
+    return []
+
+
 @router.post("/search/chat")
 async def chat_search(
     request: Request,
@@ -68,14 +95,15 @@ async def chat_search(
         )
 
     config = load_pipeline_config("instant-search")
+    start = time.monotonic()
     flex_result: dict[str, Any] = await runner.run_flexible(
         config,
         user_message=body.message,
         session=body.session or {},
         max_tokens_budget=body.max_tokens_budget,
     )
+    elapsed_ms = int((time.monotonic() - start) * 1000)
 
-    # Extract answer from last summarize_for_user tool output
     answer = ""
     for step in reversed(flex_result.get("results", [])):
         text = step.get("output", {}).get("text", "")
@@ -90,7 +118,8 @@ async def chat_search(
     resp = ChatSearchResponse(
         session_id=session_id,
         answer=answer,
-        sources=[],
+        sources=_extract_sources(flex_result),
+        query_time_ms=elapsed_ms,
         steps_executed=steps_executed,
         task_chain_id=task_chain_id,
     )
