@@ -12,15 +12,15 @@
 - model 继承: AGENT.md 中 `model: inherit` 继承父会话模型
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: sprint-9 批次 2 — T-096 已 approved（c492cba GREEN + 65d443a r2 fix；r1 reviewer truncated → orchestrator inline review + r2 inline approve；5 finding 全修 + 3 反证测试）；T-097 RED 已落地等待 GREEN
-- 下一步行动: agent-dispatch 派 implementer 跑 T-097 GREEN（让 27 个 T-097 RED 测试 PASS：CollectorRegistry + DistributorFacade + record_push 5 步流水线）→ T-098 RED/GREEN（standard）→ T-099 RED/GREEN（light） → T-100
+- 当前阶段: sprint-9 批次 2 — T-097 已 approved（31d0c15 GREEN + 0152531 r2 fix；r1 reviewer 无 truncation 81 tools 完成 approved_with_notes 3 MED + 2 LOW；用户选「全修 → r2 approve」；5 finding 全修 + 3 反证测试 + 新 alembic migration b2c3d4e5f6a7；orchestrator inline r2 approve）；T-098 待启动
+- 下一步行动: 启动 T-098 [standard, security_sensitive] /search/chat + AgentRunner.run_flexible + Webhook + 微信/企微 CS — tdd-engine standard 模式 RED → GREEN → REFACTOR → code-review → T-099 [light] → T-100 [light]
 - 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r 批次 1-4]
-- 当前Sprint: sprint-9 (in-progress — T-095 done + T-094 done + T-096 done；批次 2 T-097 RED done / T-097 GREEN 推进中 / T-098/099 planned)
+- 当前Sprint: sprint-9 (in-progress — T-095 done + T-094 done + T-096 done + T-097 done；批次 2 T-098/099 planned)
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report = approved；ui-spec = N/A；dev-plan-s8(P2 backlog) = draft；deploy-spec = 未开始
 - sprint-9 任务清单:
   - T-095 [standard] composition.py + Celery 单例统一 + PipelineLoader + tasks API 契约 — 批次 1，无前置 — status=approved
   - T-096 [standard] PROCESSOR_REGISTRY + _process_execute 契约 + _RawContentResultRepo 持久化 — 批次 2，依赖 T-095 — status=approved
-  - T-097 [standard, security_sensitive] CollectorRegistry + DistributorFacade — 批次 2，依赖 T-095 — status=red_done (27 测试待 GREEN)
+  - T-097 [standard, security_sensitive] CollectorRegistry + DistributorFacade — 批次 2，依赖 T-095 — status=approved
   - T-098 [standard, security_sensitive] /search/chat + AgentRunner.run_flexible + Webhook + 微信/企微 CS — 批次 2，依赖 T-095 — status=planned
   - T-099 [light] Pipelines API + System 可观测性 + ConfigVersion — 批次 2，依赖 T-095 — status=planned
   - T-100 [light] Celery Beat 同步 + push-optimize 触发 + ChatSession DB — 批次 3，依赖 T-097/T-098 — status=planned
@@ -45,10 +45,10 @@
   - T-095 status=approved（GREEN+REFACTOR commit 1b1fbf4 / PR #47 → r1 approved_with_notes (2 MEDIUM R-001 source_type-routing-deadcode + R-002 worker_init-non-idempotent, 4 LOW R-003/R-004/R-005/R-006) → 用户裁决「r2 全修 + R-004 Holder 抽象」→ r2 approved。final: 1b1fbf4 + r2 fix commit。报告 r1/r2。EXP-005 ToolDeps 装配半成品在本任务真正闭环：CR-002 worker 启动崩 + CR-012 双 Celery 单例 + ToolDeps 5 字段 silent None 三处全部根治）
 - sprint-9 批次 2 进度（推进中）:
   - T-096 status=approved（GREEN commit c492cba（registry.py + factory.py + tools.py + tagger.py + content.py + boot.py + models.py + alembic a1b2c3d4e5f6）→ r1 reviewer subagent truncated at 79 tools/5.7min → orchestrator 主线程接管 r1 inline review → verdict needs_revision (1 HIGH R-001 session.commit-missing + 1 MEDIUM R-002 AsyncMock-vs-sync-PipelineEngine + 3 LOW R-003 dead-code + R-004/R-005 silent-except) → 用户裁决「主线程 inline 修 r2 + inline approve」→ r2 commit 65d443a (5 finding 全修 + 3 反证测试 防 R-001 回归) → orchestrator inline approve。final: c492cba + 65d443a。报告 r1 (status=approved)。CORRECTIONS-LOG 2026-05-23 truncation + inline approve 双记录）
-  - T-097 status=red_done（commit 0c72658 同提交 — 4 文件 27 RED 测试：test_collector_registry.py + test_facade.py + test_collect_tool_not_degraded.py + test_distribute_writes_push_record.py，覆盖 AC-1/2/4/6/7/8；下一步派 implementer 跑 GREEN）
-  - T-098/T-099: 未启动（按串行序列等待 T-097 GREEN 完成）
-  - 批次 2 阶段测试: 2339 unit PASS / 15 expected fail (T-097 RED 待 GREEN) / 1 skip + 5 integration RawContent persist SKIP local (CI 反证 R-001 修复)；ruff + mypy --strict clean
-- EXP-006 frequency tick: sprint-9 reviewer subagent truncation 2/2（T-095 r1 + T-096 r1），retrospective 立项时评估调整 reviewer maxTurns 或 Layer 2 拆维度
+  - T-097 status=approved（RED commit 0c72658 → GREEN commit 31d0c15（fixture/mock 层修复，src/ 不动 — facade.py/tools.py WIP recovery 已含 DistributorFacade 实现）→ r1 reviewer subagent 无 truncation 81 tools/6.3min 完成 approved_with_notes (0 CRIT / 0 HIGH / 3 MED R-001 docstring + R-002 recipient_id 持久化 + R-003 session.scalars 约定 + 2 LOW R-004 dedup 双写 + R-005 CollectorError) → 用户裁决「全修 → r2 approve」→ r2 commit 0152531 (5 finding 全修 + 3 反证测试 + 新 alembic migration b2c3d4e5f6a7) → orchestrator inline r2 approve。final: 31d0c15 + 0152531。报告 r1 (approved_with_notes) / r2 (approved)。R-003 实证为 reviewer-calibration 但保留 convention 修复。R-002 持久化层补齐：PushRecord 加 recipient_id VARCHAR(255) 列 + facade._record_push 传 masked 值落库。R-004 用 IntegrityError 幂等防御不动 channel 内 dedup 逻辑）
+  - T-098/T-099: 未启动（按串行序列）
+  - 批次 2 阶段测试: 2409 PASS / 43 skip / 0 fail；ruff + mypy --strict clean
+- EXP-006 frequency tick: sprint-9 reviewer subagent truncation 2/3（T-095 r1 + T-096 r1 截断；T-097 r1 在防 truncation 指引下 81 tools 完成无截断），指引有效，retrospective 立项时评估是否将「Layer 2 维度优先级 + tools 预算上限」内化为 reviewer SKILL.md 默认行为
 - sprint-8r 批次 4 闭环检查点（迟到补录）:
   - T-094 status=done（commit 04904d2 RED+GREEN-inline + b0949fc 状态更新；13 PASS / 2 SKIPPED Docker graceful；2301 PASS 全量回归；sprint-8r sprint-review approved_with_notes 已覆盖，不补单独 code-review）
 - sprint-8r 批次 3 r3 闭环检查点:
