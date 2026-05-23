@@ -12,18 +12,18 @@
 - model 继承: AGENT.md 中 `model: inherit` 继承父会话模型
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: sprint-9 批次 1 — T-095 r2 = approved（r1 6 finding 全修：R-001 真实 Source.type 查询 + R-002 idempotent guard + R-003 CompositionError/CompositionNotInitialisedError + R-004 AgentRunnerHolder + R-005 收紧断言 + R-006 拒绝 legacy kwargs）
-- 下一步行动: 批次 2 启动 — T-096/T-097/T-098/T-099 全部依赖 T-095 已解锁，可并行调度规划；先 Phase Transition Protocol 落档 + AskUserQuestion 决定并行度
-- 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r 批次 1-3]
-- 当前Sprint: sprint-9 (in-progress — T-095 done；批次 2 T-096/097/098/099 ready；sprint-8r 批次 4 T-094 暂挂，与 sprint-9 完成后一并 sprint-review)
+- 当前阶段: sprint-9 批次 2 — T-096 + T-097 RED 已落地（commit 0c72658，35 测试 expected-fail）；T-094 已 done（sprint-8r 批次 4 闭环 commit 04904d2 + b0949fc）；当前推进 T-096 GREEN
+- 下一步行动: agent-dispatch 派 implementer 跑 T-096 GREEN（让 8 个 RED 测试 PASS）→ 串行 T-097 GREEN → T-098 RED/GREEN（standard）→ T-099 RED/GREEN（light） → T-100；用户已裁决「全串行 + standard 路径继续（RED 已分离）」
+- 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r 批次 1-4]
+- 当前Sprint: sprint-9 (in-progress — T-095 done + T-094 done；批次 2 T-096 RED done / T-097 RED done / T-098/099 planned；T-096 GREEN 推进中)
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report = approved；ui-spec = N/A；dev-plan-s8(P2 backlog) = draft；deploy-spec = 未开始
 - sprint-9 任务清单:
-  - T-095 [standard] composition.py + Celery 单例统一 + PipelineLoader + tasks API 契约 — 批次 1，无前置
-  - T-096 [standard] PROCESSOR_REGISTRY + _process_execute 契约 + _RawContentResultRepo 持久化 — 批次 2，依赖 T-095
-  - T-097 [standard, security_sensitive] CollectorRegistry + DistributorFacade — 批次 2，依赖 T-095
-  - T-098 [standard, security_sensitive] /search/chat + AgentRunner.run_flexible + Webhook + 微信/企微 CS — 批次 2，依赖 T-095
-  - T-099 [light] Pipelines API + System 可观测性 + ConfigVersion — 批次 2，依赖 T-095
-  - T-100 [light] Celery Beat 同步 + push-optimize 触发 + ChatSession DB — 批次 3，依赖 T-097/T-098
+  - T-095 [standard] composition.py + Celery 单例统一 + PipelineLoader + tasks API 契约 — 批次 1，无前置 — status=approved
+  - T-096 [standard] PROCESSOR_REGISTRY + _process_execute 契约 + _RawContentResultRepo 持久化 — 批次 2，依赖 T-095 — status=red_done (8 测试待 GREEN)
+  - T-097 [standard, security_sensitive] CollectorRegistry + DistributorFacade — 批次 2，依赖 T-095 — status=red_done (27 测试待 GREEN)
+  - T-098 [standard, security_sensitive] /search/chat + AgentRunner.run_flexible + Webhook + 微信/企微 CS — 批次 2，依赖 T-095 — status=planned
+  - T-099 [light] Pipelines API + System 可观测性 + ConfigVersion — 批次 2，依赖 T-095 — status=planned
+  - T-100 [light] Celery Beat 同步 + push-optimize 触发 + ChatSession DB — 批次 3，依赖 T-097/T-098 — status=planned
   - MVP 里程碑: T-095 + T-096 + T-098 完成
 - sprint-9 锁定决策（2026-05-22 用户确认）:
   - HybridSearchEngine.chat() echo stub → 直接删除，逻辑上提到 router 走 AgentRunner.run_flexible
@@ -43,6 +43,13 @@
   - 全量回归: 2154 passed / 0 failed / 29 skipped; ruff + mypy --strict clean
 - sprint-9 批次 1 闭环检查点:
   - T-095 status=approved（GREEN+REFACTOR commit 1b1fbf4 / PR #47 → r1 approved_with_notes (2 MEDIUM R-001 source_type-routing-deadcode + R-002 worker_init-non-idempotent, 4 LOW R-003/R-004/R-005/R-006) → 用户裁决「r2 全修 + R-004 Holder 抽象」→ r2 approved。final: 1b1fbf4 + r2 fix commit。报告 r1/r2。EXP-005 ToolDeps 装配半成品在本任务真正闭环：CR-002 worker 启动崩 + CR-012 双 Celery 单例 + ToolDeps 5 字段 silent None 三处全部根治）
+- sprint-9 批次 2 进度（推进中）:
+  - T-096 status=red_done（commit 0c72658 — 3 文件 8 RED 测试：test_processor_registry.py + test_process_tool_executes_real_processors.py + test_raw_content_persist_on_pipeline_done.py，覆盖 AC-1~9；下一步派 implementer 跑 GREEN）
+  - T-097 status=red_done（commit 0c72658 同提交 — 4 文件 27 RED 测试：test_collector_registry.py + test_facade.py + test_collect_tool_not_degraded.py + test_distribute_writes_push_record.py，覆盖 AC-1/2/4/6/7/8；下一步派 implementer 跑 GREEN）
+  - T-098/T-099: 未启动（按串行序列等待 T-096/T-097 GREEN 完成）
+  - 批次 2 RED 阶段全量: 35 failed (expected) / 12 passed (T-095 残留 AC + control) / 12 skipped (Docker)；ruff + ruff-format clean；751 既有 unit 测试无回归
+- sprint-8r 批次 4 闭环检查点（迟到补录）:
+  - T-094 status=done（commit 04904d2 RED+GREEN-inline + b0949fc 状态更新；13 PASS / 2 SKIPPED Docker graceful；2301 PASS 全量回归；sprint-8r sprint-review approved_with_notes 已覆盖，不补单独 code-review）
 - sprint-8r 批次 3 r3 闭环检查点:
   - T-087 status=approved（r1 needs_revision (1 HIGH await) → r2 approved_with_notes (1 LOW R-005 warning 日志测试未覆盖) → r3 orchestrator inline approve (caplog 断言落地)。final: 2019cbc + b16f971。报告 r1/r2 + CORRECTIONS-LOG 2026-05-22 inline approve）
   - T-088 status=approved（r1 needs_revision (2 HIGH auth + status 桩) → r2 approved_with_notes (1 MED R-007 EXP-005 lifespan 未注入 + 1 LOW) → r3 reviewer approved_with_notes (1 LOW R-009 patch 模式漂移) → orchestrator inline R-009 fix + approve。final: 7798139 + bedd6f4 + b864c30。报告 r1/r2/r3 + CORRECTIONS-LOG 2026-05-22 inline approve）
