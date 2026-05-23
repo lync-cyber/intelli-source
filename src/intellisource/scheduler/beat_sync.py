@@ -123,6 +123,11 @@ async def populate_scheduler_from_sources(
     for source in sources:
         interval = getattr(source, "schedule_interval", None)
         if not interval:
+            logger.warning(
+                "Source %s skipped: schedule_interval=%r (zero or null)",
+                getattr(source, "id", "?"),
+                interval,
+            )
             continue
         if pipeline_resolver is not None:
             pipeline_name = pipeline_resolver(source)

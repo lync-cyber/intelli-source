@@ -145,9 +145,7 @@ async def chat_search(
             answer = str(text)
             break
 
-    session_id_str = body.session_id or (
-        str(session_uuid) if session_uuid is not None else str(uuid.uuid4())
-    )
+    session_id_str = body.session_id or str(uuid.uuid4())
     steps_executed: int = int(flex_result.get("steps_executed", 0))
     task_chain_id: str = str(flex_result.get("task_chain_id", ""))
 

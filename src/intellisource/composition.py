@@ -339,8 +339,19 @@ def build_worker_composition(
     Side effect: installs the assembled `AgentRunner` as the
     `intellisource.agent.factory` module-level singleton so legacy callers
     of `get_agent_runner()` keep working.
+
+    Wires the module-level Celery app into the DistributorFacade so the
+    Worker path (which runs distribute under `run_pipeline`) can fire
+    push-optimize follow-ups when `IS_PUSH_OPTIMIZE_ENABLED=1`
+    (AC-T100-3, R-001 r2).
     """
-    bundle = _build_deps_bundle(session_factory, redis_client)
+    from intellisource.scheduler.celery_app import (
+        celery_app as _worker_celery_app,
+    )
+
+    bundle = _build_deps_bundle(
+        session_factory, redis_client, celery_app=_worker_celery_app
+    )
     agent_runner = _install_agent_runner(session_factory, bundle)
     pipeline_loader = build_pipeline_loader()
     return WorkerComposition(

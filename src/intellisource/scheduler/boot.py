@@ -223,14 +223,27 @@ def _bootstrap_beat_schedule(factory: async_sessionmaker[AsyncSession]) -> None:
 
     scheduler_manager = SchedulerManager()
     try:
-        asyncio.run(populate_scheduler_from_sources(scheduler_manager, factory))
+        # `asyncio.run` rejects nested event loops. We deliberately use
+        # `new_event_loop`+`run_until_complete` so the helper still works
+        # when this boot hook fires inside an event-loop-pool worker
+        # (gevent/eventlet) — falling back to the warning path leaves the
+        # whole Beat schedule unsynced, which is a startup-level defect.
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(
+                populate_scheduler_from_sources(scheduler_manager, factory)
+            )
+        finally:
+            loop.close()
     except RuntimeError as exc:
-        # asyncio.run rejects nested loops; fall back to logging so worker boot
-        # is not blocked by a stuck loop in a re-entrant test environment.
-        logger.warning("populate_scheduler_from_sources skipped: %s", exc)
+        logger.error(
+            "populate_scheduler_from_sources failed (loop init): %s — Beat"
+            " schedule will be empty for this worker",
+            exc,
+        )
         return
     except Exception:
-        logger.exception("populate_scheduler_from_sources failed")
+        logger.exception("populate_scheduler_from_sources failed — Beat schedule empty")
         return
 
     sync_beat_schedules(_module_celery_app, scheduler_manager)

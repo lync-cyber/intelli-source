@@ -64,6 +64,7 @@ class DistributorFacade:
 
         sent = 0
         skipped = 0
+        triggered_channels: set[str] = set()
 
         for sub in matched:
             channel_name: str = getattr(sub, "channel", "")
@@ -104,6 +105,12 @@ class DistributorFacade:
                 recipient_id=_mask_recipient(recipient_raw),
             )
 
+            triggered_channels.add(channel_name)
+
+        # Trigger push-optimize once per (content_id, channel) pair to avoid
+        # N-fold task amplification when many subscriptions share the same
+        # channel (R-004).
+        for channel_name in sorted(triggered_channels):
             self._maybe_trigger_push_optimize(
                 content_id=content_id, channel=channel_name
             )
@@ -118,8 +125,11 @@ class DistributorFacade:
     def _maybe_trigger_push_optimize(self, *, content_id: str, channel: str) -> None:
         """Dispatch a ``push-optimize`` Celery task when the feature is enabled.
 
-        Failures inside the dispatch path are logged but do not propagate —
-        a broker hiccup must not block the main distribute flow.
+        Sync by design: ``celery_app.send_task`` is a blocking broker producer
+        call but returns quickly (it does not wait for task execution); wrapping
+        it in ``asyncio.to_thread`` would add overhead without benefit. Failures
+        inside the dispatch path are logged but do not propagate — a broker
+        hiccup must not block the main distribute flow.
         """
         if os.environ.get("IS_PUSH_OPTIMIZE_ENABLED") != "1":
             return
