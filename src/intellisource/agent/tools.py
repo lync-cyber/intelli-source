@@ -107,19 +107,64 @@ async def _collect_execute(
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Invoke CollectorRegistry.get(source_type).collect() for the given source."""
-    if tool_deps is not None and tool_deps.collector_registry is not None:
+    if tool_deps is None or tool_deps.collector_registry is None:
+        logger.warning("tool_deps not injected for collect, returning placeholder")
+        return {
+            "status": "degraded",
+            "tool": "collect",
+            "reason": "tool_deps not injected",
+            "collected": [],
+            "source_id": source_id,
+        }
+
+    source_config: dict[str, Any] = {}
+    if tool_deps.session_factory is not None:
+        try:
+            import uuid as _uuid_mod  # noqa: PLC0415
+
+            from intellisource.storage.models import Source  # noqa: PLC0415
+
+            source_uuid = _uuid_mod.UUID(source_id)
+            async with tool_deps.session_factory() as session:
+                source_row = await session.get(Source, source_uuid)
+            if source_row is not None:
+                source_config = {
+                    "url": source_row.url,
+                    "source_id": source_id,
+                    "source_type": source_type,
+                    "proxy": source_row.proxy,
+                    "rate_limit_qps": source_row.rate_limit_qps,
+                    "rate_limit_concurrency": source_row.rate_limit_concurrency,
+                    "metadata": source_row.metadata_,
+                }
+        except Exception as exc:
+            logger.warning(
+                "_collect_execute: failed to load Source for %s: %s",
+                source_id,
+                exc,
+            )
+
+    if not source_config:
+        source_config = {
+            "url": source_id,
+            "source_id": source_id,
+            "source_type": source_type,
+        }
+
+    from intellisource.core.errors import CollectorError  # noqa: PLC0415
+
+    try:
         collector = tool_deps.collector_registry.get(source_type)
-        if collector is not None:
-            collected = await collector.collect(source_id=source_id, **kwargs)
-            return {"status": "ok", "tool": "collect", "collected": collected}
-    logger.warning("tool_deps not injected for collect, returning placeholder")
-    return {
-        "status": "degraded",
-        "tool": "collect",
-        "reason": "tool_deps not injected",
-        "collected": [],
-        "source_id": source_id,
-    }
+    except CollectorError:
+        return {
+            "status": "degraded",
+            "tool": "collect",
+            "reason": f"unknown source_type: {source_type}",
+            "collected": [],
+            "source_id": source_id,
+        }
+    collected = await collector.collect(source_config=source_config, **kwargs)
+    return {"status": "ok", "tool": "collect", "collected": collected}
 
 
 async def _process_execute(
@@ -127,19 +172,52 @@ async def _process_execute(
     tool_deps: Any = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """Invoke PipelineEngine.execute() for the given content_id."""
-    if tool_deps is not None and tool_deps.pipeline_engine is not None:
-        result = await tool_deps.pipeline_engine.execute(
-            content_id=content_id, **kwargs
+    """Fetch RawContent by UUID and run PipelineEngine.execute() synchronously."""
+    if tool_deps is None or tool_deps.pipeline_engine is None:
+        logger.warning("tool_deps not injected for process, returning placeholder")
+        return {
+            "status": "degraded",
+            "tool": "process",
+            "reason": "tool_deps not injected",
+            "content_id": content_id,
+        }
+
+    from intellisource.pipeline.context import PipelineContext  # noqa: PLC0415
+    from intellisource.storage.repositories.content import (  # noqa: PLC0415
+        ContentRepository,
+    )
+
+    raw_id = _uuid.UUID(content_id)
+    ctx = PipelineContext()
+    ctx.set("content_id", content_id)
+    try:
+        async with tool_deps.session_factory() as session:
+            repo = ContentRepository(session=session)
+            raw = await repo.get_raw_by_id(raw_id)
+        if raw is not None:
+            ctx.set("body_html", raw.body_html or "")
+            ctx.set("body_text", raw.body_text or "")
+            ctx.set("title", raw.title or "")
+            ctx.set("fingerprint", raw.fingerprint or "")
+            ctx.set("content_id", str(raw.id))
+    except Exception as exc:
+        logger.warning(
+            "_process_execute: failed to load RawContent for %s: %s",
+            content_id,
+            exc,
+            exc_info=True,
         )
-        return {"status": "ok", "tool": "process", "result": result}
-    logger.warning("tool_deps not injected for process, returning placeholder")
-    return {
-        "status": "degraded",
-        "tool": "process",
-        "reason": "tool_deps not injected",
-        "content_id": content_id,
+
+    ctx = tool_deps.pipeline_engine.execute(ctx)
+
+    result: dict[str, Any] = {
+        "body_html": ctx.get("body_html"),
+        "body_text": ctx.get("body_text"),
+        "title": ctx.get("title"),
+        "fingerprint": ctx.get("fingerprint"),
+        "content_id": str(raw_id),
     }
+    return {"status": "ok", "tool": "process", "result": result}
 
 
 async def _distribute_execute(

@@ -6,6 +6,7 @@ that are independent of the FastAPI application lifecycle.
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any
 
@@ -24,6 +25,8 @@ from intellisource.scheduler.celery_app import celery_app as _module_celery_app
 from intellisource.scheduler.idempotency import FingerprintChecker, IdempotencyGuard
 from intellisource.scheduler.tasks import CeleryTasks
 from intellisource.storage.models import RawContent
+
+logger = logging.getLogger(__name__)
 
 _celery_tasks: CeleryTasks | None = None
 _worker_engine: AsyncEngine | None = None
@@ -70,9 +73,33 @@ class _RawContentResultRepo:
         self._session_factory = session_factory
 
     async def create(self, result: Any) -> Any:
-        # Records the pipeline execution result. Detailed ProcessedContent
-        # persistence is deferred to the dedicated content-processing pipeline;
-        # this adapter satisfies the CeleryTasks.content_repository interface.
+        if not isinstance(result, dict):
+            return result
+        content_id_val = result.get("content_id")
+        if not content_id_val:
+            return result
+        try:
+            import uuid as _uuid_mod  # noqa: PLC0415
+            from datetime import datetime, timezone  # noqa: PLC0415
+
+            raw_id = _uuid_mod.UUID(str(content_id_val))
+            async with self._session_factory() as session:
+                row = (
+                    await session.execute(
+                        select(RawContent).where(RawContent.id == raw_id).limit(1)
+                    )
+                ).scalar_one_or_none()
+                if row is not None:
+                    row.status = "processed"
+                    row.processed_at = datetime.now(tz=timezone.utc)
+                    await session.commit()
+        except Exception as exc:
+            logger.warning(
+                "_RawContentResultRepo.create: failed to persist status for %s: %s",
+                content_id_val,
+                exc,
+                exc_info=True,
+            )
         return result
 
 
@@ -143,6 +170,12 @@ def worker_init_handler(**_: Any) -> None:
     the handler returns early without re-creating engines or redis clients.
     Reset via `worker_shutdown_handler` (or `_celery_tasks = None` in tests)
     before re-invoking.
+
+    Beat sync (AC-T100-2): after composition is built, walk the DB `Source`
+    rows to populate `SchedulerManager`, then project that state onto
+    `celery_app.conf.beat_schedule` via `sync_beat_schedules`. Empty DB or
+    sources with null `schedule_interval` log a warning rather than raising
+    so the worker still boots when no schedules are configured.
     """
     global _celery_tasks
     if _celery_tasks is not None:
@@ -159,6 +192,62 @@ def worker_init_handler(**_: Any) -> None:
         factory,
     )
     setattr(_module_celery_app, "_celery_tasks_instance", _celery_tasks)
+
+    _bootstrap_beat_schedule(factory)
+
+
+def _bootstrap_beat_schedule(factory: async_sessionmaker[AsyncSession]) -> None:
+    """Populate SchedulerManager from Source rows and write to beat_schedule.
+
+    Exposed as a helper so unit tests can exercise the boot-time sync path
+    without spinning up a Celery worker. Beat sync is gated by the
+    ``IS_BEAT_DISABLED`` env flag to allow workers that never need to act
+    as Beat producers (e.g. CI test workers) to skip the DB walk entirely.
+    """
+    import asyncio  # noqa: PLC0415
+    import logging  # noqa: PLC0415
+
+    from intellisource.scheduler.beat_sync import (  # noqa: PLC0415
+        populate_scheduler_from_sources,
+        sync_beat_schedules,
+    )
+    from intellisource.scheduler.state_machine import (  # noqa: PLC0415
+        SchedulerManager,
+    )
+
+    logger = logging.getLogger(__name__)
+
+    if os.environ.get("IS_BEAT_DISABLED") == "1":
+        logger.info("IS_BEAT_DISABLED=1 — skipping Beat schedule sync")
+        return
+
+    scheduler_manager = SchedulerManager()
+    try:
+        # `asyncio.run` rejects nested event loops. We deliberately use
+        # `new_event_loop`+`run_until_complete` so the helper still works
+        # when this boot hook fires inside an event-loop-pool worker
+        # (gevent/eventlet) — falling back to the warning path leaves the
+        # whole Beat schedule unsynced, which is a startup-level defect.
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(
+                populate_scheduler_from_sources(scheduler_manager, factory)
+            )
+        finally:
+            loop.close()
+    except RuntimeError as exc:
+        logger.error(
+            "populate_scheduler_from_sources failed (loop init): %s — Beat"
+            " schedule will be empty for this worker",
+            exc,
+        )
+        return
+    except Exception:
+        logger.exception("populate_scheduler_from_sources failed — Beat schedule empty")
+        return
+
+    sync_beat_schedules(_module_celery_app, scheduler_manager)
+    setattr(_module_celery_app, "_scheduler_manager", scheduler_manager)
 
 
 def worker_shutdown_handler(**_: Any) -> None:

@@ -17,13 +17,13 @@ from intellisource.agent.pipeline import PipelineConfig
 from intellisource.agent.runner import AgentRunner
 from intellisource.agent.tools import AgentToolRegistry
 from intellisource.pipeline.base import BaseProcessor
-from intellisource.pipeline.context import PipelineContext
+from intellisource.pipeline.registry import get_processor
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from intellisource.collector.registry import CollectorRegistry
-    from intellisource.composition import DistributorFacade
+    from intellisource.distributor.facade import DistributorFacade
     from intellisource.llm.gateway import LLMGateway
     from intellisource.search.hybrid import HybridSearchEngine
 
@@ -36,27 +36,13 @@ _DEFAULT_PIPELINE_YAML = (
 )
 
 
-class _PassThroughProcessor(BaseProcessor):
-    """No-op placeholder for processor steps that have not been mapped yet.
-
-    T-096 introduces a real PROCESSOR_REGISTRY and removes this fallback.
-    Kept for now so `content-process.yaml` loads at startup without raising;
-    once T-096 ships, the `_build_processors_from_config` mapping switches
-    to fail-fast on unknown processor names.
-    """
-
-    def __init__(self, name: str) -> None:
-        self._name = name
-
-    def process(self, context: PipelineContext) -> PipelineContext:
-        return context
-
-
 def _build_processors_from_config(config: PipelineConfig) -> list[BaseProcessor]:
     processors: list[BaseProcessor] = []
     for step in config.steps:
         step_name: str = step.get("processor") or step.get("name") or str(step)
-        processors.append(_PassThroughProcessor(step_name))
+        cls = get_processor(step_name)
+        params: dict[str, Any] = step.get("params") or {}
+        processors.append(cls(**params))
     return processors
 
 

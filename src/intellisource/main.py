@@ -22,11 +22,13 @@ from intellisource.api.routers import (
     clusters,
     contents,
     llm,
+    pipelines,
     search,
     sources,
     subscriptions,
     system,
     tasks,
+    webhooks,
 )
 from intellisource.composition import build_api_composition
 from intellisource.config.loader import ConfigLoader, ConfigWatcher
@@ -71,10 +73,15 @@ async def close_redis() -> None:
 # ---------------------------------------------------------------------------
 
 _db_manager: DatabaseManager | None = None
+_config_version_manager: Any = None
 
 
 async def on_config_change(path: str) -> None:
-    """Handle a changed config file: load → validate → upsert each source."""
+    """Handle a changed config file: load → validate → upsert each source.
+
+    Records a snapshot via the lifespan-installed `ConfigVersionManager` so
+    `record_version` history mirrors the upserted sources (AC-T099-6).
+    """
     loader = ConfigLoader()
     validator = ConfigValidator()
     try:
@@ -87,14 +94,23 @@ async def on_config_change(path: str) -> None:
             "on_config_change called before db_manager is initialised; skipping upsert"
         )
         return
+    validated_batch = []
     for cfg in configs:
         try:
             validated = validator.validate(cfg)
             async with _db_manager.get_session() as session:
                 repo = SourceRepository(session)
                 await repo.upsert(validated)
+            validated_batch.append(validated)
         except Exception:
             logger.exception("Validation or upsert failed for config in %s", path)
+
+    version_manager = _config_version_manager
+    if version_manager is not None and validated_batch:
+        try:
+            version_manager.record_version(validated_batch)
+        except Exception:
+            logger.exception("ConfigVersionManager.record_version failed")
 
 
 # ---------------------------------------------------------------------------
@@ -107,7 +123,7 @@ _SOURCE_CONFIG_DIR: str = os.environ.get("IS_SOURCE_CONFIG_DIR", "config/sources
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[dict[str, Any]]:
     """Manage application startup and shutdown."""
-    global _db_manager
+    global _db_manager, _config_version_manager
     db = DatabaseManager()
     _db_manager = db
     app.state.db = db
@@ -121,11 +137,13 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[dict[str, Any]]:
         # app.state.celery_app (= module-level singleton), .llm_gateway,
         # .pipeline_loader, and .agent_runner.
         build_api_composition(app, db, _redis_client)
+        _config_version_manager = getattr(app.state, "config_version_manager", None)
         yield {}
     finally:
         await watcher.stop()
         await db.close()
         _db_manager = None
+        _config_version_manager = None
         await close_redis()
 
 
@@ -205,6 +223,8 @@ def create_app() -> FastAPI:
     app.include_router(subscriptions.router, prefix="/api/v1")
     app.include_router(llm.router, prefix="/api/v1")
     app.include_router(system.router, prefix="/api/v1/system")
+    app.include_router(webhooks.router, prefix="/api/v1")
+    app.include_router(pipelines.router, prefix="/api/v1")
 
     # Health endpoints (root-level + API-versioned per AC-T042-6)
     @app.get("/health")

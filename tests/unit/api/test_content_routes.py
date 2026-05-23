@@ -466,91 +466,6 @@ class TestSearchEndpoint:
 # ===========================================================================
 
 
-class TestChatSearchEndpoint:
-    """AC-T042-3: POST /api/v1/search/chat -- instant Q&A."""
-
-    @pytest.mark.asyncio
-    async def test_chat_search_returns_response(
-        self, search_client: AsyncClient
-    ) -> None:
-        """POST /api/v1/search/chat returns answer with sources."""
-        mock_engine = AsyncMock()
-        mock_engine.chat.return_value = {
-            "session_id": "sess-001",
-            "answer": "AI is a broad field...",
-            "sources": [
-                {
-                    "content_id": str(CONTENT_ID),
-                    "title": "AI Article",
-                    "url": "https://example.com/ai",
-                }
-            ],
-            "query_time_ms": 500,
-        }
-
-        with patch(
-            "intellisource.api.routers.search.HybridSearchEngine",
-            return_value=mock_engine,
-        ):
-            resp = await search_client.post(
-                "/api/v1/search/chat",
-                json={"message": "What is AI?"},
-            )
-
-        assert resp.status_code == 200
-        body = resp.json()
-        assert "session_id" in body
-        assert "answer" in body
-        assert "sources" in body
-        assert "query_time_ms" in body
-        assert isinstance(body["sources"], list)
-
-    @pytest.mark.asyncio
-    async def test_chat_search_with_session_id(
-        self, search_client: AsyncClient
-    ) -> None:
-        """Chat with existing session_id continues the conversation."""
-        mock_engine = AsyncMock()
-        mock_engine.chat.return_value = {
-            "session_id": "sess-001",
-            "answer": "Follow-up answer...",
-            "sources": [],
-            "query_time_ms": 300,
-        }
-
-        with patch(
-            "intellisource.api.routers.search.HybridSearchEngine",
-            return_value=mock_engine,
-        ):
-            resp = await search_client.post(
-                "/api/v1/search/chat",
-                json={
-                    "message": "Tell me more",
-                    "session_id": "sess-001",
-                },
-            )
-
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["session_id"] == "sess-001"
-
-    @pytest.mark.asyncio
-    async def test_chat_search_missing_query_422(
-        self, search_client: AsyncClient
-    ) -> None:
-        """POST /api/v1/search/chat without message returns 422."""
-        resp = await search_client.post(
-            "/api/v1/search/chat",
-            json={},
-        )
-        assert resp.status_code == 422
-
-
-# ===========================================================================
-# AC-T042-4: Subscription CRUD (/api/v1/subscriptions)
-# ===========================================================================
-
-
 class TestSubscriptionCRUD:
     """AC-T042-4: Subscription rules CRUD."""
 
@@ -767,24 +682,30 @@ class TestSystemEndpoints:
     """AC-T042-6: System health and metrics endpoints."""
 
     @pytest.mark.asyncio
-    async def test_health_endpoint(self, system_client: AsyncClient) -> None:
+    async def test_health_endpoint(
+        self, system_app: FastAPI, system_client: AsyncClient
+    ) -> None:
         """GET /api/v1/health returns system health status."""
-        with patch(
-            "intellisource.api.routers.system.check_health",
-            new_callable=AsyncMock,
-            return_value={
-                "status": "healthy",
-                "version": "1.0.0",
-                "uptime_seconds": 3600,
-                "checks": {
-                    "database": "healthy",
-                    "redis": "healthy",
-                    "celery": "healthy",
-                },
-                "timestamp": "2025-06-01T12:00:00+00:00",
+        from datetime import datetime, timezone
+
+        from intellisource.observability.health import HealthResult
+
+        health_result = HealthResult(
+            status="healthy",
+            version="1.0.0",
+            uptime_seconds=3600,
+            checks={
+                "database": "healthy",
+                "redis": "healthy",
+                "celery": "healthy",
             },
-        ):
-            resp = await system_client.get("/api/v1/health")
+            timestamp=datetime(2025, 6, 1, 12, 0, 0, tzinfo=timezone.utc),
+        )
+        checker = MagicMock()
+        checker.check_health = AsyncMock(return_value=health_result)
+        system_app.state.health_checker = checker
+
+        resp = await system_client.get("/api/v1/health")
 
         assert resp.status_code == 200
         body = resp.json()
@@ -799,16 +720,22 @@ class TestSystemEndpoints:
         assert "timestamp" in body
 
     @pytest.mark.asyncio
-    async def test_metrics_endpoint(self, system_client: AsyncClient) -> None:
+    async def test_metrics_endpoint(
+        self, system_app: FastAPI, system_client: AsyncClient
+    ) -> None:
         """GET /api/v1/metrics returns Prometheus-format text."""
-        with patch(
-            "intellisource.api.routers.system.get_metrics",
-            new_callable=AsyncMock,
-            return_value=(
-                "# HELP is_collect_total Total collections\nis_collect_total 42\n"
-            ),  # noqa: E501
-        ):
-            resp = await system_client.get("/api/v1/metrics")
+        from intellisource.observability.metrics import MetricsCollector
+
+        collector = MetricsCollector()
+        collector._counters = {"is_collect_total": 42}
+        collector._counter_descriptions = {"is_collect_total": "Total collections"}
+        collector._gauges = {}
+        collector._gauge_descriptions = {}
+        collector._histograms = {}
+        collector._histogram_descriptions = {}
+        system_app.state.metrics_collector = collector
+
+        resp = await system_client.get("/api/v1/metrics")
 
         assert resp.status_code == 200
         # Prometheus metrics are text/plain

@@ -17,6 +17,13 @@ class ContentRepository(BaseRepository[ProcessedContent]):
 
     _model_class = ProcessedContent
 
+    async def get_raw_by_id(self, raw_id: uuid.UUID) -> RawContent | None:
+        """Return the RawContent row with the given UUID, or None if not found."""
+        result = await self._session.execute(
+            select(RawContent).where(RawContent.id == raw_id).limit(1)
+        )
+        return result.scalar_one_or_none()
+
     async def create(
         self,
         raw_content_id: uuid.UUID,

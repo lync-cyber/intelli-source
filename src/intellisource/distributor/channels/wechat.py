@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from typing import TYPE_CHECKING, Any
 
 from intellisource.distributor.base import BaseDistributor
@@ -45,6 +46,29 @@ class WeChatDistributor(BaseDistributor):
         self._app_id = app_id
         self._app_secret = app_secret
         self._push_repo = push_repo
+
+    @classmethod
+    def from_env(cls, *, redis: Any, http_client: Any = None) -> WeChatDistributor:
+        """Create instance from IS_WECHAT_* environment variables.
+
+        Raises ValueError when IS_WECHAT_APP_ID or IS_WECHAT_APP_SECRET are absent.
+        """
+        app_id = os.environ.get("IS_WECHAT_APP_ID")
+        app_secret = os.environ.get("IS_WECHAT_APP_SECRET")
+        if not app_id:
+            raise ValueError(
+                "IS_WECHAT_APP_ID missing — required for WeChatDistributor"
+            )
+        if not app_secret:
+            raise ValueError(
+                "IS_WECHAT_APP_SECRET missing — required for WeChatDistributor"
+            )
+        return cls(
+            redis=redis,
+            http_client=http_client,
+            app_id=app_id,
+            app_secret=app_secret,
+        )
 
     # ----------------------------------------------------------
     # Token management

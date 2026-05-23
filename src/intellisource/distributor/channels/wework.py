@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
@@ -38,6 +39,36 @@ class WeWorkDistributor(BaseDistributor):
         self.corp_secret = corp_secret
         self.agent_id = agent_id
         self._push_repo = push_repo
+
+    @classmethod
+    def from_env(cls, *, redis: Any, http_client: Any = None) -> "WeWorkDistributor":
+        """Create instance from IS_WEWORK_* environment variables.
+
+        Raises ValueError when IS_WEWORK_CORP_ID, IS_WEWORK_CORP_SECRET, or
+        IS_WEWORK_AGENT_ID are absent.
+        """
+        corp_id = os.environ.get("IS_WEWORK_CORP_ID")
+        corp_secret = os.environ.get("IS_WEWORK_CORP_SECRET")
+        agent_id_str = os.environ.get("IS_WEWORK_AGENT_ID")
+        if not corp_id:
+            raise ValueError(
+                "IS_WEWORK_CORP_ID missing — required for WeWorkDistributor"
+            )
+        if not corp_secret:
+            raise ValueError(
+                "IS_WEWORK_CORP_SECRET missing — required for WeWorkDistributor"
+            )
+        if not agent_id_str:
+            raise ValueError(
+                "IS_WEWORK_AGENT_ID missing — required for WeWorkDistributor"
+            )
+        return cls(
+            redis=redis,
+            http_client=http_client,
+            corp_id=corp_id,
+            corp_secret=corp_secret,
+            agent_id=int(agent_id_str),
+        )
 
     # ------------------------------------------------------------------
     # distribute (ABC entry-point)

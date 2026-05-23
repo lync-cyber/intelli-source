@@ -82,9 +82,8 @@ class TestProcessorRegistryLookup:
 
     def test_known_key_returns_class(self) -> None:
         """Looking up 'HTMLParser' returns the HTMLParser class itself."""
-        from intellisource.pipeline.registry import PROCESSOR_REGISTRY  # noqa: PLC0415
-
         from intellisource.pipeline.processors.parser import HTMLParser  # noqa: PLC0415
+        from intellisource.pipeline.registry import PROCESSOR_REGISTRY  # noqa: PLC0415
 
         result = PROCESSOR_REGISTRY["HTMLParser"]
         assert result is HTMLParser, (

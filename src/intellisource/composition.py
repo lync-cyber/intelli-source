@@ -31,6 +31,7 @@ Public surface:
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -47,6 +48,11 @@ from intellisource.collector.adapters.rss import RSSCollector
 from intellisource.collector.adapters.web import WebCollector
 from intellisource.collector.registry import CollectorRegistry
 from intellisource.core.errors import ErrorCategory, IntelliSourceError
+from intellisource.distributor.channels.email import EmailDistributor
+from intellisource.distributor.channels.wechat import WeChatDistributor
+from intellisource.distributor.channels.wework import WeWorkDistributor
+from intellisource.distributor.facade import DistributorFacade
+from intellisource.distributor.matcher import SubscriptionMatcher
 from intellisource.llm.circuit_breaker import CircuitBreaker
 from intellisource.llm.gateway import LLMGateway
 from intellisource.llm.priority_queue import PriorityQueue
@@ -130,51 +136,33 @@ def build_pipeline_loader() -> PipelineLoader:
     return PipelineLoader()
 
 
-# ---------------------------------------------------------------------------
-# DistributorFacade — protocol stub. T-097 ships the real implementation.
-# ---------------------------------------------------------------------------
-
-
-class DistributorFacade:
-    """Distribution orchestrator protocol consumed by the `distribute` tool.
-
-    The full implementation (subscription matching → quiet-hours / frequency
-    / dedup gating → channel dispatch → push-record persistence) is delivered
-    by T-097 in `src/intellisource/distributor/facade.py`. T-095 only needs
-    a non-None object with a `distribute()` coroutine so the agent tool can
-    be wired without ToolDeps holding a `None` slot.
-
-    Until T-097 lands, this stub returns a `status: pending` envelope. It
-    does NOT return `status: degraded` — degraded is reserved for the case
-    where the dependency is missing entirely.
-    """
-
-    async def distribute(
-        self,
-        *,
-        content_id: str,
-        subscription_id: str | None = None,
-        **kwargs: Any,
-    ) -> dict[str, Any]:
-        return {
-            "status": "pending",
-            "reason": "DistributorFacade stub — T-097 ships real implementation",
-            "content_id": content_id,
-            "subscription_id": subscription_id,
-        }
-
-
 def build_distributor_facade(
     session_factory: async_sessionmaker[AsyncSession],
     redis_client: Any,
+    celery_app: Any = None,
 ) -> DistributorFacade:
-    """Build a DistributorFacade.
+    """Build a DistributorFacade with all three distribution channels.
 
-    T-095 returns a stub instance; T-097 replaces this with the production
-    facade that consults SubscriptionMatcher and channel-specific
-    `BaseDistributor` subclasses.
+    Reads channel credentials from environment variables.  Missing required
+    variables cause a ValueError at startup (hard-fail by design). When a
+    ``celery_app`` instance is supplied the facade can fire push-optimize
+    follow-up tasks (AC-T100-3, gated by ``IS_PUSH_OPTIMIZE_ENABLED``).
     """
-    return DistributorFacade()
+    wechat = WeChatDistributor.from_env(redis=redis_client)
+    wework = WeWorkDistributor.from_env(redis=redis_client)
+    email = EmailDistributor.from_env()
+    matcher = SubscriptionMatcher()
+    channels: dict[str, Any] = {
+        "wechat": wechat,
+        "wework": wework,
+        "email": email,
+    }
+    return DistributorFacade(
+        session_factory=session_factory,
+        matcher=matcher,
+        channels=channels,
+        celery_app=celery_app,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -303,12 +291,16 @@ class _DepsBundle:
     search_engine_factory: Callable[[AsyncSession], HybridSearchEngine]
 
 
-def _build_deps_bundle(session_factory: Any, redis_client: Any) -> _DepsBundle:
+def _build_deps_bundle(
+    session_factory: Any, redis_client: Any, celery_app: Any = None
+) -> _DepsBundle:
     """Assemble the four ToolDeps-bound dependencies shared by both processes."""
     return _DepsBundle(
         llm_gateway=build_llm_gateway(redis_client),
         collector_registry=build_collector_registry(),
-        distributor=build_distributor_facade(session_factory, redis_client),
+        distributor=build_distributor_facade(
+            session_factory, redis_client, celery_app=celery_app
+        ),
         search_engine_factory=build_search_engine_factory(),
     )
 
@@ -347,8 +339,19 @@ def build_worker_composition(
     Side effect: installs the assembled `AgentRunner` as the
     `intellisource.agent.factory` module-level singleton so legacy callers
     of `get_agent_runner()` keep working.
+
+    Wires the module-level Celery app into the DistributorFacade so the
+    Worker path (which runs distribute under `run_pipeline`) can fire
+    push-optimize follow-ups when `IS_PUSH_OPTIMIZE_ENABLED=1`
+    (AC-T100-3, R-001 r2).
     """
-    bundle = _build_deps_bundle(session_factory, redis_client)
+    from intellisource.scheduler.celery_app import (
+        celery_app as _worker_celery_app,
+    )
+
+    bundle = _build_deps_bundle(
+        session_factory, redis_client, celery_app=_worker_celery_app
+    )
     agent_runner = _install_agent_runner(session_factory, bundle)
     pipeline_loader = build_pipeline_loader()
     return WorkerComposition(
@@ -383,6 +386,7 @@ def build_api_composition(
     from intellisource.scheduler.celery_app import celery_app as module_celery_app
 
     app.state.celery_app = module_celery_app
+    _api_celery_app = module_celery_app
 
     # DatabaseManager exposes get_session() (an async context manager) but
     # not a sessionmaker. Agent tools invoke `tool_deps.session_factory()`
@@ -390,13 +394,151 @@ def build_api_composition(
     # callable returning the existing context manager.
     session_factory = _DatabaseManagerSessionFactory(db_manager)
 
-    bundle = _build_deps_bundle(session_factory, redis_client)
+    bundle = _build_deps_bundle(
+        session_factory, redis_client, celery_app=_api_celery_app
+    )
     agent_runner = _install_agent_runner(session_factory, bundle)
     pipeline_loader = build_pipeline_loader()
 
     app.state.llm_gateway = bundle.llm_gateway
     app.state.pipeline_loader = pipeline_loader
     app.state.agent_runner = agent_runner
+
+    _install_webhook_state(app, redis_client=redis_client)
+    app.state.background_tasks = set()
+    _install_observability_state(app, db_manager=db_manager, redis_client=redis_client)
+
+
+def _install_observability_state(
+    app: FastAPI, *, db_manager: DatabaseManager, redis_client: Any
+) -> None:
+    """Wire health_checker / metrics_collector / config_version_manager state.
+
+    AC-T099-5 — replaces the placeholder stubs in `api/routers/system.py` with
+    a real `HealthChecker` (checks: db, redis, celery), the singleton
+    `MetricsCollector`, and a fresh `ConfigVersionManager` snapshot store
+    consumed by `main.on_config_change`.
+    """
+    from intellisource.config.loader import ConfigVersionManager
+    from intellisource.observability.health import HealthChecker
+    from intellisource.observability.metrics import MetricsCollector
+
+    checker = HealthChecker()
+
+    async def _check_db() -> bool:
+        try:
+            async with db_manager.get_session() as session:
+                from sqlalchemy import text
+
+                await session.execute(text("SELECT 1"))
+            return True
+        except Exception:
+            return False
+
+    async def _check_redis() -> bool:
+        try:
+            await redis_client.ping()
+            return True
+        except Exception:
+            return False
+
+    async def _check_celery() -> bool:
+        import asyncio as _asyncio
+
+        celery_app = getattr(app.state, "celery_app", None)
+        if celery_app is None:
+            return False
+        try:
+            # `control.ping` is a sync broker round-trip; offload to a
+            # worker thread so the /health coroutine never blocks the
+            # event loop on a stuck broker.
+            replies = await _asyncio.to_thread(celery_app.control.ping, timeout=0.5)
+            return bool(replies)
+        except Exception:
+            return False
+
+    checker.register_check("db", _check_db)
+    checker.register_check("redis", _check_redis)
+    checker.register_check("celery", _check_celery)
+    app.state.health_checker = checker
+
+    app.state.metrics_collector = MetricsCollector.get_instance()
+    app.state.config_version_manager = ConfigVersionManager()
+
+
+def _install_webhook_state(app: FastAPI, *, redis_client: Any) -> None:
+    """Wire webhook tokens + CS messenger clients onto `app.state`.
+
+    Env presence rules:
+
+    - `IS_WECHAT_WEBHOOK_TOKEN` / `IS_WEWORK_WEBHOOK_TOKEN` — when missing,
+      the corresponding token state is set to "" and the router's signature
+      check rejects every callback with 403 (no silent bypass). A startup
+      warning is logged so operators notice the gap.
+    - `IS_WECHAT_APP_ID` + `IS_WECHAT_APP_SECRET` — when **partially** set,
+      `WeChatCustomerServiceClient.from_env` raises ValueError and that
+      propagates out of `_install_webhook_state` to crash startup loud,
+      matching the sprint-9 locked credential policy. When fully unset,
+      construction is skipped and `wechat_cs_messenger` stays None.
+    - `IS_WEWORK_CORP_ID` + `IS_WEWORK_CORP_SECRET` + `IS_WEWORK_AGENT_ID`
+      follow the same partial-set hard-fail / fully-unset skip rule.
+    """
+    import logging
+
+    from intellisource.distributor.wechat_cs_client import (
+        WeChatCustomerServiceClient,
+    )
+    from intellisource.distributor.wework_cs_client import (
+        WeWorkCustomerServiceClient,
+    )
+
+    logger = logging.getLogger(__name__)
+
+    wechat_token = os.environ.get("IS_WECHAT_WEBHOOK_TOKEN", "")
+    wework_token = os.environ.get("IS_WEWORK_WEBHOOK_TOKEN", "")
+    app.state.wechat_webhook_token = wechat_token
+    app.state.wework_webhook_token = wework_token
+
+    http_client = _maybe_build_http_client()
+
+    wechat_app_id_set = bool(os.environ.get("IS_WECHAT_APP_ID"))
+    wechat_secret_set = bool(os.environ.get("IS_WECHAT_APP_SECRET"))
+    if wechat_app_id_set or wechat_secret_set:
+        # Partial-set → from_env raises and we let it propagate (hard fail).
+        app.state.wechat_cs_messenger = WeChatCustomerServiceClient.from_env(
+            redis_client=redis_client, http_client=http_client
+        )
+    else:
+        app.state.wechat_cs_messenger = None
+
+    wework_keys = (
+        bool(os.environ.get("IS_WEWORK_CORP_ID")),
+        bool(os.environ.get("IS_WEWORK_CORP_SECRET")),
+        bool(os.environ.get("IS_WEWORK_AGENT_ID")),
+    )
+    if any(wework_keys):
+        # Partial-set → from_env raises and we let it propagate (hard fail).
+        app.state.wework_cs_messenger = WeWorkCustomerServiceClient.from_env(
+            redis_client=redis_client, http_client=http_client
+        )
+    else:
+        app.state.wework_cs_messenger = None
+
+    if not wechat_token and not wework_token:
+        logger.warning(
+            "Both IS_WECHAT_WEBHOOK_TOKEN and IS_WEWORK_WEBHOOK_TOKEN are unset"
+            " — /api/v1/webhooks/{wechat,wework} will reject all callbacks (403)"
+        )
+
+
+def _maybe_build_http_client() -> Any:
+    """Return an `httpx.AsyncClient` instance, or `None` if httpx is unavailable."""
+    try:
+        import httpx
+
+        return httpx.AsyncClient(timeout=10.0)
+    except ImportError:
+        return None
 
 
 class _DatabaseManagerSessionFactory:

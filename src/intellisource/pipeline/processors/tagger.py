@@ -7,8 +7,8 @@ from intellisource.pipeline.context import PipelineContext
 class KeywordTagger(BaseProcessor):
     """Match keywords (case-insensitive) in body_text and assign tags."""
 
-    def __init__(self, keywords: dict[str, list[str]]) -> None:
-        self._keywords = keywords
+    def __init__(self, keywords: dict[str, list[str]] | None = None) -> None:
+        self._keywords = keywords if keywords is not None else {}
 
     def process(self, context: PipelineContext) -> PipelineContext:
         body_text: str = context.get("body_text") or ""

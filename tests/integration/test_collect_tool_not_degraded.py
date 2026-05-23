@@ -18,12 +18,59 @@ These tests are expected to FAIL in RED phase because:
 from __future__ import annotations
 
 import uuid
-from unittest.mock import patch
+from contextlib import asynccontextmanager
+from typing import Any, AsyncIterator
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import httpx
 
 from intellisource.agent.deps import ToolDeps
 from intellisource.agent.tools import _collect_execute
-from intellisource.collector.base import RawContent
+from intellisource.collector.base import BaseCollector, RawContent
 from intellisource.composition import build_collector_registry
+
+# ---------------------------------------------------------------------------
+# Minimal RSS feed XML returned by mock conditional_fetch
+# ---------------------------------------------------------------------------
+
+_MOCK_RSS_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Test Feed</title>
+    <link>https://feeds.example.com/rss</link>
+    <description>Test RSS feed</description>
+    <item>
+      <title>Test Article</title>
+      <link>https://feeds.example.com/articles/1</link>
+      <description>Test article body text</description>
+    </item>
+  </channel>
+</rss>"""
+
+
+def _make_mock_rss_response() -> httpx.Response:
+    """Return a minimal httpx.Response carrying RSS XML content."""
+    return httpx.Response(200, content=_MOCK_RSS_XML)
+
+
+def _make_mock_session_factory_for_collector(source_url: str) -> Any:
+    """Return an asynccontextmanager session_factory that yields a mock Source row."""
+    mock_source = MagicMock()
+    mock_source.url = source_url
+    mock_source.proxy = None
+    mock_source.rate_limit_qps = None
+    mock_source.rate_limit_concurrency = None
+    mock_source.metadata_ = {}
+
+    mock_session = AsyncMock()
+    mock_session.get = AsyncMock(return_value=mock_source)
+
+    @asynccontextmanager
+    async def _session_factory() -> AsyncIterator[Any]:
+        yield mock_session
+
+    return _session_factory
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -31,7 +78,11 @@ from intellisource.composition import build_collector_registry
 
 
 def _make_tool_deps_with_registry(session_factory: object = None) -> ToolDeps:
-    """Build ToolDeps with a real CollectorRegistry and optional session_factory."""
+    """Build ToolDeps with a real CollectorRegistry and a mock session_factory."""
+    if session_factory is None:
+        session_factory = _make_mock_session_factory_for_collector(
+            "https://feeds.example.com/rss"
+        )
     return ToolDeps(
         session_factory=session_factory,
         llm_gateway=None,
@@ -76,16 +127,17 @@ class TestCollectToolNotDegraded:
         tool_deps = _make_tool_deps_with_registry()
 
         # Do NOT mock collector.collect — we want the real routing to run.
-        # The real collect() with a non-dict source_config (just a source_id str)
-        # will return [] because url = source_config.get("url") returns None.
-        result = await _collect_execute(
-            source_id=source_id,
-            source_type="rss",
-            tool_deps=tool_deps,
-        )
+        # Mock conditional_fetch at the HTTP transport layer so no real network
+        # connection is attempted while still exercising the full collect() path.
+        mock_fetch = AsyncMock(return_value=_make_mock_rss_response())
+        with patch.object(BaseCollector, "conditional_fetch", new=mock_fetch):
+            result = await _collect_execute(
+                source_id=source_id,
+                source_type="rss",
+                tool_deps=tool_deps,
+            )
 
         # After T-097: status should be 'ok' with real items from DB-backed source.
-        # Before T-097: collect() gets no 'url' key → returns [] → 'collected' is [].
         assert result["status"] == "ok", (
             f"_collect_execute must return status='ok' when registry is wired; "
             f"got {result['status']!r}. T-097 must wire source_config from DB."
@@ -108,11 +160,13 @@ class TestCollectToolNotDegraded:
         source_id = str(uuid.uuid4())
         tool_deps = _make_tool_deps_with_registry()
 
-        result = await _collect_execute(
-            source_id=source_id,
-            source_type="rss",
-            tool_deps=tool_deps,
-        )
+        mock_fetch = AsyncMock(return_value=_make_mock_rss_response())
+        with patch.object(BaseCollector, "conditional_fetch", new=mock_fetch):
+            result = await _collect_execute(
+                source_id=source_id,
+                source_type="rss",
+                tool_deps=tool_deps,
+            )
 
         # Primary assertion: not degraded when registry is wired.
         assert result.get("status") != "degraded", (
@@ -216,4 +270,24 @@ class TestCollectToolNotDegraded:
             f"APICollector.collect must be called with source_config kwarg; "
             f"got keys: {list(received_kwargs.keys()) if received_kwargs else []}. "
             "T-097 must build source_config dict from the DB Source row."
+        )
+
+    async def test_collect_execute_unregistered_source_type_returns_degraded(
+        self,
+    ) -> None:
+        """Anti-regression (R-005): unregistered source_type must return degraded,
+        not raise CollectorError."""
+        tool_deps = _make_tool_deps_with_registry()
+        result = await _collect_execute(
+            source_id=str(uuid.uuid4()),
+            source_type="nonexistent_type_xyz",
+            tool_deps=tool_deps,
+        )
+        assert result["status"] == "degraded", (
+            f"_collect_execute with unknown source_type must return status='degraded'; "
+            f"got {result['status']!r}. R-005: CollectorError must be caught."
+        )
+        assert "unknown source_type" in result.get("reason", ""), (
+            f"degraded reason must mention 'unknown source_type'; "
+            f"got reason={result.get('reason')!r}"
         )

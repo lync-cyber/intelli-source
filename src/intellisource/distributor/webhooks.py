@@ -107,3 +107,29 @@ class WeWorkWebhookHandler:
         return _verify_sha1_signature(
             self._token, signature=signature, timestamp=timestamp, nonce=nonce
         )
+
+    def parse_message(self, xml_body: str) -> dict[str, str] | None:
+        """Parse incoming XML message body into a dict of fields."""
+        try:
+            root = ET.fromstring(xml_body)  # noqa: S314
+        except ET.ParseError:
+            return None
+        result: dict[str, str] = {}
+        for child in root:
+            if child.text is not None:
+                result[child.tag] = child.text
+        return result if result else None
+
+    async def handle_message(self, xml_body: str, cs_messenger: Any = None) -> str:
+        """Legacy no-op stub.
+
+        Inbound message routing is owned by `intellisource.api.routers.webhooks`
+        (`_dispatch_chat_reply` → AgentRunner). This method is retained only so
+        AC-10 imports of `WeWorkWebhookHandler.handle_message` keep resolving;
+        new code should not call it.
+        """
+        # Parse-only for callers that may want to introspect the XML structure
+        # via the return surface in a future revision.
+        self.parse_message(xml_body)
+        _ = cs_messenger
+        return ""

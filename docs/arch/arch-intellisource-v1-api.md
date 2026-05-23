@@ -303,29 +303,34 @@ response:
 path: /api/v1/search/chat
 method: POST
 module: M-008
-desc: "基于 LLM 的即时问答检索，支持多轮对话"
+desc: "基于 LLM 的即时问答检索，支持多轮对话；通过 AgentRunner.run_flexible 走 flexible mode + YAML tool palette（PRD AC-063 灵活组合）"
 request:
   headers:
     X-API-Key: { type: string, required: true, desc: "API 认证密钥" }
   body:
     message: { type: string, required: true, desc: "用户问题" }
     session_id: { type: string, required: false, desc: "会话 ID，为空则创建新会话" }
+    session: { type: object, required: false, desc: "上下文 dict，传入 flexible mode 作为初始 session" }
+    max_tokens_budget: { type: integer, required: false, desc: "上下文 token 预算，默认走 chat 配置" }
 response:
   200:
     schema: "ChatResponse"
     body:
       session_id: { type: string, desc: "会话 ID" }
-      answer: { type: string, desc: "LLM 生成的回答摘要" }
+      answer: { type: string, desc: "LLM 生成的回答摘要（取自 flex_result 末尾 summarize_for_user step）" }
       sources:
         type: "array[SourceReference]"
-        desc: "引用的内容来源"
+        desc: "引用的内容来源（从 flex_result 中 hybrid_search step 输出提取）"
         item_fields:
           content_id: { type: string, desc: "内容 ID" }
           title: { type: string, desc: "标题" }
           url: { type: string, desc: "原始 URL" }
-      query_time_ms: { type: integer, desc: "查询耗时（毫秒）" }
+      query_time_ms: { type: integer, desc: "查询耗时（毫秒）— SLA 指标" }
+      steps_executed: { type: integer, desc: "flexible mode 执行的工具步数" }
+      task_chain_id: { type: string, desc: "任务链 ID，链路追踪用" }
   400: { schema: "ErrorResponse", desc: "参数校验失败" }
   401: { schema: "ErrorResponse", desc: "认证失败" }
+  503: { schema: "ErrorResponse", desc: "agent_runner 未初始化（lifespan 装配未完成）" }
 ```
 
 ### API-014: 获取内容列表
