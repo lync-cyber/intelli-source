@@ -144,6 +144,47 @@ class TestRunPipeline:
         assert resp.status_code == 503
 
 
+class TestPathTraversalGuard:
+    """R-001: get_pipeline + run_pipeline reject path-traversal `name` inputs."""
+
+    @pytest.mark.parametrize(
+        "bad_name",
+        [
+            "../sources/something",
+            "..%2fsources%2fanything",
+            ".hidden",
+            "with space",
+            "with/slash",
+            "中文",
+        ],
+    )
+    async def test_get_pipeline_rejects_bad_name(self, bad_name: str) -> None:
+        app = _make_pipelines_app()
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.get(f"/api/v1/pipelines/{bad_name}")
+
+        assert resp.status_code == 404
+
+    async def test_run_pipeline_rejects_path_traversal_name(self) -> None:
+        app = _make_pipelines_app()
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.post(
+                "/api/v1/pipelines/..%2fsources%2fevil/run",
+                json={"params": {}},
+            )
+
+        assert resp.status_code == 404
+        assert app.state.celery_app.send_task.call_args is None, (
+            "Celery send_task must NOT have been dispatched for traversal name"
+        )
+
+
 @pytest.mark.asyncio
 async def test_router_registered_in_main_app() -> None:
     """AC-T099-3: main.create_app exposes /api/v1/pipelines in OpenAPI."""

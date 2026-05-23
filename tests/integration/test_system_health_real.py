@@ -61,6 +61,26 @@ class TestHealthRealChecker:
         }
         assert "uptime_seconds" in body
 
+    async def test_health_endpoint_swallows_checker_exception(self) -> None:
+        """R-004: /health must never raise even if HealthChecker explodes."""
+        app = FastAPI()
+        from intellisource.api.routers.system import router as system_router
+
+        app.include_router(system_router, prefix="/api/v1/system")
+        bad_checker = MagicMock()
+        bad_checker.check_health = AsyncMock(side_effect=RuntimeError("boom"))
+        app.state.health_checker = bad_checker
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.get("/api/v1/system/health")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "unhealthy"
+        assert body["checks"].get("meta") == "checker_failed"
+
     async def test_health_degraded_passes_through(self) -> None:
         from datetime import datetime, timezone
 

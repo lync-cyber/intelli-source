@@ -421,14 +421,16 @@ def _install_observability_state(
             return False
 
     async def _check_celery() -> bool:
+        import asyncio as _asyncio
+
         celery_app = getattr(app.state, "celery_app", None)
         if celery_app is None:
             return False
         try:
-            # `control.ping` round-trips to a worker; treat any non-empty
-            # response as healthy. Default timeout is short to avoid blocking
-            # the /health endpoint on a stuck broker.
-            replies = celery_app.control.ping(timeout=0.5)
+            # `control.ping` is a sync broker round-trip; offload to a
+            # worker thread so the /health coroutine never blocks the
+            # event loop on a stuck broker.
+            replies = await _asyncio.to_thread(celery_app.control.ping, timeout=0.5)
             return bool(replies)
         except Exception:
             return False

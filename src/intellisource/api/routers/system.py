@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import logging
 from typing import Any
 
 from fastapi import (
@@ -11,47 +12,36 @@ from fastapi import (
 )
 from fastapi.responses import PlainTextResponse
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(tags=["system"])
 
 
 def _format_prometheus(metrics_collector: Any) -> str:
-    """Render a MetricsCollector's counters / gauges / histograms as Prom text.
+    """Render MetricsCollector counters / gauges / histograms as Prom text.
 
-    Output follows the standard ``# HELP`` + ``# TYPE`` + sample-line shape so
-    a Prometheus scraper can consume the per-process exposition directly.
-    Per-process aggregation is by design; cross-process roll-up belongs in the
+    Output follows ``# HELP`` + ``# TYPE`` + sample-line shape so a Prometheus
+    scraper can consume the per-process exposition directly. Per-process
+    aggregation is by design; cross-process roll-up belongs in the
     deployment-level Prometheus aggregator (out of scope for T-099).
     """
     if metrics_collector is None:
         return ""
 
     lines: list[str] = []
-
-    counters = getattr(metrics_collector, "_counters", {})
-    counter_desc = getattr(metrics_collector, "_counter_descriptions", {})
-    for name, value in counters.items():
-        desc = counter_desc.get(name, name)
+    for name, desc, value in metrics_collector.iter_counters():
         lines.append(f"# HELP {name} {desc}")
         lines.append(f"# TYPE {name} counter")
         lines.append(f"{name} {value}")
-
-    gauges = getattr(metrics_collector, "_gauges", {})
-    gauge_desc = getattr(metrics_collector, "_gauge_descriptions", {})
-    for name, value in gauges.items():
-        desc = gauge_desc.get(name, name)
+    for name, desc, value in metrics_collector.iter_gauges():
         lines.append(f"# HELP {name} {desc}")
         lines.append(f"# TYPE {name} gauge")
         lines.append(f"{name} {value}")
-
-    histograms = getattr(metrics_collector, "_histograms", {})
-    histo_desc = getattr(metrics_collector, "_histogram_descriptions", {})
-    for name, values in histograms.items():
-        desc = histo_desc.get(name, name)
+    for name, desc, values in metrics_collector.iter_histograms():
         lines.append(f"# HELP {name} {desc}")
         lines.append(f"# TYPE {name} histogram")
         lines.append(f"{name}_count {len(values)}")
         lines.append(f"{name}_sum {sum(values)}")
-
     return "\n".join(lines) + ("\n" if lines else "")
 
 
@@ -62,7 +52,12 @@ async def health(request: Request) -> dict[str, Any]:
     if checker is None:
         return {"status": "healthy", "checks": {}}
 
-    result = await checker.check_health()
+    try:
+        result = await checker.check_health()
+    except Exception:
+        logger.exception("health_checker raised")
+        return {"status": "unhealthy", "checks": {"meta": "checker_failed"}}
+
     if dataclasses.is_dataclass(result) and not isinstance(result, type):
         payload: dict[str, Any] = dataclasses.asdict(result)
     else:

@@ -97,3 +97,24 @@ class MetricsCollector:
             "count": len(values),
             "sum": sum(values),
         }
+
+    def iter_counters(self) -> list[tuple[str, str, float]]:
+        """Yield (name, description, value) for every registered counter."""
+        return [
+            (name, self._counter_descriptions.get(name, name), value)
+            for name, value in self._counters.items()
+        ]
+
+    def iter_gauges(self) -> list[tuple[str, str, float]]:
+        """Yield (name, description, value) for every registered gauge."""
+        return [
+            (name, self._gauge_descriptions.get(name, name), value)
+            for name, value in self._gauges.items()
+        ]
+
+    def iter_histograms(self) -> list[tuple[str, str, list[float]]]:
+        """Yield (name, description, observations) for every histogram."""
+        return [
+            (name, self._histogram_descriptions.get(name, name), list(values))
+            for name, values in self._histograms.items()
+        ]

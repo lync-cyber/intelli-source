@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -10,14 +12,34 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from intellisource.agent.pipeline import PipelineConfig
+from intellisource.agent.tools import _PIPELINES_DIR as _SHARED_PIPELINES_DIR
 from intellisource.agent.tools import load_pipeline_config
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/pipelines", tags=["pipelines"])
 
+_PIPELINES_DIR: Path = _SHARED_PIPELINES_DIR
+_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 
-_PIPELINES_DIR = (
-    Path(__file__).parent.parent.parent.parent.parent / "config" / "pipelines"
-)
+
+def _resolve_pipeline_path(name: str) -> Path:
+    """Resolve a pipeline name to its YAML path or raise 404.
+
+    Rejects any name containing path-traversal characters, then verifies
+    the resolved path stays under `_PIPELINES_DIR`. The 404 response is
+    intentionally indistinguishable from "file not found" so the endpoint
+    does not leak whether a sibling directory exists.
+    """
+    if not _NAME_PATTERN.fullmatch(name):
+        raise HTTPException(status_code=404, detail=f"pipeline '{name}' not found")
+    candidate = (_PIPELINES_DIR / f"{name}.yaml").resolve()
+    pipelines_root = _PIPELINES_DIR.resolve()
+    if not candidate.is_file() or not str(candidate).startswith(
+        str(pipelines_root) + "/"
+    ):
+        raise HTTPException(status_code=404, detail=f"pipeline '{name}' not found")
+    return candidate
 
 
 class PipelineRunRequest(BaseModel):
@@ -49,8 +71,10 @@ async def list_pipelines() -> list[dict[str, Any]]:
         try:
             raw = yaml.safe_load(path.read_text()) or {}
         except yaml.YAMLError:
+            logger.warning("Skipping malformed pipeline YAML: %s", path)
             continue
         if not isinstance(raw, dict):
+            logger.warning("Skipping pipeline YAML with non-mapping root: %s", path)
             continue
         summaries.append(_config_summary(path.stem, raw))
     return summaries
@@ -72,9 +96,7 @@ def _pipeline_to_dict(config: PipelineConfig) -> dict[str, Any]:
 @router.get("/{name}")
 async def get_pipeline(name: str) -> dict[str, Any]:
     """Return the parsed PipelineConfig for *name* or 404 if absent."""
-    path = _PIPELINES_DIR / f"{name}.yaml"
-    if not path.is_file():
-        raise HTTPException(status_code=404, detail=f"pipeline '{name}' not found")
+    _resolve_pipeline_path(name)
     config = load_pipeline_config(name)
     return _pipeline_to_dict(config)
 
@@ -84,9 +106,7 @@ async def run_pipeline(
     name: str, body: PipelineRunRequest, request: Request
 ) -> dict[str, Any]:
     """Trigger a Celery `run_pipeline` task for the named pipeline."""
-    path = _PIPELINES_DIR / f"{name}.yaml"
-    if not path.is_file():
-        raise HTTPException(status_code=404, detail=f"pipeline '{name}' not found")
+    _resolve_pipeline_path(name)
 
     celery_app = getattr(request.app.state, "celery_app", None)
     if celery_app is None:
