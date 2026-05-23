@@ -12,8 +12,8 @@
 - model 继承: AGENT.md 中 `model: inherit` 继承父会话模型
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: sprint-9 批次 2 — T-098 status=approved（GREEN commit 87512aa → r1 verdict=needs_revision (2 CRITICAL + 4 HIGH + 4 MEDIUM + 3 LOW) → r2 commit e4e3c06 全 13 findings 修复 + 23 反证测试 → orchestrator inline approve）
-- 下一步行动: 串行启动 T-099 [light] (Pipelines API + System 可观测性 + ConfigVersion) — 含 R-004 已 r2 处理的 arch API-013 amendment 校验余项。批次 2 剩余 T-100 [light]。
+- 当前阶段: sprint-9 批次 2 全 5 任务闭环 — T-099 status=approved（light GREEN commit df2c939 → r1 needs_revision 6 findings (1 HIGH R-001 path traversal + 3 MED + 2 LOW) → r2 commit bd5e87c 全 6 修复 + 8 反证测试 → orchestrator inline approve）
+- 下一步行动: 批次 3 启动 T-100 [light] (Celery Beat 同步 + push-optimize 触发 + ChatSession DB)，依赖 T-097/T-098 均已 approved；sprint-9 完成后进入 retrospective 阶段（EXP-005 装配缺口治理 + EXP-006 truncation 4/4 anti-truncation 框架级守则立项）
 - 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r 批次 1-4]
 - 当前Sprint: sprint-9 (in-progress — T-095 done + T-094 done + T-096 done + T-097 done；批次 2 T-098/099 planned)
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report = approved；ui-spec = N/A；dev-plan-s8(P2 backlog) = draft；deploy-spec = 未开始
@@ -22,7 +22,7 @@
   - T-096 [standard] PROCESSOR_REGISTRY + _process_execute 契约 + _RawContentResultRepo 持久化 — 批次 2，依赖 T-095 — status=approved
   - T-097 [standard, security_sensitive] CollectorRegistry + DistributorFacade — 批次 2，依赖 T-095 — status=approved
   - T-098 [standard, security_sensitive] /search/chat + AgentRunner.run_flexible + Webhook + 微信/企微 CS — 批次 2，依赖 T-095 — status=approved
-  - T-099 [light] Pipelines API + System 可观测性 + ConfigVersion — 批次 2，依赖 T-095 — status=planned
+  - T-099 [light] Pipelines API + System 可观测性 + ConfigVersion — 批次 2，依赖 T-095 — status=approved
   - T-100 [light] Celery Beat 同步 + push-optimize 触发 + ChatSession DB — 批次 3，依赖 T-097/T-098 — status=planned
   - MVP 里程碑: T-095 + T-096 + T-098 完成
 - sprint-9 锁定决策（2026-05-22 用户确认）:
@@ -47,8 +47,9 @@
   - T-096 status=approved（GREEN commit c492cba（registry.py + factory.py + tools.py + tagger.py + content.py + boot.py + models.py + alembic a1b2c3d4e5f6）→ r1 reviewer subagent truncated at 79 tools/5.7min → orchestrator 主线程接管 r1 inline review → verdict needs_revision (1 HIGH R-001 session.commit-missing + 1 MEDIUM R-002 AsyncMock-vs-sync-PipelineEngine + 3 LOW R-003 dead-code + R-004/R-005 silent-except) → 用户裁决「主线程 inline 修 r2 + inline approve」→ r2 commit 65d443a (5 finding 全修 + 3 反证测试 防 R-001 回归) → orchestrator inline approve。final: c492cba + 65d443a。报告 r1 (status=approved)。CORRECTIONS-LOG 2026-05-23 truncation + inline approve 双记录）
   - T-097 status=approved（RED commit 0c72658 → GREEN commit 31d0c15（fixture/mock 层修复，src/ 不动 — facade.py/tools.py WIP recovery 已含 DistributorFacade 实现）→ r1 reviewer subagent 无 truncation 81 tools/6.3min 完成 approved_with_notes (0 CRIT / 0 HIGH / 3 MED R-001 docstring + R-002 recipient_id 持久化 + R-003 session.scalars 约定 + 2 LOW R-004 dedup 双写 + R-005 CollectorError) → 用户裁决「全修 → r2 approve」→ r2 commit 0152531 (5 finding 全修 + 3 反证测试 + 新 alembic migration b2c3d4e5f6a7) → orchestrator inline r2 approve。final: 31d0c15 + 0152531。报告 r1 (approved_with_notes) / r2 (approved)。R-003 实证为 reviewer-calibration 但保留 convention 修复。R-002 持久化层补齐：PushRecord 加 recipient_id VARCHAR(255) 列 + facade._record_push 传 masked 值落库。R-004 用 IntegrityError 幂等防御不动 channel 内 dedup 逻辑）
   - T-098 status=approved（RED commit 078f82b → GREEN commit 87512aa (60 PASS + 16 obsolete cleanup) → r1 orchestrator inline (3 角色 truncation 后用户裁决 inline 跑) verdict=needs_revision 13 findings (2 CRITICAL R-001 EXP-005 装配缺口 4 状态项 + R-002 WeWork POST 无签名 / 4 HIGH R-003 WeWork agentid + R-004 schema 偏 API-013 upstream + R-005 WeWork 测试黑洞 + R-006 wechat/wework CS 95% 同构 触发 REFACTOR / 4 MEDIUM R-007 assert+ R-008 errcode+ R-009 echo stub+ R-010 task GC / 3 LOW) → 用户裁决「R-004/R-006 合并 r2 + orchestrator inline 修 r2」→ r2 commit e4e3c06: composition._install_webhook_state 装 4 状态项 + background_tasks set + 部分 env hard-fail / WeWork POST 加签名验证 / WeWork agentid 必填 / arch API-013 amendment / 7 WeWork sig 测试 + 8 composition lifespan 测试 + BaseCustomerServiceClient 抽象 / errcode 校验 → DistributorError / _spawn_background_dispatch 防 GC / echo stub no-op 化 / 3 LOW 全修 → orchestrator inline r2 approve。final: 87512aa + e4e3c06。报告 r1/r2。EXP-005 第 4 次复发本批次根治。EXP-006 truncation 4/4 sprint-9 retrospective 强制立项）
-  - T-099: 未启动（批次 2 串行序列下一任务）
-  - 批次 2 阶段测试: 2475 PASS / 43 skip / 0 fail；ruff + mypy --strict clean (122 src files, +1 base_cs_client.py)
+  - T-099 status=approved（light GREEN commit df2c939: pipelines.py 新建 (list/detail/run 3 端点) + system.py 重写 (HealthChecker/MetricsCollector 真实接入) + composition._install_observability_state 装 3 状态项 + main.on_config_change 调 record_version + AC-7 cleanup 验证。14 新测试 (pipelines_router 8 + cli_pipeline_list 1 + system_health_real 4 + config_hotreload 1) → r1 orchestrator inline verdict=needs_revision 6 findings (1 HIGH R-001 path traversal + 3 MED R-002 _PIPELINES_DIR 双源 R-003 ping 阻塞事件循环 R-004 health 未 catch + 2 LOW R-005 metrics 封装泄漏 R-006 yaml swallow) → r2 commit bd5e87c 全 6 修复 + _resolve_pipeline_path 集中路径校验 (白名单 + resolve 防御) + asyncio.to_thread + health try/except 降级 + iter_counters/gauges/histograms 公共 API + 8 反证测试 (TestPathTraversalGuard 7 + health 异常降级 1) → orchestrator inline r2 approve。final: df2c939 + bd5e87c。报告 r1/r2）
+  - 批次 2 阶段测试: 2497 PASS / 43 skip / 0 fail；ruff + ruff format + mypy --strict clean (123 src files, +1 pipelines.py)
+  - 批次 2 全闭环: T-095 (1b1fbf4) + T-096 (c492cba+65d443a) + T-097 (31d0c15+0152531) + T-098 (87512aa+e4e3c06) + T-099 (df2c939+bd5e87c) 5 任务全部 approved
 - EXP-006 frequency tick: sprint-9 subagent truncation 累计 **4/4**（T-095 r1 reviewer + T-096 r1 reviewer + T-098 RED test-writer + T-098 GREEN implementer），跨 reviewer/test-writer/implementer 三角色全发生，retrospective 立项时**强烈建议**将「tools 预算上限 + finalize-before-return + stage-by-stage 渐进 commit」纳入框架级 sub-agent 通用守则（不仅各 SKILL.md），AGENT.md 加 anti-truncation 默认指令
 - sprint-8r 批次 4 闭环检查点（迟到补录）:
   - T-094 status=done（commit 04904d2 RED+GREEN-inline + b0949fc 状态更新；13 PASS / 2 SKIPPED Docker graceful；2301 PASS 全量回归；sprint-8r sprint-review approved_with_notes 已覆盖，不补单独 code-review）
