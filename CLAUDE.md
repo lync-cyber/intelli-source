@@ -12,8 +12,8 @@
 - model 继承: AGENT.md 中 `model: inherit` 继承父会话模型
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: sprint-9 批次 2 — T-098 GREEN 已落地（commit 87512aa 推送 PR #51；60/60 RED PASS；2452 全量 PASS / 43 SKIP / 0 FAIL；ruff + mypy --strict clean 121 src files；implementer 112 tools 截断后 orchestrator inline 清理 16 obsolete chat-stub 测试 + commit + push）
-- 下一步行动: agent-dispatch 派 reviewer 跑 T-098 code-review（standard + security_sensitive=true，Layer 1 + Layer 2 强制；明确点出 EXP-005 装配缺口风险 — cs_messenger 与 webhook_token 在 main.py/composition.py 未接入 app.state，60 测试通过仅因 fixture 直接 set state，生产 webhook POST 会 AttributeError 500）→ r1 verdict 后判 r2 或进入 T-099
+- 当前阶段: sprint-9 批次 2 — T-098 status=approved（GREEN commit 87512aa → r1 verdict=needs_revision (2 CRITICAL + 4 HIGH + 4 MEDIUM + 3 LOW) → r2 commit e4e3c06 全 13 findings 修复 + 23 反证测试 → orchestrator inline approve）
+- 下一步行动: 串行启动 T-099 [light] (Pipelines API + System 可观测性 + ConfigVersion) — 含 R-004 已 r2 处理的 arch API-013 amendment 校验余项。批次 2 剩余 T-100 [light]。
 - 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r 批次 1-4]
 - 当前Sprint: sprint-9 (in-progress — T-095 done + T-094 done + T-096 done + T-097 done；批次 2 T-098/099 planned)
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report = approved；ui-spec = N/A；dev-plan-s8(P2 backlog) = draft；deploy-spec = 未开始
@@ -21,7 +21,7 @@
   - T-095 [standard] composition.py + Celery 单例统一 + PipelineLoader + tasks API 契约 — 批次 1，无前置 — status=approved
   - T-096 [standard] PROCESSOR_REGISTRY + _process_execute 契约 + _RawContentResultRepo 持久化 — 批次 2，依赖 T-095 — status=approved
   - T-097 [standard, security_sensitive] CollectorRegistry + DistributorFacade — 批次 2，依赖 T-095 — status=approved
-  - T-098 [standard, security_sensitive] /search/chat + AgentRunner.run_flexible + Webhook + 微信/企微 CS — 批次 2，依赖 T-095 — status=green_done (60/60 PASS 待 code-review)
+  - T-098 [standard, security_sensitive] /search/chat + AgentRunner.run_flexible + Webhook + 微信/企微 CS — 批次 2，依赖 T-095 — status=approved
   - T-099 [light] Pipelines API + System 可观测性 + ConfigVersion — 批次 2，依赖 T-095 — status=planned
   - T-100 [light] Celery Beat 同步 + push-optimize 触发 + ChatSession DB — 批次 3，依赖 T-097/T-098 — status=planned
   - MVP 里程碑: T-095 + T-096 + T-098 完成
@@ -46,9 +46,9 @@
 - sprint-9 批次 2 进度（推进中）:
   - T-096 status=approved（GREEN commit c492cba（registry.py + factory.py + tools.py + tagger.py + content.py + boot.py + models.py + alembic a1b2c3d4e5f6）→ r1 reviewer subagent truncated at 79 tools/5.7min → orchestrator 主线程接管 r1 inline review → verdict needs_revision (1 HIGH R-001 session.commit-missing + 1 MEDIUM R-002 AsyncMock-vs-sync-PipelineEngine + 3 LOW R-003 dead-code + R-004/R-005 silent-except) → 用户裁决「主线程 inline 修 r2 + inline approve」→ r2 commit 65d443a (5 finding 全修 + 3 反证测试 防 R-001 回归) → orchestrator inline approve。final: c492cba + 65d443a。报告 r1 (status=approved)。CORRECTIONS-LOG 2026-05-23 truncation + inline approve 双记录）
   - T-097 status=approved（RED commit 0c72658 → GREEN commit 31d0c15（fixture/mock 层修复，src/ 不动 — facade.py/tools.py WIP recovery 已含 DistributorFacade 实现）→ r1 reviewer subagent 无 truncation 81 tools/6.3min 完成 approved_with_notes (0 CRIT / 0 HIGH / 3 MED R-001 docstring + R-002 recipient_id 持久化 + R-003 session.scalars 约定 + 2 LOW R-004 dedup 双写 + R-005 CollectorError) → 用户裁决「全修 → r2 approve」→ r2 commit 0152531 (5 finding 全修 + 3 反证测试 + 新 alembic migration b2c3d4e5f6a7) → orchestrator inline r2 approve。final: 31d0c15 + 0152531。报告 r1 (approved_with_notes) / r2 (approved)。R-003 实证为 reviewer-calibration 但保留 convention 修复。R-002 持久化层补齐：PushRecord 加 recipient_id VARCHAR(255) 列 + facade._record_push 传 masked 值落库。R-004 用 IntegrityError 幂等防御不动 channel 内 dedup 逻辑）
-  - T-098 status=green_done（RED commit 078f82b → GREEN commit 87512aa：60 RED PASS；新增 4 文件 wechat_cs_client.py + wework_cs_client.py + api/schemas/search.py + api/routers/webhooks.py；改写 5 文件 hybrid.py(删 chat) + search.py(/chat 重写) + main.py(注册 webhooks) + composition.py(未实质改) + distributor/webhooks.py(补 handle_message)；删 16 obsolete chat-stub 测试 cleanup；下一步派 reviewer 跑 code-review；**EXP-005 装配缺口风险**: cs_messenger + webhook_token 未在 main.py/composition.py 接入 app.state，生产 webhook 会 AttributeError，code-review 必须明审）
-  - T-099: 未启动（按串行序列等待 T-098 code-review 完成）
-  - 批次 2 阶段测试: 2452 PASS / 43 skip / 0 fail；ruff + mypy --strict clean (121 src files)
+  - T-098 status=approved（RED commit 078f82b → GREEN commit 87512aa (60 PASS + 16 obsolete cleanup) → r1 orchestrator inline (3 角色 truncation 后用户裁决 inline 跑) verdict=needs_revision 13 findings (2 CRITICAL R-001 EXP-005 装配缺口 4 状态项 + R-002 WeWork POST 无签名 / 4 HIGH R-003 WeWork agentid + R-004 schema 偏 API-013 upstream + R-005 WeWork 测试黑洞 + R-006 wechat/wework CS 95% 同构 触发 REFACTOR / 4 MEDIUM R-007 assert+ R-008 errcode+ R-009 echo stub+ R-010 task GC / 3 LOW) → 用户裁决「R-004/R-006 合并 r2 + orchestrator inline 修 r2」→ r2 commit e4e3c06: composition._install_webhook_state 装 4 状态项 + background_tasks set + 部分 env hard-fail / WeWork POST 加签名验证 / WeWork agentid 必填 / arch API-013 amendment / 7 WeWork sig 测试 + 8 composition lifespan 测试 + BaseCustomerServiceClient 抽象 / errcode 校验 → DistributorError / _spawn_background_dispatch 防 GC / echo stub no-op 化 / 3 LOW 全修 → orchestrator inline r2 approve。final: 87512aa + e4e3c06。报告 r1/r2。EXP-005 第 4 次复发本批次根治。EXP-006 truncation 4/4 sprint-9 retrospective 强制立项）
+  - T-099: 未启动（批次 2 串行序列下一任务）
+  - 批次 2 阶段测试: 2475 PASS / 43 skip / 0 fail；ruff + mypy --strict clean (122 src files, +1 base_cs_client.py)
 - EXP-006 frequency tick: sprint-9 subagent truncation 累计 **4/4**（T-095 r1 reviewer + T-096 r1 reviewer + T-098 RED test-writer + T-098 GREEN implementer），跨 reviewer/test-writer/implementer 三角色全发生，retrospective 立项时**强烈建议**将「tools 预算上限 + finalize-before-return + stage-by-stage 渐进 commit」纳入框架级 sub-agent 通用守则（不仅各 SKILL.md），AGENT.md 加 anti-truncation 默认指令
 - sprint-8r 批次 4 闭环检查点（迟到补录）:
   - T-094 status=done（commit 04904d2 RED+GREEN-inline + b0949fc 状态更新；13 PASS / 2 SKIPPED Docker graceful；2301 PASS 全量回归；sprint-8r sprint-review approved_with_notes 已覆盖，不补单独 code-review）
