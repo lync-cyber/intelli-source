@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from typing import TYPE_CHECKING, Any
 
@@ -24,6 +25,10 @@ class DistributorFacade:
     3. Dedup gate — skip subscriptions already pushed.
     4. channel.distribute for each matched, non-deduped subscription.
     5. _record_push + PII mask for persistence.
+
+    AC-T100-3: when ``IS_PUSH_OPTIMIZE_ENABLED=1`` and an optional
+    ``celery_app`` is wired in, each successful send dispatches a
+    follow-up ``run_pipeline`` task for the ``push-optimize`` pipeline.
     """
 
     def __init__(
@@ -31,10 +36,12 @@ class DistributorFacade:
         session_factory: Any,
         matcher: SubscriptionMatcher,
         channels: dict[str, BaseDistributor],
+        celery_app: Any = None,
     ) -> None:
         self._session_factory = session_factory
         self._matcher = matcher
         self._channels = channels
+        self._celery_app = celery_app
 
     async def distribute(
         self,
@@ -97,12 +104,41 @@ class DistributorFacade:
                 recipient_id=_mask_recipient(recipient_raw),
             )
 
+            self._maybe_trigger_push_optimize(
+                content_id=content_id, channel=channel_name
+            )
+
         return {
             "status": "ok",
             "matched": len(matched),
             "sent": sent,
             "skipped": skipped,
         }
+
+    def _maybe_trigger_push_optimize(self, *, content_id: str, channel: str) -> None:
+        """Dispatch a ``push-optimize`` Celery task when the feature is enabled.
+
+        Failures inside the dispatch path are logged but do not propagate —
+        a broker hiccup must not block the main distribute flow.
+        """
+        if os.environ.get("IS_PUSH_OPTIMIZE_ENABLED") != "1":
+            return
+        if self._celery_app is None:
+            return
+        try:
+            self._celery_app.send_task(
+                "run_pipeline",
+                kwargs={
+                    "pipeline_name": "push-optimize",
+                    "params": {"content_id": content_id, "channel": channel},
+                },
+            )
+        except Exception:
+            _logger.exception(
+                "push-optimize send_task failed for content_id=%s channel=%s",
+                content_id,
+                channel,
+            )
 
     async def _load_content_and_subscriptions(
         self,

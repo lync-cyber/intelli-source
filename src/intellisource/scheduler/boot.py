@@ -170,6 +170,12 @@ def worker_init_handler(**_: Any) -> None:
     the handler returns early without re-creating engines or redis clients.
     Reset via `worker_shutdown_handler` (or `_celery_tasks = None` in tests)
     before re-invoking.
+
+    Beat sync (AC-T100-2): after composition is built, walk the DB `Source`
+    rows to populate `SchedulerManager`, then project that state onto
+    `celery_app.conf.beat_schedule` via `sync_beat_schedules`. Empty DB or
+    sources with null `schedule_interval` log a warning rather than raising
+    so the worker still boots when no schedules are configured.
     """
     global _celery_tasks
     if _celery_tasks is not None:
@@ -186,6 +192,49 @@ def worker_init_handler(**_: Any) -> None:
         factory,
     )
     setattr(_module_celery_app, "_celery_tasks_instance", _celery_tasks)
+
+    _bootstrap_beat_schedule(factory)
+
+
+def _bootstrap_beat_schedule(factory: async_sessionmaker[AsyncSession]) -> None:
+    """Populate SchedulerManager from Source rows and write to beat_schedule.
+
+    Exposed as a helper so unit tests can exercise the boot-time sync path
+    without spinning up a Celery worker. Beat sync is gated by the
+    ``IS_BEAT_DISABLED`` env flag to allow workers that never need to act
+    as Beat producers (e.g. CI test workers) to skip the DB walk entirely.
+    """
+    import asyncio  # noqa: PLC0415
+    import logging  # noqa: PLC0415
+
+    from intellisource.scheduler.beat_sync import (  # noqa: PLC0415
+        populate_scheduler_from_sources,
+        sync_beat_schedules,
+    )
+    from intellisource.scheduler.state_machine import (  # noqa: PLC0415
+        SchedulerManager,
+    )
+
+    logger = logging.getLogger(__name__)
+
+    if os.environ.get("IS_BEAT_DISABLED") == "1":
+        logger.info("IS_BEAT_DISABLED=1 — skipping Beat schedule sync")
+        return
+
+    scheduler_manager = SchedulerManager()
+    try:
+        asyncio.run(populate_scheduler_from_sources(scheduler_manager, factory))
+    except RuntimeError as exc:
+        # asyncio.run rejects nested loops; fall back to logging so worker boot
+        # is not blocked by a stuck loop in a re-entrant test environment.
+        logger.warning("populate_scheduler_from_sources skipped: %s", exc)
+        return
+    except Exception:
+        logger.exception("populate_scheduler_from_sources failed")
+        return
+
+    sync_beat_schedules(_module_celery_app, scheduler_manager)
+    setattr(_module_celery_app, "_scheduler_manager", scheduler_manager)
 
 
 def worker_shutdown_handler(**_: Any) -> None:

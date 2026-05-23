@@ -139,11 +139,14 @@ def build_pipeline_loader() -> PipelineLoader:
 def build_distributor_facade(
     session_factory: async_sessionmaker[AsyncSession],
     redis_client: Any,
+    celery_app: Any = None,
 ) -> DistributorFacade:
     """Build a DistributorFacade with all three distribution channels.
 
     Reads channel credentials from environment variables.  Missing required
-    variables cause a ValueError at startup (hard-fail by design).
+    variables cause a ValueError at startup (hard-fail by design). When a
+    ``celery_app`` instance is supplied the facade can fire push-optimize
+    follow-up tasks (AC-T100-3, gated by ``IS_PUSH_OPTIMIZE_ENABLED``).
     """
     wechat = WeChatDistributor.from_env(redis=redis_client)
     wework = WeWorkDistributor.from_env(redis=redis_client)
@@ -158,6 +161,7 @@ def build_distributor_facade(
         session_factory=session_factory,
         matcher=matcher,
         channels=channels,
+        celery_app=celery_app,
     )
 
 
@@ -287,12 +291,16 @@ class _DepsBundle:
     search_engine_factory: Callable[[AsyncSession], HybridSearchEngine]
 
 
-def _build_deps_bundle(session_factory: Any, redis_client: Any) -> _DepsBundle:
+def _build_deps_bundle(
+    session_factory: Any, redis_client: Any, celery_app: Any = None
+) -> _DepsBundle:
     """Assemble the four ToolDeps-bound dependencies shared by both processes."""
     return _DepsBundle(
         llm_gateway=build_llm_gateway(redis_client),
         collector_registry=build_collector_registry(),
-        distributor=build_distributor_facade(session_factory, redis_client),
+        distributor=build_distributor_facade(
+            session_factory, redis_client, celery_app=celery_app
+        ),
         search_engine_factory=build_search_engine_factory(),
     )
 
@@ -367,6 +375,7 @@ def build_api_composition(
     from intellisource.scheduler.celery_app import celery_app as module_celery_app
 
     app.state.celery_app = module_celery_app
+    _api_celery_app = module_celery_app
 
     # DatabaseManager exposes get_session() (an async context manager) but
     # not a sessionmaker. Agent tools invoke `tool_deps.session_factory()`
@@ -374,7 +383,9 @@ def build_api_composition(
     # callable returning the existing context manager.
     session_factory = _DatabaseManagerSessionFactory(db_manager)
 
-    bundle = _build_deps_bundle(session_factory, redis_client)
+    bundle = _build_deps_bundle(
+        session_factory, redis_client, celery_app=_api_celery_app
+    )
     agent_runner = _install_agent_runner(session_factory, bundle)
     pipeline_loader = build_pipeline_loader()
 
