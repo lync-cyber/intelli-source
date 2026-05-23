@@ -107,19 +107,53 @@ async def _collect_execute(
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Invoke CollectorRegistry.get(source_type).collect() for the given source."""
-    if tool_deps is not None and tool_deps.collector_registry is not None:
-        collector = tool_deps.collector_registry.get(source_type)
-        if collector is not None:
-            collected = await collector.collect(source_id=source_id, **kwargs)
-            return {"status": "ok", "tool": "collect", "collected": collected}
-    logger.warning("tool_deps not injected for collect, returning placeholder")
-    return {
-        "status": "degraded",
-        "tool": "collect",
-        "reason": "tool_deps not injected",
-        "collected": [],
-        "source_id": source_id,
-    }
+    if tool_deps is None or tool_deps.collector_registry is None:
+        logger.warning("tool_deps not injected for collect, returning placeholder")
+        return {
+            "status": "degraded",
+            "tool": "collect",
+            "reason": "tool_deps not injected",
+            "collected": [],
+            "source_id": source_id,
+        }
+
+    source_config: dict[str, Any] = {}
+    if tool_deps.session_factory is not None:
+        try:
+            import uuid as _uuid_mod  # noqa: PLC0415
+
+            from intellisource.storage.models import Source  # noqa: PLC0415
+
+            source_uuid = _uuid_mod.UUID(source_id)
+            async with tool_deps.session_factory() as session:
+                source_row = await session.get(Source, source_uuid)
+            if source_row is not None:
+                source_config = {
+                    "url": source_row.url,
+                    "source_id": source_id,
+                    "source_type": source_type,
+                    "proxy": source_row.proxy,
+                    "rate_limit_qps": source_row.rate_limit_qps,
+                    "rate_limit_concurrency": source_row.rate_limit_concurrency,
+                    "metadata": source_row.metadata_,
+                }
+        except Exception as exc:
+            logger.warning(
+                "_collect_execute: failed to load Source for %s: %s",
+                source_id,
+                exc,
+            )
+
+    if not source_config:
+        source_config = {
+            "url": source_id,
+            "source_id": source_id,
+            "source_type": source_type,
+        }
+
+    collector = tool_deps.collector_registry.get(source_type)
+    collected = await collector.collect(source_config=source_config, **kwargs)
+    return {"status": "ok", "tool": "collect", "collected": collected}
 
 
 async def _process_execute(

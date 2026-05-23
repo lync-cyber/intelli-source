@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from intellisource.collector.registry import CollectorRegistry
-    from intellisource.composition import DistributorFacade
+    from intellisource.distributor.facade import DistributorFacade
     from intellisource.llm.gateway import LLMGateway
     from intellisource.search.hybrid import HybridSearchEngine
 

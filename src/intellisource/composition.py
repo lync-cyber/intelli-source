@@ -47,6 +47,11 @@ from intellisource.collector.adapters.rss import RSSCollector
 from intellisource.collector.adapters.web import WebCollector
 from intellisource.collector.registry import CollectorRegistry
 from intellisource.core.errors import ErrorCategory, IntelliSourceError
+from intellisource.distributor.channels.email import EmailDistributor
+from intellisource.distributor.channels.wechat import WeChatDistributor
+from intellisource.distributor.channels.wework import WeWorkDistributor
+from intellisource.distributor.facade import DistributorFacade
+from intellisource.distributor.matcher import SubscriptionMatcher
 from intellisource.llm.circuit_breaker import CircuitBreaker
 from intellisource.llm.gateway import LLMGateway
 from intellisource.llm.priority_queue import PriorityQueue
@@ -130,51 +135,29 @@ def build_pipeline_loader() -> PipelineLoader:
     return PipelineLoader()
 
 
-# ---------------------------------------------------------------------------
-# DistributorFacade — protocol stub. T-097 ships the real implementation.
-# ---------------------------------------------------------------------------
-
-
-class DistributorFacade:
-    """Distribution orchestrator protocol consumed by the `distribute` tool.
-
-    The full implementation (subscription matching → quiet-hours / frequency
-    / dedup gating → channel dispatch → push-record persistence) is delivered
-    by T-097 in `src/intellisource/distributor/facade.py`. T-095 only needs
-    a non-None object with a `distribute()` coroutine so the agent tool can
-    be wired without ToolDeps holding a `None` slot.
-
-    Until T-097 lands, this stub returns a `status: pending` envelope. It
-    does NOT return `status: degraded` — degraded is reserved for the case
-    where the dependency is missing entirely.
-    """
-
-    async def distribute(
-        self,
-        *,
-        content_id: str,
-        subscription_id: str | None = None,
-        **kwargs: Any,
-    ) -> dict[str, Any]:
-        return {
-            "status": "pending",
-            "reason": "DistributorFacade stub — T-097 ships real implementation",
-            "content_id": content_id,
-            "subscription_id": subscription_id,
-        }
-
-
 def build_distributor_facade(
     session_factory: async_sessionmaker[AsyncSession],
     redis_client: Any,
 ) -> DistributorFacade:
-    """Build a DistributorFacade.
+    """Build a DistributorFacade with all three distribution channels.
 
-    T-095 returns a stub instance; T-097 replaces this with the production
-    facade that consults SubscriptionMatcher and channel-specific
-    `BaseDistributor` subclasses.
+    Reads channel credentials from environment variables.  Missing required
+    variables cause a ValueError at startup (hard-fail by design).
     """
-    return DistributorFacade()
+    wechat = WeChatDistributor.from_env(redis=redis_client)
+    wework = WeWorkDistributor.from_env(redis=redis_client)
+    email = EmailDistributor.from_env()
+    matcher = SubscriptionMatcher()
+    channels: dict[str, Any] = {
+        "wechat": wechat,
+        "wework": wework,
+        "email": email,
+    }
+    return DistributorFacade(
+        session_factory=session_factory,
+        matcher=matcher,
+        channels=channels,
+    )
 
 
 # ---------------------------------------------------------------------------
