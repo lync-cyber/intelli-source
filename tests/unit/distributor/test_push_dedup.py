@@ -6,13 +6,14 @@ Covers AC-1 through AC-7 of T-090.
 from __future__ import annotations
 
 import hashlib
-import subprocess
 import uuid
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+from source_scan import find_substring_in_tree
 
 # ---------------------------------------------------------------------------
 # Shared test helpers
@@ -22,6 +23,10 @@ _SRC_DIR = str(
     Path(__file__).parent.parent.parent.parent / "src" / "intellisource" / "distributor"
 )
 
+
+def _find_pattern_in_source(pattern: str, *, src_dir: str = _SRC_DIR) -> list[str]:
+    """Cross-platform equivalent of ``grep -rn PATTERN src_dir``."""
+    return find_substring_in_tree(src_dir, pattern)
 
 class _FakeContent:
     def __init__(self) -> None:
@@ -398,24 +403,18 @@ class TestAC3:
 
     def test_no_push_dedup_redis_key_pattern_in_source(self) -> None:
         """Source code must not contain legacy 'push:dedup:' redis key patterns."""
-        proc = subprocess.run(
-            ["grep", "-rn", "push:dedup:", _SRC_DIR],
-            capture_output=True,
-            text=True,
-        )
-        assert proc.stdout == "", (
-            f"Legacy 'push:dedup:' Redis key pattern found in source:\n{proc.stdout}"
+        matches = _find_pattern_in_source("push:dedup:")
+        assert not matches, (
+            f"Legacy 'push:dedup:' Redis key pattern found in source:\n"
+            + "\n".join(matches)
         )
 
     def test_no_wework_dedup_redis_key_pattern_in_source(self) -> None:
         """Source code must not contain legacy 'wework:dedup:' redis key patterns."""
-        proc = subprocess.run(
-            ["grep", "-rn", "wework:dedup:", _SRC_DIR],
-            capture_output=True,
-            text=True,
-        )
-        assert proc.stdout == "", (
-            f"Legacy 'wework:dedup:' Redis key pattern found in source:\n{proc.stdout}"
+        matches = _find_pattern_in_source("wework:dedup:")
+        assert not matches, (
+            f"Legacy 'wework:dedup:' Redis key pattern found in source:\n"
+            + "\n".join(matches)
         )
 
 
@@ -492,13 +491,10 @@ class TestAC4:
 
     def test_no_sent_keys_attribute_in_email_source(self) -> None:
         """EmailDistributor source must not use _sent_keys in-process set."""
-        proc = subprocess.run(
-            ["grep", "-rn", "_sent_keys", _SRC_DIR],
-            capture_output=True,
-            text=True,
-        )
-        assert proc.stdout == "", (
-            f"Legacy '_sent_keys' in-process set found in source:\n{proc.stdout}"
+        matches = _find_pattern_in_source("_sent_keys")
+        assert not matches, (
+            f"Legacy '_sent_keys' in-process set found in source:\n"
+            + "\n".join(matches)
         )
 
 

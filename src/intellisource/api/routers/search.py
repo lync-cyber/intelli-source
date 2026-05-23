@@ -65,13 +65,25 @@ async def search(
     return result
 
 
+def _search_step_items(output: Any) -> list[Any]:
+    """Extract search hit rows from a tool step output dict."""
+    if not isinstance(output, dict):
+        return []
+    response = output.get("response")
+    if isinstance(response, dict):
+        return list(response.get("items") or [])
+    items = output.get("contents") or output.get("items")
+    if isinstance(items, list):
+        return items
+    return []
+
+
 def _extract_sources(flex_result: dict[str, Any]) -> list[ChatSource]:
-    """Pull hybrid_search step output (if any) and map to ChatSource list."""
+    """Pull search step output (if any) and map to ChatSource list."""
     for step in flex_result.get("results", []):
-        if step.get("tool") != "hybrid_search":
+        if step.get("tool") != "search":
             continue
-        output = step.get("output", {})
-        items = output.get("contents") or output.get("items") or []
+        items = _search_step_items(step.get("output", {}))
         sources: list[ChatSource] = []
         for item in items:
             if not isinstance(item, dict):
@@ -85,6 +97,19 @@ def _extract_sources(flex_result: dict[str, Any]) -> list[ChatSource]:
             )
         return sources
     return []
+
+
+def _extract_answer(flex_result: dict[str, Any]) -> str:
+    """Return the best assistant-facing text from flexible-mode tool results."""
+    for step in reversed(flex_result.get("results", [])):
+        output = step.get("output", {})
+        if not isinstance(output, dict):
+            continue
+        for key in ("summary", "text", "content"):
+            value = output.get(key)
+            if value:
+                return str(value)
+    return ""
 
 
 @router.post("/search/chat")
@@ -138,12 +163,7 @@ async def chat_search(
     )
     elapsed_ms = int((time.monotonic() - start) * 1000)
 
-    answer = ""
-    for step in reversed(flex_result.get("results", [])):
-        text = step.get("output", {}).get("text", "")
-        if text:
-            answer = str(text)
-            break
+    answer = _extract_answer(flex_result)
 
     session_id_str = body.session_id or str(uuid.uuid4())
     steps_executed: int = int(flex_result.get("steps_executed", 0))

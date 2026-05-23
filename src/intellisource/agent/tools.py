@@ -106,7 +106,7 @@ async def _collect_execute(
     tool_deps: Any = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """Invoke CollectorRegistry.get(source_type).collect() for the given source."""
+    """Collect from source, persist RawContent rows, return ids for downstream steps."""
     if tool_deps is None or tool_deps.collector_registry is None:
         logger.warning("tool_deps not injected for collect, returning placeholder")
         return {
@@ -118,16 +118,25 @@ async def _collect_execute(
         }
 
     source_config: dict[str, Any] = {}
-    if tool_deps.session_factory is not None:
+    source_uuid: _uuid.UUID | None = None
+    task_id_raw = kwargs.get("task_id") or kwargs.get("collect_task_id")
+    collect_task_id: _uuid.UUID | None = None
+    if task_id_raw:
         try:
-            import uuid as _uuid_mod  # noqa: PLC0415
+            collect_task_id = _uuid.UUID(str(task_id_raw))
+        except ValueError:
+            collect_task_id = None
 
+    if tool_deps.session_factory is not None and source_id:
+        try:
             from intellisource.storage.models import Source  # noqa: PLC0415
 
-            source_uuid = _uuid_mod.UUID(source_id)
+            source_uuid = _uuid.UUID(source_id)
             async with tool_deps.session_factory() as session:
                 source_row = await session.get(Source, source_uuid)
             if source_row is not None:
+                if not source_type:
+                    source_type = str(source_row.type or "")
                 source_config = {
                     "url": source_row.url,
                     "source_id": source_id,
@@ -150,7 +159,13 @@ async def _collect_execute(
             "source_id": source_id,
             "source_type": source_type,
         }
+        if source_id:
+            try:
+                source_uuid = _uuid.UUID(source_id)
+            except ValueError:
+                source_uuid = None
 
+    from intellisource.collector.base import RawContent as CollectedRawContent
     from intellisource.core.errors import CollectorError  # noqa: PLC0415
 
     try:
@@ -163,8 +178,76 @@ async def _collect_execute(
             "collected": [],
             "source_id": source_id,
         }
-    collected = await collector.collect(source_config=source_config, **kwargs)
-    return {"status": "ok", "tool": "collect", "collected": collected}
+
+    collected_items: list[CollectedRawContent] = await collector.collect(
+        source_config=source_config, **kwargs
+    )
+
+    raw_content_ids: list[str] = []
+    collected_summary: list[dict[str, Any]] = []
+
+    if tool_deps.session_factory is not None and source_uuid is not None:
+        from intellisource.storage.repositories.content import (  # noqa: PLC0415
+            ContentRepository,
+        )
+
+        async with tool_deps.session_factory() as session:
+            repo = ContentRepository(session=session)
+            for item in collected_items:
+                existing = await repo.get_raw_by_fingerprint(item.fingerprint)
+                if existing is not None:
+                    raw_content_ids.append(str(existing.id))
+                    collected_summary.append(
+                        {
+                            "id": str(existing.id),
+                            "title": existing.title,
+                            "source_url": existing.source_url,
+                            "duplicate": True,
+                        }
+                    )
+                    continue
+                raw = await repo.create_raw(
+                    source_id=source_uuid,
+                    source_url=item.source_url,
+                    fingerprint=item.fingerprint,
+                    title=item.title,
+                    author=item.author,
+                    body_html=item.body_html,
+                    body_text=item.body_text,
+                    published_at=item.published_at,
+                    raw_metadata=dict(item.raw_metadata),
+                    collect_task_id=collect_task_id,
+                )
+                raw_content_ids.append(str(raw.id))
+                collected_summary.append(
+                    {
+                        "id": str(raw.id),
+                        "title": raw.title,
+                        "source_url": raw.source_url,
+                        "duplicate": False,
+                    }
+                )
+            await session.commit()
+    else:
+        for item in collected_items:
+            collected_summary.append(
+                {
+                    "title": item.title,
+                    "source_url": item.source_url,
+                    "fingerprint": item.fingerprint,
+                }
+            )
+
+    first_id = raw_content_ids[0] if raw_content_ids else None
+    return {
+        "status": "ok",
+        "tool": "collect",
+        "collected": collected_summary,
+        "raw_content_ids": raw_content_ids,
+        "content_id": first_id,
+        "source_id": source_id,
+        "source_type": source_type,
+    }
 
 
 async def _process_execute(
@@ -172,7 +255,7 @@ async def _process_execute(
     tool_deps: Any = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """Fetch RawContent by UUID and run PipelineEngine.execute() synchronously."""
+    """Fetch RawContent, run PipelineEngine, persist ProcessedContent."""
     if tool_deps is None or tool_deps.pipeline_engine is None:
         logger.warning("tool_deps not injected for process, returning placeholder")
         return {
@@ -182,40 +265,85 @@ async def _process_execute(
             "content_id": content_id,
         }
 
+    if tool_deps.session_factory is None:
+        logger.warning(
+            "session_factory not injected for process, returning placeholder"
+        )
+        return {
+            "status": "degraded",
+            "tool": "process",
+            "reason": "session_factory not injected",
+            "content_id": content_id,
+        }
+
+    from datetime import datetime, timezone  # noqa: PLC0415
+
     from intellisource.pipeline.context import PipelineContext  # noqa: PLC0415
     from intellisource.storage.repositories.content import (  # noqa: PLC0415
         ContentRepository,
     )
 
-    raw_id = _uuid.UUID(content_id)
+    try:
+        raw_id = _uuid.UUID(content_id)
+    except ValueError:
+        return {
+            "status": "degraded",
+            "tool": "process",
+            "reason": f"invalid content_id: {content_id!r}",
+            "content_id": content_id,
+        }
+
     ctx = PipelineContext()
     ctx.set("content_id", content_id)
-    try:
-        async with tool_deps.session_factory() as session:
-            repo = ContentRepository(session=session)
-            raw = await repo.get_raw_by_id(raw_id)
-        if raw is not None:
-            ctx.set("body_html", raw.body_html or "")
-            ctx.set("body_text", raw.body_text or "")
-            ctx.set("title", raw.title or "")
-            ctx.set("fingerprint", raw.fingerprint or "")
-            ctx.set("content_id", str(raw.id))
-    except Exception as exc:
-        logger.warning(
-            "_process_execute: failed to load RawContent for %s: %s",
-            content_id,
-            exc,
-            exc_info=True,
-        )
 
-    ctx = tool_deps.pipeline_engine.execute(ctx)
+    async with tool_deps.session_factory() as session:
+        repo = ContentRepository(session=session)
+        raw = await repo.get_raw_by_id(raw_id)
+        if raw is None:
+            return {
+                "status": "degraded",
+                "tool": "process",
+                "reason": f"RawContent not found: {content_id}",
+                "content_id": content_id,
+            }
+
+        ctx.set("body_html", raw.body_html or "")
+        ctx.set("body_text", raw.body_text or "")
+        ctx.set("title", raw.title or "")
+        ctx.set("fingerprint", raw.fingerprint or "")
+        ctx.set("content_id", str(raw.id))
+
+        ctx = tool_deps.pipeline_engine.execute(ctx)
+
+        tags_val = ctx.get("tags")
+        tags: list[str] = tags_val if isinstance(tags_val, list) else []
+
+        existing_processed = await repo.get_processed_by_raw_id(raw_id)
+        if existing_processed is not None:
+            processed = existing_processed
+        else:
+            processed = await repo.create(
+                raw_content_id=raw_id,
+                title=str(ctx.get("title") or raw.title or ""),
+                body_text=str(ctx.get("body_text") or raw.body_text or ""),
+                tags=tags,
+                fingerprint=str(ctx.get("fingerprint") or raw.fingerprint or ""),
+                source_url=raw.source_url,
+                processing_status="completed",
+                processed_at=datetime.now(tz=timezone.utc),
+            )
+
+        raw.status = "processed"
+        raw.processed_at = datetime.now(tz=timezone.utc)
+        await session.commit()
 
     result: dict[str, Any] = {
         "body_html": ctx.get("body_html"),
         "body_text": ctx.get("body_text"),
         "title": ctx.get("title"),
         "fingerprint": ctx.get("fingerprint"),
-        "content_id": str(raw_id),
+        "content_id": str(processed.id),
+        "raw_content_id": str(raw_id),
     }
     return {"status": "ok", "tool": "process", "result": result}
 
@@ -250,11 +378,21 @@ async def _search_execute(
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Invoke HybridSearchEngine.search() with the given query."""
-    if tool_deps is not None and tool_deps.search_engine is not None:
-        response = await tool_deps.search_engine.search(
-            query=query, top_k=top_k, **kwargs
-        )
-        return {"status": "ok", "tool": "search", "response": response}
+    if tool_deps is None:
+        factory = None
+        session_factory = None
+    else:
+        factory = getattr(tool_deps, "search_engine_factory", None)
+        session_factory = getattr(tool_deps, "session_factory", None)
+    if factory is not None and session_factory is not None:
+        async with session_factory() as session:
+            engine = factory(session)
+            response = await engine.search(query=query, limit=top_k, **kwargs)
+        return {
+            "status": "ok",
+            "tool": "search",
+            "response": _serialize_search_response(response),
+        }
     logger.warning("tool_deps not injected for search, returning placeholder")
     return {
         "status": "degraded",
@@ -262,6 +400,32 @@ async def _search_execute(
         "reason": "tool_deps not injected",
         "query": query,
     }
+
+
+def _serialize_search_response(response: Any) -> dict[str, Any]:
+    """Convert HybridSearchEngine SearchResponse to a JSON-friendly dict."""
+    from dataclasses import asdict, is_dataclass
+
+    if is_dataclass(response) and not isinstance(response, type):
+        payload = asdict(response)
+        items = payload.get("items") or []
+        serialized_items: list[dict[str, Any]] = []
+        for item in items:
+            if is_dataclass(item) and not isinstance(item, type):
+                row = asdict(item)
+            elif isinstance(item, dict):
+                row = dict(item)
+            else:
+                continue
+            content_id = row.get("content_id")
+            if content_id is not None:
+                row["content_id"] = str(content_id)
+            serialized_items.append(row)
+        payload["items"] = serialized_items
+        return payload
+    if isinstance(response, dict):
+        return response
+    return {"items": [], "total": 0, "query_time_ms": 0}
 
 
 async def _get_content_detail_execute(

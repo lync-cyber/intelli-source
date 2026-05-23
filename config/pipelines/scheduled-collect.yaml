@@ -4,6 +4,7 @@ max_steps: 20
 on_failure: retry
 tools_allowed:
   - collect
+  - process
   - distribute
   - regex_extract
   - fingerprint_generate
@@ -15,11 +16,8 @@ tools_allowed:
 tools_denied: []
 steps:
   - tool: collect
-    params:
-      source_type: rss
+    params: {}
   - tool: process
-    params:
-      pipeline: default
+    params: {}
   - tool: distribute
-    params:
-      channels: all
+    params: {}

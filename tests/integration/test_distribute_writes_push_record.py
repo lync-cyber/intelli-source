@@ -85,9 +85,16 @@ def _make_mock_session_factory(
     mock_scalars_result = MagicMock()
     mock_scalars_result.all = MagicMock(return_value=[mock_sub])
 
-    mock_session = AsyncMock()
+    mock_execute_result = MagicMock()
+    mock_execute_result.scalar_one_or_none = MagicMock(return_value=None)
+
+    mock_session = MagicMock()
     mock_session.get = AsyncMock(return_value=mock_content)
     mock_session.scalars = AsyncMock(return_value=mock_scalars_result)
+    mock_session.execute = AsyncMock(return_value=mock_execute_result)
+    mock_session.commit = AsyncMock()
+    mock_session.flush = AsyncMock()
+    mock_session.add = MagicMock()
 
     @asynccontextmanager
     async def _session_factory() -> AsyncIterator[Any]:
@@ -121,7 +128,7 @@ def _make_tool_deps_with_real_facade(
         session_factory=session_factory,
         llm_gateway=None,
         pipeline_engine=None,
-        search_engine=None,
+        search_engine_factory=None,
         collector_registry=None,
         distributor=facade,
     )

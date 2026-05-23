@@ -1,0 +1,56 @@
+"""Helpers for strict/batch pipeline step parameter merging."""
+
+from __future__ import annotations
+
+from typing import Any
+
+
+def merge_step_output(
+    tool_name: str, output: Any, step_context: dict[str, Any]
+) -> None:
+    """Merge a tool step output into the rolling step_context dict."""
+    if not isinstance(output, dict):
+        return
+    if tool_name == "collect":
+        raw_ids = output.get("raw_content_ids") or []
+        content_id = output.get("content_id") or (raw_ids[0] if raw_ids else None)
+        if content_id:
+            step_context["content_id"] = content_id
+        if raw_ids:
+            step_context["raw_content_ids"] = raw_ids
+        source_id = output.get("source_id")
+        if source_id:
+            step_context["source_id"] = source_id
+        source_type = output.get("source_type")
+        if source_type:
+            step_context["source_type"] = source_type
+        return
+    if tool_name == "process":
+        inner = output.get("result")
+        if isinstance(inner, dict):
+            processed_id = inner.get("content_id")
+            if processed_id:
+                step_context["content_id"] = processed_id
+            raw_id = inner.get("raw_content_id")
+            if raw_id:
+                step_context["raw_content_id"] = raw_id
+        return
+    if tool_name == "distribute":
+        inner = output.get("result")
+        if isinstance(inner, dict) and inner.get("content_id"):
+            step_context["content_id"] = inner["content_id"]
+
+
+def build_step_params(
+    step: dict[str, Any],
+    *,
+    runtime_params: dict[str, Any],
+    step_context: dict[str, Any],
+    tool_deps: Any,
+) -> dict[str, Any]:
+    """Merge YAML params, Celery runtime params, and prior step outputs."""
+    yaml_params = dict(step.get("params") or {})
+    merged: dict[str, Any] = {**yaml_params, **runtime_params, **step_context}
+    if tool_deps is not None:
+        merged["tool_deps"] = tool_deps
+    return merged

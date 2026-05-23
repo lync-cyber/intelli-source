@@ -10,6 +10,7 @@ import logging
 import uuid
 from typing import TYPE_CHECKING, Any
 
+from intellisource.agent.step_params import build_step_params, merge_step_output
 from intellisource.agent.tools import ToolDefinition
 from intellisource.core.errors import ErrorCategory, IntelliSourceError
 from intellisource.storage.models import TaskChain
@@ -48,11 +49,16 @@ class AgentRunner:
         params: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> dict[str, Any]:
-        """Dispatch to run_strict or run_flexible based on config.mode."""
+        """Dispatch to run_strict, run_batch, or run_flexible based on config.mode."""
         tool_deps = kwargs.pop("tool_deps", self._tool_deps)
+        runtime_params = params or {}
         if config.mode == "strict":
             return await self.run_strict(
-                config, params=params or {}, tool_deps=tool_deps
+                config, params=runtime_params, tool_deps=tool_deps
+            )
+        if config.mode == "batch":
+            return await self.run_batch(
+                config, params=runtime_params, tool_deps=tool_deps
             )
         return await self.run_flexible(
             config,
@@ -72,19 +78,23 @@ class AgentRunner:
         effective_deps = tool_deps if tool_deps is not None else self._tool_deps
         results: list[dict[str, Any]] = []
         steps_executed = 0
+        step_context: dict[str, Any] = dict(params)
 
         for step in config.steps:
             tool_name: str = step["tool"]
-            step_params: dict[str, Any] = {
-                **step.get("params", {}),
-                **({"tool_deps": effective_deps} if effective_deps is not None else {}),
-            }
+            step_params = build_step_params(
+                step,
+                runtime_params=params,
+                step_context=step_context,
+                tool_deps=effective_deps,
+            )
             tool_raw = self._tool_registry.get(tool_name)
             tool_fn = self._resolve_callable(tool_raw)
 
             try:
                 result = await tool_fn(**step_params)
                 results.append({"tool": tool_name, "output": result})
+                merge_step_output(tool_name, result, step_context)
             except Exception:
                 if config.on_failure == "abort":
                     steps_executed += 1
@@ -115,6 +125,49 @@ class AgentRunner:
             pipeline_name=config.name,
             execution_mode="strict",
         )
+
+    async def run_batch(
+        self,
+        config: Any,
+        params: dict[str, Any],
+        *,
+        tool_deps: Any = None,
+    ) -> dict[str, Any]:
+        """Execute processor pipeline for a single raw content_id (batch mode)."""
+        effective_deps = tool_deps if tool_deps is not None else self._tool_deps
+        content_id = str(params.get("content_id") or "")
+        if not content_id:
+            return await self._persist(
+                status="failed",
+                steps_executed=0,
+                results=[],
+                pipeline_name=config.name,
+                execution_mode="batch",
+            )
+
+        from intellisource.agent.tools import _process_execute  # noqa: PLC0415
+
+        output = await _process_execute(
+            tool_deps=effective_deps,
+            **params,
+        )
+        tool_results = [{"tool": "process", "output": output}]
+        status = "success" if output.get("status") == "ok" else "failed"
+        persist_result = await self._persist(
+            status=status,
+            steps_executed=max(len(config.steps), 1),
+            results=tool_results,
+            pipeline_name=config.name,
+            execution_mode="batch",
+        )
+        inner_result = output.get("result")
+        inner: dict[str, Any] = inner_result if isinstance(inner_result, dict) else {}
+        raw_id = inner.get("raw_content_id") or content_id
+        persist_result["content_id"] = raw_id
+        processed_id = inner.get("content_id")
+        if processed_id:
+            persist_result["processed_content_id"] = processed_id
+        return persist_result
 
     async def run_flexible(
         self,

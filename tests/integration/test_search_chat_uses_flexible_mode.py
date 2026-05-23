@@ -47,8 +47,18 @@ def _make_mock_agent_runner(
             "status": "success",
             "steps_executed": steps_executed,
             "results": [
-                {"tool": "search", "output": {"items": [{"title": "RAG Survey 2024"}]}},
-                {"tool": "summarize_for_user", "output": {"text": answer}},
+                {
+                    "tool": "search",
+                    "output": {
+                        "response": {
+                            "items": [{"title": "RAG Survey 2024"}],
+                        }
+                    },
+                },
+                {
+                    "tool": "summarize_for_user",
+                    "output": {"summary": answer},
+                },
             ],
             "pipeline_name": "instant-search",
             "task_chain_id": "tc-test-001",

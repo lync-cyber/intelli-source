@@ -105,13 +105,12 @@ class TestRouteRegistration:
     """Verify that create_app registers all expected routers."""
 
     @pytest.mark.asyncio
-    async def test_all_expected_route_prefixes_registered(self) -> None:
+    async def test_all_expected_route_prefixes_registered(self, main_app: FastAPI) -> None:
         """AC-T045-1: App includes routes for sources, contents, search,
         tasks, subscriptions, llm, and system."""
         if _MODULE_MISSING:
             pytest.fail(_SKIP_REASON)
-        app = create_app()
-        registered_paths = _get_all_route_paths(app)
+        registered_paths = _get_all_route_paths(main_app)
         for prefix in _EXPECTED_ROUTE_PREFIXES:
             matching = [p for p in registered_paths if p.startswith(prefix)]
             assert matching, (
@@ -120,13 +119,12 @@ class TestRouteRegistration:
             )
 
     @pytest.mark.asyncio
-    async def test_middleware_classes_registered(self) -> None:
+    async def test_middleware_classes_registered(self, main_app: FastAPI) -> None:
         """AC-T045-1: App registers Auth, RequestLogger, and Tracing middleware."""
         if _MODULE_MISSING:
             pytest.fail(_SKIP_REASON)
-        app = create_app()
         middleware_class_names = [
-            m.cls.__name__ for m in app.user_middleware if hasattr(m, "cls")
+            m.cls.__name__ for m in main_app.user_middleware if hasattr(m, "cls")
         ]
         for expected_name in _EXPECTED_MIDDLEWARE_NAMES:
             assert expected_name in middleware_class_names, (
@@ -146,12 +144,11 @@ class TestRouteRegistration:
         assert resp.status_code == 200
 
     @pytest.mark.asyncio
-    async def test_create_app_returns_fastapi_instance(self) -> None:
+    async def test_create_app_returns_fastapi_instance(self, main_app: FastAPI) -> None:
         """AC-T045-1: create_app() returns a FastAPI instance."""
         if _MODULE_MISSING:
             pytest.fail(_SKIP_REASON)
-        app = create_app()
-        assert isinstance(app, FastAPI)
+        assert isinstance(main_app, FastAPI)
 
 
 # ===========================================================================
@@ -163,13 +160,11 @@ class TestStartupInitialisation:
     """Verify that app startup initialises database, Redis, and Celery."""
 
     @pytest.mark.asyncio
-    async def test_app_has_lifespan_handler(self) -> None:
+    async def test_app_has_lifespan_handler(self, main_app: FastAPI) -> None:
         """AC-T045-2: App has a lifespan context manager configured."""
         if _MODULE_MISSING:
             pytest.fail(_SKIP_REASON)
-        app = create_app()
-        # FastAPI lifespan is stored in app.router.lifespan_context
-        lifespan = getattr(app.router, "lifespan_context", None)
+        lifespan = getattr(main_app.router, "lifespan_context", None)
         assert lifespan is not None, (
             "App should have a lifespan context manager for startup/shutdown"
         )

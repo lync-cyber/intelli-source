@@ -259,9 +259,15 @@ class TestDistributeFiveSteps:
         mock_scalars_result = MagicMock()
         mock_scalars_result.all = MagicMock(return_value=subscriptions)
 
-        mock_session = AsyncMock()
+        mock_session = MagicMock()
         mock_session.get = AsyncMock(return_value=mock_content)
         mock_session.scalars = AsyncMock(return_value=mock_scalars_result)
+        mock_execute_result = MagicMock()
+        mock_execute_result.scalar_one_or_none = MagicMock(return_value=None)
+        mock_session.execute = AsyncMock(return_value=mock_execute_result)
+        mock_session.commit = AsyncMock()
+        mock_session.add = MagicMock()
+        mock_session.flush = AsyncMock()
 
         mock_session_factory = MagicMock()
         mock_session_factory.return_value.__aenter__ = AsyncMock(
@@ -560,9 +566,15 @@ class TestDistributePIIMask:
 
         mock_scalars_result = MagicMock()
         mock_scalars_result.all = MagicMock(return_value=[sub])
-        mock_session = AsyncMock()
+        mock_session = MagicMock()
         mock_session.get = AsyncMock(return_value=content)
         mock_session.scalars = AsyncMock(return_value=mock_scalars_result)
+        mock_execute_result = MagicMock()
+        mock_execute_result.scalar_one_or_none = MagicMock(return_value=None)
+        mock_session.execute = AsyncMock(return_value=mock_execute_result)
+        mock_session.commit = AsyncMock()
+        mock_session.add = MagicMock()
+        mock_session.flush = AsyncMock()
         mock_session_factory = MagicMock()
         mock_session_factory.return_value.__aenter__ = AsyncMock(
             return_value=mock_session

@@ -48,10 +48,12 @@ packages = ["src/intellisource"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --tb=short"
+pythonpath = ["tests"]
+addopts = "-q --tb=short --timeout=120 -m 'not slow'"
 asyncio_mode = "auto"
 markers = [
     "requires_docker: tests requiring a local Docker daemon (e.g. testcontainers PG); skipped automatically when Docker is unavailable",
+    "slow: subprocess, install dry-run, or file-watcher polling; excluded from default runs (see CI lint job for ruff/mypy)",
 ]
 
 [tool.ruff]

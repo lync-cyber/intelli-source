@@ -16,11 +16,11 @@ Security-sensitive coverage:
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from source_scan import find_regex_in_tree
 
 from intellisource.llm.gateway import LLMGateway, SchemaEnforcer
 
@@ -404,23 +404,14 @@ class TestT086GrepEvidence:
     """AC-6: Source code contains response_format / tool_choice / tools= references."""
 
     def test_grep_finds_at_least_two_occurrences(self) -> None:
-        """AC-6: grep response_format|tool_choice|tools= in llm/ yields >= 2 hits."""
-        result = subprocess.run(
-            [
-                "grep",
-                "-rn",
-                "-E",
-                "response_format|tool_choice|tools=",
-                "src/intellisource/llm/",
-            ],
-            capture_output=True,
-            text=True,
-            cwd=str(Path(__file__).resolve().parents[3]),
-        )
-        lines = [ln for ln in result.stdout.splitlines() if ln.strip()]
+        """AC-6: response_format|tool_choice|tools= in llm/ yields >= 2 hits."""
+        repo_root = Path(__file__).resolve().parents[3]
+        llm_dir = repo_root / "src" / "intellisource" / "llm"
+        lines = find_regex_in_tree(llm_dir, r"response_format|tool_choice|tools=")
         assert len(lines) >= 2, (
-            f"Expected at least 2 grep hits for response_format|tool_choice|tools= "
-            f"in src/intellisource/llm/, got {len(lines)}:\n{result.stdout}"
+            f"Expected at least 2 hits for response_format|tool_choice|tools= "
+            f"in src/intellisource/llm/, got {len(lines)}:\n"
+            + "\n".join(lines)
         )
 
 

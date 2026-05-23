@@ -336,6 +336,7 @@ class TestCollectAllActiveSources:
         mock_task_repo.create.side_effect = [task_obj_1, task_obj_2]
         mock_source_repo = AsyncMock()
         mock_source_repo.list_active_source_ids.return_value = [SOURCE_ID, SOURCE_ID_2]
+        mock_source_repo.get_types_by_ids.return_value = {}
 
         with (
             patch(
@@ -368,6 +369,7 @@ class TestCollectAllActiveSources:
         mock_task_repo.create.return_value = task_obj
         mock_source_repo = AsyncMock()
         mock_source_repo.list_active_source_ids.return_value = [SOURCE_ID]
+        mock_source_repo.get_types_by_ids.return_value = {}
 
         with (
             patch(

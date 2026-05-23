@@ -9,10 +9,11 @@ Covers:
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
+
+from source_scan import find_regex_in_tree
 
 from intellisource.main import create_app
 
@@ -418,25 +419,14 @@ class TestYamlSafeLoadOnlyInConfigDir:
     """ConfigLoader.load_file uses yaml.safe_load; no unsafe yaml.load variants."""
 
     def test_no_unsafe_yaml_calls_in_config_directory(self) -> None:
-        """AC-7: grep for yaml.load/full_load/unsafe_load in src/intellisource/config/
-        returns no matches except those explicitly passing Loader=yaml.SafeLoader."""
-        result = subprocess.run(
-            [
-                "grep",
-                "-rn",
-                "--include=*.py",
-                r"yaml\.\(load\|full_load\|unsafe_load\)(",
-                "src/intellisource/config/",
-            ],
-            capture_output=True,
-            text=True,
-            cwd=str(_REPO_ROOT),
+        """AC-7: no yaml.load/full_load/unsafe_load in src/intellisource/config/
+        except those explicitly passing Loader=yaml.SafeLoader."""
+        config_dir = _REPO_ROOT / "src" / "intellisource" / "config"
+        lines = find_regex_in_tree(
+            config_dir, r"yaml\.(load|full_load|unsafe_load)\("
         )
-        # Filter out lines that explicitly use Loader=yaml.SafeLoader (acceptable)
         unsafe_lines = [
-            line
-            for line in result.stdout.splitlines()
-            if line.strip() and "Loader=yaml.SafeLoader" not in line
+            line for line in lines if "Loader=yaml.SafeLoader" not in line
         ]
         assert unsafe_lines == [], (
             "Unsafe yaml calls in src/intellisource/config/ "
@@ -444,23 +434,13 @@ class TestYamlSafeLoadOnlyInConfigDir:
         )
 
     def test_no_unsafe_yaml_load_without_safe_loader(self) -> None:
-        """AC-7: ERE grep — no yaml.load( without SafeLoader anywhere in config/."""
-        result = subprocess.run(
-            [
-                "grep",
-                "-nE",
-                r"yaml\.(load|full_load|unsafe_load)\(",
-                "src/intellisource/config/",
-                "-r",
-            ],
-            capture_output=True,
-            text=True,
-            cwd=str(_REPO_ROOT),
+        """AC-7: no yaml.load( without SafeLoader anywhere in config/."""
+        config_dir = _REPO_ROOT / "src" / "intellisource" / "config"
+        lines = find_regex_in_tree(
+            config_dir, r"yaml\.(load|full_load|unsafe_load)\("
         )
         unsafe_lines = [
-            line
-            for line in result.stdout.splitlines()
-            if line.strip() and "Loader=yaml.SafeLoader" not in line
+            line for line in lines if "Loader=yaml.SafeLoader" not in line
         ]
         assert unsafe_lines == [], (
             "Unsafe yaml calls found — must use yaml.safe_load() exclusively:\n"

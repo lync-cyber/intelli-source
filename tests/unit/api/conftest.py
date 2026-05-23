@@ -1,24 +1,10 @@
-"""Unit/API conftest — injects a mock DatabaseManager into bare FastAPI test apps.
-
-Router unit tests create plain FastAPI() apps without lifespan, so app.state.db
-is never populated by a startup handler.  This fixture sets a mock DatabaseManager
-on every app fixture used in this directory so that get_db_session() can delegate
-to app.state.db.get_session() without raising AttributeError.
-
-A second autouse fixture patches intellisource.main.DatabaseManager so that tests
-which call create_app() and trigger the lifespan (e.g. test_app_entry.py) do not
-fail with ValueError when IS_DATABASE_URL is not set.
-
-Tests that patch DatabaseManager themselves (test_lifespan.py, test_deps_integration.py)
-apply an inner patch that temporarily overrides this outer fixture's patch for the
-duration of that test's patch context.
-"""
+"""Unit/API conftest — mock DB on bare FastAPI apps + shared OpenAPI fixtures."""
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -50,6 +36,25 @@ def _make_mock_db() -> MagicMock:
     return db
 
 
+@pytest.fixture(scope="session")
+def main_app() -> FastAPI:
+    """Session-cached ``create_app()`` for read-only OpenAPI/route inspection."""
+    from intellisource.main import create_app
+
+    return create_app()
+
+
+@pytest.fixture(scope="session")
+def main_openapi(main_app: FastAPI) -> dict[str, Any]:
+    """Cached OpenAPI document — avoids rebuilding schema in every test."""
+    return main_app.openapi()
+
+
+@pytest.fixture(scope="session")
+def main_openapi_paths(main_openapi: dict[str, Any]) -> dict[str, Any]:
+    return main_openapi.get("paths", {})
+
+
 @pytest.fixture(autouse=True)
 def _inject_mock_db_into_app_fixtures(request: pytest.FixtureRequest) -> None:
     """Set app.state.db on every FastAPI app fixture found in the current test."""
@@ -62,15 +67,35 @@ def _inject_mock_db_into_app_fixtures(request: pytest.FixtureRequest) -> None:
 
 
 @pytest.fixture(autouse=True)
-def _patch_main_database_manager() -> Iterator[MagicMock]:
-    """Patch intellisource.main.DatabaseManager for the duration of each test.
+def _patch_api_lifespan_heavy_deps() -> Iterator[None]:
+    """Block real Redis / file-watcher side effects in API unit tests.
 
-    Tests in test_app_entry.py call create_app() and trigger the lifespan via
-    httpx.ASGITransport without patching DatabaseManager themselves.  This outer
-    fixture ensures DatabaseManager() never raises ValueError when IS_DATABASE_URL
-    is absent.  Inner per-test patches (test_lifespan.py) override this via the
-    normal unittest.mock patch nesting semantics.
+    ``create_app()`` + ``httpx.ASGITransport`` auto-starts lifespan on the first
+    request but most tests never call ``app.shutdown()``. Without this guard,
+    ``ConfigWatcher`` (watchfiles on OneDrive) and Redis connect attempts pile
+    up and later tests appear to hang.
     """
+    mock_redis = AsyncMock()
+    with (
+        patch(
+            "intellisource.main.aioredis.from_url",
+            new=AsyncMock(return_value=mock_redis),
+        ),
+        patch(
+            "intellisource.config.loader.ConfigWatcher.start",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "intellisource.config.loader.ConfigWatcher.stop",
+            new=AsyncMock(return_value=None),
+        ),
+    ):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def _patch_main_database_manager() -> Iterator[MagicMock]:
+    """Patch intellisource.main.DatabaseManager for the duration of each test."""
     mock_db_instance = _make_mock_db()
     with patch(
         "intellisource.main.DatabaseManager", return_value=mock_db_instance

@@ -13,6 +13,6 @@ class ToolDeps:
     session_factory: Any
     llm_gateway: Any
     pipeline_engine: Any
-    search_engine: Any
+    search_engine_factory: Any
     collector_registry: Any
     distributor: Any
