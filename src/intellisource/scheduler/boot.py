@@ -6,6 +6,7 @@ that are independent of the FastAPI application lifecycle.
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any
 
@@ -24,6 +25,8 @@ from intellisource.scheduler.celery_app import celery_app as _module_celery_app
 from intellisource.scheduler.idempotency import FingerprintChecker, IdempotencyGuard
 from intellisource.scheduler.tasks import CeleryTasks
 from intellisource.storage.models import RawContent
+
+logger = logging.getLogger(__name__)
 
 _celery_tasks: CeleryTasks | None = None
 _worker_engine: AsyncEngine | None = None
@@ -79,10 +82,6 @@ class _RawContentResultRepo:
             import uuid as _uuid_mod  # noqa: PLC0415
             from datetime import datetime, timezone  # noqa: PLC0415
 
-            from sqlalchemy import select  # noqa: PLC0415
-
-            from intellisource.storage.models import RawContent  # noqa: PLC0415
-
             raw_id = _uuid_mod.UUID(str(content_id_val))
             async with self._session_factory() as session:
                 row = (
@@ -93,9 +92,14 @@ class _RawContentResultRepo:
                 if row is not None:
                     row.status = "processed"
                     row.processed_at = datetime.now(tz=timezone.utc)
-                    await session.flush()
-        except Exception:
-            pass
+                    await session.commit()
+        except Exception as exc:
+            logger.warning(
+                "_RawContentResultRepo.create: failed to persist status for %s: %s",
+                content_id_val,
+                exc,
+                exc_info=True,
+            )
         return result
 
 

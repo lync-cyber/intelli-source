@@ -150,10 +150,13 @@ class TestProcessExecuteReal:
     async def test_process_execute_calls_pipeline_engine_execute(self) -> None:
         """_process_execute must call pipeline_engine.execute() or execute_stream()."""
         from intellisource.agent.tools import _process_execute  # type: ignore[import]
+        from intellisource.pipeline.context import (
+            PipelineContext,  # type: ignore[import]
+        )
 
-        mock_engine = AsyncMock()
-        mock_engine.execute = AsyncMock(return_value={"status": "success"})
-        mock_engine.execute_stream = AsyncMock(return_value=iter([]))
+        mock_engine = MagicMock()
+        mock_engine.execute = MagicMock(return_value=PipelineContext())
+        mock_engine.execute_stream = MagicMock(return_value=iter([]))
 
         deps = _make_tool_deps(pipeline_engine=mock_engine)
 
@@ -174,10 +177,13 @@ class TestProcessExecuteReal:
     async def test_process_execute_calls_execute_exactly_once(self) -> None:
         """_process_execute calls engine exactly once per invocation."""
         from intellisource.agent.tools import _process_execute  # type: ignore[import]
+        from intellisource.pipeline.context import (
+            PipelineContext,  # type: ignore[import]
+        )
 
-        mock_engine = AsyncMock()
-        mock_engine.execute = AsyncMock(return_value={"status": "success"})
-        mock_engine.execute_stream = AsyncMock(return_value=iter([]))
+        mock_engine = MagicMock()
+        mock_engine.execute = MagicMock(return_value=PipelineContext())
+        mock_engine.execute_stream = MagicMock(return_value=iter([]))
 
         deps = _make_tool_deps(pipeline_engine=mock_engine)
 
@@ -193,9 +199,12 @@ class TestProcessExecuteReal:
     async def test_process_execute_not_placeholder(self) -> None:
         """_process_execute must not return old placeholder."""
         from intellisource.agent.tools import _process_execute  # type: ignore[import]
+        from intellisource.pipeline.context import (
+            PipelineContext,  # type: ignore[import]
+        )
 
-        mock_engine = AsyncMock()
-        mock_engine.execute = AsyncMock(return_value={"pipeline_result": "done"})
+        mock_engine = MagicMock()
+        mock_engine.execute = MagicMock(return_value=PipelineContext())
 
         deps = _make_tool_deps(pipeline_engine=mock_engine)
 

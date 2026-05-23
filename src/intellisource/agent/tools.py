@@ -155,16 +155,15 @@ async def _process_execute(
             ctx.set("title", raw.title or "")
             ctx.set("fingerprint", raw.fingerprint or "")
             ctx.set("content_id", str(raw.id))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning(
+            "_process_execute: failed to load RawContent for %s: %s",
+            content_id,
+            exc,
+            exc_info=True,
+        )
 
-    import inspect  # noqa: PLC0415
-
-    ctx_or_coro = tool_deps.pipeline_engine.execute(ctx)
-    if inspect.isawaitable(ctx_or_coro):
-        ctx_or_coro = await ctx_or_coro
-    if hasattr(ctx_or_coro, "get"):
-        ctx = ctx_or_coro
+    ctx = tool_deps.pipeline_engine.execute(ctx)
 
     result: dict[str, Any] = {
         "body_html": ctx.get("body_html"),
