@@ -384,6 +384,62 @@ def build_api_composition(
 
     _install_webhook_state(app, redis_client=redis_client)
     app.state.background_tasks = set()
+    _install_observability_state(app, db_manager=db_manager, redis_client=redis_client)
+
+
+def _install_observability_state(
+    app: FastAPI, *, db_manager: DatabaseManager, redis_client: Any
+) -> None:
+    """Wire health_checker / metrics_collector / config_version_manager state.
+
+    AC-T099-5 — replaces the placeholder stubs in `api/routers/system.py` with
+    a real `HealthChecker` (checks: db, redis, celery), the singleton
+    `MetricsCollector`, and a fresh `ConfigVersionManager` snapshot store
+    consumed by `main.on_config_change`.
+    """
+    from intellisource.config.loader import ConfigVersionManager
+    from intellisource.observability.health import HealthChecker
+    from intellisource.observability.metrics import MetricsCollector
+
+    checker = HealthChecker()
+
+    async def _check_db() -> bool:
+        try:
+            async with db_manager.get_session() as session:
+                from sqlalchemy import text
+
+                await session.execute(text("SELECT 1"))
+            return True
+        except Exception:
+            return False
+
+    async def _check_redis() -> bool:
+        try:
+            await redis_client.ping()
+            return True
+        except Exception:
+            return False
+
+    async def _check_celery() -> bool:
+        celery_app = getattr(app.state, "celery_app", None)
+        if celery_app is None:
+            return False
+        try:
+            # `control.ping` round-trips to a worker; treat any non-empty
+            # response as healthy. Default timeout is short to avoid blocking
+            # the /health endpoint on a stuck broker.
+            replies = celery_app.control.ping(timeout=0.5)
+            return bool(replies)
+        except Exception:
+            return False
+
+    checker.register_check("db", _check_db)
+    checker.register_check("redis", _check_redis)
+    checker.register_check("celery", _check_celery)
+    app.state.health_checker = checker
+
+    app.state.metrics_collector = MetricsCollector.get_instance()
+    app.state.config_version_manager = ConfigVersionManager()
 
 
 def _install_webhook_state(app: FastAPI, *, redis_client: Any) -> None:

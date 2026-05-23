@@ -75,3 +75,35 @@ class TestConfigHotReload:
             await main_mod.on_config_change(str(yaml_file))
 
         repo_cls.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_on_config_change_records_version_after_upsert(
+        self, tmp_path: Path
+    ) -> None:
+        """T-099 AC-6: ConfigVersionManager.record_version is invoked."""
+        from intellisource.config.loader import ConfigVersionManager
+
+        yaml_file = _make_yaml(tmp_path)
+
+        mock_repo = MagicMock()
+        mock_repo.upsert = AsyncMock(return_value=None)
+        mock_session = MagicMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+        mock_db = MagicMock()
+        mock_db.get_session = MagicMock(return_value=mock_session)
+
+        version_manager = ConfigVersionManager()
+
+        with (
+            patch.object(main_mod, "_db_manager", mock_db),
+            patch.object(main_mod, "_config_version_manager", version_manager),
+            patch("intellisource.main.SourceRepository", return_value=mock_repo),
+        ):
+            await main_mod.on_config_change(str(yaml_file))
+
+        assert version_manager.current_version == 1, (
+            "record_version must have been invoked after successful upsert"
+        )
+        latest = version_manager.rollback(1)
+        assert latest[0].name == "s8r-hotreload-test"
