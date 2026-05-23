@@ -12,8 +12,8 @@
 - model 继承: AGENT.md 中 `model: inherit` 继承父会话模型
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: sprint-9 全 6 任务闭环 — T-100 status=approved（light GREEN commit 1c1140c → r1 needs_revision 7 findings (1 HIGH R-001 Worker composition 未透传 celery_app + 3 MED + 3 LOW) → r2 commit e5a783f 全 7 修复 + 2 反证测试 → orchestrator inline approve）。EXP-005 装配缺口模式 sprint-9 累计 5 次复发，EXP-006 truncation 累计 4/4，已超 RETRO_TRIGGER_SELF_CAUSED=5 阈值
-- 下一步行动: sprint-9 sprint-review（计划 vs 实际 + AC 覆盖 + scope drift 检查）→ retrospective（强制立项 EXP-005 framework-level 装配缺口扫描 + EXP-006 anti-truncation 默认指令）→ 用户决定是否进入 T-100 后续 deploy 阶段或回到 P2 backlog
+- 当前阶段: sprint-9 retrospective 完成 — 产出 RETRO-intellisource-v1-sprint-9.md (2 EXP 强制立项 EXP-005 装配缺口 + EXP-006 truncation 跨 3 角色) + SKILL-IMPROVE-code-review-assembly-gap-scan + SKILL-IMPROVE-framework-anti-truncation
+- 下一步行动: 用户决定 — ① 进入 deploy 阶段 (devops 产出 deploy-spec) ② 应用 EXP-005/EXP-006 改进到 .cataforge/skills + agents (backlog 触发) ③ 回到 sprint-8 (T-064~T-079) P2 改进 backlog
 - 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r 批次 1-4]
 - 当前Sprint: sprint-9 (in-progress — T-095 done + T-094 done + T-096 done + T-097 done；批次 2 T-098/099 planned)
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report = approved；ui-spec = N/A；dev-plan-s8(P2 backlog) = draft；deploy-spec = 未开始
@@ -62,10 +62,11 @@
   - **EXP-005 装配缺口闭环**: T-088 R-007 + T-092 N-001 两端 r3 真正闭环；T-089 r2 独立 reviewer 已确认 tools 真消费 tool_deps；sprint-8r 立项核心目标在本批次根治
   - 批次 3 阶段测试: 108 new tests passing (ace6b99) + r3 后新增 11 反证/集成测试 → 全量 2288 PASS / 29 skip / 0 fail；mypy --strict clean；ruff check + format clean
 - Learnings Registry:
-  - [RETRO-intellisource-v1.md](docs/reviews/retro/RETRO-intellisource-v1.md) — 6 EXP，应用决策 deferred to backlog
-  - [SKILL-IMPROVE-*.md](docs/reviews/retro/) — 6 份建议（implementer / refactorer / code-review / tech-lead / tdd-engine / orchestrator）
+  - [RETRO-intellisource-v1.md](docs/reviews/retro/RETRO-intellisource-v1.md) — 6 EXP (sprint-1~7)，应用决策 deferred to backlog
+  - [RETRO-intellisource-v1-sprint-9.md](docs/reviews/retro/RETRO-intellisource-v1-sprint-9.md) — 2 EXP 强制立项 (EXP-005 装配缺口 5 次复发 + EXP-006 truncation 4/4 跨 3 角色)
+  - [SKILL-IMPROVE-*.md](docs/reviews/retro/) — 8 份建议（sprint-1~7 6 份 + sprint-9 2 份 assembly-gap-scan / framework-anti-truncation）
 - 上游反馈: [docs/feedback/](docs/feedback/) — 1 bug (EVENT-LOG `session_end` schema), 1 suggest (reflector front matter 不一致)
-- Backlog: ① 6 EXP 改进应用到 .cataforge/agents 与 skills（待用户触发）② sprint-8 (T-064~T-079) 因 P0 audit 重新定位为 post-deploy P2 改进 backlog，与 sprint-8r 阻断项修复解耦 ③ test-report-intellisource-v1 approved 状态需在 sprint-8r 完成后重新评估（当前测试套件未拦截装配缺口）
+- Backlog: ① 6 EXP 改进 (sprint-1~7) 应用到 .cataforge/agents 与 skills（待用户触发）② sprint-9 2 EXP 强制改进应用 (EXP-005 framework-level lint + tech-lead template wiring_checklist + EXP-006 AGENT.md anti_truncation frontmatter + tdd-engine stage gate + orchestrator inline-takeover 协议固化) ③ sprint-8 (T-064~T-079) 因 P0 audit 重新定位为 post-deploy P2 改进 backlog ④ test-report-intellisource-v1 approved 状态在 sprint-9 全 approved + retrospective 完成后保持有效（assembly-gap 检查器一旦落地需重新评估）
 
 ## 执行环境
 - 包管理器: uv（fallback: pip）
