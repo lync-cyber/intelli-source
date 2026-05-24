@@ -275,42 +275,26 @@ class TestZhparserExtension:
 
 
 class TestLlmCallLogPartition:
-    """AC-T046-5: E-007 LLMCallLog must be created as a partitioned table."""
+    """AC-T046-5: E-007 LLMCallLog table is created in migration (plain table, v1)."""
 
-    def test_llm_call_logs_partition_by_range(self) -> None:
-        """Migration must create llm_call_logs with PARTITION BY RANGE."""
+    def test_llm_call_logs_table_present(self) -> None:
+        """Migration must create the llm_call_logs table."""
         source = _read_migration_source()
-        pattern = r"PARTITION\s+BY\s+RANGE"
-        assert re.search(pattern, source, re.IGNORECASE), (
-            "Migration does not include 'PARTITION BY RANGE' for llm_call_logs. "
-            "LLMCallLog table must be range-partitioned by created_at."
-        )
-
-    def test_llm_call_logs_partition_on_created_at(self) -> None:
-        """Partition key must be created_at column."""
-        source = _read_migration_source()
-        # Look for PARTITION BY RANGE (created_at) or similar
-        pattern = r"PARTITION\s+BY\s+RANGE\s*\(\s*created_at\s*\)"
-        assert re.search(pattern, source, re.IGNORECASE), (
-            "LLMCallLog partition key is not 'created_at'. "
-            "The table must be partitioned by RANGE on created_at."
-        )
-
-    def test_llm_call_logs_uses_raw_sql_for_partition(self) -> None:
-        """Partition creation likely uses op.execute() with raw SQL since
-        Alembic's create_table doesn't natively support PARTITION BY."""
-        source = _read_migration_source()
-        # The migration should use op.execute() or text() for the partitioned table
         assert re.search(r"llm_call_logs", source), (
             "Migration does not reference llm_call_logs table at all"
         )
-        # There should be raw SQL execution for the partition syntax
-        has_execute = re.search(r"op\.execute\s*\(", source) is not None
-        has_partition = (
-            re.search(r"PARTITION\s+BY\s+RANGE", source, re.IGNORECASE) is not None
+
+    def test_llm_call_logs_no_partition(self) -> None:
+        """v1 simplification: llm_call_logs is a plain table without PARTITION BY."""
+        source = _read_migration_source()
+        assert not re.search(r"PARTITION\s+BY\s+RANGE", source, re.IGNORECASE), (
+            "llm_call_logs should not use PARTITION BY RANGE in v1; "
+            "partitioning is deferred to a future migration."
         )
-        assert has_execute and has_partition, (
-            "Migration should use op.execute() with raw SQL to create "
-            "the partitioned llm_call_logs table, since Alembic's create_table "
-            "does not natively support PARTITION BY RANGE."
+
+    def test_llm_call_logs_has_created_at_index(self) -> None:
+        """llm_call_logs must have an index on created_at for range queries."""
+        source = _read_migration_source()
+        assert re.search(r"ix_llm_call_logs_created_at", source), (
+            "Migration must create ix_llm_call_logs_created_at index"
         )

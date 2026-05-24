@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from intellisource.agent.response_utils import extract_answer
 from intellisource.agent.tools import load_pipeline_config
 from intellisource.api.deps import get_db_session
 from intellisource.api.schemas.search import (
@@ -101,22 +102,6 @@ def _extract_sources(flex_result: dict[str, Any]) -> list[ChatSource]:
     return []
 
 
-def _extract_answer(flex_result: dict[str, Any]) -> str:
-    """Return the best assistant-facing text from flexible-mode tool results."""
-    final_answer = flex_result.get("final_answer")
-    if final_answer:
-        return str(final_answer)
-    for step in reversed(flex_result.get("results", [])):
-        output = step.get("output", {})
-        if not isinstance(output, dict):
-            continue
-        for key in ("summary", "text", "content"):
-            value = output.get(key)
-            if value:
-                return str(value)
-    return ""
-
-
 @router.post("/search/chat")
 async def chat_search(
     request: Request,
@@ -168,7 +153,7 @@ async def chat_search(
     )
     elapsed_ms = int((time.monotonic() - start) * 1000)
 
-    answer = _extract_answer(flex_result)
+    answer = extract_answer(flex_result)
 
     response_session_uuid = session_uuid or uuid.uuid4()
     steps_executed: int = int(flex_result.get("steps_executed", 0))

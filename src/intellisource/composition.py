@@ -46,6 +46,9 @@ from intellisource.agent.tools import load_pipeline_config
 from intellisource.collector.adapters.api import APICollector
 from intellisource.collector.adapters.rss import RSSCollector
 from intellisource.collector.adapters.web import WebCollector
+from intellisource.collector.adaptive import AdaptiveScheduler
+from intellisource.collector.proxy import ProxyManager
+from intellisource.collector.rate_limiter import RateLimiter
 from intellisource.collector.registry import CollectorRegistry
 from intellisource.core.errors import ErrorCategory, IntelliSourceError
 from intellisource.distributor.channels.email import EmailDistributor
@@ -171,9 +174,17 @@ def build_distributor_facade(
 # ---------------------------------------------------------------------------
 
 
-def build_collector_registry() -> CollectorRegistry:
+def build_collector_registry(redis_client: Any | None = None) -> CollectorRegistry:
     """Register the three first-party collector adapters (RSS / API / Web)."""
-    registry = CollectorRegistry()
+    rate_limiter = RateLimiter(redis_client) if redis_client is not None else None
+    proxy_cfg: dict[str, str] = {}
+    proxy_manager = ProxyManager(proxy_cfg)
+    adaptive = AdaptiveScheduler()
+    registry = CollectorRegistry(
+        rate_limiter=rate_limiter,
+        proxy_manager=proxy_manager,
+        adaptive=adaptive,
+    )
     registry.register("rss", RSSCollector)
     registry.register("api", APICollector)
     registry.register("web", WebCollector)
@@ -300,7 +311,7 @@ def _build_deps_bundle(
     llm_gateway = build_llm_gateway(redis_client)
     return _DepsBundle(
         llm_gateway=llm_gateway,
-        collector_registry=build_collector_registry(),
+        collector_registry=build_collector_registry(redis_client),
         distributor=build_distributor_facade(
             session_factory, redis_client, llm_gateway=llm_gateway
         ),
@@ -500,6 +511,25 @@ def _install_webhook_state(app: FastAPI, *, redis_client: Any) -> None:
     wework_token = os.environ.get("IS_WEWORK_WEBHOOK_TOKEN", "")
     app.state.wechat_webhook_token = wechat_token
     app.state.wework_webhook_token = wework_token
+
+    _wecom_token = os.environ.get("IS_WECOM_TOKEN", "")
+    _wecom_aes_key = os.environ.get("IS_WECOM_ENCODING_AES_KEY", "")
+    _wecom_corp_id = os.environ.get("IS_WECOM_CORP_ID", "")
+    if _wecom_token and _wecom_aes_key and _wecom_corp_id:
+        from intellisource.api.webhook_crypto import WeComCrypto
+
+        app.state.wecom_crypto = WeComCrypto(
+            token=_wecom_token,
+            encoding_aes_key=_wecom_aes_key,
+            corp_id=_wecom_corp_id,
+        )
+    else:
+        app.state.wecom_crypto = None
+        if _wecom_token or _wecom_aes_key or _wecom_corp_id:
+            logger.warning(
+                "IS_WECOM_TOKEN / IS_WECOM_ENCODING_AES_KEY / IS_WECOM_CORP_ID"
+                " are partially set — WeWork AES decryption disabled (503)"
+            )
 
     http_client = _maybe_build_http_client()
 

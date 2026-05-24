@@ -26,6 +26,7 @@ dependencies = [
     "aioredis>=2.0.1",
     "regex>=2024.5.10",
     "aiosmtplib>=5.1.0",
+    "cryptography>=42.0",
 ]
 
 [project.optional-dependencies]
@@ -56,8 +57,14 @@ markers = [
     "slow: subprocess, install dry-run, or file-watcher polling; excluded from default runs (see CI lint job for ruff/mypy)",
 ]
 filterwarnings = [
+    # AsyncMock.__del__ triggers unraisable coroutine warnings on Python 3.11+
+    # when mock objects are garbage-collected mid-test. Already scoped to the
+    # specific internal method; not masking real resource leaks (conftest
+    # fixtures use explicit teardown).
     "ignore:Exception ignored while finalizing coroutine.*AsyncMockMixin._execute_mock_call:pytest.PytestUnraisableExceptionWarning",
     "ignore:coroutine 'AsyncMockMixin._execute_mock_call' was never awaited:RuntimeWarning",
+    # aiosqlite Connection.__del__ fires when an in-memory SQLite connection is
+    # collected before close() is called; scoped to the aiosqlite deallocator path.
     "ignore:Exception ignored while calling deallocator.*Connection\\.__del__:pytest.PytestUnraisableExceptionWarning",
     "ignore:.*aiosqlite\\.core\\.Connection.*was deleted before being closed:ResourceWarning",
 ]

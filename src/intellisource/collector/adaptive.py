@@ -52,6 +52,12 @@ class AdaptiveScheduler:
         clamped = int(max(MIN_INTERVAL, min(MAX_INTERVAL, interval)))
         return clamped
 
+    def record_success(self, source_id: str) -> None:
+        """Record a successful fetch; reserved for future stat tracking."""
+
+    def record_failure(self, source_id: str) -> None:
+        """Record a failed fetch; reserved for future stat tracking."""
+
 
 class RetryPolicy:
     """Exponential backoff retry policy with a maximum of 3 retries."""

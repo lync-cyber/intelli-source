@@ -6,6 +6,7 @@ by AgentRunner, and load_pipeline_config for loading YAML pipelines.
 
 from __future__ import annotations
 
+import asyncio
 import enum
 import importlib.util
 import logging
@@ -349,6 +350,7 @@ async def _collect_execute(
         "collected": collected_summary,
         "raw_content_ids": raw_content_ids,
         "content_id": first_id,
+        "is_batch": True,
         "source_id": source_id,
         "source_type": source_type,
     }
@@ -356,10 +358,16 @@ async def _collect_execute(
 
 async def _process_execute(
     content_id: str = "",
+    raw_content_ids: list[str] | None = None,
     tool_deps: Any = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """Fetch RawContent, run PipelineEngine, persist ProcessedContent."""
+    """Fetch RawContent, run PipelineEngine, persist ProcessedContent.
+
+    When ``raw_content_ids`` is provided the function fans-out over the full
+    list; ``content_id`` is used as a single-item fallback for backward
+    compatibility.
+    """
     if tool_deps is None or tool_deps.pipeline_engine is None:
         logger.warning("tool_deps not injected for process, returning placeholder")
         return {
@@ -380,6 +388,18 @@ async def _process_execute(
             "content_id": content_id,
         }
 
+    ids_to_process: list[str] = (
+        raw_content_ids if raw_content_ids else ([content_id] if content_id else [])
+    )
+
+    if not ids_to_process:
+        return {
+            "status": "degraded",
+            "tool": "process",
+            "reason": "no content_id provided",
+            "content_id": content_id,
+        }
+
     from datetime import datetime, timezone  # noqa: PLC0415
 
     from intellisource.pipeline.context import PipelineContext  # noqa: PLC0415
@@ -387,92 +407,141 @@ async def _process_execute(
         ContentRepository,
     )
 
-    try:
-        raw_id = _uuid.UUID(content_id)
-    except ValueError:
-        return {
-            "status": "degraded",
-            "tool": "process",
-            "reason": f"invalid content_id: {content_id!r}",
-            "content_id": content_id,
-        }
+    processed_content_ids: list[str] = []
+    results: list[dict[str, Any]] = []
 
-    ctx = PipelineContext()
-    ctx.set("content_id", content_id)
-
-    async with tool_deps.session_factory() as session:
-        repo = ContentRepository(session=session)
-        raw = await repo.get_raw_by_id(raw_id)
-        if raw is None:
-            return {
-                "status": "degraded",
-                "tool": "process",
-                "reason": f"RawContent not found: {content_id}",
-                "content_id": content_id,
-            }
-
-        ctx.set("body_html", raw.body_html or "")
-        ctx.set("body_text", raw.body_text or "")
-        ctx.set("title", raw.title or "")
-        ctx.set("fingerprint", raw.fingerprint or "")
-        ctx.set("content_id", str(raw.id))
-
-        ctx = tool_deps.pipeline_engine.execute(ctx)
-
-        tags_val = ctx.get("tags")
-        tags: list[str] = tags_val if isinstance(tags_val, list) else []
-
-        existing_processed = await repo.get_processed_by_raw_id(raw_id)
-        if existing_processed is not None:
-            processed = existing_processed
-        else:
-            processed = await repo.create(
-                raw_content_id=raw_id,
-                title=str(ctx.get("title") or raw.title or ""),
-                body_text=str(ctx.get("body_text") or raw.body_text or ""),
-                tags=tags,
-                fingerprint=str(ctx.get("fingerprint") or raw.fingerprint or ""),
-                source_url=raw.source_url,
-                processing_status="completed",
-                processed_at=datetime.now(tz=timezone.utc),
+    for cid in ids_to_process:
+        try:
+            raw_id = _uuid.UUID(cid)
+        except ValueError:
+            results.append(
+                {
+                    "status": "degraded",
+                    "reason": f"invalid content_id: {cid!r}",
+                    "content_id": cid,
+                }
             )
+            continue
 
-        raw.status = "processed"
-        raw.processed_at = datetime.now(tz=timezone.utc)
-        await session.commit()
+        ctx = PipelineContext()
+        ctx.set("content_id", cid)
 
-    result: dict[str, Any] = {
-        "body_html": ctx.get("body_html"),
-        "body_text": ctx.get("body_text"),
-        "title": ctx.get("title"),
-        "fingerprint": ctx.get("fingerprint"),
-        "content_id": str(processed.id),
-        "raw_content_id": str(raw_id),
+        async with tool_deps.session_factory() as session:
+            repo = ContentRepository(session=session)
+            raw = await repo.get_raw_by_id(raw_id)
+            if raw is None:
+                results.append(
+                    {
+                        "status": "degraded",
+                        "reason": f"RawContent not found: {cid}",
+                        "content_id": cid,
+                    }
+                )
+                continue
+
+            ctx.set("body_html", raw.body_html or "")
+            ctx.set("body_text", raw.body_text or "")
+            ctx.set("title", raw.title or "")
+            ctx.set("fingerprint", raw.fingerprint or "")
+            ctx.set("content_id", str(raw.id))
+
+            ctx = await asyncio.to_thread(tool_deps.pipeline_engine.execute, ctx)
+
+            tags_val = ctx.get("tags")
+            tags: list[str] = tags_val if isinstance(tags_val, list) else []
+
+            existing_processed = await repo.get_processed_by_raw_id(raw_id)
+            if existing_processed is not None:
+                processed = existing_processed
+            else:
+                processed = await repo.create(
+                    raw_content_id=raw_id,
+                    title=str(ctx.get("title") or raw.title or ""),
+                    body_text=str(ctx.get("body_text") or raw.body_text or ""),
+                    tags=tags,
+                    fingerprint=str(ctx.get("fingerprint") or raw.fingerprint or ""),
+                    source_url=raw.source_url,
+                    processing_status="completed",
+                    processed_at=datetime.now(tz=timezone.utc),
+                )
+
+            raw.status = "processed"
+            raw.processed_at = datetime.now(tz=timezone.utc)
+            await session.commit()
+
+        processed_id = str(processed.id)
+        processed_content_ids.append(processed_id)
+        results.append(
+            {
+                "body_html": ctx.get("body_html"),
+                "body_text": ctx.get("body_text"),
+                "title": ctx.get("title"),
+                "fingerprint": ctx.get("fingerprint"),
+                "content_id": processed_id,
+                "raw_content_id": str(raw_id),
+            }
+        )
+
+    first_processed_id = (
+        processed_content_ids[0] if processed_content_ids else content_id
+    )
+    single_result = results[0] if len(results) == 1 else results
+    return {
+        "status": "ok",
+        "tool": "process",
+        "result": single_result,
+        "processed_content_ids": processed_content_ids,
+        "content_id": first_processed_id,
     }
-    return {"status": "ok", "tool": "process", "result": result}
 
 
 async def _distribute_execute(
     content_id: str = "",
+    processed_content_ids: list[str] | None = None,
     subscription_id: str = "",
     tool_deps: Any = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """Invoke distributor.distribute() for the given content and subscription."""
-    if tool_deps is not None and tool_deps.distributor is not None:
-        result = await tool_deps.distributor.distribute(
-            content_id=content_id,
+    """Invoke distributor.distribute() for the given content and subscription.
+
+    When ``processed_content_ids`` is provided the function fans-out over the
+    full list; ``content_id`` is used as a single-item fallback for backward
+    compatibility.
+    """
+    if tool_deps is None or tool_deps.distributor is None:
+        logger.warning("tool_deps not injected for distribute, returning placeholder")
+        return {
+            "status": "degraded",
+            "tool": "distribute",
+            "reason": "tool_deps not injected",
+            "content_id": content_id,
+        }
+
+    ids_to_distribute: list[str] = (
+        processed_content_ids
+        if processed_content_ids
+        else ([content_id] if content_id else [])
+    )
+
+    if not ids_to_distribute:
+        return {
+            "status": "degraded",
+            "tool": "distribute",
+            "reason": "no content_id provided",
+            "content_id": content_id,
+        }
+
+    results: list[Any] = []
+    for cid in ids_to_distribute:
+        r = await tool_deps.distributor.distribute(
+            content_id=cid,
             subscription_id=subscription_id,
             **kwargs,
         )
-        return {"status": "ok", "tool": "distribute", "result": result}
-    logger.warning("tool_deps not injected for distribute, returning placeholder")
-    return {
-        "status": "degraded",
-        "tool": "distribute",
-        "reason": "tool_deps not injected",
-        "content_id": content_id,
-    }
+        results.append(r)
+
+    single_result = results[0] if len(results) == 1 else results
+    return {"status": "ok", "tool": "distribute", "result": single_result}
 
 
 async def _search_execute(
@@ -538,17 +607,30 @@ async def _get_content_detail_execute(
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Invoke ContentRepository.get_by_id() for the given content_id."""
-    from intellisource.storage.repositories.content import ContentRepository
+    from intellisource.agent.dto import ProcessedContentDTO  # noqa: PLC0415
+    from intellisource.storage.repositories.content import (
+        ContentRepository,  # noqa: PLC0415
+    )
 
     if tool_deps is not None and tool_deps.session_factory is not None:
         session = tool_deps.session_factory()
         async with session as s:
             repo = ContentRepository(session=s)
             content = await repo.get_by_id(_uuid.UUID(content_id))
+            if content is None:
+                return {
+                    "status": "degraded",
+                    "tool": "get_content_detail",
+                    "reason": f"content not found: {content_id}",
+                    "content_id": content_id,
+                }
+            content_dict = ProcessedContentDTO.model_validate(content).model_dump(
+                mode="json"
+            )
             return {
                 "status": "ok",
                 "tool": "get_content_detail",
-                "content": content,
+                "content": content_dict,
                 "content_id": content_id,
             }
     logger.warning(

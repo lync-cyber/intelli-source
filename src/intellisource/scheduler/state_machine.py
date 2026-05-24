@@ -6,7 +6,9 @@ SchedulerManager (AC-T028-4, AC-039).
 
 from __future__ import annotations
 
+import json
 import uuid
+from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from typing import Any
 
@@ -108,13 +110,105 @@ class TaskStateMachine:
         return result
 
 
+class SchedulerStateBackend(ABC):
+    """Abstract backend for SchedulerManager schedule persistence."""
+
+    @abstractmethod
+    def get(self, name: str) -> dict[str, Any] | None:
+        """Return schedule dict by name, or None if not found."""
+        ...
+
+    @abstractmethod
+    def set(self, name: str, schedule: dict[str, Any]) -> None:
+        """Persist a schedule entry."""
+        ...
+
+    @abstractmethod
+    def delete(self, name: str) -> None:
+        """Remove a schedule entry. Raises KeyError if not found."""
+        ...
+
+    @abstractmethod
+    def all(self) -> list[dict[str, Any]]:
+        """Return all schedule entries."""
+        ...
+
+    @abstractmethod
+    def exists(self, name: str) -> bool:
+        """Return True if a schedule with the given name exists."""
+        ...
+
+
+class InMemoryStateBackend(SchedulerStateBackend):
+    """In-process dict-backed schedule storage."""
+
+    def __init__(self) -> None:
+        self._data: dict[str, dict[str, Any]] = {}
+
+    def get(self, name: str) -> dict[str, Any] | None:
+        return self._data.get(name)
+
+    def set(self, name: str, schedule: dict[str, Any]) -> None:
+        self._data[name] = schedule
+
+    def delete(self, name: str) -> None:
+        if name not in self._data:
+            raise KeyError(name)
+        del self._data[name]
+
+    def all(self) -> list[dict[str, Any]]:
+        return list(self._data.values())
+
+    def exists(self, name: str) -> bool:
+        return name in self._data
+
+
+class RedisStateBackend(SchedulerStateBackend):
+    """Redis-backed schedule storage using hash fields under a namespace key."""
+
+    _KEY_PREFIX = "scheduler:state:"
+
+    def __init__(self, redis_client: Any) -> None:
+        self._redis = redis_client
+
+    def _key(self, name: str) -> str:
+        return f"{self._KEY_PREFIX}{name}"
+
+    def get(self, name: str) -> dict[str, Any] | None:
+        raw = self._redis.get(self._key(name))
+        if raw is None:
+            return None
+        return json.loads(raw)  # type: ignore[no-any-return]
+
+    def set(self, name: str, schedule: dict[str, Any]) -> None:
+        self._redis.set(self._key(name), json.dumps(schedule))
+
+    def delete(self, name: str) -> None:
+        deleted = self._redis.delete(self._key(name))
+        if not deleted:
+            raise KeyError(name)
+
+    def all(self) -> list[dict[str, Any]]:
+        pattern = f"{self._KEY_PREFIX}*"
+        keys = self._redis.keys(pattern)
+        if not keys:
+            return []
+        values = self._redis.mget(keys)
+        return [json.loads(v) for v in values if v is not None]
+
+    def exists(self, name: str) -> bool:
+        return bool(self._redis.exists(self._key(name)))
+
+
 class SchedulerManager:
     """Manages Celery Beat schedule registration and removal."""
 
-    def __init__(self) -> None:
-        # [ASSUMPTION] In-memory schedule storage — sufficient for single-
-        # process dev/test. Replace with Redis or DB-backed store for
-        # multi-worker production deployment.
+    def __init__(self, backend: SchedulerStateBackend | None = None) -> None:
+        self._backend: SchedulerStateBackend = (
+            backend if backend is not None else InMemoryStateBackend()
+        )
+        # Keep internal dict view for fast schedule writes;
+        # backend is the persistence layer.
         self._schedules: dict[str, dict[str, Any]] = {}
 
     def register_schedule(
@@ -125,21 +219,27 @@ class SchedulerManager:
         params: dict[str, Any],
     ) -> None:
         """Register a scheduled task. Raises ValueError on duplicate."""
-        if name in self._schedules:
+        if name in self._schedules or self._backend.exists(name):
             msg = f"Schedule '{name}' already exists"
             raise ValueError(msg)
-        self._schedules[name] = {
+        entry = {
             "name": name,
             "cron_expr": cron_expr,
             "pipeline_name": pipeline_name,
             "params": params,
         }
+        self._schedules[name] = entry
+        self._backend.set(name, entry)
 
     def remove_schedule(self, name: str) -> None:
         """Remove a schedule by name. Raises KeyError if not found."""
         if name not in self._schedules:
             raise KeyError(name)
         del self._schedules[name]
+        try:
+            self._backend.delete(name)
+        except KeyError:
+            pass
 
     def list_schedules(self) -> list[dict[str, Any]]:
         """Return all registered schedules as a list of dicts."""

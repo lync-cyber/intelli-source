@@ -1,0 +1,129 @@
+services:
+
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${IS_DB_USER:-intellisource}
+      POSTGRES_PASSWORD: ${IS_DB_PASSWORD:-intellisource}
+      POSTGRES_DB: ${IS_DB_NAME:-intellisource}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${IS_DB_USER:-intellisource} -d ${IS_DB_NAME:-intellisource}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    env_file:
+      - .env
+    environment:
+      IS_DATABASE_URL: ${IS_DATABASE_URL:-postgresql+asyncpg://${IS_DB_USER:-intellisource}:${IS_DB_PASSWORD:-intellisource}@db:5432/${IS_DB_NAME:-intellisource}}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    command:
+      - uvicorn
+      - "intellisource.main:create_app"
+      - "--factory"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8000"
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      IS_DATABASE_URL: ${IS_DATABASE_URL:-postgresql+asyncpg://${IS_DB_USER:-intellisource}:${IS_DB_PASSWORD:-intellisource}@db:5432/${IS_DB_NAME:-intellisource}}
+      IS_REDIS_URL: ${IS_REDIS_URL:-redis://redis:6379/0}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    command:
+      - celery
+      - "-A"
+      - "intellisource.scheduler.celery_app"
+      - worker
+      - "--loglevel=info"
+    env_file:
+      - .env
+    environment:
+      IS_DATABASE_URL: ${IS_DATABASE_URL:-postgresql+asyncpg://${IS_DB_USER:-intellisource}:${IS_DB_PASSWORD:-intellisource}@db:5432/${IS_DB_NAME:-intellisource}}
+      IS_REDIS_URL: ${IS_REDIS_URL:-redis://redis:6379/0}
+      IS_CELERY_BROKER_URL: ${IS_CELERY_BROKER_URL:-redis://redis:6379/0}
+      IS_CELERY_RESULT_BACKEND: ${IS_CELERY_RESULT_BACKEND:-redis://redis:6379/1}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  beat:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    command:
+      - celery
+      - "-A"
+      - "intellisource.scheduler.celery_app"
+      - beat
+      - "--loglevel=info"
+    env_file:
+      - .env
+    environment:
+      IS_DATABASE_URL: ${IS_DATABASE_URL:-postgresql+asyncpg://${IS_DB_USER:-intellisource}:${IS_DB_PASSWORD:-intellisource}@db:5432/${IS_DB_NAME:-intellisource}}
+      IS_REDIS_URL: ${IS_REDIS_URL:-redis://redis:6379/0}
+      IS_CELERY_BROKER_URL: ${IS_CELERY_BROKER_URL:-redis://redis:6379/0}
+      IS_CELERY_RESULT_BACKEND: ${IS_CELERY_RESULT_BACKEND:-redis://redis:6379/1}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  redis_data:

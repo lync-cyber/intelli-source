@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from intellisource.api.routers.search import _extract_answer, _extract_sources
+from intellisource.agent.response_utils import extract_answer as _extract_answer
+from intellisource.api.routers.search import _extract_sources
 
 
 class TestSearchChatResponseParsing:

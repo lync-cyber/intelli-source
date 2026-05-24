@@ -5,11 +5,13 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import uuid
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import select
+import yaml
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.config.models import SourceConfig
@@ -203,11 +205,20 @@ class ConfigWatcher:
 
 
 class ConfigVersionManager:
-    """In-memory version tracking and rollback for configurations."""
+    """Version tracking and rollback for configurations.
 
-    def __init__(self) -> None:
+    Maintains an in-memory cache for fast reads; when a session_factory is
+    injected, each new version is also written to the config_versions table
+    for cross-process durability.
+    """
+
+    def __init__(
+        self,
+        session_factory: Any | None = None,
+    ) -> None:
         self._versions: dict[int, list[SourceConfig]] = {}
         self._current_version: int = 0
+        self._session_factory = session_factory
 
     @property
     def current_version(self) -> int:
@@ -219,9 +230,69 @@ class ConfigVersionManager:
         self._current_version += 1
         self._versions[self._current_version] = list(configs)
 
+    async def record_version_async(
+        self,
+        configs: list[SourceConfig],
+        author: str | None = None,
+    ) -> str:
+        """Record a version snapshot and persist to DB. Returns version label."""
+        self._current_version += 1
+        self._versions[self._current_version] = list(configs)
+        version_label = str(self._current_version)
+        if self._session_factory is not None:
+            snapshot = yaml.dump([c.model_dump() for c in configs], allow_unicode=True)
+            async with self._session_factory() as session:
+                await session.execute(
+                    text(
+                        "INSERT INTO config_versions"
+                        " (id, version, snapshot_yaml, author)"
+                        " VALUES (:id, :version, :snapshot_yaml, :author)"
+                        " ON CONFLICT (version) DO NOTHING"
+                    ),
+                    {
+                        "id": str(uuid.uuid4()),
+                        "version": version_label,
+                        "snapshot_yaml": snapshot,
+                        "author": author,
+                    },
+                )
+                await session.commit()
+        return version_label
+
     def rollback(self, version: int) -> list[SourceConfig]:
         """Rollback to a specific version and return its config snapshot."""
         if version not in self._versions:
             raise ValueError(f"Version {version} not found")
         self._current_version = version
         return list(self._versions[version])
+
+    async def rollback_by_label(self, version_label: str) -> list[SourceConfig]:
+        """Rollback to a version by its string label.
+
+        Checks the in-memory cache first; falls back to DB if a
+        session_factory was injected.
+        """
+        try:
+            version_int = int(version_label)
+        except ValueError:
+            raise ValueError(f"Version '{version_label}' not found")
+        if version_int in self._versions:
+            self._current_version = version_int
+            return list(self._versions[version_int])
+        if self._session_factory is not None:
+            async with self._session_factory() as session:
+                row = await session.execute(
+                    text(
+                        "SELECT snapshot_yaml FROM config_versions WHERE version = :v"
+                    ),
+                    {"v": version_label},
+                )
+                result = row.fetchone()
+                if result is None:
+                    raise ValueError(f"Version '{version_label}' not found")
+                raw = yaml.safe_load(result[0])
+                configs = [SourceConfig(**item) for item in raw]
+                self._versions[version_int] = configs
+                self._current_version = version_int
+                return list(configs)
+        raise ValueError(f"Version '{version_label}' not found")

@@ -244,6 +244,19 @@ def _bootstrap_beat_schedule(factory: async_sessionmaker[AsyncSession]) -> None:
         return
     except Exception:
         logger.exception("populate_scheduler_from_sources failed — Beat schedule empty")
+        from intellisource.observability.metrics import (
+            MetricsCollector,  # noqa: PLC0415
+        )
+
+        mc = MetricsCollector.get_instance()
+        if "scheduler_beat_sync_failed_total" not in mc._counters:
+            mc.register_counter(
+                "scheduler_beat_sync_failed_total",
+                "Total Beat schedule sync failures",
+            )
+        mc.increment_counter("scheduler_beat_sync_failed_total")
+        if os.environ.get("IS_BEAT_SYNC_HARD_FAIL", "").lower() == "true":
+            raise
         return
 
     sync_beat_schedules(_module_celery_app, scheduler_manager)
