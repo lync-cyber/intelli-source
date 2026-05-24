@@ -91,13 +91,72 @@ ignore_missing_imports = true
 plugins = ["pydantic.mypy"]
 
 [tool.vulture]
+# Dead code detection.
+# Run: uv run vulture
+# Extend the allowlist with: uv run vulture --make-whitelist >> .vulture_whitelist.py
+min_confidence = 80              # Below this, vulture is too noisy to be useful
+sort_by_size = true
+paths = ["src/intellisource", ".vulture_whitelist.py"]
+exclude = ["tests/", "**/migrations/**"]
 ignore_names = [
+    # Generic loop/throwaway identifiers (false positives)
     "names",
     "a",
     "kw",
+    # FastAPI / Pydantic dependency-injection markers and aliased parameters
+    "model_config",
+    "Config",
 ]
-paths = ["src/intellisource"]
-exclude = ["tests/"]
+ignore_decorators = [
+    "@router.*",                 # FastAPI endpoint handlers
+    "@app.*",
+    "@pytest.fixture",
+    "@pytest.mark.*",
+    "@staticmethod",
+    "@classmethod",
+    "@property",
+    "@*.setter",
+]
+
+# ---------------------------------------------------------------------------
+# Dependency hygiene (deptry)
+# Run: uv run deptry src/
+# Docs: https://deptry.com/
+# ---------------------------------------------------------------------------
+[tool.deptry]
+extend_exclude = [
+    "tests/.*",
+    "docs/.*",
+    "alembic/.*",
+    ".cataforge/.*",
+    ".claude/.*",
+]
+# Per-rule overrides (DEP001-DEP004 are deptry's rule codes).
+# Document each entry with the reason so future maintainers can re-evaluate.
+[tool.deptry.per_rule_ignores]
+# DEP002: package declared but never imported (e.g. transitive runtime needs
+# that get loaded by another package rather than direct import).
+DEP002 = [
+    "asyncpg",                   # async PG driver; SQLAlchemy resolves the dialect via URL
+    "psycopg",                   # sync PG driver alternative; tests use it for DDL
+    "pgvector",                  # registers SQLAlchemy types side-effectfully
+    "alembic",                   # CLI tool, not imported at runtime by intellisource.*
+    "aioredis",                  # alias of redis.asyncio in older code paths
+    "regex",                     # imported by litellm internals; pinned for compatibility
+    "opentelemetry-api",         # imported only when OTEL_*_ENABLED env vars are set
+    "lxml",                      # parser backend for beautifulsoup4
+]
+
+# ---------------------------------------------------------------------------
+# pydeps (manual / nightly visualization)
+# Run: uv run pydeps src/intellisource --max-bacon=2 --cluster -o docs/arch/deps.svg
+# Docs: https://pydeps.readthedocs.io/
+# ---------------------------------------------------------------------------
+[tool.pydeps]
+# pydeps reads CLI flags, but [tool.pydeps] keys also work via --config.
+max_bacon = 2
+cluster = true
+exclude = ["intellisource.*.tests.*"]
 
 [dependency-groups]
 dev = [
@@ -111,4 +170,98 @@ dev = [
     "psycopg[binary]>=3.1",
     "pytest-timeout>=2.4.0",
     "asyncpg>=0.31.0",
+    # Architecture governance toolchain
+    "import-linter>=2.11",      # Architecture contracts (CI-blocking)
+    "deptry>=0.20",             # Dependency hygiene (CI-blocking)
+    "vulture>=2.13",             # Dead code detection (CI-soft / pre-commit)
+    "pydeps>=3.0",               # Dependency graph visualization (manual / nightly)
 ]
+
+# ---------------------------------------------------------------------------
+# Architecture governance (import-linter)
+# Run: uv run lint-imports --no-cache
+# Docs: https://import-linter.readthedocs.io/
+# ---------------------------------------------------------------------------
+[tool.importlinter]
+root_packages = ["intellisource"]
+include_external_packages = false
+
+# Contract 1: Top-down layered architecture.
+# Siblings on the same row (' | ') are forbidden from importing each other.
+# observability / config / core are cross-cutting and intentionally NOT in
+# this stack -- they can be depended on by any layer above.
+[[tool.importlinter.contracts]]
+name = "Layered architecture (top-down)"
+type = "layers"
+layers = [
+    "main | cli",
+    "api",
+    "composition",
+    "agent",
+    "pipeline | collector | search | distributor | scheduler",
+    "llm",
+    "storage",
+]
+containers = ["intellisource"]
+exhaustive = false
+
+# Contract 2: Sprint 6 red line -- pipeline must NOT call LLM directly.
+# LLM calls go through agent.tools.executes.llm.llm_complete.
+[[tool.importlinter.contracts]]
+name = "Pipeline must not call LLM directly (Sprint 6 contract)"
+type = "forbidden"
+source_modules = ["intellisource.pipeline"]
+forbidden_modules = ["intellisource.llm"]
+
+# Contract 3: Collector must never reach LLM or agent.
+[[tool.importlinter.contracts]]
+name = "Collector is pure I/O, no LLM or agent dependency"
+type = "forbidden"
+source_modules = ["intellisource.collector"]
+forbidden_modules = ["intellisource.llm", "intellisource.agent"]
+
+# Contract 4: LLM gateway must not depend upward.
+# Flushes out reverse deps such as llm/processors/* -> pipeline.
+[[tool.importlinter.contracts]]
+name = "LLM gateway must not depend upward on higher layers"
+type = "forbidden"
+source_modules = ["intellisource.llm"]
+forbidden_modules = [
+    "intellisource.pipeline",
+    "intellisource.agent",
+    "intellisource.collector",
+    "intellisource.search",
+    "intellisource.distributor",
+    "intellisource.scheduler",
+    "intellisource.api",
+]
+
+# Contract 5: API routers must not reach ORM models directly.
+# allow_indirect_imports=true so the legitimate router -> repo -> models chain
+# does not register as a violation; only DIRECT api.routers.* -> storage.models
+# is reported.
+[[tool.importlinter.contracts]]
+name = "API routers must go through storage.repositories, not storage.models"
+type = "forbidden"
+source_modules = ["intellisource.api.routers"]
+forbidden_modules = ["intellisource.storage.models"]
+allow_indirect_imports = true
+
+# Contract 6: Search and Distributor are mutually independent.
+[[tool.importlinter.contracts]]
+name = "Search and Distributor packages are independent"
+type = "independence"
+modules = ["intellisource.search", "intellisource.distributor"]
+
+# Contract 7: Source adapters mutually independent.
+[[tool.importlinter.contracts]]
+name = "Collector source adapters are mutually independent"
+type = "independence"
+modules = ["intellisource.collector.sources", "intellisource.distributor.channels"]
+
+# Contract 8: Config layer must not depend on storage models.
+[[tool.importlinter.contracts]]
+name = "Config must not depend on storage.models"
+type = "forbidden"
+source_modules = ["intellisource.config"]
+forbidden_modules = ["intellisource.storage.models"]
