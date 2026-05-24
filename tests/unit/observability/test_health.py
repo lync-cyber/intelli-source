@@ -307,3 +307,106 @@ class TestHealthCheckerNoChecks:
         result = await checker.check_health()
         assert result.status == "healthy"
         assert result.checks == {} or len(result.checks) == 0
+
+
+# ---------------------------------------------------------------------------
+# F-20 / F-21: concurrent checks + per-check timeout + last_error detail
+# ---------------------------------------------------------------------------
+
+
+class TestHealthCheckerTimeout:
+    """A stuck dependency must not block the whole endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_timeout_marks_check_unhealthy(self) -> None:
+        """A check that exceeds the timeout is reported unhealthy with last_error."""
+        import asyncio
+
+        from intellisource.observability.health import HealthChecker
+
+        async def _slow() -> bool:
+            await asyncio.sleep(5)
+            return True
+
+        async def _fast() -> bool:
+            return True
+
+        checker = HealthChecker(check_timeout_seconds=0.05)
+        checker.register_check("slow_dep", _slow)
+        checker.register_check("fast_dep", _fast)
+
+        result = await checker.check_health()
+
+        assert result.checks["slow_dep"] == "unhealthy"
+        assert result.checks["fast_dep"] == "healthy"
+        assert "timeout" in (result.details["slow_dep"].get("last_error") or "")
+        assert "failed_at" in result.details["slow_dep"]
+
+    @pytest.mark.asyncio
+    async def test_checks_run_concurrently(self) -> None:
+        """Two 0.3s checks finish near ~0.3s, not ~0.6s, when run in parallel."""
+        import asyncio
+        import time
+
+        from intellisource.observability.health import HealthChecker
+
+        async def _slow() -> bool:
+            await asyncio.sleep(0.3)
+            return True
+
+        checker = HealthChecker(check_timeout_seconds=2.0)
+        checker.register_check("a", _slow)
+        checker.register_check("b", _slow)
+
+        start = time.monotonic()
+        result = await checker.check_health()
+        elapsed = time.monotonic() - start
+
+        assert result.status == "healthy"
+        assert elapsed < 0.55, (
+            f"check_health must run checks concurrently; took {elapsed:.2f}s"
+        )
+
+
+class TestHealthCheckerLastError:
+    """Exceptions surface as details[*].last_error so /health is self-diagnosing."""
+
+    @pytest.mark.asyncio
+    async def test_exception_captured_in_last_error(self) -> None:
+        from intellisource.observability.health import HealthChecker
+
+        async def _raises() -> bool:
+            raise ConnectionRefusedError("redis down at 127.0.0.1:6379")
+
+        async def _ok() -> bool:
+            return True
+
+        checker = HealthChecker()
+        checker.register_check("redis", _raises)
+        checker.register_check("db", _ok)
+
+        result = await checker.check_health()
+
+        assert result.checks["redis"] == "unhealthy"
+        last_error = result.details["redis"].get("last_error")
+        assert last_error is not None
+        assert "ConnectionRefusedError" in last_error
+        assert "redis down" in last_error
+        assert "failed_at" in result.details["redis"]
+        # Healthy checks must not carry last_error keys
+        assert "last_error" not in result.details["db"]
+
+    @pytest.mark.asyncio
+    async def test_healthy_check_has_no_failure_metadata(self) -> None:
+        from intellisource.observability.health import HealthChecker
+
+        async def _ok() -> bool:
+            return True
+
+        checker = HealthChecker()
+        checker.register_check("redis", _ok)
+
+        result = await checker.check_health()
+
+        entry = result.details["redis"]
+        assert entry == {"status": "healthy"}

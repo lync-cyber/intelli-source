@@ -713,26 +713,6 @@ class TestClustersInputBoundaries:
 
 
 # ===========================================================================
-# R-003: X-API-Key auth placeholder
-# ===========================================================================
-
-
-class TestClustersAuth:
-    """R-003: Auth coverage placeholder pointing to T-063 integration tests."""
-
-    @pytest.mark.asyncio
-    @pytest.mark.skip(
-        reason="auth handled by AuthMiddleware; covered in T-063 integration tests"
-    )
-    async def test_t073_ac1_missing_x_api_key_returns_401(
-        self, clusters_client: AsyncClient
-    ) -> None:
-        """GET /api/v1/clusters without X-API-Key returns 401."""
-        resp = await clusters_client.get("/api/v1/clusters")
-        assert resp.status_code == 401
-
-
-# ===========================================================================
 # R-005: tag wildcard safety
 # ===========================================================================
 

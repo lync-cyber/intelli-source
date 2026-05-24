@@ -317,3 +317,41 @@ class TestCircuitStateEnum:
 
     def test_half_open_state_exists(self) -> None:
         assert CircuitState.HALF_OPEN is not None
+
+
+# ===================================================================
+# F-22 / F-24: llm_circuit_open gauge follows state transitions
+# ===================================================================
+
+
+class TestCircuitOpenGauge:
+    """The Prometheus alert `LLMCircuitOpen` depends on the gauge being live."""
+
+    @pytest.fixture(autouse=True)
+    def reset_metrics(self) -> None:
+        from intellisource.observability.metrics import MetricsCollector
+
+        MetricsCollector._instance = None
+        yield
+        MetricsCollector._instance = None
+
+    async def test_tripping_to_open_sets_gauge_to_one(
+        self, breaker: CircuitBreaker
+    ) -> None:
+        from intellisource.observability.metrics import MetricsCollector
+
+        for _ in range(5):
+            await breaker.record_failure()
+
+        mc = MetricsCollector.get_instance()
+        assert mc.get_gauge_value("llm_circuit_open") == 1.0
+
+    async def test_recovery_resets_gauge_to_zero(self, breaker: CircuitBreaker) -> None:
+        from intellisource.observability.metrics import MetricsCollector
+
+        for _ in range(5):
+            await breaker.record_failure()
+        await breaker.record_success()
+
+        mc = MetricsCollector.get_instance()
+        assert mc.get_gauge_value("llm_circuit_open") == 0.0

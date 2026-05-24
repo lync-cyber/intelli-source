@@ -255,11 +255,6 @@ class TestSearchFiltering:
 
         assert isinstance(results.items, list)
 
-    @pytest.mark.xfail(
-        reason="Tags SQL filtering not yet implemented in HybridIndex; "
-        "tags parameter accepted but not propagated to WHERE clause — backlog item",
-        strict=True,
-    )
     async def test_tags_filter_excludes_non_matching_items(self) -> None:
         """search(tags=['foo']) returns only items tagged 'foo'."""
         import uuid
@@ -271,7 +266,9 @@ class TestSearchFiltering:
         bar_id = uuid.uuid4()
         foo2_id = uuid.uuid4()
 
-        def _make_row(rid: uuid.UUID, score: float = 1.0) -> MagicMock:
+        def _make_row(
+            rid: uuid.UUID, tags_value: list[str], score: float = 1.0
+        ) -> MagicMock:
             row = MagicMock()
             row.content_id = rid
             row.id = rid
@@ -280,30 +277,25 @@ class TestSearchFiltering:
             row.body_text = "body"
             row.source_name = "src"
             row.published_at = None
+            row.tags = tags_value
             return row
 
         mock_session = _mock_db_session()
         mock_result = mock_session.execute.return_value
         mock_result.all.return_value = [
-            _make_row(foo_id, 0.9),
-            _make_row(bar_id, 0.8),
-            _make_row(foo2_id, 0.7),
+            _make_row(foo_id, ["foo", "ai"], 0.9),
+            _make_row(bar_id, ["bar"], 0.8),
+            _make_row(foo2_id, ["foo", "tech"], 0.7),
         ]
 
         engine = HybridSearchEngine(session=mock_session)
         # With tags=["foo"], only foo_id and foo2_id rows should survive filtering.
-        # Currently all 3 rows are returned because filtering is not implemented.
         response = await engine.search(query="test", tags=["foo"])
 
         assert len(response.items) == 2, (
             f"Expected 2 tag-filtered items, got {len(response.items)}"
         )
 
-    @pytest.mark.xfail(
-        reason="Date range SQL filtering not yet implemented in HybridIndex; "
-        "date_from/date_to accepted but not propagated to WHERE clause — backlog item",
-        strict=True,
-    )
     async def test_date_range_filter_excludes_out_of_range_items(self) -> None:
         """search(date_from, date_to) returns only items within the date range."""
         import uuid

@@ -65,20 +65,32 @@ def _get_docker_available() -> bool:
 def pytest_collection_modifyitems(
     config: pytest.Config, items: list[pytest.Item]
 ) -> None:
-    """Skip all tests that depend on pg_container / pg_session / pg_truncate
-    when the local Docker daemon is not running."""
+    """Deselect pg_container / pg_session / pg_truncate tests when Docker
+    is unavailable locally.
+
+    Set ``IS_FORCE_DOCKER_TESTS=1`` (or pass ``--collect-only``) to keep the
+    tests in the collection even when Docker is missing — useful for
+    inspecting which integration tests would run, and required by CI where
+    the Docker daemon is always available so we want a hard failure if the
+    detection misfires.
+    """
     if _get_docker_available():
         return
+    if os.environ.get("IS_FORCE_DOCKER_TESTS") == "1":
+        return
 
-    skip_marker = pytest.mark.skip(
-        reason="Docker daemon not available locally — integration tests skipped; "
-        "GREEN verification deferred to CI (ubuntu-latest with built-in Docker)"
-    )
     pg_fixtures = {"pg_container", "pg_session", "pg_truncate"}
+    deselected: list[pytest.Item] = []
+    remaining: list[pytest.Item] = []
     for item in items:
-        if hasattr(item, "fixturenames"):
-            if pg_fixtures.intersection(item.fixturenames):
-                item.add_marker(skip_marker)
+        fixturenames = getattr(item, "fixturenames", ())
+        if pg_fixtures.intersection(fixturenames):
+            deselected.append(item)
+        else:
+            remaining.append(item)
+    if deselected:
+        config.hook.pytest_deselected(items=deselected)
+        items[:] = remaining
 
 
 # ---------------------------------------------------------------------------

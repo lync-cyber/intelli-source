@@ -439,21 +439,18 @@ def _install_observability_state(
     checker = HealthChecker()
 
     async def _check_db() -> bool:
-        try:
-            async with db_manager.get_session() as session:
-                from sqlalchemy import text
+        # Exceptions propagate so HealthChecker can capture them as
+        # ``details[db].last_error`` — silent ``except: return False`` here
+        # would lose the diagnostic message operators need.
+        async with db_manager.get_session() as session:
+            from sqlalchemy import text
 
-                await session.execute(text("SELECT 1"))
-            return True
-        except Exception:
-            return False
+            await session.execute(text("SELECT 1"))
+        return True
 
     async def _check_redis() -> bool:
-        try:
-            await redis_client.ping()
-            return True
-        except Exception:
-            return False
+        await redis_client.ping()
+        return True
 
     async def _check_celery() -> bool:
         import asyncio as _asyncio
@@ -461,14 +458,13 @@ def _install_observability_state(
         celery_app = getattr(app.state, "celery_app", None)
         if celery_app is None:
             return False
-        try:
-            # `control.ping` is a sync broker round-trip; offload to a
-            # worker thread so the /health coroutine never blocks the
-            # event loop on a stuck broker.
-            replies = await _asyncio.to_thread(celery_app.control.ping, timeout=0.5)
-            return bool(replies)
-        except Exception:
-            return False
+        # `control.ping` is a sync broker round-trip; offload to a worker
+        # thread so the /health coroutine never blocks the event loop on a
+        # stuck broker. Exceptions propagate to HealthChecker for error
+        # capture; an empty reply list means no workers up — degraded, not
+        # an error.
+        replies = await _asyncio.to_thread(celery_app.control.ping, timeout=0.5)
+        return bool(replies)
 
     checker.register_check("db", _check_db)
     checker.register_check("redis", _check_redis)

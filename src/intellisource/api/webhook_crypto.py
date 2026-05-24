@@ -102,13 +102,23 @@ class WeComCrypto:
         return data[:-pad_len]
 
     def _extract_message(self, plain: bytes) -> str:
-        """Parse random(16) + msg_len(4 BE) + msg + receiver_id."""
+        """Parse random(16) + msg_len(4 BE) + msg + receiver_id.
+
+        The trailing receiver_id is compared against the configured corp_id
+        — a mismatch indicates a payload forged by a different tenant and is
+        rejected per the WeWork callback spec.
+        """
         if len(plain) < 20:
             raise WeComCryptoError("Decrypted payload too short")
         msg_len = struct.unpack(">I", plain[16:20])[0]
         if len(plain) < 20 + msg_len:
             raise WeComCryptoError("Decrypted payload length mismatch")
         msg = plain[20 : 20 + msg_len].decode("utf-8")
+        receiver_id = plain[20 + msg_len :].decode("utf-8", errors="replace")
+        if receiver_id != self._corp_id:
+            raise WeComCryptoError(
+                f"receiver_id mismatch: expected {self._corp_id!r}, got {receiver_id!r}"
+            )
         return msg
 
     @staticmethod

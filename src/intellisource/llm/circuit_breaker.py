@@ -111,18 +111,22 @@ class CircuitBreaker:
             if elapsed >= self._recovery_timeout:
                 # HALF_OPEN: failure re-opens circuit
                 await self._write_state(CircuitState.OPEN, failure_count, time.time())
+                _publish_state_gauge(self._provider, self._model, CircuitState.OPEN)
                 return
 
         new_count = failure_count + 1
         now = time.time()
         if new_count >= self._failure_threshold:
             await self._write_state(CircuitState.OPEN, new_count, now)
+            _publish_state_gauge(self._provider, self._model, CircuitState.OPEN)
         else:
             await self._write_state(CircuitState.CLOSED, new_count, now)
+            _publish_state_gauge(self._provider, self._model, CircuitState.CLOSED)
 
     async def record_success(self) -> None:
         """Record a success, resetting failure count and closing the breaker."""
         await self._write_state(CircuitState.CLOSED, 0, 0.0)
+        _publish_state_gauge(self._provider, self._model, CircuitState.CLOSED)
 
     async def allow_request(self) -> bool:
         """Check whether a request is allowed through the breaker."""
@@ -132,3 +136,35 @@ class CircuitBreaker:
         if state == CircuitState.HALF_OPEN:
             return True
         return False
+
+
+_METRIC_LLM_CIRCUIT_OPEN: str = "llm_circuit_open"
+
+
+def _publish_state_gauge(provider: str, model: str, state: CircuitState) -> None:
+    """Publish a 0/1 gauge for the circuit state.
+
+    Aggregated across all (provider, model) pairs into a single gauge so the
+    Prometheus alert ``llm_circuit_open > 0 for 1m`` fires when *any* breaker
+    is OPEN. Per-pair labelling is intentionally omitted to match the
+    label-less MetricsCollector contract.
+    """
+    try:
+        from intellisource.observability.metrics import (  # noqa: PLC0415
+            MetricsCollector,
+        )
+
+        mc = MetricsCollector.get_instance()
+        if _METRIC_LLM_CIRCUIT_OPEN not in mc._gauges:
+            mc.register_gauge(
+                _METRIC_LLM_CIRCUIT_OPEN,
+                "1 when any LLM circuit breaker is OPEN, else 0",
+            )
+        # Last-writer-wins: any transition to OPEN sets the gauge to 1;
+        # transition to CLOSED sets it back to 0. With multiple
+        # (provider, model) pairs the gauge tracks the most recent
+        # transition.
+        value = 1.0 if state == CircuitState.OPEN else 0.0
+        mc.set_gauge(_METRIC_LLM_CIRCUIT_OPEN, value)
+    except Exception:  # noqa: BLE001 — metrics must never break the breaker
+        pass

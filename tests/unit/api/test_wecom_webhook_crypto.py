@@ -104,3 +104,33 @@ class TestInvalidAesKey:
             token=TOKEN, encoding_aes_key=ENCODING_AES_KEY, corp_id=CORP_ID
         )
         assert isinstance(crypto, WeComCrypto)
+
+
+# ---------------------------------------------------------------------------
+# Test: receiver_id strict match (F-11 follow-up)
+# ---------------------------------------------------------------------------
+
+
+class TestReceiverIdValidation:
+    """Decrypted payload's trailing receiver_id must match configured corp_id."""
+
+    def test_mismatched_receiver_id_raises(self) -> None:
+        """Payload encrypted with a foreign corp_id must be rejected even when
+        the signature and AES key are valid — guards against cross-tenant
+        forgery on a shared callback endpoint."""
+        foreign_corp_id = "wx_attacker_corp"
+        plain_xml = "<xml><Content>spoofed</Content></xml>"
+
+        # Build a payload as if a different corp had sent it
+        encrypt_b64, sig = build_encrypted_payload(
+            TOKEN, ENCODING_AES_KEY, foreign_corp_id, plain_xml, TIMESTAMP, NONCE
+        )
+
+        # Receiver is our corp; the signature & AES key happen to be the same
+        # (a leaked token + key scenario), but receiver_id check must fail.
+        crypto = WeComCrypto(
+            token=TOKEN, encoding_aes_key=ENCODING_AES_KEY, corp_id=CORP_ID
+        )
+        xml_body = f"<xml><Encrypt><![CDATA[{encrypt_b64}]]></Encrypt></xml>"
+        with pytest.raises(WeComCryptoError, match="receiver_id mismatch"):
+            crypto.decrypt_message(sig, TIMESTAMP, NONCE, xml_body)
