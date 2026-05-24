@@ -12,10 +12,10 @@
 - model 继承: AGENT.md 中 `model: inherit` 继承父会话模型
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: development — sprint-8 P2 增强 (post-deploy backlog 提前激活)
-- 下一步行动: 启动 T-071 (Sprint 8 集成测试与回归) — 或 user 决定 sprint-review / 下一阶段
-- 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r, sprint-9]
-- 当前Sprint: sprint-8 P2 (in-progress — T-064/T-065/T-066/T-067/T-069/T-070/T-077/T-079 done；T-071 集成测试待做)
+- 当前阶段: development — sprint-8 P2 完成（含 T-071 集成 + sprint-review approved_with_notes）
+- 下一步行动: 进入 deploy 阶段 (devops → deploy-spec) — 或决定先做 retrospective / 处理 5 个 sprint-8 SR-NNN backlog
+- 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r, sprint-9, sprint-8 P2]
+- 当前Sprint: sprint-8 P2 ✅ done — 8 任务 + T-071 集成 + sprint-review-s8-r1 approved_with_notes (5 issues: 1 MEDIUM + 4 LOW, 全部 non-blocking)
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report = approved；ui-spec = N/A；dev-plan-s8 = draft (信任原 AC)；deploy-spec = 未开始
 - sprint-8 现状核查矩阵 (2026-05-24):
   - ✅ 已闭环 (sprint-9 / sprint-8r 自然覆盖)：
@@ -24,7 +24,8 @@
     - T-076 健康检查与指标端点 — sprint-9 T-099 完成
     - T-078 应用组合根 — sprint-9 T-095 完成 (composition.py + Celery 单例)
   - ✅ sprint-8 P2 真增量全部闭环 (T-064~T-070 + T-077 + T-079, 8 任务)
-  - ⏸️ 集成测试: T-071 (留尾，待启动)
+  - ✅ T-071 集成测试 — implementer light-dispatch 单次成功 + 9/9 passed (test_sprint8_integration.py 6 class)
+  - ✅ sprint-review-s8-r1 — orchestrator inline takeover (reviewer opus 子代理 EXP-006 mid-narration 截断后接管) — verdict=approved_with_notes; 5 issues (SR-001 MEDIUM analyze deny 硬编码 + SR-002~005 LOW 全部 non-blocking)
 - sprint-8 批次 1 闭环检查点:
   - T-064 status=done [light-dispatch + inline takeover, commit bf7da26] — implementer 67K tokens / 19 tools 单 turn output cap 截断（mid-narration 软截断 EXP-006 carryover），orchestrator inline 补齐 pipeline.py agent_mode 字段 + analyze runtime guard + runner.py 终止响应 messages-mutation 修复；20/20 test_agent_mode + 2519 PASS / 0 FAIL；code-review 延 sprint-review；refactor_needed=false
   - T-065 status=done [light-dispatch 单次成功, commit 82481d3] — implementer 76K tokens / 67 tools / 20min（输出 budget 内无 truncation，Mid-Progress Drop Contract 强制 4 步契约见效）；PermissionLevel(auto/confirm/deny) 枚举 + ToolDefinition.permission_level 字段 + register(permission_level) + distribute 默认 confirm + PipelineConfig.tool_permissions 字段 YAML 覆盖 + run_flexible 双层防御（_filter_tools deny 过滤 + 运行时 tool_call deny 硬拒）+ pending_confirmation logger/messages/tool_results 三轨记录；12/12 test_tool_permissions + 2571 PASS / 0 FAIL；mypy + ruff clean；code-review 延 sprint-review；refactor_needed=false
@@ -40,7 +41,7 @@
   - [RETRO-intellisource-v1-sprint-9.md](docs/reviews/retro/RETRO-intellisource-v1-sprint-9.md) — 2 EXP 强制立项 (EXP-005 装配缺口 5 次复发 + EXP-006 truncation 4/4 跨 3 角色)
   - [SKILL-IMPROVE-*.md](docs/reviews/retro/) — 8 份建议
 - 上游反馈: [docs/feedback/](docs/feedback/) — 1 bug + 1 suggest
-- Backlog: ① 6 EXP 改进 (sprint-1~7) 应用到 .cataforge ② sprint-9 2 EXP 强制改进应用 (EXP-005 framework-level lint + EXP-006 anti-truncation 协议固化) ③ deploy 阶段 (devops → deploy-spec)
+- Backlog: ① 6 EXP 改进 (sprint-1~7) 应用到 .cataforge ② sprint-9 2 EXP 强制改进应用 (EXP-005 framework-level lint + EXP-006 anti-truncation 协议固化扩展到 reviewer/refactorer/debugger) ③ deploy 阶段 (devops → deploy-spec) ④ sprint-8 SR-001~005 5 issues (1 MEDIUM analyze deny 硬编码 / 4 LOW)
 
 ## 执行环境
 - 包管理器: uv（fallback: pip）
