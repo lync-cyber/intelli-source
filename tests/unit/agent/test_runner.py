@@ -461,11 +461,17 @@ class TestFlexibleToolsDenied:
         assert call_kwargs is not None, "LLM gateway.chat was never called"
         # The available tools passed to LLM should not include denied tools
         if call_kwargs.kwargs.get("tools"):
-            tool_names = [t["name"] for t in call_kwargs.kwargs["tools"]]
+            tool_names = [
+                t.get("function", {}).get("name", t.get("name"))
+                for t in call_kwargs.kwargs["tools"]
+            ]
         elif len(call_kwargs.args) > 1 and isinstance(call_kwargs.args[1], list):
             tools_arg = call_kwargs.args[1]
             tool_names = [
-                t.get("name", t) if isinstance(t, dict) else t for t in tools_arg
+                t.get("function", {}).get("name", t.get("name"))
+                if isinstance(t, dict)
+                else t
+                for t in tools_arg
             ]
         else:
             pytest.fail("No tools argument found in LLM gateway.chat call")

@@ -36,6 +36,34 @@ Light 模式额外传入：`模式: tdd_mode=light（合并 RED+GREEN）`，prom
 - summary: "N PASSED。{执行摘要}"
 - `refactor_needed`: `true` | `false` —— 自检 impl_files 是否命中 `TDD_REFACTOR_TRIGGER` 任一类别（complexity / duplication / coupling）。判断标准见 §Self-Refactor Reporting
 - `refactor_reasons`: `[category, ...]` —— 仅在 `refactor_needed=true` 时给出，列出命中的类别 + 一句话证据（如 `complexity: foo() 圈复杂度 ≥ 12`）
+- `wiring_complete`: `true` | `false` | `n/a` —— 见 §Wiring Completeness Reporting
+- `wiring_evidence`: `[{consumer_file, consumer_line?, deliverable_symbol}, ...]` —— 仅 `wiring_complete=true` 时建议提供
+
+## Wiring Completeness Reporting
+
+GREEN/Light 完成后，对涉及 user-facing critical path（页面 / 路由 / UI 组件 / 表单 / 编辑器 / 终端可达入口）的任务做一次自检：
+
+| `wiring_complete` 取值 | 触发判据 |
+|------------------------|---------|
+| `true` | 所有 AC 关联的可执行交付符号（组件 / handler / store action）都已挂载到至少一个消费点（路由表 / 父组件 prop / app shell）；建议在 `wiring_evidence` 列出 `{consumer_file, deliverable_symbol}` 至少一对 |
+| `false` | 任一 AC 关联组件存在但**未挂载**（grep 全仓 0 命中 `<Component` / `import Component`）；或 prop 链路终点是 `() => {}` / `return null` 等空函数（与 code-review §integration-wiring 维度同步） |
+| `n/a` | 任务 `task_kind ∈ {chore, config, docs}` 或纯后端逻辑（无 UI 消费点）；缺省视为 `n/a`（向后兼容） |
+
+`wiring_complete=false` 触发 orchestrator 在 sprint-review 阶段标 MEDIUM；不阻塞 GREEN 完成（避免和 RED→GREEN 主循环冲突），但任务卡 `user_facing_critical_path: true` 时升 HIGH 并要求修复后才能 done。
+
+> 这是自检自报，不是替代 code-review §integration-wiring 维度的 Layer 2 兜底。漏判会在 sprint-review `wiring-completeness` 时被批量复核捕获。
+
+## Assertion Strength Guard
+
+GREEN/Light 完成前对让测试 PASS 的断言做一次强度自检：
+
+| 弱断言形态 | 处置 |
+|-----------|------|
+| 仅校验 mock / spy / stub 的调用计数或对象存在性，不绑定真实可观测属性（返回值 / 状态变化 / 外部副作用） | RED 产出 → 返回 blocked，`<questions>` 列出薄弱测试位置，要求重新生成；light 模式自己写时 → 直接重写到可观测属性 |
+| mock 中出现"诡异条件"（永远返回常量 / 永远 raise / 强行短路真实路径）让测试 PASS | 视为 implementation bug 假阳性 → 返回 blocked，不接受 GREEN |
+| 断言对象为常量真值（`assert True` / `assert 1`），或仅声明非空（`is not None` 单立成断言） | 同上：要求绑定到契约定义的可观测属性后再 PASS |
+
+可观测属性指：接口契约定义的返回值字段、被测对象的状态变化、对外可见的副作用（日志 / 持久化 / 事件发布 / IO）。本规则与 §Wiring Completeness Reporting 同属"形式契约对但语义留白"的家族。
 
 ## Self-Refactor Reporting
 GREEN/Light 完成后，对刚写的 impl_files 做一次轻量自检：
@@ -50,13 +78,26 @@ GREEN/Light 完成后，对刚写的 impl_files 做一次轻量自检：
 
 > 这是自检自报，不是替代 sprint-review 的批量 code-review L1 兜底。漏判会在 sprint-review 时被批量复核捕获。
 
+## Post-GREEN Validation
+
+GREEN/Light 完成后按 tdd-engine 四档执行收尾验证：
+
+| 执行模式 | 修改文件 lint | 全量回归 | git diff 报告 |
+|---------|--------------|---------|--------------|
+| standard | 必须 PASS | 必须（完整 §test_command） | `git diff --name-only` 入 summary |
+| light-dispatch | 必须 PASS | 必须 | `git diff --name-only` 入 summary |
+| light-inline | 必须 PASS | 豁免（仅跑覆盖到的 test_files） | 建议入 summary |
+| prototype-inline | 豁免（lint hook 兜底） | 豁免 | 不要求 |
+
+lint 失败 → 自修复后重试；3 次未通过返回 blocked。lint 工具选取与 code-review Layer 1 工具集合对齐（ESLint / Ruff / golangci-lint / dotnet format / clippy 等）。
+
 ## Execution Rules
 - 只写使测试通过的最小代码，不做超出测试要求的设计
 - 实现文件路径遵循 prompt 中传入的目录结构和命名规范
 
 ### Light 模式 (tdd_mode=light)
 当 tdd-engine prompt 中标注 `模式: tdd_mode=light` 时（合并 RED+GREEN）:
-1. 先按 prompt 中的"验收标准"为每条 AC 写一份失败测试（等价于 test-writer 行为），运行一次确认测试均 FAIL
+1. 先按 prompt 中的"验收标准"为每条 AC 写一份失败测试（等价于 test-writer 行为，遵循 test-writer §Behavioral Assertion Mandate — 禁止存在性断言，期望值从 AC 的 Then 子句推导），运行一次确认测试均 FAIL
 2. 再补最小实现代码使全部测试 PASSED
 3. `<agent-result>.outputs` 同时返回 `test_files` 和 `impl_files` 两个路径列表
 4. summary 必须包含 "light mode — RED+GREEN 合并"，说明合并阶段的最终测试结果
@@ -77,4 +118,6 @@ GREEN/Light 完成后，对刚写的 impl_files 做一次轻量自检：
 ## Anti-Patterns
 - 禁止: 修改测试文件 — 测试是需求规格，实现必须适配测试而非反过来
 - 禁止: 过度设计 — 如测试只要求返回列表却实现了分页+缓存+排序，只写使测试通过的最小代码
+- 禁止: 用 `() => {}` / `async () => {}` / `return null` / 空 lambda 等占位 handler 满足 prop / event 类型契约 —— 形式契约对但语义留白会被 code-review §integration-wiring 抓出；分阶段实现必须任务卡显式 `wiring_placeholder: true` + 关联 backlog ID（或文件级 `// cataforge: wiring-placeholder` 文件级豁免）
+- 避免: 仅交付组件/handler 而不挂载到消费点 —— `wiring_complete=true` 至少需要一个 `wiring_evidence` 条目证明 deliverable 真实落地（至少 grep 仓库可命中）
 - 避免: 忽略arch§7命名规范而使用自己的命名风格 — 文件名、变量名、函数签名严格遵循架构约定

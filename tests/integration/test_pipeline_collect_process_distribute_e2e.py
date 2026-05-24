@@ -11,14 +11,24 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.agent.deps import ToolDeps
-from intellisource.agent.tools import _collect_execute, _distribute_execute, _process_execute
+from intellisource.agent.tools import (
+    _collect_execute,
+    _distribute_execute,
+    _process_execute,
+)
 from intellisource.collector.base import RawContent as CollectedRawContent
 from intellisource.composition import build_collector_registry
 from intellisource.distributor.facade import DistributorFacade
 from intellisource.distributor.matcher import SubscriptionMatcher
 from intellisource.pipeline.engine import PipelineEngine
 from intellisource.pipeline.processors.parser import HTMLParser
-from intellisource.storage.models import ProcessedContent, PushRecord, RawContent, Source, Subscription
+from intellisource.storage.models import (
+    ProcessedContent,
+    PushRecord,
+    RawContent,
+    Source,
+    Subscription,
+)
 
 
 async def _make_source(session: AsyncSession) -> Source:

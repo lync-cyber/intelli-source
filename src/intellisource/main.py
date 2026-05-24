@@ -10,7 +10,8 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import redis.asyncio as aioredis
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import PlainTextResponse
 from starlette.types import Receive, Scope, Send
 
 from intellisource.api.middleware import (
@@ -228,11 +229,15 @@ def create_app() -> FastAPI:
 
     # Health endpoints (root-level + API-versioned per AC-T042-6)
     @app.get("/health")
-    async def health() -> dict[str, Any]:
-        return {"status": "healthy"}
+    async def health_root(request: Request) -> dict[str, Any]:
+        return await system.health_payload(request)
 
     @app.get("/api/v1/health")
-    async def health_v1() -> dict[str, Any]:
-        return {"status": "healthy"}
+    async def health_v1(request: Request) -> dict[str, Any]:
+        return await system.health_payload(request)
+
+    @app.get("/api/v1/metrics")
+    async def metrics_v1(request: Request) -> PlainTextResponse:
+        return system.metrics_response(request)
 
     return app

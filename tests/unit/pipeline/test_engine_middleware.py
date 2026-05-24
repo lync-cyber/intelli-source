@@ -405,9 +405,7 @@ class TestAC5FactoryInstantiatesPipelineEngine:
         repo_root = Path(__file__).parents[3]
         src_dir = repo_root / "src"
         lines = find_substring_in_tree(src_dir, "PipelineEngine(")
-        matches = [
-            line for line in lines if "test_" not in line and ".pyc" not in line
-        ]
+        matches = [line for line in lines if "test_" not in line and ".pyc" not in line]
         assert len(matches) >= 1, (
             "Expected >=1 PipelineEngine( constructor call in src/, found none.\n"
             + "\n".join(lines)

@@ -33,6 +33,8 @@ class WeWorkDistributor(BaseDistributor):
         agent_id: int,
         push_repo: "PushRepository | None" = None,
     ) -> None:
+        if http_client is None:
+            raise ValueError("http_client is required for WeWorkDistributor")
         self.redis = redis
         self.http_client = http_client
         self.corp_id = corp_id

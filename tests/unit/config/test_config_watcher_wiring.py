@@ -422,12 +422,8 @@ class TestYamlSafeLoadOnlyInConfigDir:
         """AC-7: no yaml.load/full_load/unsafe_load in src/intellisource/config/
         except those explicitly passing Loader=yaml.SafeLoader."""
         config_dir = _REPO_ROOT / "src" / "intellisource" / "config"
-        lines = find_regex_in_tree(
-            config_dir, r"yaml\.(load|full_load|unsafe_load)\("
-        )
-        unsafe_lines = [
-            line for line in lines if "Loader=yaml.SafeLoader" not in line
-        ]
+        lines = find_regex_in_tree(config_dir, r"yaml\.(load|full_load|unsafe_load)\(")
+        unsafe_lines = [line for line in lines if "Loader=yaml.SafeLoader" not in line]
         assert unsafe_lines == [], (
             "Unsafe yaml calls in src/intellisource/config/ "
             "(missing Loader=yaml.SafeLoader):\n" + "\n".join(unsafe_lines)
@@ -436,12 +432,8 @@ class TestYamlSafeLoadOnlyInConfigDir:
     def test_no_unsafe_yaml_load_without_safe_loader(self) -> None:
         """AC-7: no yaml.load( without SafeLoader anywhere in config/."""
         config_dir = _REPO_ROOT / "src" / "intellisource" / "config"
-        lines = find_regex_in_tree(
-            config_dir, r"yaml\.(load|full_load|unsafe_load)\("
-        )
-        unsafe_lines = [
-            line for line in lines if "Loader=yaml.SafeLoader" not in line
-        ]
+        lines = find_regex_in_tree(config_dir, r"yaml\.(load|full_load|unsafe_load)\(")
+        unsafe_lines = [line for line in lines if "Loader=yaml.SafeLoader" not in line]
         assert unsafe_lines == [], (
             "Unsafe yaml calls found — must use yaml.safe_load() exclusively:\n"
             + "\n".join(unsafe_lines)

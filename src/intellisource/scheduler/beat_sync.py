@@ -141,7 +141,10 @@ async def populate_scheduler_from_sources(
                 name=schedule_name,
                 cron_expr=str(interval),
                 pipeline_name=pipeline_name,
-                params={"source_id": str(source.id)},
+                params={
+                    "source_id": str(source.id),
+                    "task_id": f"scheduled:{source.id}",
+                },
             )
             registered += 1
         except ValueError:

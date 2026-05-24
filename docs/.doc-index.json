@@ -1,21 +1,22 @@
 {
   "version": "1",
-  "generated_at": "2026-05-23T01:56:09.837173+00:00",
+  "generated_at": "2026-05-24T07:24:59.141102+00:00",
   "documents": {
     "arch-intellisource-v1-api": {
       "file_path": "docs/arch/arch-intellisource-v1-api.md",
       "doc_type": "arch",
       "volume": "main",
       "status": "approved",
-      "total_lines": 737,
-      "est_tokens": 7738,
+      "total_lines": 742,
+      "est_tokens": 7928,
+      "content_hash": "494f914e",
       "sections": {
         "3": {
           "heading": "## 3. 接口契约",
           "level": 2,
           "line_start": 21,
-          "line_end": 737,
-          "est_tokens": 7549,
+          "line_end": 742,
+          "est_tokens": 7739,
           "deps": [],
           "items": {
             "API-001": {
@@ -91,91 +92,91 @@
             "API-013": {
               "heading": "### API-013: 即时问答",
               "line_start": 300,
-              "line_end": 330,
-              "est_tokens": 300,
+              "line_end": 335,
+              "est_tokens": 490,
               "deps": []
             },
             "API-014": {
               "heading": "### API-014: 获取内容列表",
-              "line_start": 331,
-              "line_end": 366,
+              "line_start": 336,
+              "line_end": 371,
               "est_tokens": 416,
               "deps": []
             },
             "API-015": {
               "heading": "### API-015: 获取内容详情",
-              "line_start": 367,
-              "line_end": 399,
+              "line_start": 372,
+              "line_end": 404,
               "est_tokens": 374,
               "deps": []
             },
             "API-016": {
               "heading": "### API-016: 获取聚类列表",
-              "line_start": 400,
-              "line_end": 433,
+              "line_start": 405,
+              "line_end": 438,
               "est_tokens": 371,
               "deps": []
             },
             "API-017": {
               "heading": "### API-017: LLM 用量统计",
-              "line_start": 434,
-              "line_end": 477,
+              "line_start": 439,
+              "line_end": 482,
               "est_tokens": 559,
               "deps": []
             },
             "API-018": {
               "heading": "### API-018: 系统健康检查",
-              "line_start": 478,
-              "line_end": 506,
+              "line_start": 483,
+              "line_end": 511,
               "est_tokens": 247,
               "deps": []
             },
             "API-019": {
               "heading": "### API-019: 系统指标",
-              "line_start": 507,
-              "line_end": 523,
+              "line_start": 512,
+              "line_end": 528,
               "est_tokens": 116,
               "deps": []
             },
             "API-020": {
               "heading": "### API-020: 微信消息回调",
-              "line_start": 524,
-              "line_end": 547,
+              "line_start": 529,
+              "line_end": 552,
               "est_tokens": 233,
               "deps": []
             },
             "API-021": {
               "heading": "### API-021: 企业微信消息回调",
-              "line_start": 548,
-              "line_end": 570,
+              "line_start": 553,
+              "line_end": 575,
               "est_tokens": 201,
               "deps": []
             },
             "API-022": {
               "heading": "### API-022: 获取订阅规则列表",
-              "line_start": 571,
-              "line_end": 604,
+              "line_start": 576,
+              "line_end": 609,
               "est_tokens": 372,
               "deps": []
             },
             "API-023": {
               "heading": "### API-023: 创建订阅规则",
-              "line_start": 605,
-              "line_end": 647,
+              "line_start": 610,
+              "line_end": 652,
               "est_tokens": 480,
               "deps": []
             },
             "API-024": {
               "heading": "### API-024: 更新订阅规则",
-              "line_start": 648,
-              "line_end": 674,
+              "line_start": 653,
+              "line_end": 679,
               "est_tokens": 331,
               "deps": []
             },
             "API-025": {
               "heading": "### API-025: 删除订阅规则",
-              "line_start": 675,
-              "line_end": 694,
+              "line_start": 680,
+              "line_end": 699,
               "est_tokens": 137,
               "deps": []
             }
@@ -184,7 +185,10 @@
       },
       "deps": [
         "prd-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "prd-intellisource-v1": "b565a51c"
+      }
     },
     "arch-intellisource-v1-data": {
       "file_path": "docs/arch/arch-intellisource-v1-data.md",
@@ -193,6 +197,7 @@
       "status": "approved",
       "total_lines": 295,
       "est_tokens": 4300,
+      "content_hash": "bc1ee800",
       "sections": {
         "4": {
           "heading": "## 4. 数据模型",
@@ -291,7 +296,10 @@
       },
       "deps": [
         "prd-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "prd-intellisource-v1": "b565a51c"
+      }
     },
     "arch-intellisource-v1-modules": {
       "file_path": "docs/arch/arch-intellisource-v1-modules.md",
@@ -300,6 +308,7 @@
       "status": "approved",
       "total_lines": 249,
       "est_tokens": 3801,
+      "content_hash": "29d390a9",
       "sections": {
         "2": {
           "heading": "## 2. 模块划分",
@@ -391,7 +400,10 @@
       },
       "deps": [
         "prd-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "prd-intellisource-v1": "b565a51c"
+      }
     },
     "arch-intellisource-v1": {
       "file_path": "docs/arch/arch-intellisource-v1.md",
@@ -400,6 +412,7 @@
       "status": "approved",
       "total_lines": 510,
       "est_tokens": 5987,
+      "content_hash": "800bfdec",
       "sections": {
         "1": {
           "heading": "## 1. 架构概览",
@@ -540,7 +553,10 @@
       },
       "deps": [
         "prd-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "prd-intellisource-v1": "b565a51c"
+      }
     },
     "dev-plan-intellisource-v1-s1": {
       "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s1.md",
@@ -549,6 +565,7 @@
       "status": "approved",
       "total_lines": 241,
       "est_tokens": 3165,
+      "content_hash": "05e3cd36",
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
@@ -626,7 +643,10 @@
       },
       "deps": [
         "arch-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "arch-intellisource-v1": "800bfdec"
+      }
     },
     "dev-plan-intellisource-v1-s2": {
       "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s2.md",
@@ -635,6 +655,7 @@
       "status": "approved",
       "total_lines": 220,
       "est_tokens": 2795,
+      "content_hash": "d3190e5e",
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
@@ -712,7 +733,10 @@
       },
       "deps": [
         "arch-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "arch-intellisource-v1": "800bfdec"
+      }
     },
     "dev-plan-intellisource-v1-s3": {
       "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s3.md",
@@ -721,6 +745,7 @@
       "status": "approved",
       "total_lines": 210,
       "est_tokens": 2652,
+      "content_hash": "4257de4d",
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
@@ -791,7 +816,10 @@
       },
       "deps": [
         "arch-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "arch-intellisource-v1": "800bfdec"
+      }
     },
     "dev-plan-intellisource-v1-s4": {
       "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s4.md",
@@ -800,6 +828,7 @@
       "status": "approved",
       "total_lines": 262,
       "est_tokens": 3375,
+      "content_hash": "edffd9cd",
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
@@ -884,7 +913,10 @@
       },
       "deps": [
         "arch-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "arch-intellisource-v1": "800bfdec"
+      }
     },
     "dev-plan-intellisource-v1-s5": {
       "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s5.md",
@@ -893,6 +925,7 @@
       "status": "approved",
       "total_lines": 260,
       "est_tokens": 3320,
+      "content_hash": "4c5b4285",
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
@@ -977,7 +1010,10 @@
       },
       "deps": [
         "arch-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "arch-intellisource-v1": "800bfdec"
+      }
     },
     "dev-plan-intellisource-v1-s6": {
       "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s6.md",
@@ -986,6 +1022,7 @@
       "status": "approved",
       "total_lines": 257,
       "est_tokens": 3484,
+      "content_hash": "9e6384b2",
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
@@ -1070,7 +1107,10 @@
       },
       "deps": [
         "arch-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "arch-intellisource-v1": "800bfdec"
+      }
     },
     "dev-plan-intellisource-v1-s7": {
       "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7.md",
@@ -1079,6 +1119,7 @@
       "status": "approved",
       "total_lines": 354,
       "est_tokens": 7406,
+      "content_hash": "24117919",
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
@@ -1171,7 +1212,10 @@
       "split_from": "dev-plan-intellisource-v1",
       "deps": [
         "arch-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "arch-intellisource-v1": "800bfdec"
+      }
     },
     "dev-plan-intellisource-v1-s7r": {
       "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s7r.md",
@@ -1180,6 +1224,7 @@
       "status": "approved",
       "total_lines": 167,
       "est_tokens": 3296,
+      "content_hash": "e76cd3c4",
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
@@ -1217,7 +1262,11 @@
       "deps": [
         "arch-intellisource-v1",
         "test-report-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "arch-intellisource-v1": "800bfdec",
+        "test-report-intellisource-v1": "a8e32335"
+      }
     },
     "dev-plan-intellisource-v1-s8": {
       "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8.md",
@@ -1226,6 +1275,7 @@
       "status": "draft",
       "total_lines": 388,
       "est_tokens": 6269,
+      "content_hash": "e4f8f4cf",
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
@@ -1332,7 +1382,10 @@
       "split_from": "dev-plan-intellisource-v1",
       "deps": [
         "arch-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "arch-intellisource-v1": "800bfdec"
+      }
     },
     "dev-plan-intellisource-v1-s8r": {
       "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s8r.md",
@@ -1341,6 +1394,7 @@
       "status": "approved",
       "total_lines": 716,
       "est_tokens": 15808,
+      "content_hash": "fc1a82e6",
       "sections": {
         "2": {
           "heading": "## 2. 依赖图",
@@ -1502,7 +1556,11 @@
       "deps": [
         "arch-intellisource-v1",
         "prd-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "arch-intellisource-v1": "800bfdec",
+        "prd-intellisource-v1": "b565a51c"
+      }
     },
     "dev-plan-intellisource-v1-s9": {
       "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s9.md",
@@ -1511,6 +1569,7 @@
       "status": "approved",
       "total_lines": 383,
       "est_tokens": 9701,
+      "content_hash": "1b76af25",
       "sections": {
         "2": {
           "heading": "## 2. 依赖图",
@@ -1588,7 +1647,12 @@
         "arch-intellisource-v1",
         "prd-intellisource-v1",
         "dev-plan-intellisource-v1-s8r"
-      ]
+      ],
+      "dep_hashes": {
+        "arch-intellisource-v1": "800bfdec",
+        "prd-intellisource-v1": "b565a51c",
+        "dev-plan-intellisource-v1-s8r": "fc1a82e6"
+      }
     },
     "dev-plan-intellisource-v1": {
       "file_path": "docs/dev-plan/dev-plan-intellisource-v1.md",
@@ -1597,6 +1661,7 @@
       "status": "approved",
       "total_lines": 358,
       "est_tokens": 5067,
+      "content_hash": "0951f48d",
       "sections": {
         "1": {
           "heading": "## 1. 迭代规划",
@@ -1646,7 +1711,10 @@
       },
       "deps": [
         "arch-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "arch-intellisource-v1": "800bfdec"
+      }
     },
     "feedback-bug-eventlog-session-end-20260505": {
       "file_path": "docs/feedback/feedback-bug-eventlog-session-end-20260505.md",
@@ -1655,6 +1723,7 @@
       "status": "approved",
       "total_lines": 171,
       "est_tokens": 3830,
+      "content_hash": "23c71aa8",
       "sections": {}
     },
     "feedback-suggest-reflector-frontmatter-20260505": {
@@ -1664,6 +1733,7 @@
       "status": "approved",
       "total_lines": 28,
       "est_tokens": 448,
+      "content_hash": "f899b626",
       "sections": {}
     },
     "prd-intellisource-v1": {
@@ -1673,6 +1743,7 @@
       "status": "approved",
       "total_lines": 283,
       "est_tokens": 3086,
+      "content_hash": "b565a51c",
       "sections": {
         "1": {
           "heading": "## 1. 概述",
@@ -1871,6 +1942,7 @@
       "status": "approved",
       "total_lines": 463,
       "est_tokens": 7560,
+      "content_hash": "1342b9e3",
       "sections": {
         "1": {
           "heading": "## 1. 执行摘要",
@@ -2027,6 +2099,7 @@
       "status": "approved",
       "total_lines": 344,
       "est_tokens": 3322,
+      "content_hash": "c459acf1",
       "sections": {
         "1": {
           "heading": "## 1. IntelliSource 当前设计评估",
@@ -2172,8 +2245,9 @@
       "doc_type": "correction-log",
       "volume": "main",
       "status": "approved",
-      "total_lines": 96,
-      "est_tokens": 2069,
+      "total_lines": 109,
+      "est_tokens": 2689,
+      "content_hash": "ef5235a0",
       "sections": {}
     },
     "code-review-T-057-r1": {
@@ -2183,12 +2257,17 @@
       "status": "approved",
       "total_lines": 96,
       "est_tokens": 1768,
+      "content_hash": "4aaec811",
       "sections": {},
       "deps": [
         "T-057",
         "dev-plan-intellisource-v1-s7",
         "arch-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "dev-plan-intellisource-v1-s7": "24117919",
+        "arch-intellisource-v1": "800bfdec"
+      }
     },
     "code-review-T-057-r2": {
       "file_path": "docs/reviews/code/CODE-REVIEW-T-057-r2.md",
@@ -2197,13 +2276,19 @@
       "status": "approved",
       "total_lines": 46,
       "est_tokens": 743,
+      "content_hash": "f4b42fe1",
       "sections": {},
       "deps": [
         "T-057",
         "code-review-T-057-r1",
         "dev-plan-intellisource-v1-s7",
         "arch-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "code-review-T-057-r1": "4aaec811",
+        "dev-plan-intellisource-v1-s7": "24117919",
+        "arch-intellisource-v1": "800bfdec"
+      }
     },
     "code-review-T-058-r1": {
       "file_path": "docs/reviews/code/CODE-REVIEW-T-058-r1.md",
@@ -2212,6 +2297,7 @@
       "status": "approved",
       "total_lines": 133,
       "est_tokens": 2055,
+      "content_hash": "1349fbde",
       "sections": {},
       "deps": [
         "T-058"
@@ -2224,6 +2310,7 @@
       "status": "approved",
       "total_lines": 78,
       "est_tokens": 1393,
+      "content_hash": "8112b31b",
       "sections": {},
       "deps": [
         "T-058"
@@ -2236,6 +2323,7 @@
       "status": "approved",
       "total_lines": 172,
       "est_tokens": 3583,
+      "content_hash": "6cea78ad",
       "sections": {},
       "deps": [
         "T-059",
@@ -2249,6 +2337,7 @@
       "status": "approved",
       "total_lines": 127,
       "est_tokens": 2327,
+      "content_hash": "d2a98159",
       "sections": {},
       "deps": [
         "T-059",
@@ -2262,6 +2351,7 @@
       "status": "approved",
       "total_lines": 113,
       "est_tokens": 2056,
+      "content_hash": "8410c676",
       "sections": {},
       "deps": [
         "T-059",
@@ -2275,6 +2365,7 @@
       "status": "approved",
       "total_lines": 96,
       "est_tokens": 1812,
+      "content_hash": "3595ce6d",
       "sections": {},
       "deps": [
         "T-060"
@@ -2287,6 +2378,7 @@
       "status": "approved",
       "total_lines": 96,
       "est_tokens": 1335,
+      "content_hash": "1d18c916",
       "sections": {},
       "deps": [
         "T-060"
@@ -2299,6 +2391,7 @@
       "status": "approved",
       "total_lines": 135,
       "est_tokens": 1884,
+      "content_hash": "eb676196",
       "sections": {},
       "deps": [
         "T-060"
@@ -2311,6 +2404,7 @@
       "status": "approved",
       "total_lines": 64,
       "est_tokens": 1148,
+      "content_hash": "16687299",
       "sections": {},
       "deps": [
         "T-062"
@@ -2323,6 +2417,7 @@
       "status": "approved",
       "total_lines": 48,
       "est_tokens": 562,
+      "content_hash": "fe3a38b4",
       "sections": {},
       "deps": [
         "T-062"
@@ -2335,6 +2430,7 @@
       "status": "approved",
       "total_lines": 78,
       "est_tokens": 1707,
+      "content_hash": "de4c96b3",
       "sections": {},
       "deps": [
         "T-063"
@@ -2347,6 +2443,7 @@
       "status": "approved",
       "total_lines": 186,
       "est_tokens": 2515,
+      "content_hash": "4b53e62e",
       "sections": {},
       "deps": [
         "T-072"
@@ -2359,6 +2456,7 @@
       "status": "approved",
       "total_lines": 114,
       "est_tokens": 1490,
+      "content_hash": "bcf837c4",
       "sections": {},
       "deps": [
         "T-072"
@@ -2371,6 +2469,7 @@
       "status": "approved",
       "total_lines": 157,
       "est_tokens": 1643,
+      "content_hash": "db8951db",
       "sections": {},
       "deps": [
         "T-072"
@@ -2383,6 +2482,7 @@
       "status": "approved",
       "total_lines": 76,
       "est_tokens": 1533,
+      "content_hash": "ecbde6e3",
       "sections": {},
       "deps": [
         "T-073"
@@ -2395,6 +2495,7 @@
       "status": "approved",
       "total_lines": 166,
       "est_tokens": 2261,
+      "content_hash": "4e954ba2",
       "sections": {},
       "deps": [
         "T-073"
@@ -2407,6 +2508,7 @@
       "status": "approved",
       "total_lines": 32,
       "est_tokens": 455,
+      "content_hash": "5082128b",
       "sections": {},
       "deps": [
         "T-073"
@@ -2419,6 +2521,7 @@
       "status": "approved",
       "total_lines": 113,
       "est_tokens": 2253,
+      "content_hash": "bb37fbbd",
       "sections": {},
       "deps": [
         "T-074"
@@ -2431,6 +2534,7 @@
       "status": "approved",
       "total_lines": 167,
       "est_tokens": 2670,
+      "content_hash": "010fd216",
       "sections": {},
       "deps": [
         "T-074"
@@ -2443,6 +2547,7 @@
       "status": "approved",
       "total_lines": 98,
       "est_tokens": 1999,
+      "content_hash": "cfdf231d",
       "sections": {},
       "deps": [
         "T-075"
@@ -2455,6 +2560,7 @@
       "status": "approved",
       "total_lines": 80,
       "est_tokens": 1173,
+      "content_hash": "1789457f",
       "sections": {},
       "deps": [
         "T-075"
@@ -2467,6 +2573,7 @@
       "status": "approved",
       "total_lines": 163,
       "est_tokens": 2771,
+      "content_hash": "0e817fe7",
       "sections": {},
       "deps": [
         "T-083"
@@ -2479,6 +2586,7 @@
       "status": "approved",
       "total_lines": 109,
       "est_tokens": 1450,
+      "content_hash": "f0106485",
       "sections": {},
       "deps": [
         "T-083"
@@ -2491,6 +2599,7 @@
       "status": "approved",
       "total_lines": 114,
       "est_tokens": 1134,
+      "content_hash": "f320bd6c",
       "sections": {},
       "deps": [
         "T-083"
@@ -2503,6 +2612,7 @@
       "status": "approved",
       "total_lines": 159,
       "est_tokens": 2336,
+      "content_hash": "d051eee5",
       "sections": {},
       "deps": [
         "T-084"
@@ -2515,6 +2625,7 @@
       "status": "approved",
       "total_lines": 82,
       "est_tokens": 1702,
+      "content_hash": "c5b0ca1a",
       "sections": {},
       "deps": [
         "T-084"
@@ -2527,6 +2638,7 @@
       "status": "approved",
       "total_lines": 83,
       "est_tokens": 1262,
+      "content_hash": "28fcb66f",
       "sections": {},
       "deps": [
         "T-084"
@@ -2539,6 +2651,7 @@
       "status": "approved",
       "total_lines": 79,
       "est_tokens": 1197,
+      "content_hash": "60f54c58",
       "sections": {},
       "deps": [
         "T-085"
@@ -2551,6 +2664,7 @@
       "status": "approved",
       "total_lines": 117,
       "est_tokens": 1251,
+      "content_hash": "24de64ca",
       "sections": {},
       "deps": [
         "T-085"
@@ -2563,6 +2677,7 @@
       "status": "approved",
       "total_lines": 137,
       "est_tokens": 2585,
+      "content_hash": "51a6fe8f",
       "sections": {},
       "deps": [
         "T-086"
@@ -2575,6 +2690,7 @@
       "status": "approved",
       "total_lines": 95,
       "est_tokens": 1589,
+      "content_hash": "22eb4f1e",
       "sections": {},
       "deps": [
         "T-086"
@@ -2587,6 +2703,7 @@
       "status": "draft",
       "total_lines": 110,
       "est_tokens": 1464,
+      "content_hash": "1ce3af4f",
       "sections": {},
       "deps": [
         "T-087"
@@ -2599,6 +2716,7 @@
       "status": "approved",
       "total_lines": 99,
       "est_tokens": 983,
+      "content_hash": "abbba5fb",
       "sections": {},
       "deps": [
         "T-087"
@@ -2611,6 +2729,7 @@
       "status": "approved",
       "total_lines": 83,
       "est_tokens": 1633,
+      "content_hash": "e963ebb9",
       "sections": {},
       "deps": [
         "T-088"
@@ -2623,6 +2742,7 @@
       "status": "approved",
       "total_lines": 82,
       "est_tokens": 1420,
+      "content_hash": "2e1dfe27",
       "sections": {},
       "deps": [
         "T-088"
@@ -2635,6 +2755,7 @@
       "status": "approved",
       "total_lines": 157,
       "est_tokens": 2028,
+      "content_hash": "ea00c20e",
       "sections": {},
       "deps": [
         "T-088"
@@ -2647,6 +2768,7 @@
       "status": "draft",
       "total_lines": 120,
       "est_tokens": 1587,
+      "content_hash": "06574f6a",
       "sections": {},
       "deps": [
         "T-089"
@@ -2659,6 +2781,7 @@
       "status": "approved",
       "total_lines": 170,
       "est_tokens": 2140,
+      "content_hash": "d133ddc0",
       "sections": {},
       "deps": [
         "T-089"
@@ -2671,6 +2794,7 @@
       "status": "approved",
       "total_lines": 114,
       "est_tokens": 2183,
+      "content_hash": "a9c8e776",
       "sections": {},
       "deps": [
         "T-090"
@@ -2683,6 +2807,7 @@
       "status": "approved",
       "total_lines": 95,
       "est_tokens": 1621,
+      "content_hash": "c4665b01",
       "sections": {},
       "deps": [
         "T-090"
@@ -2695,6 +2820,7 @@
       "status": "approved",
       "total_lines": 129,
       "est_tokens": 2631,
+      "content_hash": "4565d270",
       "sections": {},
       "deps": [
         "T-091"
@@ -2707,6 +2833,7 @@
       "status": "approved",
       "total_lines": 86,
       "est_tokens": 1778,
+      "content_hash": "4b95283d",
       "sections": {},
       "deps": [
         "T-091"
@@ -2719,6 +2846,7 @@
       "status": "approved",
       "total_lines": 181,
       "est_tokens": 3673,
+      "content_hash": "efb30523",
       "sections": {},
       "deps": [
         "T-092"
@@ -2731,6 +2859,7 @@
       "status": "approved",
       "total_lines": 135,
       "est_tokens": 2423,
+      "content_hash": "fdbf53d8",
       "sections": {},
       "deps": [
         "T-092"
@@ -2743,6 +2872,7 @@
       "status": "approved",
       "total_lines": 132,
       "est_tokens": 2441,
+      "content_hash": "54f8f173",
       "sections": {},
       "deps": [
         "T-093"
@@ -2755,6 +2885,7 @@
       "status": "approved",
       "total_lines": 95,
       "est_tokens": 1238,
+      "content_hash": "e2950e90",
       "sections": {},
       "deps": [
         "T-093"
@@ -2767,6 +2898,7 @@
       "status": "draft",
       "total_lines": 207,
       "est_tokens": 3793,
+      "content_hash": "30d4f28e",
       "sections": {},
       "deps": [
         "T-095"
@@ -2779,9 +2911,127 @@
       "status": "approved",
       "total_lines": 106,
       "est_tokens": 2115,
+      "content_hash": "6aefc859",
       "sections": {},
       "deps": [
         "T-095"
+      ]
+    },
+    "code-review-T-096-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-096-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 113,
+      "est_tokens": 2571,
+      "content_hash": "fa988e4a",
+      "sections": {},
+      "deps": [
+        "T-096"
+      ]
+    },
+    "code-review-T-097-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-097-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 196,
+      "est_tokens": 4209,
+      "content_hash": "7a2d755a",
+      "sections": {},
+      "deps": [
+        "T-097"
+      ]
+    },
+    "code-review-T-097-r2": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-097-r2.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 106,
+      "est_tokens": 1484,
+      "content_hash": "f23b1528",
+      "sections": {},
+      "deps": [
+        "T-097"
+      ]
+    },
+    "code-review-T-098-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-098-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 260,
+      "est_tokens": 5250,
+      "content_hash": "fb1cd8c6",
+      "sections": {},
+      "deps": [
+        "T-098"
+      ]
+    },
+    "code-review-T-098-r2": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-098-r2.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 141,
+      "est_tokens": 2825,
+      "content_hash": "29040874",
+      "sections": {},
+      "deps": [
+        "T-098"
+      ]
+    },
+    "code-review-T-099-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-099-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 126,
+      "est_tokens": 1628,
+      "content_hash": "414ca23c",
+      "sections": {},
+      "deps": [
+        "T-099"
+      ]
+    },
+    "code-review-T-099-r2": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-099-r2.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 101,
+      "est_tokens": 1426,
+      "content_hash": "6441449c",
+      "sections": {},
+      "deps": [
+        "T-099"
+      ]
+    },
+    "code-review-T-100-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-100-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 159,
+      "est_tokens": 2505,
+      "content_hash": "d5f4f2a8",
+      "sections": {},
+      "deps": [
+        "T-100"
+      ]
+    },
+    "code-review-T-100-r2": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-100-r2.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 101,
+      "est_tokens": 1548,
+      "content_hash": "f300da49",
+      "sections": {},
+      "deps": [
+        "T-100"
       ]
     },
     "code-review-deliverable-compliance-r1": {
@@ -2791,6 +3041,7 @@
       "status": "approved",
       "total_lines": 138,
       "est_tokens": 1706,
+      "content_hash": "a56fe037",
       "sections": {},
       "deps": [
         "deliverable-compliance"
@@ -2803,6 +3054,7 @@
       "status": "approved",
       "total_lines": 143,
       "est_tokens": 1895,
+      "content_hash": "25540cc0",
       "sections": {},
       "deps": [
         "deliverable-compliance"
@@ -2815,6 +3067,7 @@
       "status": "approved",
       "total_lines": 116,
       "est_tokens": 1790,
+      "content_hash": "d54d168c",
       "sections": {},
       "deps": [
         "sprint2"
@@ -2827,6 +3080,7 @@
       "status": "approved",
       "total_lines": 149,
       "est_tokens": 2526,
+      "content_hash": "70ffb7b2",
       "sections": {},
       "deps": [
         "sprint3"
@@ -2839,6 +3093,7 @@
       "status": "approved",
       "total_lines": 158,
       "est_tokens": 3395,
+      "content_hash": "56408679",
       "sections": {},
       "deps": [
         "sprint4"
@@ -2851,6 +3106,7 @@
       "status": "approved",
       "total_lines": 142,
       "est_tokens": 1643,
+      "content_hash": "bc89172d",
       "sections": {},
       "deps": [
         "sprint4"
@@ -2863,6 +3119,7 @@
       "status": "approved",
       "total_lines": 129,
       "est_tokens": 1777,
+      "content_hash": "ca6a3da1",
       "sections": {},
       "deps": [
         "sprint5"
@@ -2875,6 +3132,7 @@
       "status": "approved",
       "total_lines": 89,
       "est_tokens": 952,
+      "content_hash": "cc34949e",
       "sections": {},
       "deps": [
         "sprint5"
@@ -2887,6 +3145,7 @@
       "status": "approved",
       "total_lines": 182,
       "est_tokens": 3223,
+      "content_hash": "be394ee2",
       "sections": {}
     },
     "code-scan-20260503-r2": {
@@ -2896,6 +3155,7 @@
       "status": "approved",
       "total_lines": 175,
       "est_tokens": 3425,
+      "content_hash": "867f3bdd",
       "sections": {}
     },
     "review-arch-intellisource-v1-r1": {
@@ -2905,10 +3165,14 @@
       "status": "approved",
       "total_lines": 100,
       "est_tokens": 1709,
+      "content_hash": "5ff4a591",
       "sections": {},
       "deps": [
         "arch-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "arch-intellisource-v1": "800bfdec"
+      }
     },
     "review-arch-intellisource-v1-r2": {
       "file_path": "docs/reviews/doc/REVIEW-arch-intellisource-v1-r2.md",
@@ -2917,10 +3181,14 @@
       "status": "approved",
       "total_lines": 60,
       "est_tokens": 868,
+      "content_hash": "e13eee9b",
       "sections": {},
       "deps": [
         "arch-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "arch-intellisource-v1": "800bfdec"
+      }
     },
     "review-arch-intellisource-v1-r3": {
       "file_path": "docs/reviews/doc/REVIEW-arch-intellisource-v1-r3.md",
@@ -2929,10 +3197,14 @@
       "status": "approved",
       "total_lines": 73,
       "est_tokens": 1161,
+      "content_hash": "c87ac937",
       "sections": {},
       "deps": [
         "arch-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "arch-intellisource-v1": "800bfdec"
+      }
     },
     "review-dev-plan-intellisource-v1-r1": {
       "file_path": "docs/reviews/doc/REVIEW-dev-plan-intellisource-v1-r1.md",
@@ -2941,10 +3213,14 @@
       "status": "approved",
       "total_lines": 52,
       "est_tokens": 666,
+      "content_hash": "85c819c2",
       "sections": {},
       "deps": [
         "dev-plan-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "dev-plan-intellisource-v1": "0951f48d"
+      }
     },
     "review-dev-plan-intellisource-v1-r2": {
       "file_path": "docs/reviews/doc/REVIEW-dev-plan-intellisource-v1-r2.md",
@@ -2953,10 +3229,14 @@
       "status": "approved",
       "total_lines": 119,
       "est_tokens": 1679,
+      "content_hash": "58ac73be",
       "sections": {},
       "deps": [
         "dev-plan-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "dev-plan-intellisource-v1": "0951f48d"
+      }
     },
     "review-dev-plan-intellisource-v1-r3": {
       "file_path": "docs/reviews/doc/REVIEW-dev-plan-intellisource-v1-r3.md",
@@ -2965,10 +3245,14 @@
       "status": "approved",
       "total_lines": 74,
       "est_tokens": 680,
+      "content_hash": "36e254eb",
       "sections": {},
       "deps": [
         "dev-plan-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "dev-plan-intellisource-v1": "0951f48d"
+      }
     },
     "review-dev-plan-intellisource-v1-r4": {
       "file_path": "docs/reviews/doc/REVIEW-dev-plan-intellisource-v1-r4.md",
@@ -2977,10 +3261,14 @@
       "status": "approved",
       "total_lines": 102,
       "est_tokens": 1526,
+      "content_hash": "2f97da97",
       "sections": {},
       "deps": [
         "dev-plan-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "dev-plan-intellisource-v1": "0951f48d"
+      }
     },
     "review-dev-plan-intellisource-v1-s7-r1": {
       "file_path": "docs/reviews/doc/REVIEW-dev-plan-intellisource-v1-s7-r1.md",
@@ -2989,10 +3277,14 @@
       "status": "approved",
       "total_lines": 82,
       "est_tokens": 788,
+      "content_hash": "af606bbd",
       "sections": {},
       "deps": [
         "dev-plan-intellisource-v1-s7"
-      ]
+      ],
+      "dep_hashes": {
+        "dev-plan-intellisource-v1-s7": "24117919"
+      }
     },
     "review-dev-plan-intellisource-v1-s7-r2": {
       "file_path": "docs/reviews/doc/REVIEW-dev-plan-intellisource-v1-s7-r2.md",
@@ -3001,10 +3293,14 @@
       "status": "approved",
       "total_lines": 95,
       "est_tokens": 1616,
+      "content_hash": "ae6540be",
       "sections": {},
       "deps": [
         "dev-plan-intellisource-v1-s7"
-      ]
+      ],
+      "dep_hashes": {
+        "dev-plan-intellisource-v1-s7": "24117919"
+      }
     },
     "review-dev-plan-intellisource-v1-s7-r3": {
       "file_path": "docs/reviews/doc/REVIEW-dev-plan-intellisource-v1-s7-r3.md",
@@ -3013,10 +3309,14 @@
       "status": "approved",
       "total_lines": 67,
       "est_tokens": 1020,
+      "content_hash": "0be2fc38",
       "sections": {},
       "deps": [
         "dev-plan-intellisource-v1-s7"
-      ]
+      ],
+      "dep_hashes": {
+        "dev-plan-intellisource-v1-s7": "24117919"
+      }
     },
     "review-dev-plan-intellisource-v1-s7-r4": {
       "file_path": "docs/reviews/doc/REVIEW-dev-plan-intellisource-v1-s7-r4.md",
@@ -3025,10 +3325,14 @@
       "status": "approved",
       "total_lines": 53,
       "est_tokens": 497,
+      "content_hash": "a7858a73",
       "sections": {},
       "deps": [
         "dev-plan-intellisource-v1-s7"
-      ]
+      ],
+      "dep_hashes": {
+        "dev-plan-intellisource-v1-s7": "24117919"
+      }
     },
     "review-dev-plan-intellisource-v1-s7r-r1": {
       "file_path": "docs/reviews/doc/REVIEW-dev-plan-intellisource-v1-s7r-r1.md",
@@ -3037,10 +3341,14 @@
       "status": "approved",
       "total_lines": 115,
       "est_tokens": 2103,
+      "content_hash": "78f313f8",
       "sections": {},
       "deps": [
         "dev-plan-intellisource-v1-s7r"
-      ]
+      ],
+      "dep_hashes": {
+        "dev-plan-intellisource-v1-s7r": "e76cd3c4"
+      }
     },
     "review-dev-plan-intellisource-v1-s7r-r2": {
       "file_path": "docs/reviews/doc/REVIEW-dev-plan-intellisource-v1-s7r-r2.md",
@@ -3049,10 +3357,14 @@
       "status": "approved",
       "total_lines": 160,
       "est_tokens": 2128,
+      "content_hash": "5437287f",
       "sections": {},
       "deps": [
         "dev-plan-intellisource-v1-s7r"
-      ]
+      ],
+      "dep_hashes": {
+        "dev-plan-intellisource-v1-s7r": "e76cd3c4"
+      }
     },
     "review-dev-plan-intellisource-v1-s8r-r1": {
       "file_path": "docs/reviews/doc/REVIEW-dev-plan-intellisource-v1-s8r-r1.md",
@@ -3061,10 +3373,14 @@
       "status": "approved",
       "total_lines": 168,
       "est_tokens": 2914,
+      "content_hash": "4a6435e2",
       "sections": {},
       "deps": [
         "dev-plan-intellisource-v1-s8r"
-      ]
+      ],
+      "dep_hashes": {
+        "dev-plan-intellisource-v1-s8r": "fc1a82e6"
+      }
     },
     "review-dev-plan-intellisource-v1-s8r-r2": {
       "file_path": "docs/reviews/doc/REVIEW-dev-plan-intellisource-v1-s8r-r2.md",
@@ -3073,6 +3389,7 @@
       "status": "approved",
       "total_lines": 89,
       "est_tokens": 1471,
+      "content_hash": "787754b2",
       "sections": {
         "1": {
           "heading": "## 1. r1 → r2 修订对照表",
@@ -3122,7 +3439,10 @@
       },
       "deps": [
         "dev-plan-intellisource-v1-s8r"
-      ]
+      ],
+      "dep_hashes": {
+        "dev-plan-intellisource-v1-s8r": "fc1a82e6"
+      }
     },
     "review-prd-intellisource-v1-r1": {
       "file_path": "docs/reviews/doc/REVIEW-prd-intellisource-v1-r1.md",
@@ -3131,10 +3451,14 @@
       "status": "approved",
       "total_lines": 46,
       "est_tokens": 620,
+      "content_hash": "df25f868",
       "sections": {},
       "deps": [
         "prd-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "prd-intellisource-v1": "b565a51c"
+      }
     },
     "review-prd-intellisource-v1-r2": {
       "file_path": "docs/reviews/doc/REVIEW-prd-intellisource-v1-r2.md",
@@ -3143,10 +3467,14 @@
       "status": "approved",
       "total_lines": 33,
       "est_tokens": 336,
+      "content_hash": "0e958887",
       "sections": {},
       "deps": [
         "prd-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "prd-intellisource-v1": "b565a51c"
+      }
     },
     "review-test-report-intellisource-v1-r1": {
       "file_path": "docs/reviews/doc/REVIEW-test-report-intellisource-v1-r1.md",
@@ -3155,10 +3483,14 @@
       "status": "approved",
       "total_lines": 165,
       "est_tokens": 2468,
+      "content_hash": "e259cab6",
       "sections": {},
       "deps": [
         "test-report-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "test-report-intellisource-v1": "a8e32335"
+      }
     },
     "review-test-report-intellisource-v1-r2": {
       "file_path": "docs/reviews/doc/REVIEW-test-report-intellisource-v1-r2.md",
@@ -3167,9 +3499,26 @@
       "status": "approved",
       "total_lines": 204,
       "est_tokens": 2001,
+      "content_hash": "1a8d805f",
       "sections": {},
       "deps": [
         "test-report-intellisource-v1"
+      ],
+      "dep_hashes": {
+        "test-report-intellisource-v1": "a8e32335"
+      }
+    },
+    "retro-intellisource-v1-sprint-9": {
+      "file_path": "docs/reviews/retro/RETRO-intellisource-v1-sprint-9.md",
+      "doc_type": "retrospective",
+      "volume": "main",
+      "status": "draft",
+      "total_lines": 171,
+      "est_tokens": 3028,
+      "content_hash": "1f7c8f12",
+      "sections": {},
+      "deps": [
+        "RETRO-intellisource-v1"
       ]
     },
     "retro-intellisource-v1": {
@@ -3179,10 +3528,30 @@
       "status": "approved",
       "total_lines": 223,
       "est_tokens": 4110,
+      "content_hash": "e1f639c7",
       "sections": {},
       "deps": [
         "sprint-review-s7-r1"
-      ]
+      ],
+      "dep_hashes": {
+        "sprint-review-s7-r1": "ded2eff2"
+      }
+    },
+    "skill-improve-code-review-assembly-gap-scan": {
+      "file_path": "docs/reviews/retro/SKILL-IMPROVE-code-review-assembly-gap-scan.md",
+      "doc_type": "skill-improve",
+      "volume": "main",
+      "status": "draft",
+      "total_lines": 134,
+      "est_tokens": 1533,
+      "content_hash": "f494e650",
+      "sections": {},
+      "deps": [
+        "retro-intellisource-v1-sprint-9"
+      ],
+      "dep_hashes": {
+        "retro-intellisource-v1-sprint-9": "1f7c8f12"
+      }
     },
     "skill-improve-code-review": {
       "file_path": "docs/reviews/retro/SKILL-IMPROVE-code-review.md",
@@ -3191,10 +3560,30 @@
       "status": "approved",
       "total_lines": 107,
       "est_tokens": 1359,
+      "content_hash": "b6c5ac31",
       "sections": {},
       "deps": [
         "retro-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "retro-intellisource-v1": "e1f639c7"
+      }
+    },
+    "skill-improve-framework-anti-truncation": {
+      "file_path": "docs/reviews/retro/SKILL-IMPROVE-framework-anti-truncation.md",
+      "doc_type": "skill-improve",
+      "volume": "main",
+      "status": "draft",
+      "total_lines": 184,
+      "est_tokens": 2399,
+      "content_hash": "5ea8c079",
+      "sections": {},
+      "deps": [
+        "retro-intellisource-v1-sprint-9"
+      ],
+      "dep_hashes": {
+        "retro-intellisource-v1-sprint-9": "1f7c8f12"
+      }
     },
     "skill-improve-implementer": {
       "file_path": "docs/reviews/retro/SKILL-IMPROVE-implementer.md",
@@ -3203,10 +3592,14 @@
       "status": "approved",
       "total_lines": 93,
       "est_tokens": 1245,
+      "content_hash": "ea6c2e80",
       "sections": {},
       "deps": [
         "retro-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "retro-intellisource-v1": "e1f639c7"
+      }
     },
     "skill-improve-orchestrator": {
       "file_path": "docs/reviews/retro/SKILL-IMPROVE-orchestrator.md",
@@ -3215,10 +3608,14 @@
       "status": "approved",
       "total_lines": 68,
       "est_tokens": 867,
+      "content_hash": "30a2665e",
       "sections": {},
       "deps": [
         "retro-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "retro-intellisource-v1": "e1f639c7"
+      }
     },
     "skill-improve-refactorer": {
       "file_path": "docs/reviews/retro/SKILL-IMPROVE-refactorer.md",
@@ -3227,10 +3624,14 @@
       "status": "approved",
       "total_lines": 50,
       "est_tokens": 645,
+      "content_hash": "1b88553a",
       "sections": {},
       "deps": [
         "retro-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "retro-intellisource-v1": "e1f639c7"
+      }
     },
     "skill-improve-tdd-engine": {
       "file_path": "docs/reviews/retro/SKILL-IMPROVE-tdd-engine.md",
@@ -3239,10 +3640,14 @@
       "status": "approved",
       "total_lines": 83,
       "est_tokens": 969,
+      "content_hash": "bc0f004e",
       "sections": {},
       "deps": [
         "retro-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "retro-intellisource-v1": "e1f639c7"
+      }
     },
     "skill-improve-tech-lead": {
       "file_path": "docs/reviews/retro/SKILL-IMPROVE-tech-lead.md",
@@ -3251,10 +3656,14 @@
       "status": "approved",
       "total_lines": 72,
       "est_tokens": 865,
+      "content_hash": "1a29fdc6",
       "sections": {},
       "deps": [
         "retro-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "retro-intellisource-v1": "e1f639c7"
+      }
     },
     "sprint-review-s1-r1": {
       "file_path": "docs/reviews/sprint/SPRINT-REVIEW-s1-r1.md",
@@ -3263,6 +3672,7 @@
       "status": "approved",
       "total_lines": 152,
       "est_tokens": 1705,
+      "content_hash": "0f392354",
       "sections": {}
     },
     "sprint-review-s1-r2": {
@@ -3272,6 +3682,7 @@
       "status": "approved",
       "total_lines": 81,
       "est_tokens": 826,
+      "content_hash": "47dbc5d9",
       "sections": {}
     },
     "sprint-review-s2-r1": {
@@ -3281,6 +3692,7 @@
       "status": "approved",
       "total_lines": 185,
       "est_tokens": 2418,
+      "content_hash": "bbaa369e",
       "sections": {}
     },
     "sprint-review-s2-r2": {
@@ -3290,6 +3702,7 @@
       "status": "approved",
       "total_lines": 169,
       "est_tokens": 2567,
+      "content_hash": "fc25841e",
       "sections": {}
     },
     "sprint-review-s2-r3": {
@@ -3299,6 +3712,7 @@
       "status": "approved",
       "total_lines": 115,
       "est_tokens": 1463,
+      "content_hash": "9ce35bc9",
       "sections": {}
     },
     "sprint-review-s3-r1": {
@@ -3308,6 +3722,7 @@
       "status": "approved",
       "total_lines": 172,
       "est_tokens": 2032,
+      "content_hash": "91167526",
       "sections": {}
     },
     "sprint-review-s3-r2": {
@@ -3317,6 +3732,7 @@
       "status": "approved",
       "total_lines": 141,
       "est_tokens": 1569,
+      "content_hash": "8c57f816",
       "sections": {}
     },
     "sprint-review-s4-r1": {
@@ -3326,6 +3742,7 @@
       "status": "approved",
       "total_lines": 184,
       "est_tokens": 2261,
+      "content_hash": "016ce383",
       "sections": {}
     },
     "sprint-review-s5-r1": {
@@ -3335,6 +3752,7 @@
       "status": "approved",
       "total_lines": 215,
       "est_tokens": 2908,
+      "content_hash": "e10e68c4",
       "sections": {}
     },
     "sprint-review-s6-r1": {
@@ -3344,6 +3762,7 @@
       "status": "approved",
       "total_lines": 144,
       "est_tokens": 2538,
+      "content_hash": "7808beb1",
       "sections": {}
     },
     "sprint-review-s6-r2": {
@@ -3353,6 +3772,7 @@
       "status": "approved",
       "total_lines": 146,
       "est_tokens": 2028,
+      "content_hash": "bb79374e",
       "sections": {}
     },
     "sprint-review-s7-r1": {
@@ -3362,10 +3782,14 @@
       "status": "approved",
       "total_lines": 149,
       "est_tokens": 2501,
+      "content_hash": "ded2eff2",
       "sections": {},
       "deps": [
         "dev-plan-intellisource-v1-s7"
-      ]
+      ],
+      "dep_hashes": {
+        "dev-plan-intellisource-v1-s7": "24117919"
+      }
     },
     "sprint-review-s8r-r1": {
       "file_path": "docs/reviews/sprint/SPRINT-REVIEW-s8r-r1.md",
@@ -3374,10 +3798,14 @@
       "status": "approved",
       "total_lines": 296,
       "est_tokens": 5756,
+      "content_hash": "b91095ed",
       "sections": {},
       "deps": [
         "dev-plan-intellisource-v1-s8r"
-      ]
+      ],
+      "dep_hashes": {
+        "dev-plan-intellisource-v1-s8r": "fc1a82e6"
+      }
     },
     "test-report-intellisource-v1": {
       "file_path": "docs/test-report/test-report-intellisource-v1.md",
@@ -3386,6 +3814,7 @@
       "status": "approved",
       "total_lines": 395,
       "est_tokens": 6937,
+      "content_hash": "a8e32335",
       "sections": {
         "1": {
           "heading": "## 1. 测试策略",
@@ -3505,7 +3934,10 @@
       },
       "deps": [
         "dev-plan-intellisource-v1"
-      ]
+      ],
+      "dep_hashes": {
+        "dev-plan-intellisource-v1": "0951f48d"
+      }
     }
   },
   "xref": {

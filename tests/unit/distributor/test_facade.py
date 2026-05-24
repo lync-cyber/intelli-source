@@ -163,6 +163,8 @@ class TestBuildDistributorFacadeEnvGuard:
         assert hasattr(facade, "distribute"), (
             "build_distributor_facade must return an object with a .distribute() method"
         )
+        assert facade._channels["wechat"]._http is not None
+        assert facade._channels["wework"].http_client is not None
 
 
 # ---------------------------------------------------------------------------

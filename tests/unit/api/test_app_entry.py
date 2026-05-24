@@ -105,7 +105,9 @@ class TestRouteRegistration:
     """Verify that create_app registers all expected routers."""
 
     @pytest.mark.asyncio
-    async def test_all_expected_route_prefixes_registered(self, main_app: FastAPI) -> None:
+    async def test_all_expected_route_prefixes_registered(
+        self, main_app: FastAPI
+    ) -> None:
         """AC-T045-1: App includes routes for sources, contents, search,
         tasks, subscriptions, llm, and system."""
         if _MODULE_MISSING:

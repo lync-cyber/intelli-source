@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+import uuid
+from collections.abc import AsyncIterator
+from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import Text, event
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+from intellisource.storage.models import Base, LLMCallLog
 
 
 def _make_system_app(
@@ -102,6 +110,20 @@ class TestHealthRealChecker:
 
         assert resp.json()["status"] == "degraded"
 
+    async def test_missing_checker_is_unhealthy_not_false_green(self) -> None:
+        """P1-8: a missing health checker must not report healthy."""
+        app = _make_system_app()
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.get("/api/v1/system/health")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "unhealthy"
+        assert body["checks"]["meta"] == "checker_missing"
+
 
 class TestMetricsRealCollector:
     """AC-T099-4: /metrics renders Prometheus exposition from MetricsCollector."""
@@ -130,6 +152,140 @@ class TestMetricsRealCollector:
         assert "requests_total 42" in text
         assert "# TYPE queue_depth gauge" in text
         assert "queue_depth 7" in text
+        assert "version=0.0.4" in resp.headers.get("content-type", "")
+
+    async def test_versioned_legacy_metrics_path_uses_same_collector(self) -> None:
+        """P1-8: /api/v1/metrics is backed by MetricsCollector, not a stub."""
+        from intellisource.api.routers.system import router as system_router
+        from intellisource.observability.metrics import MetricsCollector
+
+        collector = MetricsCollector()
+        collector._counters = {"legacy_path_total": 3}
+        collector._counter_descriptions = {"legacy_path_total": "Legacy path hits"}
+        collector._gauges = {}
+        collector._gauge_descriptions = {}
+        collector._histograms = {}
+        collector._histogram_descriptions = {}
+
+        app = FastAPI()
+        app.include_router(system_router, prefix="/api/v1")
+        app.state.metrics_collector = collector
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.get("/api/v1/metrics")
+
+        assert resp.status_code == 200
+        assert "legacy_path_total 3" in resp.text
+
+
+def _remove_pg_only_indexes(base: type) -> None:
+    for table in base.metadata.tables.values():
+        indexes_to_remove = []
+        for idx in table.indexes:
+            pg_opts = getattr(idx, "dialect_options", {}).get("postgresql", {})
+            if pg_opts.get("using") or pg_opts.get("ops"):
+                indexes_to_remove.append(idx)
+        for idx in indexes_to_remove:
+            table.indexes.discard(idx)
+
+
+def _set_sqlite_fk_pragma(dbapi_conn: Any, connection_record: Any) -> None:
+    del connection_record
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
+
+@pytest.fixture()
+async def sqlite_session() -> AsyncIterator[AsyncSession]:
+    """Real SQLite session for route-level LLM stats tests."""
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
+    event.listen(engine.sync_engine, "connect", _set_sqlite_fk_pragma)
+    _remove_pg_only_indexes(Base)
+    for table in Base.metadata.tables.values():
+        for col in table.columns:
+            if type(col.type).__name__ == "Vector":
+                col.type = Text()
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    factory = async_sessionmaker(
+        bind=engine, class_=AsyncSession, expire_on_commit=False
+    )
+    async with factory() as session:
+        yield session
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    await engine.dispose()
+
+
+class TestSystemLLMStatsRealRoute:
+    """P1-6: /api/v1/system/llm-stats uses real repository aggregation."""
+
+    async def test_system_llm_stats_reads_real_llm_call_log_rows(
+        self, sqlite_session: AsyncSession
+    ) -> None:
+        from intellisource.api.deps import get_db_session
+        from intellisource.api.routers.system import router as system_router
+
+        sqlite_session.add_all(
+            [
+                LLMCallLog(
+                    id=uuid.uuid4(),
+                    model="gpt-4o-mini",
+                    provider="openai",
+                    call_type="chat",
+                    input_tokens=100,
+                    output_tokens=50,
+                    latency_ms=200,
+                    input_length=10,
+                    output_length=5,
+                    status="success",
+                    created_at=datetime.now(timezone.utc),
+                ),
+                LLMCallLog(
+                    id=uuid.uuid4(),
+                    model="gpt-4o-mini",
+                    provider="openai",
+                    call_type="chat",
+                    input_tokens=20,
+                    output_tokens=10,
+                    latency_ms=100,
+                    input_length=2,
+                    output_length=1,
+                    status="error",
+                    error_message="boom",
+                    created_at=datetime.now(timezone.utc),
+                ),
+            ]
+        )
+        await sqlite_session.commit()
+
+        app = FastAPI()
+        app.include_router(system_router, prefix="/api/v1/system")
+
+        async def _override_session() -> AsyncIterator[AsyncSession]:
+            yield sqlite_session
+
+        app.dependency_overrides[get_db_session] = _override_session
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.get(
+                "/api/v1/system/llm-stats",
+                params={"period": "day", "model": "gpt-4o-mini", "call_type": "chat"},
+            )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total_calls"] == 2
+        assert body["total_tokens"] == 180
+        assert body["by_model"][0]["error_rate"] == 0.5
 
 
 class TestCompositionInstallsObservabilityState:

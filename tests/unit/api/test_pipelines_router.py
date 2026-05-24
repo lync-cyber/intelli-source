@@ -186,7 +186,9 @@ class TestPathTraversalGuard:
 
 
 @pytest.mark.asyncio
-async def test_router_registered_in_main_app(main_openapi_paths: dict[str, Any]) -> None:
+async def test_router_registered_in_main_app(
+    main_openapi_paths: dict[str, Any],
+) -> None:
     """AC-T099-3: main.create_app exposes /api/v1/pipelines in OpenAPI."""
     assert "/api/v1/pipelines" in main_openapi_paths, (
         f"/api/v1/pipelines not in OpenAPI; got: {sorted(main_openapi_paths.keys())}"

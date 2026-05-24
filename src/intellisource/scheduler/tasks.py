@@ -70,6 +70,20 @@ def _run_sync(coro_or_result: Any) -> Any:
     return coro_or_result
 
 
+def _task_lock_key(pipeline_name: str, params: dict[str, Any]) -> str:
+    """Return a stable, non-empty idempotency lock key for a pipeline run."""
+    explicit = str(params.get("task_id") or "").strip()
+    if explicit:
+        return explicit
+    source_id = str(params.get("source_id") or "").strip()
+    if source_id:
+        return f"{pipeline_name}:source:{source_id}"
+    fingerprint = str(params.get("fingerprint") or "").strip()
+    if fingerprint:
+        return f"{pipeline_name}:fingerprint:{fingerprint}"
+    return f"{pipeline_name}:manual"
+
+
 class CeleryTasks:
     """Celery task wrapper that delegates execution to AgentRunner."""
 
@@ -133,67 +147,79 @@ class CeleryTasks:
         Retries up to ``MAX_RETRIES`` times on failure with
         exponential backoff.
         """
-        task_id: str = params.get("task_id", "")
+        task_id = _task_lock_key(pipeline_name, params)
         fingerprint: str = params.get("fingerprint", "")
+        lock_acquired = False
 
         if self._idempotency_guard is not None:
-            lock_acquired: bool = _run_sync(self._idempotency_guard.acquire(task_id))
+            lock_acquired = bool(_run_sync(self._idempotency_guard.acquire(task_id)))
             if not lock_acquired:
                 return {"status": "skipped", "reason": "already_running"}
 
-        if self._fingerprint_checker is not None:
-            is_dup: bool = _run_sync(
-                self._fingerprint_checker.is_duplicate(fingerprint)
-            )
-            if is_dup:
-                return {"status": "skipped", "reason": "duplicate"}
+        try:
+            if self._fingerprint_checker is not None:
+                is_dup: bool = _run_sync(
+                    self._fingerprint_checker.is_duplicate(fingerprint)
+                )
+                if is_dup:
+                    return {"status": "skipped", "reason": "duplicate"}
 
-        if self._pipeline_config is None:
-            raise RuntimeError(
-                "CeleryTasks.run_pipeline: pipeline_config (PipelineLoader) is None; "
-                "worker_init_handler must wire it via build_worker_composition()"
-            )
-        config = self._pipeline_config.load(pipeline_name)
-        trigger_type = params.get("trigger_type", "scheduled")
-        execution_mode = config.mode
-        total_steps = len(config.steps)
+            if self._pipeline_config is None:
+                raise RuntimeError(
+                    "CeleryTasks.run_pipeline: pipeline_config (PipelineLoader) is "
+                    "None; worker_init_handler must wire it via "
+                    "build_worker_composition()"
+                )
+            config = self._pipeline_config.load(pipeline_name)
+            trigger_type = params.get("trigger_type", "scheduled")
+            execution_mode = config.mode
+            total_steps = len(config.steps)
 
-        # Persist TaskChain record via session_factory when wired (production path).
-        chain_id: uuid.UUID | None = None
-        if self._session_factory is not None:
-            task_chain = TaskChain(
-                pipeline_name=pipeline_name,
-                status="pending",
-                trigger_type=trigger_type,
-                execution_mode=execution_mode,
-                total_steps=total_steps,
-                completed_steps=0,
-            )
-            chain_id = self._create_chain(task_chain)
+            # Persist TaskChain record via session_factory when wired.
+            chain_id: uuid.UUID | None = None
+            if self._session_factory is not None:
+                task_chain = TaskChain(
+                    pipeline_name=pipeline_name,
+                    status="pending",
+                    trigger_type=trigger_type,
+                    execution_mode=execution_mode,
+                    total_steps=total_steps,
+                    completed_steps=0,
+                )
+                chain_id = self._create_chain(task_chain)
 
-        last_error: Exception | None = None
-        for attempt in range(1 + MAX_RETRIES):
-            try:
-                result = _run_sync(self._agent_runner.execute(config, params=params))
-                if self._content_repository is not None:
-                    _run_sync(self._content_repository.create(result))
-                if self._fingerprint_checker is not None and fingerprint:
-                    content_id = (
-                        result.get("content_id") if isinstance(result, dict) else None
+            last_error: Exception | None = None
+            for attempt in range(1 + MAX_RETRIES):
+                try:
+                    result = _run_sync(
+                        self._agent_runner.execute(config, params=params)
                     )
-                    _run_sync(self._fingerprint_checker.record(fingerprint, content_id))
-                if chain_id is not None:
-                    self._update_chain_status(chain_id, "success")
-                return dict(result)
-            except Exception as exc:
-                last_error = exc
-                if attempt < MAX_RETRIES:
-                    _run_sync(asyncio.sleep(RETRY_BACKOFF_BASE * (2**attempt)))
+                    if self._content_repository is not None:
+                        _run_sync(self._content_repository.create(result))
+                    if self._fingerprint_checker is not None and fingerprint:
+                        content_id = (
+                            result.get("content_id")
+                            if isinstance(result, dict)
+                            else None
+                        )
+                        _run_sync(
+                            self._fingerprint_checker.record(fingerprint, content_id)
+                        )
+                    if chain_id is not None:
+                        self._update_chain_status(chain_id, "success")
+                    return dict(result)
+                except Exception as exc:
+                    last_error = exc
+                    if attempt < MAX_RETRIES:
+                        _run_sync(asyncio.sleep(RETRY_BACKOFF_BASE * (2**attempt)))
 
-        if chain_id is not None:
-            self._update_chain_status(chain_id, "failed")
+            if chain_id is not None:
+                self._update_chain_status(chain_id, "failed")
 
-        raise last_error  # type: ignore[misc]
+            raise last_error  # type: ignore[misc]
+        finally:
+            if self._idempotency_guard is not None and lock_acquired:
+                _run_sync(self._idempotency_guard.release(task_id))
 
 
 # ---------------------------------------------------------------------------

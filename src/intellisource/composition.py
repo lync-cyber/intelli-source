@@ -148,8 +148,9 @@ def build_distributor_facade(
     ``llm_gateway`` is supplied the facade can optimize push copy before send
     (F-010, gated by ``IS_PUSH_OPTIMIZE_ENABLED``).
     """
-    wechat = WeChatDistributor.from_env(redis=redis_client)
-    wework = WeWorkDistributor.from_env(redis=redis_client)
+    http_client = _build_http_client()
+    wechat = WeChatDistributor.from_env(redis=redis_client, http_client=http_client)
+    wework = WeWorkDistributor.from_env(redis=redis_client, http_client=http_client)
     email = EmailDistributor.from_env()
     matcher = SubscriptionMatcher()
     channels: dict[str, Any] = {
@@ -540,6 +541,14 @@ def _maybe_build_http_client() -> Any:
         return httpx.AsyncClient(timeout=10.0)
     except ImportError:
         return None
+
+
+def _build_http_client() -> Any:
+    """Return an async HTTP client for production channels, or fail loudly."""
+    http_client = _maybe_build_http_client()
+    if http_client is None:
+        raise CompositionError("httpx is required to build distributor channels")
+    return http_client
 
 
 class _DatabaseManagerSessionFactory:

@@ -41,6 +41,8 @@ class WeChatDistributor(BaseDistributor):
         app_secret: str,
         push_repo: "PushRepository | None" = None,
     ) -> None:
+        if http_client is None:
+            raise ValueError("http_client is required for WeChatDistributor")
         self._redis = redis
         self._http = http_client
         self._app_id = app_id

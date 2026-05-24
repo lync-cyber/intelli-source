@@ -47,6 +47,9 @@ def _parse_xml_text_message(xml_body: str) -> dict[str, str] | None:
 
 
 def _extract_answer(result: dict[str, Any]) -> str:
+    final_answer = result.get("final_answer")
+    if final_answer:
+        return str(final_answer)
     for step in reversed(result.get("results", [])):
         output = step.get("output", {})
         text = output.get("text", "")

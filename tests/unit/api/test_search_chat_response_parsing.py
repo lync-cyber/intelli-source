@@ -6,6 +6,19 @@ from intellisource.api.routers.search import _extract_answer, _extract_sources
 
 
 class TestSearchChatResponseParsing:
+    def test_extract_answer_prefers_final_answer(self) -> None:
+        flex_result = {
+            "final_answer": "direct final answer",
+            "results": [
+                {
+                    "tool": "summarize_for_user",
+                    "output": {"text": "tool summary"},
+                }
+            ],
+        }
+
+        assert _extract_answer(flex_result) == "direct final answer"
+
     def test_extract_sources_reads_search_tool_response_items(self) -> None:
         flex_result = {
             "results": [
@@ -16,7 +29,9 @@ class TestSearchChatResponseParsing:
                             "items": [
                                 {
                                     "title": "RAG Survey",
-                                    "content_id": "11111111-1111-1111-1111-111111111111",
+                                    "content_id": (
+                                        "11111111-1111-1111-1111-111111111111"
+                                    ),
                                 }
                             ]
                         }

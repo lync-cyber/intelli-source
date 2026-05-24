@@ -410,8 +410,7 @@ class TestT086GrepEvidence:
         lines = find_regex_in_tree(llm_dir, r"response_format|tool_choice|tools=")
         assert len(lines) >= 2, (
             f"Expected at least 2 hits for response_format|tool_choice|tools= "
-            f"in src/intellisource/llm/, got {len(lines)}:\n"
-            + "\n".join(lines)
+            f"in src/intellisource/llm/, got {len(lines)}:\n" + "\n".join(lines)
         )
 
 

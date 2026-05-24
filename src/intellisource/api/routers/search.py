@@ -101,6 +101,9 @@ def _extract_sources(flex_result: dict[str, Any]) -> list[ChatSource]:
 
 def _extract_answer(flex_result: dict[str, Any]) -> str:
     """Return the best assistant-facing text from flexible-mode tool results."""
+    final_answer = flex_result.get("final_answer")
+    if final_answer:
+        return str(final_answer)
     for step in reversed(flex_result.get("results", [])):
         output = step.get("output", {})
         if not isinstance(output, dict):
@@ -165,17 +168,17 @@ async def chat_search(
 
     answer = _extract_answer(flex_result)
 
-    session_id_str = body.session_id or str(uuid.uuid4())
+    response_session_uuid = session_uuid or uuid.uuid4()
     steps_executed: int = int(flex_result.get("steps_executed", 0))
     task_chain_id: str = str(flex_result.get("task_chain_id", ""))
 
     if db_manager is not None:
         try:
             async with db_manager.get_session() as db_session:
-                await _persist_chat_turn(
+                response_session_uuid = await _persist_chat_turn(
                     db_session,
                     existing=stored_session,
-                    session_id_hint=body.session_id,
+                    session_id=response_session_uuid,
                     user_message=body.message,
                     assistant_answer=answer,
                 )
@@ -183,7 +186,7 @@ async def chat_search(
             logger.exception("ChatSession persist transaction failed")
 
     resp = ChatSearchResponse(
-        session_id=session_id_str,
+        session_id=str(response_session_uuid),
         answer=answer,
         sources=_extract_sources(flex_result),
         query_time_ms=elapsed_ms,
@@ -218,16 +221,16 @@ async def _persist_chat_turn(
     db_session: AsyncSession,
     *,
     existing: Any,
-    session_id_hint: str | None,
+    session_id: uuid.UUID,
     user_message: str,
     assistant_answer: str,
-) -> None:
+) -> uuid.UUID:
     """Append the new user+assistant turn to ChatSession.context.messages.
 
-    Creates a new row when *existing* is None — channel defaults to "api"
-    and channel_user_id is the supplied session_id_hint (or a fresh UUID
-    when the caller did not provide one). DB errors are logged but never
-    raised so the chat reply still returns.
+    Creates a new row when *existing* is None, using *session_id* as both
+    the primary key and API channel_user_id so the response token can be
+    used to load the same row on the next request. DB errors are logged
+    but never raised so the chat reply still returns.
     """
     from intellisource.storage.repositories.chat_session import (
         ChatSessionRepository,
@@ -245,11 +248,12 @@ async def _persist_chat_turn(
             history.extend(new_messages)
             context["messages"] = history[-(_MAX_HISTORY_TURNS * 2) :]
             await repo.update_context(existing.id, context)
+            session_id = existing.id
         else:
-            channel_user_id = session_id_hint or str(uuid.uuid4())
             await repo.create(
+                id=session_id,
                 channel=_CHAT_CHANNEL_API,
-                channel_user_id=channel_user_id,
+                channel_user_id=str(session_id),
                 context={"messages": new_messages},
             )
         await db_session.commit()
@@ -259,3 +263,4 @@ async def _persist_chat_turn(
             await db_session.rollback()
         except Exception:
             logger.exception("ChatSession rollback also failed")
+    return session_id
