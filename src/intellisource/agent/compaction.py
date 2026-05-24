@@ -206,3 +206,70 @@ async def compact_messages(
         # (e.g. missing template) already propagate from outside the try block.
         logger.warning("LLM summarization failed, using truncation fallback: %s", exc)
         return _truncation_fallback(messages, gateway, profile, model)
+
+
+async def compact_messages_for_chat(
+    messages: list[dict[str, Any]],
+    gateway: Any,
+    max_tokens: int = _DEFAULT_CONTEXT_TOKEN_BUDGET,
+    model: str = "gpt-4o-mini",
+) -> list[dict[str, Any]]:
+    """Compact chat session messages without requiring a ModelProfile.
+
+    Convenience wrapper for callers (e.g. ``search/chat_session.py``) that
+    do not own a ModelProfile but need the same token-aware pruning and
+    LLM-summarization pipeline as ``compact_messages``. A synthetic
+    ModelProfile is constructed from ``max_tokens`` so the existing pipeline
+    treats it as the budget upper bound; pruning, summarization and the
+    truncation fallback all behave identically to ``compact_messages``.
+
+    Args:
+        messages: Full conversation message list.
+        gateway: LLM gateway (may be ``None`` — caller falls back to
+            local truncation in that case, callers are expected to check).
+        max_tokens: Token budget for the compacted result.
+        model: Model identifier used for token estimation.
+
+    Returns:
+        Compacted message list with old tool messages pruned first and
+        an LLM-generated summary replacing the oldest block when
+        summarization succeeds.
+    """
+    if gateway is None:
+        return _truncation_fallback_no_gateway(messages, max_tokens)
+
+    profile = ModelProfile(
+        temperature=0.0,
+        max_tokens=max_tokens,
+        context_window=max(max_tokens * 2, 8192),
+    )
+    return await compact_messages(
+        messages,
+        gateway=gateway,
+        profile=profile,
+        context_token_budget=max_tokens,
+        model=model,
+    )
+
+
+def _truncation_fallback_no_gateway(
+    messages: list[dict[str, Any]],
+    max_tokens: int,
+) -> list[dict[str, Any]]:
+    """Truncate by character estimate when no gateway is available.
+
+    Approximates token cost as ``len(content) // 4`` (industry standard)
+    and keeps the most recent messages that fit within ``max_tokens``.
+    role=tool messages are pruned first (oldest-first) before truncation.
+    """
+    pruned = _prune_old_tool_messages(messages)
+    target_chars = max_tokens * 4
+    kept: list[dict[str, Any]] = []
+    used = 0
+    for msg in reversed(pruned):
+        cost = len(str(msg.get("content", "")))
+        if used + cost > target_chars and kept:
+            break
+        kept.append(msg)
+        used += cost
+    return list(reversed(kept)) if kept else pruned[-1:] if pruned else []

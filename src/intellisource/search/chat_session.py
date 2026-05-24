@@ -13,9 +13,9 @@ from typing import Any
 
 from sqlalchemy import text
 
+from intellisource.agent.compaction import compact_messages_for_chat
+
 _CHARS_PER_TOKEN = 4
-_MAX_SUMMARY_PARTS = 20
-_SUMMARY_CONTENT_LIMIT = 100
 
 
 @dataclass
@@ -32,8 +32,9 @@ class _NewSessionRow:
 class ChatSessionManager:
     """Manages chat sessions with context storage and compaction."""
 
-    def __init__(self, session: Any) -> None:
+    def __init__(self, session: Any, llm_gateway: Any = None) -> None:
         self._session = session
+        self._llm_gateway = llm_gateway
 
     async def _find_session(self, channel: str, channel_user_id: str) -> Any | None:
         """Find an existing session for the given channel and user."""
@@ -65,28 +66,21 @@ class ChatSessionManager:
             await self.compact_context(session_row, max_tokens=max_tokens)
 
     async def compact_context(self, session_row: Any, max_tokens: int) -> Any:
-        """Replace old messages with a summary, preserving recent ones.
+        """Compact context via token-aware LLM summarization.
 
-        [ASSUMPTION] Current implementation uses string concatenation for
-        summarisation. Future versions should integrate an LLM-based compactor
-        to produce higher-quality semantic summaries.
+        Delegates to ``agent.compaction.compact_messages_for_chat`` to share
+        the same pruning + structured summarization pipeline used by Agent
+        flows. When ``llm_gateway`` is not configured, the underlying helper
+        falls back to character-budget truncation with role=tool messages
+        pruned first.
         """
-        messages: list[dict[str, str]] = session_row.context["messages"]
-
-        keep_count = min(max(2, len(messages) // 10), len(messages))
-        old_messages = messages[:-keep_count] if keep_count < len(messages) else []
-        recent_messages = messages[-keep_count:]
-
-        summary_parts = [
-            f"{msg['role']}: {msg['content'][:_SUMMARY_CONTENT_LIMIT]}"
-            for msg in old_messages[:_MAX_SUMMARY_PARTS]
-        ]
-        summary_text = "Summary of previous conversation: " + "; ".join(summary_parts)
-
-        session_row.context["messages"] = [
-            {"role": "system", "content": summary_text},
-            *recent_messages,
-        ]
+        messages: list[dict[str, Any]] = session_row.context["messages"]
+        compacted = await compact_messages_for_chat(
+            messages,
+            gateway=self._llm_gateway,
+            max_tokens=max_tokens,
+        )
+        session_row.context["messages"] = compacted
         return session_row
 
     async def cleanup_inactive_sessions(self, max_inactive_hours: int = 24) -> int:
