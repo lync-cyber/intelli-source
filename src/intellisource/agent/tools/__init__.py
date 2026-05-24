@@ -7,7 +7,9 @@ by AgentRunner, and load_pipeline_config for loading YAML pipelines.
 from __future__ import annotations
 
 import enum
+import importlib.util
 import logging
+import sys
 import uuid as _uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -16,7 +18,8 @@ from typing import Any, Callable, Coroutine
 from intellisource.agent.pipeline import PipelineConfig
 from intellisource.pipeline.processors import tools as atomic_tools
 
-_PIPELINES_DIR = Path(__file__).resolve().parents[3] / "config" / "pipelines"
+_PIPELINES_DIR = Path(__file__).resolve().parents[4] / "config" / "pipelines"
+_DEFAULT_PLUGINS_DIR = Path(__file__).resolve().parent
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +102,65 @@ class AgentToolRegistry:
             denied_set = set(denied)
             result = {k: v for k, v in result.items() if k not in denied_set}
         return result
+
+    def auto_discover(self, tools_dir: str | Path | None = None) -> None:
+        """Scan tools_dir for plugin modules exporting TOOL_DEFINITION.
+
+        Each *.py file (skipping __init__.py and dunder-prefixed names) is
+        imported under a synthetic module name and inspected for a top-level
+        TOOL_DEFINITION attribute of type ToolDefinition. Already-registered
+        tool names take precedence (manual register wins over auto-discover).
+        Import or attribute errors are logged at WARNING and skipped — they
+        do not abort discovery of remaining files or application startup.
+        """
+        base = Path(tools_dir) if tools_dir is not None else _DEFAULT_PLUGINS_DIR
+        if not base.is_dir():
+            logger.warning(
+                "auto_discover: tools_dir %s does not exist or is not a directory",
+                base,
+            )
+            return
+
+        for child in sorted(base.iterdir()):
+            if not child.is_file() or child.suffix != ".py":
+                continue
+            if child.name.startswith("_"):
+                continue
+
+            module_name = f"intellisource.agent.tools._discovered.{child.stem}"
+            try:
+                spec = importlib.util.spec_from_file_location(module_name, str(child))
+                if spec is None or spec.loader is None:
+                    logger.warning("auto_discover: failed to build spec for %s", child)
+                    continue
+                module = importlib.util.module_from_spec(spec)
+                sys.modules[module_name] = module
+                spec.loader.exec_module(module)
+            except Exception as exc:
+                logger.warning("auto_discover: import failed for %s: %s", child, exc)
+                continue
+
+            tool_def = getattr(module, "TOOL_DEFINITION", None)
+            if tool_def is None:
+                continue
+            if not isinstance(tool_def, ToolDefinition):
+                logger.warning(
+                    "auto_discover: %s.TOOL_DEFINITION is not a ToolDefinition "
+                    "(got %s); skipping",
+                    child,
+                    type(tool_def).__name__,
+                )
+                continue
+
+            if tool_def.name in self._tools:
+                logger.info(
+                    "auto_discover: tool %r already registered; "
+                    "manual registration wins over %s",
+                    tool_def.name,
+                    child,
+                )
+                continue
+            self._tools[tool_def.name] = tool_def
 
 
 def load_pipeline_config(name: str) -> PipelineConfig:
