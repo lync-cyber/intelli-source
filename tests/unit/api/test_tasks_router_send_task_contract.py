@@ -316,3 +316,110 @@ async def test_send_task_pipeline_name_falls_back_when_source_missing(
     assert resp.status_code == 202, resp.text
     sent_kwargs = app_with_celery.state.celery_app.send_task.call_args.kwargs["kwargs"]
     assert sent_kwargs["pipeline_name"] == "scheduled-collect"
+
+
+# ---------------------------------------------------------------------------
+# F-26: priority → queue routing (send_task queue= argument + enum validation)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "priority,expected_queue",
+    [
+        ("low", "queue.priority.low"),
+        ("normal", "queue.priority.normal"),
+        ("high", "queue.priority.high"),
+    ],
+)
+async def test_send_task_routes_to_priority_queue(
+    celery_client: AsyncClient,
+    app_with_celery: FastAPI,
+    priority: str,
+    expected_queue: str,
+) -> None:
+    """F-26: send_task must include queue=PRIORITY_QUEUES[priority]."""
+    mock_task_repo, mock_source_repo = _patched_repos()
+    with (
+        patch(
+            "intellisource.api.routers.tasks.TaskRepository",
+            return_value=mock_task_repo,
+        ),
+        patch(
+            "intellisource.api.routers.tasks.SourceRepository",
+            return_value=mock_source_repo,
+        ),
+    ):
+        resp = await celery_client.post(
+            "/api/v1/tasks/collect", json={"priority": priority}
+        )
+
+    assert resp.status_code == 202, resp.text
+    call_kwargs = app_with_celery.state.celery_app.send_task.call_args.kwargs
+    assert call_kwargs.get("queue") == expected_queue, (
+        f"F-26: priority={priority} must route to queue={expected_queue!r}; "
+        f"got queue={call_kwargs.get('queue')!r}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_send_task_forwards_trace_id_in_headers(
+    celery_client: AsyncClient, app_with_celery: FastAPI
+) -> None:
+    """F-23: send_task must include headers={trace_id: ...} from request ctx."""
+    from intellisource.observability.trace_context import (
+        TRACE_HEADER_KEY,
+        trace_id_ctx,
+    )
+
+    mock_task_repo, mock_source_repo = _patched_repos()
+    token = trace_id_ctx.set("trace-router-001")
+    try:
+        with (
+            patch(
+                "intellisource.api.routers.tasks.TaskRepository",
+                return_value=mock_task_repo,
+            ),
+            patch(
+                "intellisource.api.routers.tasks.SourceRepository",
+                return_value=mock_source_repo,
+            ),
+        ):
+            resp = await celery_client.post(
+                "/api/v1/tasks/collect", json={"priority": "normal"}
+            )
+    finally:
+        trace_id_ctx.reset(token)
+
+    assert resp.status_code == 202, resp.text
+    call_kwargs = app_with_celery.state.celery_app.send_task.call_args.kwargs
+    headers = call_kwargs.get("headers", {})
+    assert TRACE_HEADER_KEY in headers, (
+        f"F-23: send_task must forward trace_id via headers; got headers={headers!r}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_invalid_priority_rejected_with_400(
+    celery_client: AsyncClient, app_with_celery: FastAPI
+) -> None:
+    """F-26: priority outside {low,normal,high} returns 400 (not silently routed)."""
+    mock_task_repo, mock_source_repo = _patched_repos()
+    with (
+        patch(
+            "intellisource.api.routers.tasks.TaskRepository",
+            return_value=mock_task_repo,
+        ),
+        patch(
+            "intellisource.api.routers.tasks.SourceRepository",
+            return_value=mock_source_repo,
+        ),
+    ):
+        resp = await celery_client.post(
+            "/api/v1/tasks/collect", json={"priority": "urgent"}
+        )
+
+    assert resp.status_code == 400, resp.text
+    assert "urgent" in resp.text or "priority" in resp.text
+    # send_task must not have fired with an invalid priority
+    assert app_with_celery.state.celery_app.send_task.call_count == 0

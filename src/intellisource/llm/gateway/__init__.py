@@ -37,6 +37,43 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# F-22 metric names; registered lazily on first call so importing the module
+# doesn't force a MetricsCollector singleton allocation in pure-import tests.
+_METRIC_LLM_CALLS_TOTAL = "llm_calls_total"
+_METRIC_LLM_FAILURES_TOTAL = "llm_call_failures_total"
+_METRIC_LLM_LATENCY = "llm_call_latency_seconds"
+
+
+def _record_llm_call(*, latency_seconds: float, success: bool) -> None:
+    """Emit per-call metrics on the singleton MetricsCollector.
+
+    Per-model granularity stays in :class:`LLMCallLogRepository`; what this
+    captures is LLM-layer health (call rate, failure rate, p99 latency) the
+    Prometheus alert rules can act on.
+    """
+    try:
+        from intellisource.observability.metrics import MetricsCollector
+
+        mc = MetricsCollector.get_instance()
+        if _METRIC_LLM_CALLS_TOTAL not in mc._counters:
+            mc.register_counter(_METRIC_LLM_CALLS_TOTAL, "Total LLM calls executed")
+        if _METRIC_LLM_FAILURES_TOTAL not in mc._counters:
+            mc.register_counter(
+                _METRIC_LLM_FAILURES_TOTAL,
+                "Total LLM calls that failed before returning a response",
+            )
+        if _METRIC_LLM_LATENCY not in mc._histograms:
+            mc.register_histogram(
+                _METRIC_LLM_LATENCY,
+                "Wall-clock latency (seconds) of LLM provider calls",
+            )
+        mc.increment_counter(_METRIC_LLM_CALLS_TOTAL)
+        if not success:
+            mc.increment_counter(_METRIC_LLM_FAILURES_TOTAL)
+        mc.observe_histogram(_METRIC_LLM_LATENCY, latency_seconds)
+    except Exception:  # noqa: BLE001 — metric failures must not break LLM path
+        logger.exception("failed to record LLM call metrics")
+
 
 class LLMGateway(_RetryMixin):
     """Unified LLM calling interface built on litellm."""
@@ -211,8 +248,13 @@ class LLMGateway(_RetryMixin):
                 task_type=task_type,
             )
         except BaseException as exc:
+            _record_llm_call(
+                latency_seconds=time.monotonic() - start_time, success=False
+            )
             return cast(LLMResult, await self._try_fallback(exc, task_type, prompt))
-        elapsed_ms = (time.monotonic() - start_time) * 1000
+        elapsed_seconds = time.monotonic() - start_time
+        elapsed_ms = elapsed_seconds * 1000
+        _record_llm_call(latency_seconds=elapsed_seconds, success=True)
 
         content: str = response.choices[0].message.content
         metadata: dict[str, Any] = {
@@ -351,13 +393,18 @@ class LLMGateway(_RetryMixin):
                 task_type="chat",
             )
         except BaseException as exc:
+            _record_llm_call(
+                latency_seconds=time.monotonic() - start_time, success=False
+            )
             if self._fallback_manager is not None:
                 return cast(
                     LLMResult,
                     await self._try_fallback(exc, "chat", fallback_text),
                 )
             raise
-        elapsed_ms = (time.monotonic() - start_time) * 1000
+        elapsed_seconds = time.monotonic() - start_time
+        elapsed_ms = elapsed_seconds * 1000
+        _record_llm_call(latency_seconds=elapsed_seconds, success=True)
 
         content: str = response.choices[0].message.content or ""
         metadata: dict[str, Any] = {
@@ -553,9 +600,7 @@ class LLMGateway(_RetryMixin):
                     usage = chunk.usage
                     if usage is not None:
                         input_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
-                        output_tokens = int(
-                            getattr(usage, "completion_tokens", 0) or 0
-                        )
+                        output_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
                 except AttributeError:
                     pass
                 try:
@@ -565,7 +610,15 @@ class LLMGateway(_RetryMixin):
                 except AttributeError:
                     pass
         except asyncio.CancelledError:
+            _record_llm_call(
+                latency_seconds=time.monotonic() - start_time, success=False
+            )
             return
+        except BaseException:
+            _record_llm_call(
+                latency_seconds=time.monotonic() - start_time, success=False
+            )
+            raise
 
         # Fallback token estimates when streaming response omits usage
         if input_tokens == 0:
@@ -573,7 +626,9 @@ class LLMGateway(_RetryMixin):
         if output_tokens == 0:
             output_tokens = len(accumulated_content) // 4
 
-        elapsed_ms = (time.monotonic() - start_time) * 1000
+        elapsed_seconds = time.monotonic() - start_time
+        elapsed_ms = elapsed_seconds * 1000
+        _record_llm_call(latency_seconds=elapsed_seconds, success=True)
         metadata: dict[str, Any] = {
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,

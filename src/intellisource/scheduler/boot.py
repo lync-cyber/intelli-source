@@ -21,6 +21,10 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from intellisource.composition import build_worker_composition
+
+# Import signals module for its side-effect: registering task_prerun /
+# task_postrun / task_failure handlers (F-22 metrics + F-23 trace_id).
+from intellisource.scheduler import signals as _signals_module  # noqa: F401
 from intellisource.scheduler.celery_app import celery_app as _module_celery_app
 from intellisource.scheduler.idempotency import FingerprintChecker, IdempotencyGuard
 from intellisource.scheduler.tasks import CeleryTasks
@@ -222,42 +226,52 @@ def _bootstrap_beat_schedule(factory: async_sessionmaker[AsyncSession]) -> None:
         return
 
     scheduler_manager = SchedulerManager()
+    # Hold the coroutine in a named variable so the outer `finally` can
+    # `.close()` it even when `run_until_complete` raises before scheduling
+    # (e.g. test-time mocks where the loop never actually runs the coro).
+    # `.close()` on an already-awaited coroutine is a no-op, so this is
+    # safe on the happy path and prevents the "coroutine was never awaited"
+    # GC warning otherwise.
+    coro = populate_scheduler_from_sources(scheduler_manager, factory)
     try:
-        # `asyncio.run` rejects nested event loops. We deliberately use
-        # `new_event_loop`+`run_until_complete` so the helper still works
-        # when this boot hook fires inside an event-loop-pool worker
-        # (gevent/eventlet) — falling back to the warning path leaves the
-        # whole Beat schedule unsynced, which is a startup-level defect.
-        loop = asyncio.new_event_loop()
         try:
-            loop.run_until_complete(
-                populate_scheduler_from_sources(scheduler_manager, factory)
+            # `asyncio.run` rejects nested event loops. We deliberately use
+            # `new_event_loop`+`run_until_complete` so the helper still works
+            # when this boot hook fires inside an event-loop-pool worker
+            # (gevent/eventlet) — falling back to the warning path leaves the
+            # whole Beat schedule unsynced, which is a startup-level defect.
+            loop = asyncio.new_event_loop()
+            try:
+                loop.run_until_complete(coro)
+            finally:
+                loop.close()
+        except RuntimeError as exc:
+            logger.error(
+                "populate_scheduler_from_sources failed (loop init): %s — Beat"
+                " schedule will be empty for this worker",
+                exc,
             )
-        finally:
-            loop.close()
-    except RuntimeError as exc:
-        logger.error(
-            "populate_scheduler_from_sources failed (loop init): %s — Beat"
-            " schedule will be empty for this worker",
-            exc,
-        )
-        return
-    except Exception:
-        logger.exception("populate_scheduler_from_sources failed — Beat schedule empty")
-        from intellisource.observability.metrics import (
-            MetricsCollector,  # noqa: PLC0415
-        )
+            return
+        except Exception:
+            logger.exception(
+                "populate_scheduler_from_sources failed — Beat schedule empty"
+            )
+            from intellisource.observability.metrics import (
+                MetricsCollector,  # noqa: PLC0415
+            )
 
-        mc = MetricsCollector.get_instance()
-        if "scheduler_beat_sync_failed_total" not in mc._counters:
-            mc.register_counter(
-                "scheduler_beat_sync_failed_total",
-                "Total Beat schedule sync failures",
-            )
-        mc.increment_counter("scheduler_beat_sync_failed_total")
-        if os.environ.get("IS_BEAT_SYNC_HARD_FAIL", "").lower() == "true":
-            raise
-        return
+            mc = MetricsCollector.get_instance()
+            if "scheduler_beat_sync_failed_total" not in mc._counters:
+                mc.register_counter(
+                    "scheduler_beat_sync_failed_total",
+                    "Total Beat schedule sync failures",
+                )
+            mc.increment_counter("scheduler_beat_sync_failed_total")
+            if os.environ.get("IS_BEAT_SYNC_HARD_FAIL", "").lower() == "true":
+                raise
+            return
+    finally:
+        coro.close()
 
     sync_beat_schedules(_module_celery_app, scheduler_manager)
     setattr(_module_celery_app, "_scheduler_manager", scheduler_manager)

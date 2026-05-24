@@ -12,10 +12,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session
 from intellisource.composition import SOURCE_TYPE_TO_PIPELINE
+from intellisource.observability.trace_context import (
+    TRACE_HEADER_KEY,
+    current_trace_id,
+)
+from intellisource.scheduler.queues import PRIORITY_QUEUES
 from intellisource.storage.repositories.source import SourceRepository
 from intellisource.storage.repositories.task import TaskRepository
 
 router = APIRouter(tags=["tasks"])
+
+_VALID_PRIORITIES: frozenset[str] = frozenset(PRIORITY_QUEUES.keys())
 
 
 # ---------------------------------------------------------------------------
@@ -110,6 +117,19 @@ async def trigger_collect(
     task_repo = TaskRepository(session)
     priority = body.priority
 
+    if priority not in _VALID_PRIORITIES:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "detail": (
+                    f"invalid priority {priority!r}; "
+                    f"must be one of {sorted(_VALID_PRIORITIES)}"
+                )
+            },
+        )
+
+    target_queue = PRIORITY_QUEUES[priority]
+
     if body.source_ids:
         # Validate all requested source IDs.
         invalid: list[str] = []
@@ -177,6 +197,8 @@ async def trigger_collect(
                         "fingerprint": "",
                     },
                 },
+                queue=target_queue,
+                headers={TRACE_HEADER_KEY: current_trace_id()},
             )
 
     return {

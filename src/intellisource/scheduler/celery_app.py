@@ -43,6 +43,11 @@ _all_queue_names: list[str] = list(PRIORITY_QUEUES.values()) + list(
 
 celery_app.conf.update(
     task_queues=[Queue(name) for name in _all_queue_names],
+    # ``run_pipeline`` defaults to the normal-priority queue here so background
+    # tasks dispatched without an explicit ``queue=`` argument still land on a
+    # real queue. API callers (e.g. /tasks/collect) override this per request
+    # by passing ``queue=PRIORITY_QUEUES[<priority>]`` to ``send_task`` so
+    # high/low traffic is segregated.
     task_routes={
         "run_pipeline": {"queue": PRIORITY_QUEUES["normal"]},
     },

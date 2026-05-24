@@ -251,6 +251,44 @@ class TestAuthExemptPaths:
             resp = await client.get("/api/v1/sources")
         assert resp.status_code == 401
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "exempt_path",
+        [
+            "/health",
+            "/api/v1/health",
+            "/api/v1/system/health",
+            "/metrics",
+            "/api/v1/metrics",
+            "/api/v1/system/metrics",
+        ],
+    )
+    async def test_observability_paths_exempt(
+        self, monkeypatch: pytest.MonkeyPatch, exempt_path: str
+    ) -> None:
+        """F-25: probe + scrape endpoints bypass auth even when IS_API_KEY is set."""
+        if _MIDDLEWARE_MISSING:
+            pytest.fail(_SKIP_REASON)
+        monkeypatch.setenv("IS_API_KEY", TEST_API_KEY)
+
+        app = FastAPI()
+
+        async def _ok() -> dict[str, str]:
+            return {"status": "ok"}
+
+        # Register the path under test as a real endpoint so the response is 200,
+        # not 404. The middleware decision is what we're testing here.
+        app.add_api_route(exempt_path, _ok, methods=["GET"])
+        app.add_middleware(AuthMiddleware)  # type: ignore[arg-type]
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get(exempt_path)
+        assert resp.status_code != 401, (
+            f"{exempt_path} must be exempt from API key check; got {resp.status_code}"
+        )
+        assert resp.status_code == 200
+
 
 # ===========================================================================
 # AC-T043-4: RequestLoggerMiddleware logs request details

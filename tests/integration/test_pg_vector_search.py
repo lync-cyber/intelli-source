@@ -377,6 +377,66 @@ class TestVectorSearch:
         )
 
     @pytest.mark.asyncio
+    async def test_search_http_real_engine_keyword_mode(
+        self, pg_session: AsyncSession
+    ) -> None:
+        """F-42: /api/v1/search runs the real HybridSearchEngine over real PG.
+
+        The other tests in this module patch ``HybridSearchEngine`` and so
+        only validate router shape — the actual SQL/pgvector path is never
+        exercised through HTTP. Keyword mode is used here because it does
+        not require a sentence-embedding model at request time, letting the
+        real engine + real ``HybridIndex.search`` + real ``to_tsquery``
+        execute end-to-end. Response shape (items/total/query_time_ms) is
+        the minimum contract asserted; semantic ordering of results belongs
+        to the dedicated SQL-level test below.
+        """
+        from httpx import ASGITransport, AsyncClient
+
+        from intellisource.api.deps import get_db_session
+        from intellisource.main import create_app
+
+        source = await _insert_source(pg_session)
+        raw = await _insert_raw_content(
+            pg_session, source, title="Quantum Computing Daily"
+        )
+        await _insert_processed_content(
+            pg_session,
+            raw,
+            title="Quantum Computing Daily",
+            embedding=_unit_vec(0),
+        )
+        await pg_session.flush()
+
+        app = create_app()
+
+        async def _override_session() -> Any:
+            yield pg_session
+
+        app.dependency_overrides[get_db_session] = _override_session
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(
+                "/api/v1/search",
+                json={"query": "quantum", "search_mode": "keyword"},
+            )
+
+        assert resp.status_code == 200, (
+            f"Real HybridSearchEngine /search must return 200; "
+            f"got {resp.status_code} body={resp.text[:300]}"
+        )
+        data = resp.json()
+        # Engine returns dataclass items; FastAPI may serialise as list of dicts
+        # or list of dataclass-style entries. Either way the response shape
+        # contract is items: list[...], total: int, query_time_ms: int.
+        assert "items" in data, f"Missing items key; got {list(data.keys())}"
+        items = data["items"]
+        assert isinstance(items, list), f"items must be a list; got {type(items)}"
+        assert "total" in data and isinstance(data["total"], int)
+        assert "query_time_ms" in data and isinstance(data["query_time_ms"], int)
+
+    @pytest.mark.asyncio
     async def test_search_real_pgvector_cosine_query(
         self, pg_session: AsyncSession
     ) -> None:

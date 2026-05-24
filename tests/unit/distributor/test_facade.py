@@ -609,3 +609,97 @@ class TestDistributePIIMask:
                     f"PII mask must remove '@' from recipient before persistence; "
                     f"got {stored!r}"
                 )
+
+
+# ---------------------------------------------------------------------------
+# F-27: distribute() must distinguish missing content from "no match"
+# ---------------------------------------------------------------------------
+
+
+class TestDistributeContentNotFound:
+    """When the content row cannot be loaded, callers need a distinct signal so
+    a missing content does not look the same as "0 subscriptions matched"."""
+
+    def _empty_session_factory(self, returned_content: Any) -> MagicMock:
+        mock_scalars_result = MagicMock()
+        mock_scalars_result.all = MagicMock(return_value=[])
+
+        mock_session = MagicMock()
+        mock_session.get = AsyncMock(return_value=returned_content)
+        mock_session.scalars = AsyncMock(return_value=mock_scalars_result)
+        mock_execute_result = MagicMock()
+        mock_execute_result.scalar_one_or_none = MagicMock(return_value=None)
+        mock_session.execute = AsyncMock(return_value=mock_execute_result)
+        mock_session.commit = AsyncMock()
+
+        mock_session_factory = MagicMock()
+        mock_session_factory.return_value.__aenter__ = AsyncMock(
+            return_value=mock_session
+        )
+        mock_session_factory.return_value.__aexit__ = AsyncMock(return_value=False)
+        return mock_session_factory
+
+    async def test_content_row_missing_returns_failed_status(self) -> None:
+        """session.get returns None → distribute responds failed/content_not_found."""
+        from intellisource.distributor.facade import DistributorFacade
+        from intellisource.distributor.matcher import SubscriptionMatcher
+
+        mock_matcher = MagicMock(spec=SubscriptionMatcher)
+        mock_matcher.match.return_value = []
+
+        facade = DistributorFacade(
+            session_factory=self._empty_session_factory(returned_content=None),
+            matcher=mock_matcher,
+            channels={},
+        )
+
+        cid = str(uuid.uuid4())
+        result = await facade.distribute(content_id=cid)
+
+        assert result["status"] == "failed"
+        assert result["reason"] == "content_not_found"
+        assert result["content_id"] == cid
+        assert result["matched"] == 0
+        assert result["sent"] == 0
+
+    async def test_invalid_content_uuid_returns_failed_status(self) -> None:
+        """Non-UUID content_id is treated as content_not_found, not silently 200."""
+        from intellisource.distributor.facade import DistributorFacade
+        from intellisource.distributor.matcher import SubscriptionMatcher
+
+        mock_matcher = MagicMock(spec=SubscriptionMatcher)
+        mock_matcher.match.return_value = []
+
+        facade = DistributorFacade(
+            session_factory=self._empty_session_factory(returned_content=None),
+            matcher=mock_matcher,
+            channels={},
+        )
+
+        result = await facade.distribute(content_id="not-a-uuid")
+
+        assert result["status"] == "failed"
+        assert result["reason"] == "content_not_found"
+
+    async def test_zero_matched_subs_still_returns_ok_status(self) -> None:
+        """Regression: when content exists but no sub matches, status remains ok."""
+        from intellisource.distributor.facade import DistributorFacade
+        from intellisource.distributor.matcher import SubscriptionMatcher
+
+        cid = str(uuid.uuid4())
+        content = MagicMock()
+        content.id = uuid.UUID(cid)
+
+        mock_matcher = MagicMock(spec=SubscriptionMatcher)
+        mock_matcher.match.return_value = []
+
+        facade = DistributorFacade(
+            session_factory=self._empty_session_factory(returned_content=content),
+            matcher=mock_matcher,
+            channels={},
+        )
+
+        result = await facade.distribute(content_id=cid)
+        assert result["status"] == "ok"
+        assert result["matched"] == 0
+        assert "reason" not in result

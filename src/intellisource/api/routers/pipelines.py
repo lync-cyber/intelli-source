@@ -14,6 +14,10 @@ from pydantic import BaseModel
 from intellisource.agent.pipeline import PipelineConfig
 from intellisource.agent.tools import _PIPELINES_DIR as _SHARED_PIPELINES_DIR
 from intellisource.agent.tools import load_pipeline_config
+from intellisource.observability.trace_context import (
+    TRACE_HEADER_KEY,
+    current_trace_id,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -118,5 +122,6 @@ async def run_pipeline(
     result = celery_app.send_task(
         "run_pipeline",
         kwargs={"pipeline_name": name, "params": body.params or {}},
+        headers={TRACE_HEADER_KEY: current_trace_id()},
     )
     return {"task_id": str(getattr(result, "id", result))}

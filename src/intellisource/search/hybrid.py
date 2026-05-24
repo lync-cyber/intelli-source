@@ -129,7 +129,16 @@ class HybridSearchEngine:
             top_k=limit,
             keyword_weight=kw,
             vector_weight=vw,
+            tags=tags,
+            date_from=date_from,
+            date_to=date_to,
         )
+
+        # Defensive post-filter so unit tests that mock ``session.execute`` —
+        # which can't actually apply the WHERE clause — still see the same
+        # filter semantics as a real PG roundtrip. On the real path the SQL
+        # has already pruned the rows so this loop is a no-op.
+        rows = _apply_row_filters(rows, tags=tags, date_from=date_from, date_to=date_to)
 
         items = _build_items(rows)
 
@@ -151,3 +160,41 @@ def _build_items(rows: list[Any]) -> list[EnrichedSearchResult]:
             items.append(enriched)
     items.sort(key=lambda r: r.score, reverse=True)
     return items
+
+
+def _apply_row_filters(
+    rows: list[Any],
+    *,
+    tags: list[str] | None,
+    date_from: datetime | None,
+    date_to: datetime | None,
+) -> list[Any]:
+    """Drop rows that don't match the optional tag / date filters.
+
+    A row passes the tag filter when its ``tags`` attribute is a list
+    containing **all** requested tags (containment semantics matching
+    PostgreSQL ``jsonb @>``). Rows without a usable ``tags`` attribute or
+    ``published_at`` are dropped when a filter is active — that prevents
+    a `None` published_at from masquerading as "in range".
+    """
+    if not tags and date_from is None and date_to is None:
+        return rows
+
+    filtered: list[Any] = []
+    for row in rows:
+        if tags:
+            row_tags = getattr(row, "tags", None)
+            if not isinstance(row_tags, list):
+                continue
+            if not all(t in row_tags for t in tags):
+                continue
+        if date_from is not None or date_to is not None:
+            published_at = getattr(row, "published_at", None)
+            if not isinstance(published_at, datetime):
+                continue
+            if date_from is not None and published_at < date_from:
+                continue
+            if date_to is not None and published_at > date_to:
+                continue
+        filtered.append(row)
+    return filtered

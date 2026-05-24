@@ -1,0 +1,124 @@
+groups:
+  - name: intellisource.api
+    interval: 30s
+    rules:
+      - alert: ApiInstanceDown
+        expr: up{job="intellisource-api"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "IntelliSource API instance is down"
+          description: |
+            Prometheus has been unable to scrape the API for 5 minutes.
+            This collapses to health_status != healthy at the load balancer
+            layer; investigate logs, restart pod, or roll back.
+          runbook: "https://intellisource.example/runbooks/api-down"
+
+      - alert: ApiHighRequestLatency
+        expr: |
+          histogram_quantile(
+            0.99,
+            rate(http_request_duration_seconds_bucket{job="intellisource-api"}[5m])
+          ) > 5
+        for: 10m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "API p99 request latency above 5s"
+          description: |
+            p99 over the last 5m exceeds 5 seconds. Sustained high latency
+            usually points at DB lock contention, LLM provider slowdown, or
+            Redis saturation.
+
+  - name: intellisource.llm
+    interval: 30s
+    rules:
+      - alert: LLMCircuitOpen
+        expr: llm_circuit_open > 0
+        for: 1m
+        labels:
+          severity: warning
+          component: llm
+        annotations:
+          summary: "An LLM circuit breaker has tripped"
+          description: |
+            The unified LLM gateway exposes ``llm_circuit_open`` as a 0/1
+            gauge that flips to 1 when the breaker for any (provider, model)
+            pair enters the OPEN state. Sustained for 1 minute means the
+            provider is rejecting calls; expect fallback paths to take over.
+          runbook: "https://intellisource.example/runbooks/llm-circuit"
+
+      - alert: LLMCallFailureRateHigh
+        expr: |
+          rate(llm_call_failures_total[5m])
+            /
+          clamp_min(rate(llm_calls_total[5m]), 0.0001)
+          > 0.2
+        for: 10m
+        labels:
+          severity: warning
+          component: llm
+        annotations:
+          summary: "More than 20% of LLM calls failed in the last 5 minutes"
+          description: |
+            Sustained failure rate indicates provider-side outage or
+            credential issues. Check ``llm_call_latency_seconds`` for the
+            timing distribution before paging the on-call.
+
+  - name: intellisource.distribution
+    interval: 30s
+    rules:
+      - alert: PushFailureRateHigh
+        expr: |
+          rate(pushes_failed_total[5m])
+            /
+          clamp_min(rate(pushes_total[5m]), 0.0001)
+          > 0.2
+        for: 10m
+        labels:
+          severity: warning
+          component: distributor
+        annotations:
+          summary: "Push delivery failure rate exceeds 20%"
+          description: |
+            More than 1 in 5 push attempts are raising on
+            ``channel.distribute`` (email SMTP, WeChat, WeWork). Check the
+            webhook signature / SMTP credential / quota state of the
+            channel that is dominating ``pushes_failed_total``.
+
+  - name: intellisource.scheduler
+    interval: 30s
+    rules:
+      - alert: CeleryTaskFailureRateHigh
+        expr: |
+          rate(celery_task_failures_total[5m])
+            /
+          clamp_min(rate(celery_tasks_total[5m]), 0.0001)
+          > 0.2
+        for: 10m
+        labels:
+          severity: warning
+          component: scheduler
+        annotations:
+          summary: "Celery task failure rate exceeds 20%"
+          description: |
+            Sustained high failure rate on the worker pool. Check
+            ``scheduler_beat_sync_failed_total`` and Celery worker logs
+            for the offending task.
+
+      - alert: SchedulerBeatSyncFailing
+        expr: increase(scheduler_beat_sync_failed_total[10m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          component: scheduler
+        annotations:
+          summary: "Beat schedule sync failed on worker boot"
+          description: |
+            ``populate_scheduler_from_sources`` raised at startup, so this
+            worker is now running with an empty Beat schedule. Scheduled
+            collection will not fire until the worker is recycled
+            successfully.
