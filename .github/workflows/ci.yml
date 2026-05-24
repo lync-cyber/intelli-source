@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    # Nightly dependency graph snapshot (UTC 02:00).
+    - cron: "0 2 * * *"
+  workflow_dispatch:
 
 jobs:
   unit-tests:
@@ -79,3 +83,59 @@ jobs:
 
       - name: Run ruff lint
         run: uv run ruff check .
+
+      # ------------------------------------------------------------------
+      # Architecture governance toolchain (wired in pyproject.toml).
+      # Phasing:
+      #   - Currently OBSERVATION mode (continue-on-error: true) until the
+      #     baseline (B-020..B-028 in BACKLOG) closes to 0 findings.
+      #   - Once stable, drop `continue-on-error` so violations block merges.
+      # ------------------------------------------------------------------
+      - name: Architecture contracts (import-linter)
+        continue-on-error: true
+        run: uv run lint-imports --no-cache
+
+      - name: Dependency hygiene (deptry)
+        continue-on-error: true
+        run: uv run deptry src
+
+      - name: Dead code (vulture)
+        continue-on-error: true
+        run: uv run vulture
+
+  arch-graph:
+    name: Dependency Graph Snapshot
+    runs-on: ubuntu-latest
+    # Nightly + manual only; never on PRs (rendering is slow and the artifact
+    # is for human inspection, not for gating).
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install graphviz
+        run: sudo apt-get update && sudo apt-get install -y graphviz
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Render dependency graph
+        run: |
+          mkdir -p docs/arch
+          uv run pydeps src/intellisource \
+            --max-bacon=2 --cluster --noshow \
+            -o docs/arch/deps-graph.svg
+
+      - name: Upload graph artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-graph
+          path: docs/arch/deps-graph.svg
