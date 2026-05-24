@@ -26,9 +26,10 @@ class DistributorFacade:
     4. channel.distribute for each matched, non-deduped subscription.
     5. _record_push + PII mask for persistence.
 
-    AC-T100-3: when ``IS_PUSH_OPTIMIZE_ENABLED=1`` and an optional
-    ``celery_app`` is wired in, each successful send dispatches a
-    follow-up ``run_pipeline`` task for the ``push-optimize`` pipeline.
+    F-010 / AC-047~049: when ``IS_PUSH_OPTIMIZE_ENABLED=1`` and an
+    ``llm_gateway`` is wired in, content is optimized *before*
+    ``channel.distribute`` (truncate + optional LLM; failures degrade to
+    original content).
     """
 
     def __init__(
@@ -36,12 +37,12 @@ class DistributorFacade:
         session_factory: Any,
         matcher: SubscriptionMatcher,
         channels: dict[str, BaseDistributor],
-        celery_app: Any = None,
+        llm_gateway: Any = None,
     ) -> None:
         self._session_factory = session_factory
         self._matcher = matcher
         self._channels = channels
-        self._celery_app = celery_app
+        self._llm_gateway = llm_gateway
 
     async def distribute(
         self,
@@ -64,7 +65,6 @@ class DistributorFacade:
 
         sent = 0
         skipped = 0
-        triggered_channels: set[str] = set()
 
         for sub in matched:
             channel_name: str = getattr(sub, "channel", "")
@@ -83,9 +83,10 @@ class DistributorFacade:
                 skipped += 1
                 continue
 
-            # Step 4: channel.send
+            # Step 4: pre-push optimize (F-010) then channel.send
+            push_content = await self._prepare_push_content(content, sub)
             try:
-                await channel.distribute(content, sub)
+                await channel.distribute(push_content, sub)
                 sent += 1
             except Exception:
                 _logger.exception(
@@ -105,16 +106,6 @@ class DistributorFacade:
                 recipient_id=_mask_recipient(recipient_raw),
             )
 
-            triggered_channels.add(channel_name)
-
-        # Trigger push-optimize once per (content_id, channel) pair to avoid
-        # N-fold task amplification when many subscriptions share the same
-        # channel (R-004).
-        for channel_name in sorted(triggered_channels):
-            self._maybe_trigger_push_optimize(
-                content_id=content_id, channel=channel_name
-            )
-
         return {
             "status": "ok",
             "matched": len(matched),
@@ -122,33 +113,19 @@ class DistributorFacade:
             "skipped": skipped,
         }
 
-    def _maybe_trigger_push_optimize(self, *, content_id: str, channel: str) -> None:
-        """Dispatch a ``push-optimize`` Celery task when the feature is enabled.
-
-        Sync by design: ``celery_app.send_task`` is a blocking broker producer
-        call but returns quickly (it does not wait for task execution); wrapping
-        it in ``asyncio.to_thread`` would add overhead without benefit. Failures
-        inside the dispatch path are logged but do not propagate — a broker
-        hiccup must not block the main distribute flow.
-        """
+    async def _prepare_push_content(self, content: Any, subscription: Any) -> Any:
+        """Optimize content for push when enabled; degrade to original on failure."""
         if os.environ.get("IS_PUSH_OPTIMIZE_ENABLED") != "1":
-            return
-        if self._celery_app is None:
-            return
+            return content
+        if self._llm_gateway is None:
+            return content
+        from intellisource.distributor.push_optimizer import optimize_for_push
+
         try:
-            self._celery_app.send_task(
-                "run_pipeline",
-                kwargs={
-                    "pipeline_name": "push-optimize",
-                    "params": {"content_id": content_id, "channel": channel},
-                },
-            )
+            return await optimize_for_push(content, subscription, self._llm_gateway)
         except Exception:
-            _logger.exception(
-                "push-optimize send_task failed for content_id=%s channel=%s",
-                content_id,
-                channel,
-            )
+            _logger.exception("push optimize failed, using original content (AC-049)")
+            return content
 
     async def _load_content_and_subscriptions(
         self,
@@ -193,7 +170,17 @@ class DistributorFacade:
         channel: str,
     ) -> bool:
         """Return True if a PushRecord already exists for this tuple."""
-        return False
+        from intellisource.storage.repositories.push import PushRepository
+
+        try:
+            content_uuid = uuid.UUID(content_id)
+            sub_uuid = uuid.UUID(subscription_id)
+        except ValueError:
+            return False
+
+        async with self._session_factory() as session:
+            repo = PushRepository(session=session)
+            return await repo.exists(sub_uuid, content_uuid, channel)
 
     async def _record_push(
         self,

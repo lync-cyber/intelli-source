@@ -113,6 +113,7 @@ class TestPyprojectDependencies:
             f"Dependency '{dep}' not found in pyproject.toml"
         )
 
+    @pytest.mark.slow
     def test_package_installable(self) -> None:
         """The IntelliSource package must be installable via uv (dry-run).
 
@@ -150,6 +151,7 @@ class TestPyprojectDependencies:
 class TestRuffLinting:
     """AC-T001-2: ruff check and ruff format --check produce zero errors on src/."""
 
+    @pytest.mark.slow
     def test_ruff_check_passes(self) -> None:
         """ruff check src/ must exit with code 0."""
         result = subprocess.run(
@@ -162,6 +164,7 @@ class TestRuffLinting:
             f"ruff check failed:\n{result.stdout}\n{result.stderr}"
         )
 
+    @pytest.mark.slow
     def test_ruff_format_check_passes(self) -> None:
         """ruff format --check src/ must exit with code 0."""
         result = subprocess.run(
@@ -183,6 +186,7 @@ class TestRuffLinting:
 class TestMypyStrict:
     """AC-T001-3: mypy src/ in strict mode produces zero errors."""
 
+    @pytest.mark.slow
     def test_mypy_strict_passes(self) -> None:
         """mypy --strict src/ must exit with code 0."""
         result = subprocess.run(
@@ -213,7 +217,7 @@ class TestPytestSetup:
         """tests/conftest.py must be importable without errors."""
         conftest = PROJECT_ROOT / "tests" / "conftest.py"
         # Compile the file to check for syntax errors
-        source = conftest.read_text()
+        source = conftest.read_text(encoding="utf-8")
         compile(source, str(conftest), "exec")
 
     def test_intellisource_package_importable(self) -> None:

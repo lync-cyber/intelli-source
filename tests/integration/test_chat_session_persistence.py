@@ -84,8 +84,11 @@ class TestChatSessionPersistence:
             )
 
         assert resp.status_code == 200
+        body = resp.json()
         repo_create.assert_awaited_once()
         call_kwargs = repo_create.await_args.kwargs
+        assert body["session_id"] == str(call_kwargs["id"])
+        assert call_kwargs["channel_user_id"] == body["session_id"]
         assert call_kwargs["channel"] == "api"
         messages = call_kwargs["context"]["messages"]
         assert messages[0] == {"role": "user", "content": "你好"}
@@ -128,6 +131,7 @@ class TestChatSessionPersistence:
             )
 
         assert resp.status_code == 200
+        assert resp.json()["session_id"] == str(existing_id)
         repo_create.assert_not_awaited()
         repo_update.assert_awaited_once()
         called_id, called_context = repo_update.await_args.args

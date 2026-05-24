@@ -4,6 +4,7 @@ max_steps: 20
 on_failure: abort
 tools_allowed:
   - collect
+  - process
   - distribute
   - regex_extract
   - fingerprint_generate

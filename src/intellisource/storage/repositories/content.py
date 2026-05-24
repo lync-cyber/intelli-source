@@ -24,6 +24,56 @@ class ContentRepository(BaseRepository[ProcessedContent]):
         )
         return result.scalar_one_or_none()
 
+    async def get_raw_by_fingerprint(self, fingerprint: str) -> RawContent | None:
+        """Return RawContent with the given fingerprint, or None if not found."""
+        result = await self._session.execute(
+            select(RawContent).where(RawContent.fingerprint == fingerprint).limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    async def create_raw(
+        self,
+        *,
+        source_id: uuid.UUID,
+        source_url: str,
+        fingerprint: str,
+        title: str | None = None,
+        author: str | None = None,
+        body_html: str | None = None,
+        body_text: str | None = None,
+        published_at: datetime | None = None,
+        raw_metadata: dict[str, Any] | None = None,
+        collect_task_id: uuid.UUID | None = None,
+    ) -> RawContent:
+        """Insert a new RawContent row and return the flushed entity."""
+        entity = RawContent(
+            id=uuid.uuid4(),
+            source_id=source_id,
+            collect_task_id=collect_task_id,
+            title=title,
+            author=author,
+            body_html=body_html,
+            body_text=body_text,
+            source_url=source_url,
+            published_at=published_at,
+            fingerprint=fingerprint,
+            raw_metadata=raw_metadata or {},
+        )
+        self._session.add(entity)
+        await self._session.flush()
+        return entity
+
+    async def get_processed_by_raw_id(
+        self, raw_id: uuid.UUID
+    ) -> ProcessedContent | None:
+        """Return ProcessedContent linked to the given RawContent id."""
+        result = await self._session.execute(
+            select(ProcessedContent)
+            .where(ProcessedContent.raw_content_id == raw_id)
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
     async def create(
         self,
         raw_content_id: uuid.UUID,

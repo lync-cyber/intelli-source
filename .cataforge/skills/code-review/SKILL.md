@@ -43,10 +43,12 @@ user-invocable: true
 
 1. 任务卡 `task_kind ∈ CODE_REVIEW_L2_SKIP_TASK_KINDS`（默认 `[chore, config, docs]`）
 2. 任务卡 `tdd_mode: light` + AC 数 ≤ `CODE_REVIEW_L2_SKIP_LIGHT_MAX_AC`（默认 2） + Layer 1 输出无 security/error-handling 类 finding
-3. 调用方传入 `--layer1-only` 标志（由 ORCHESTRATOR-PROTOCOLS §Adaptive Review 反向降级触发）
+3. 调用方传入 `--layer1-only` 标志（由 ORCHESTRATOR-META-PROTOCOLS §Adaptive Review 反向降级触发）
 
 **短路豁免**（即使命中上述条件也强制跑 Layer 2）:
 - 任务卡 `security_sensitive: true`
+- 任务卡 `user_facing_critical_path: true`（页面/路由/UI 可达性 — 形式契约对但 handler 留白会被全档 light 短路放过；详见 §integration-wiring）
+- 任务卡 `consumer_components` 字段非空（声明了下游 wiring 消费点 → 隐式 user-facing critical path）
 - Layer 1 输出含任一 finding 涉及 security / error-handling / 注入 / 鉴权 / 加密 / 输入校验
 
 命中短路时仍需按 Step 3/4 产出 `CODE-REVIEW-{task_id}-r{N}.md` 报告，front matter `status: approved`，并在报告标题下标注 `Layer 2 skipped (short-circuit: <触发条件>)`。降级场景（Layer 1 异常 / FAIL）不适用短路。
@@ -56,13 +58,23 @@ user-invocable: true
 - 代码结构(structure): 模块组织、职责划分是否合理
 - 安全漏洞(security): OWASP Top 10 检查(注入/XSS/认证/敏感数据暴露等)
 - 接口一致性(consistency): 实现是否与arch接口契约匹配
+- 集成连线(integration-wiring): 接线对象在生产路径有真实调用点、不是空 stub / 占位返回 / 仅满足类型契约的形式。仅 tests/ 内构造调用不算落地。各语言反例与正则候选见 [`docs/reference/wiring-checks.md`](../../../docs/reference/wiring-checks.md)；CHECKS_MANIFEST `wiring_empty_handler` 与 plugin-style YAML (`wiring-{lang}.yaml`) 承载具体识别规则。下游声明 `wiring_placeholder: true` + 关联 backlog ID 则豁免
 - 错误处理(error-handling): 是否符合arch§5.3错误处理策略
 - 测试质量(test-quality, 仅当审查范围包含 tests/ 目录时; AC 覆盖完整度由 sprint-review 负责，此处不重复):
   - 断言有效性: 每个测试是否包含对被测系统返回值/状态/副作用的有效断言
+  - 断言强度: 断言必须绑定真实可观测属性（契约定义的返回值字段 / 状态变化 / 外部副作用）。仅校验 mock/spy 调用计数 / 对象存在性 / 常量真值的"弱断言"视为测试 bug；若 mock 中诡异条件让弱断言 PASS（永远返回常量 / 永远 raise / 强行短路真实路径），视为 implementation bug 假阳性而非测试问题。与 implementer §Assertion Strength Guard 同源
   - 测试逻辑: 断言的期望值是否与接口契约一致，测试是否验证了声称的行为
   - 边界覆盖: 是否覆盖关键边界条件（空值、异常输入等）
 
 **维度收敛**: 调用方可传 `--focus <category[,...]>`（值取自 COMMON-RULES §统一问题分类体系），仅审查指定维度。不传时跑全维度。例如：`cataforge skill run code-review -- {path} --focus security,error-handling`。
+
+**增量审查模式（revision re-review）**:
+
+当 `task_type=revision` 且存在上一轮 CODE-REVIEW 报告时，审查范围收窄为：
+- 仅审查 `git diff` 涉及的文件和函数（与上次审查的 commit baseline 比较）
+- 上轮报告中无 CRITICAL/HIGH 的维度标注 `[previously-approved]`，不重复审查
+- 上轮报告中 CRITICAL/HIGH 涉及的维度 + diff 新增代码的全维度 → 正常审查
+- report 中每个 `[previously-approved]` 维度附注上轮 report 编号供追溯
 
 ### Step 3: 审查报告编号
 报告编号按 COMMON-RULES §报告编号规则，前缀 CODE-REVIEW-{task_id}，目录 docs/reviews/code/。
@@ -138,12 +150,29 @@ review 模式（按文件类型自动选择工具）:
 - golangci-lint run (.go)
 - cargo clippy -D warnings (.rs)
 - 工具未安装时跳过并 WARN，不阻断检查流程
+- wiring 空 handler 正则扫描 — 默认覆盖 .js/.ts/.jsx/.tsx；空函数 prop 命中 → WARN（与 §Step 2 integration-wiring 维度配套；豁免见任务卡 `wiring_placeholder: true` 或文件级 `// cataforge: wiring-placeholder`）
+
+### Plugin-style rules (per-language extension)
+
+正则规则按语言拆到 YAML：
+
+- 默认（cataforge package）：`cataforge.skill.builtins.code_review.rules.wiring-{lang}.yaml`
+- 项目 override（opt-in）：`<project>/.cataforge/skills/code-review/rules/wiring-{lang}.yaml`
+
+加新语言：在项目 `rules/` 放 `wiring-rust.yaml` 等；schema 见 `cataforge.skill.rules.loader.CURRENT_SCHEMA_VERSION`，必填字段 `schema_version: 1` / `rule_type: wiring` / `language` / `extensions`。framework-review B3-β `rules_schema_compliance` 自动校验项目 YAML。
 
 scan 模式额外的腐化 probe（按 --focus 选择性执行）:
 - duplication: jscpd（多语言：JS/TS/Py/Go/C#/Rust/Java/Kotlin/Swift）/ pmd-cpd (.java)
 - dead-code: vulture (.py) / ts-prune (.ts/.tsx) / cargo-machete (.rs, 检测未使用 Cargo 依赖)
 - complexity: radon cc (.py) / gocyclo (.go)
 - probe 工具未安装 → WARN 跳过；scan 不会因 probe 缺失而 FAIL
+
+## Anti-Patterns
+
+- 禁止: 把 user-facing critical path 任务（页面/路由/UI 可达性、`consumer_components` 非空）走 Layer 2 短路 —— 形式契约对但 wiring 留白只能由 §integration-wiring 维度抓出，短路会放走 false-positive
+- 禁止: 让 reviewer 直接下场写补丁 —— code-review 仅产出审查报告（problem list + 严重等级），任何修改必须由 implementer / debug skill 在独立调度中完成
+- 禁止: scan 模式因为腐化 finding 直接判 needs_revision —— scan 默认不阻塞流程；rot 信号转化为重构决策的输入，是 informational 而非 gating
+- 避免: 报告写入 `docs/reviews/doc/` 或其它非 `docs/reviews/code/` 目录 —— 与 doc-review / framework-review 报告混淆会污染 sprint-review 聚合
 
 ## 效率策略
 - Hook去重: 已配置 PostToolUse lint hook 时跳过 Layer 1，避免与编码阶段的实时 lint 重复检查

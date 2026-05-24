@@ -10,6 +10,8 @@ from typing import Any
 
 _VALID_MODES = ("strict", "flexible", "batch")
 _VALID_ON_FAILURE = ("abort", "skip", "retry")
+_VALID_AGENT_MODES = ("process", "analyze", "preview")
+_VALID_PERMISSION_LEVELS = ("auto", "confirm", "deny")
 
 
 class PipelineConfig:
@@ -26,6 +28,9 @@ class PipelineConfig:
         tools_allowed: list[str] | None = None,
         tools_denied: list[str] | None = None,
         system_prompt: str | None = None,
+        max_tokens_budget: int | None = None,
+        agent_mode: str = "process",
+        tool_permissions: dict[str, str] | None = None,
     ) -> None:
         self._name = name
         self._mode = mode
@@ -35,6 +40,9 @@ class PipelineConfig:
         self._tools_allowed = tools_allowed or []
         self._tools_denied = tools_denied or []
         self._system_prompt = system_prompt
+        self._max_tokens_budget = max_tokens_budget
+        self._agent_mode = agent_mode
+        self._tool_permissions: dict[str, str] = tool_permissions or {}
 
     # -- properties --------------------------------------------------
 
@@ -70,6 +78,18 @@ class PipelineConfig:
     def system_prompt(self) -> str | None:
         return self._system_prompt
 
+    @property
+    def max_tokens_budget(self) -> int | None:
+        return self._max_tokens_budget
+
+    @property
+    def agent_mode(self) -> str:
+        return self._agent_mode
+
+    @property
+    def tool_permissions(self) -> dict[str, str]:
+        return self._tool_permissions
+
     # -- factory methods ---------------------------------------------
 
     @classmethod
@@ -81,12 +101,31 @@ class PipelineConfig:
         max_steps = data.get("max_steps", 50)
         on_failure = data.get("on_failure", "abort")
 
+        agent_mode = data.get("agent_mode", "process")
+
         if mode not in _VALID_MODES:
             raise ValueError(f"Invalid mode '{mode}'. Must be one of {_VALID_MODES}")
         if on_failure not in _VALID_ON_FAILURE:
             raise ValueError(
                 f"Invalid on_failure '{on_failure}'. Must be one of {_VALID_ON_FAILURE}"
             )
+        if agent_mode not in _VALID_AGENT_MODES:
+            raise ValueError(
+                f"Invalid agent_mode '{agent_mode}'. "
+                f"Must be one of {_VALID_AGENT_MODES}"
+            )
+
+        raw_perms: Any = data.get("tool_permissions") or {}
+        if not isinstance(raw_perms, dict):
+            raise ValueError("tool_permissions must be a mapping of tool_name -> level")
+        tool_permissions: dict[str, str] = {}
+        for tool_name, level in raw_perms.items():
+            if level not in _VALID_PERMISSION_LEVELS:
+                raise ValueError(
+                    f"tool_permissions: invalid permission level {level!r} for tool "
+                    f"{tool_name!r}. Must be one of {_VALID_PERMISSION_LEVELS}"
+                )
+            tool_permissions[str(tool_name)] = str(level)
 
         return cls(
             name=name,
@@ -97,6 +136,9 @@ class PipelineConfig:
             tools_allowed=data.get("tools_allowed"),
             tools_denied=data.get("tools_denied"),
             system_prompt=data.get("system_prompt"),
+            max_tokens_budget=data.get("max_tokens_budget"),
+            agent_mode=agent_mode,
+            tool_permissions=tool_permissions,
         )
 
     @classmethod

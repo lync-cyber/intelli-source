@@ -142,7 +142,7 @@ class TestProcessExecuteRealPipeline:
             session_factory=session_factory,
             llm_gateway=None,
             pipeline_engine=engine,
-            search_engine=None,
+            search_engine_factory=None,
             collector_registry=None,
             distributor=None,
         )
@@ -180,7 +180,7 @@ class TestProcessExecuteRealPipeline:
             session_factory=session_factory,
             llm_gateway=None,
             pipeline_engine=engine,
-            search_engine=None,
+            search_engine_factory=None,
             collector_registry=None,
             distributor=None,
         )
@@ -229,7 +229,7 @@ class TestProcessExecuteRealPipeline:
             session_factory=session_factory,
             llm_gateway=None,
             pipeline_engine=_TrackingEngine(),
-            search_engine=None,
+            search_engine_factory=None,
             collector_registry=None,
             distributor=None,
         )
@@ -270,7 +270,7 @@ class TestProcessExecuteRealPipeline:
             session_factory=session_factory,
             llm_gateway=None,
             pipeline_engine=_CapturingEngine(),
-            search_engine=None,
+            search_engine_factory=None,
             collector_registry=None,
             distributor=None,
         )
@@ -289,7 +289,7 @@ class TestProcessExecuteRealPipeline:
     async def test_process_execute_result_contains_content_id(
         self, pg_session: AsyncSession
     ) -> None:
-        """AC-4: result dict must include content_id matching the input."""
+        """AC-4: result dict must expose processed content_id distinct from raw id."""
         from intellisource.agent.tools import _process_execute  # noqa: PLC0415
 
         source = await _make_source(pg_session)
@@ -302,7 +302,7 @@ class TestProcessExecuteRealPipeline:
             session_factory=session_factory,
             llm_gateway=None,
             pipeline_engine=engine,
-            search_engine=None,
+            search_engine_factory=None,
             collector_registry=None,
             distributor=None,
         )
@@ -313,8 +313,9 @@ class TestProcessExecuteRealPipeline:
         assert isinstance(inner, dict), (
             f"result['result'] must be a dict, got {type(inner)}"
         )
-        assert "content_id" in inner, (
-            f"result['result'] needs 'content_id'. Got keys: {list(inner.keys())}"
+        assert inner.get("raw_content_id") == str(raw.id)
+        assert inner.get("content_id") != str(raw.id), (
+            "process must return ProcessedContent.id as content_id, not RawContent.id"
         )
 
 

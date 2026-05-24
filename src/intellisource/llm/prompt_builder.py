@@ -6,18 +6,57 @@ template loading infrastructure from intellisource.llm.prompts.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
+from pathlib import Path
 from typing import Any
 
 import litellm
 
-from intellisource.llm.prompts import _read_template
+from intellisource.llm.prompts import _TEMPLATE_DIR, _read_template
 
 logger = logging.getLogger(__name__)
 
 _DEFAULT_MODEL = "gpt-4o-mini"
 _DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant."
+_UNKNOWN_VERSION = "unknown"
+
+# (path_str, mtime_ns) -> sha256[:8]
+_VERSION_CACHE: dict[tuple[str, int], str] = {}
+
+
+def _resolve_template_path(call_type: str, style: str | None) -> Path:
+    """Resolve the on-disk template path matching `_read_template` lookup."""
+    if style is not None:
+        variant = _TEMPLATE_DIR / f"{call_type}.{style}.txt"
+        if variant.exists():
+            return variant
+    return _TEMPLATE_DIR / f"{call_type}.txt"
+
+
+def _compute_prompt_version(path: Path) -> str:
+    """Return SHA-256[:8] of *path*'s bytes, cached by (path, mtime_ns).
+
+    Returns ``"unknown"`` when the file is missing or unreadable. The cache
+    keys on ``stat().st_mtime_ns`` so any on-disk edit invalidates the entry
+    on next access, while repeated reads of an unchanged template skip disk.
+    """
+    try:
+        stat = path.stat()
+    except OSError:
+        return _UNKNOWN_VERSION
+    cache_key = (str(path), stat.st_mtime_ns)
+    cached = _VERSION_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return _UNKNOWN_VERSION
+    version = hashlib.sha256(data).hexdigest()[:8]
+    _VERSION_CACHE[cache_key] = version
+    return version
 
 
 class PromptBuilder:
@@ -55,10 +94,28 @@ class PromptBuilder:
             self._template: str = _read_template(call_type, prompt_style)
         except FileNotFoundError:
             raise
+        self._call_type: str = call_type
+        self._prompt_style: str | None = prompt_style
+        self._template_path: Path = _resolve_template_path(call_type, prompt_style)
         self._model: str = model if model is not None else _DEFAULT_MODEL
         self._content: str = ""
         self._context: dict[str, str] = {}
         self._system_prompt: str = self._resolve_system_prompt(call_type, system_prompt)
+
+    @property
+    def call_type(self) -> str:
+        """The call_type identifier this builder was constructed with."""
+        return self._call_type
+
+    @property
+    def prompt_version(self) -> str:
+        """SHA-256 first 8 hex chars of the template file content.
+
+        Cached by ``(path, mtime_ns)`` — repeated reads of an unchanged
+        template skip disk and re-hashing. Returns ``"unknown"`` when the
+        template file is missing or unreadable at the time of access.
+        """
+        return _compute_prompt_version(self._template_path)
 
     @staticmethod
     def _resolve_system_prompt(call_type: str, override: str | None) -> str:

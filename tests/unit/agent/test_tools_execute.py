@@ -13,7 +13,7 @@ AC-7: All 6 tools use ToolDeps for injection; AgentRunner.run() passes ToolDeps
 
 ToolDeps shared design (also referenced by T-087 AC-4 / test_llm_complete_execute.py):
 - Location: src/intellisource/agent/deps.py
-- Fields: session_factory, llm_gateway, pipeline_engine, search_engine,
+- Fields: session_factory, llm_gateway, pipeline_engine, search_engine_factory,
           collector_registry, distributor
 """
 
@@ -34,7 +34,7 @@ def _make_tool_deps(
     *,
     llm_gateway: Any = None,
     pipeline_engine: Any = None,
-    search_engine: Any = None,
+    search_engine_factory: Any = None,
     collector_registry: Any = None,
     distributor: Any = None,
     session_factory: Any = None,
@@ -46,9 +46,26 @@ def _make_tool_deps(
         session_factory=session_factory or MagicMock(),
         llm_gateway=llm_gateway or AsyncMock(),
         pipeline_engine=pipeline_engine or AsyncMock(),
-        search_engine=search_engine or AsyncMock(),
+        search_engine_factory=search_engine_factory or MagicMock(),
         collector_registry=collector_registry or MagicMock(),
         distributor=distributor or AsyncMock(),
+    )
+
+
+def _make_search_tool_deps(mock_engine: Any) -> Any:
+    """Build ToolDeps where search_engine_factory(session) -> mock_engine."""
+    from contextlib import asynccontextmanager
+
+    mock_factory = MagicMock(return_value=mock_engine)
+
+    @asynccontextmanager
+    async def _session_cm() -> Any:
+        yield MagicMock()
+
+    session_factory = MagicMock(return_value=_session_cm())
+    return _make_tool_deps(
+        search_engine_factory=mock_factory,
+        session_factory=session_factory,
     )
 
 
@@ -111,17 +128,36 @@ class TestCollectExecuteReal:
     async def test_collect_execute_not_placeholder(self) -> None:
         """_collect_execute must not return the old placeholder dict."""
         from intellisource.agent.tools import _collect_execute  # type: ignore[import]
+        from intellisource.collector.base import RawContent as CollectedRawContent
 
         mock_collector = AsyncMock()
-        mock_collector.collect = AsyncMock(return_value=[{"id": "item-1"}])
+        mock_collector.collect = AsyncMock(
+            return_value=[
+                CollectedRawContent(
+                    source_url="https://example.com/1",
+                    fingerprint="fp-001",
+                    title="Item 1",
+                    body_text="body",
+                )
+            ]
+        )
 
         mock_registry = MagicMock()
         mock_registry.get = MagicMock(return_value=mock_collector)
 
-        deps = _make_tool_deps(collector_registry=mock_registry)
+        from intellisource.agent.deps import ToolDeps
+
+        deps = ToolDeps(
+            session_factory=None,
+            llm_gateway=AsyncMock(),
+            pipeline_engine=AsyncMock(),
+            search_engine_factory=MagicMock(),
+            collector_registry=mock_registry,
+            distributor=AsyncMock(),
+        )
 
         result = await _collect_execute(
-            source_id="src-001",
+            source_id=str(uuid.uuid4()),
             source_type="rss",
             tool_deps=deps,
         )
@@ -146,6 +182,37 @@ class TestCollectExecuteReal:
 class TestProcessExecuteReal:
     """AC-2: _process_execute must trigger PipelineEngine.execute()."""
 
+    @staticmethod
+    def _process_deps(mock_engine: MagicMock, raw_id: uuid.UUID) -> Any:
+        from contextlib import asynccontextmanager
+
+        mock_raw = MagicMock()
+        mock_raw.id = raw_id
+        mock_raw.title = "Title"
+        mock_raw.body_html = "<p>body</p>"
+        mock_raw.body_text = "body"
+        mock_raw.fingerprint = "fp"
+        mock_raw.source_url = "https://example.com/a"
+        mock_processed = MagicMock()
+        mock_processed.id = uuid.uuid4()
+
+        mock_repo = MagicMock()
+        mock_repo.get_raw_by_id = AsyncMock(return_value=mock_raw)
+        mock_repo.get_processed_by_raw_id = AsyncMock(return_value=None)
+        mock_repo.create = AsyncMock(return_value=mock_processed)
+
+        @asynccontextmanager
+        async def _session_cm() -> Any:
+            session = MagicMock()
+            session.commit = AsyncMock()
+            yield session
+
+        deps = _make_tool_deps(
+            pipeline_engine=mock_engine,
+            session_factory=MagicMock(return_value=_session_cm()),
+        )
+        return deps, mock_repo, mock_processed
+
     @pytest.mark.asyncio
     async def test_process_execute_calls_pipeline_engine_execute(self) -> None:
         """_process_execute must call pipeline_engine.execute() or execute_stream()."""
@@ -154,16 +221,17 @@ class TestProcessExecuteReal:
             PipelineContext,  # type: ignore[import]
         )
 
+        raw_id = uuid.uuid4()
         mock_engine = MagicMock()
         mock_engine.execute = MagicMock(return_value=PipelineContext())
         mock_engine.execute_stream = MagicMock(return_value=iter([]))
+        deps, mock_repo, _ = self._process_deps(mock_engine, raw_id)
 
-        deps = _make_tool_deps(pipeline_engine=mock_engine)
-
-        await _process_execute(
-            content_id=str(uuid.uuid4()),
-            tool_deps=deps,
-        )
+        with patch(
+            "intellisource.storage.repositories.content.ContentRepository",
+            return_value=mock_repo,
+        ):
+            await _process_execute(content_id=str(raw_id), tool_deps=deps)
 
         total_calls = (
             mock_engine.execute.call_count + mock_engine.execute_stream.call_count
@@ -181,16 +249,17 @@ class TestProcessExecuteReal:
             PipelineContext,  # type: ignore[import]
         )
 
+        raw_id = uuid.uuid4()
         mock_engine = MagicMock()
         mock_engine.execute = MagicMock(return_value=PipelineContext())
         mock_engine.execute_stream = MagicMock(return_value=iter([]))
+        deps, mock_repo, _ = self._process_deps(mock_engine, raw_id)
 
-        deps = _make_tool_deps(pipeline_engine=mock_engine)
-
-        await _process_execute(
-            content_id=str(uuid.uuid4()),
-            tool_deps=deps,
-        )
+        with patch(
+            "intellisource.storage.repositories.content.ContentRepository",
+            return_value=mock_repo,
+        ):
+            await _process_execute(content_id=str(raw_id), tool_deps=deps)
 
         total = mock_engine.execute.call_count + mock_engine.execute_stream.call_count
         assert total == 1, f"Expected exactly 1 engine call, got {total}"
@@ -203,25 +272,21 @@ class TestProcessExecuteReal:
             PipelineContext,  # type: ignore[import]
         )
 
+        raw_id = uuid.uuid4()
         mock_engine = MagicMock()
         mock_engine.execute = MagicMock(return_value=PipelineContext())
+        deps, mock_repo, mock_processed = self._process_deps(mock_engine, raw_id)
 
-        deps = _make_tool_deps(pipeline_engine=mock_engine)
+        with patch(
+            "intellisource.storage.repositories.content.ContentRepository",
+            return_value=mock_repo,
+        ):
+            result = await _process_execute(content_id=str(raw_id), tool_deps=deps)
 
-        result = await _process_execute(
-            content_id=str(uuid.uuid4()),
-            tool_deps=deps,
-        )
-
-        is_placeholder = (
-            isinstance(result, dict)
-            and result.get("status") == "ok"
-            and result.get("tool") == "process"
-            and mock_engine.execute.call_count == 0
-        )
-        assert not is_placeholder, (
-            f"_process_execute returned old placeholder: {result}"
-        )
+        assert result.get("status") == "ok"
+        inner = result.get("result", {})
+        assert inner.get("content_id") == str(mock_processed.id)
+        assert inner.get("raw_content_id") == str(raw_id)
 
 
 # ---------------------------------------------------------------------------
@@ -327,7 +392,7 @@ class TestSearchExecuteReal:
             return_value=SearchResponse(items=[], total=0, query_time_ms=1)
         )
 
-        deps = _make_tool_deps(search_engine=mock_engine)
+        deps = _make_search_tool_deps(mock_engine)
 
         await _search_execute(
             query="machine learning papers",
@@ -338,6 +403,7 @@ class TestSearchExecuteReal:
         assert mock_engine.search.called, (
             "_search_execute must call search_engine.search()"
         )
+        deps.search_engine_factory.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_search_execute_passes_query_correctly(self) -> None:
@@ -350,7 +416,7 @@ class TestSearchExecuteReal:
             return_value=SearchResponse(items=[], total=0, query_time_ms=1)
         )
 
-        deps = _make_tool_deps(search_engine=mock_engine)
+        deps = _make_search_tool_deps(mock_engine)
 
         await _search_execute(
             query="deep learning",
@@ -376,7 +442,7 @@ class TestSearchExecuteReal:
             return_value=SearchResponse(items=[], total=0, query_time_ms=1)
         )
 
-        deps = _make_tool_deps(search_engine=mock_engine)
+        deps = _make_search_tool_deps(mock_engine)
 
         result = await _search_execute(
             query="test query",
@@ -651,7 +717,7 @@ class TestToolDepsInjectionViaAgentRunner:
             session_factory=MagicMock(),
             llm_gateway=MagicMock(),
             pipeline_engine=MagicMock(),
-            search_engine=MagicMock(),
+            search_engine_factory=MagicMock(),
             collector_registry=MagicMock(),
             distributor=MagicMock(),
         )
@@ -659,7 +725,7 @@ class TestToolDepsInjectionViaAgentRunner:
             "session_factory",
             "llm_gateway",
             "pipeline_engine",
-            "search_engine",
+            "search_engine_factory",
             "collector_registry",
             "distributor",
         ]
@@ -878,7 +944,7 @@ class TestRunFlexibleForwardsToolDeps:
             session_factory=MagicMock(),
             llm_gateway=mock_gateway,
             pipeline_engine=AsyncMock(),
-            search_engine=AsyncMock(),
+            search_engine_factory=AsyncMock(),
             collector_registry=MagicMock(),
             distributor=AsyncMock(),
         )
@@ -967,7 +1033,7 @@ class TestRunFlexibleForwardsToolDeps:
             session_factory=MagicMock(),
             llm_gateway=mock_gateway,
             pipeline_engine=AsyncMock(),
-            search_engine=AsyncMock(),
+            search_engine_factory=AsyncMock(),
             collector_registry=MagicMock(),
             distributor=AsyncMock(),
         )

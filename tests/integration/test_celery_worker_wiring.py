@@ -111,11 +111,11 @@ class TestBuildCeleryTasks:
             "CeleryTasks._content_repository must be non-None "
             "after build_celery_tasks()"
         )
-        import asyncio  # noqa: PLC0415
+        import inspect  # noqa: PLC0415
 
         factory_callable = tasks._session_factory
         assert callable(factory_callable), "_session_factory must be callable"
-        assert asyncio.iscoroutinefunction(factory_callable), (
+        assert inspect.iscoroutinefunction(factory_callable), (
             "_session_factory must be an async coroutine function "
             "(returns an awaitable that yields AsyncSession)"
         )
@@ -343,6 +343,8 @@ class TestWorkerInitHandlerRealBuild:
 
         # Build a real sqlite-backed session factory (no DB tables needed —
         # we only assert the adapter is wired, not that it executes queries).
+        import asyncio  # noqa: PLC0415
+
         from sqlalchemy.ext.asyncio import (  # noqa: PLC0415
             AsyncSession,
             async_sessionmaker,
@@ -350,44 +352,52 @@ class TestWorkerInitHandlerRealBuild:
         )
 
         engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-        real_factory = async_sessionmaker(
-            bind=engine, class_=AsyncSession, expire_on_commit=False
-        )
+        try:
+            real_factory = async_sessionmaker(
+                bind=engine, class_=AsyncSession, expire_on_commit=False
+            )
 
-        mock_runner = MagicMock()
+            mock_runner = MagicMock()
 
-        # Mock Redis client with async-compatible methods so IdempotencyGuard
-        # construction succeeds without a real Redis connection.
-        mock_redis = MagicMock()
+            # Mock Redis client with async-compatible methods so IdempotencyGuard
+            # construction succeeds without a real Redis connection.
+            mock_redis = MagicMock()
 
-        with (
-            patch(
-                "intellisource.scheduler.boot.init_worker_session_factory",
-                return_value=real_factory,
-            ),
-            patch(
-                "intellisource.scheduler.boot._build_redis_client",
-                return_value=mock_redis,
-            ),
-            patch(
-                "intellisource.agent.factory.get_agent_runner",
-                return_value=mock_runner,
-            ),
-        ):
-            # build_celery_tasks is NOT mocked — real assembly path runs.
-            boot_mod.worker_init_handler(sender=object())
+            with (
+                patch(
+                    "intellisource.scheduler.boot.init_worker_session_factory",
+                    return_value=real_factory,
+                ),
+                patch(
+                    "intellisource.scheduler.boot._build_redis_client",
+                    return_value=mock_redis,
+                ),
+                patch(
+                    "intellisource.agent.factory.get_agent_runner",
+                    return_value=mock_runner,
+                ),
+            ):
+                # build_celery_tasks is NOT mocked — real assembly path runs.
+                boot_mod.worker_init_handler(sender=object())
 
-        tasks = boot_mod.get_celery_tasks()
+            tasks = boot_mod.get_celery_tasks()
 
-        assert tasks is not None, (
-            "get_celery_tasks() must return non-None after worker_init_handler()"
-        )
-        assert tasks._idempotency_guard is not None, (
-            "worker_init_handler must wire _idempotency_guard via build_celery_tasks"
-        )
-        assert tasks._fingerprint_checker is not None, (
-            "worker_init_handler must wire _fingerprint_checker via build_celery_tasks"
-        )
-        assert tasks._content_repository is not None, (
-            "worker_init_handler must wire _content_repository via build_celery_tasks"
-        )
+            assert tasks is not None, (
+                "get_celery_tasks() must return non-None after worker_init_handler()"
+            )
+            assert tasks._idempotency_guard is not None, (
+                "worker_init_handler must wire _idempotency_guard via "
+                "build_celery_tasks"
+            )
+            assert tasks._fingerprint_checker is not None, (
+                "worker_init_handler must wire _fingerprint_checker via "
+                "build_celery_tasks"
+            )
+            assert tasks._content_repository is not None, (
+                "worker_init_handler must wire _content_repository via "
+                "build_celery_tasks"
+            )
+        finally:
+            import asyncio  # noqa: PLC0415
+
+            asyncio.run(engine.dispose())

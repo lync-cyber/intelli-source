@@ -1,6 +1,7 @@
 name: instant-search
 mode: flexible
 max_steps: 5
+max_tokens_budget: 8000
 on_failure: skip
 tools_allowed:
   - search

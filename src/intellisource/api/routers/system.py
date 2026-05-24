@@ -8,9 +8,14 @@ from typing import Any
 
 from fastapi import (
     APIRouter,  # noqa: I001 — keep top-of-block predictability
+    Depends,
     Request,
 )
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from intellisource.api.deps import get_db_session
+from intellisource.storage.repositories.llm_call_log import LLMCallLogRepository
 
 logger = logging.getLogger(__name__)
 
@@ -48,9 +53,19 @@ def _format_prometheus(metrics_collector: Any) -> str:
 @router.get("/health")
 async def health(request: Request) -> dict[str, Any]:
     """Return real DB/Redis/Celery health via app.state.health_checker."""
+    return await health_payload(request)
+
+
+async def health_payload(request: Request) -> dict[str, Any]:
+    """Build a health payload from app.state.health_checker."""
     checker = getattr(request.app.state, "health_checker", None)
     if checker is None:
-        return {"status": "healthy", "checks": {}}
+        return {
+            "status": "unhealthy",
+            "version": getattr(request.app, "version", "unknown"),
+            "uptime_seconds": 0.0,
+            "checks": {"meta": "checker_missing"},
+        }
 
     try:
         result = await checker.check_health()
@@ -71,6 +86,30 @@ async def health(request: Request) -> dict[str, Any]:
 @router.get("/metrics")
 async def metrics(request: Request) -> PlainTextResponse:
     """Return Prometheus exposition text for app.state.metrics_collector."""
+    return metrics_response(request)
+
+
+def metrics_response(request: Request) -> PlainTextResponse:
+    """Build Prometheus text from app.state.metrics_collector."""
     collector = getattr(request.app.state, "metrics_collector", None)
     text = _format_prometheus(collector)
-    return PlainTextResponse(content=text, media_type="text/plain")
+    return PlainTextResponse(content=text, media_type="text/plain; version=0.0.4")
+
+
+@router.get("/llm-stats")
+async def system_llm_stats(
+    period: str = "day",
+    model: str | None = None,
+    call_type: str | None = None,
+    session: AsyncSession = Depends(get_db_session),
+) -> Any:
+    """Return LLM usage statistics under the system namespace."""
+    repo = LLMCallLogRepository(session)
+    try:
+        return await repo.get_stats(
+            period=period,
+            model=model,
+            call_type=call_type,
+        )
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"detail": str(exc)})

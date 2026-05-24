@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/pipelines", tags=["pipelines"])
 
 _PIPELINES_DIR: Path = _SHARED_PIPELINES_DIR
+_PIPELINES_ROOT: Path = _PIPELINES_DIR.resolve()
 _NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 
 
@@ -34,10 +35,12 @@ def _resolve_pipeline_path(name: str) -> Path:
     if not _NAME_PATTERN.fullmatch(name):
         raise HTTPException(status_code=404, detail=f"pipeline '{name}' not found")
     candidate = (_PIPELINES_DIR / f"{name}.yaml").resolve()
-    pipelines_root = _PIPELINES_DIR.resolve()
-    if not candidate.is_file() or not str(candidate).startswith(
-        str(pipelines_root) + "/"
-    ):
+    try:
+        under_root = candidate.is_relative_to(_PIPELINES_ROOT)
+    except AttributeError:
+        # Python < 3.9 fallback (project requires 3.11+, kept for clarity)
+        under_root = str(candidate).startswith(str(_PIPELINES_ROOT))
+    if not candidate.is_file() or not under_root:
         raise HTTPException(status_code=404, detail=f"pipeline '{name}' not found")
     return candidate
 

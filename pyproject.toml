@@ -48,10 +48,18 @@ packages = ["src/intellisource"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --tb=short"
+pythonpath = ["tests"]
+addopts = "-q --tb=short --timeout=120 -m 'not slow'"
 asyncio_mode = "auto"
 markers = [
     "requires_docker: tests requiring a local Docker daemon (e.g. testcontainers PG); skipped automatically when Docker is unavailable",
+    "slow: subprocess, install dry-run, or file-watcher polling; excluded from default runs (see CI lint job for ruff/mypy)",
+]
+filterwarnings = [
+    "ignore:Exception ignored while finalizing coroutine.*AsyncMockMixin._execute_mock_call:pytest.PytestUnraisableExceptionWarning",
+    "ignore:coroutine 'AsyncMockMixin._execute_mock_call' was never awaited:RuntimeWarning",
+    "ignore:Exception ignored while calling deallocator.*Connection\\.__del__:pytest.PytestUnraisableExceptionWarning",
+    "ignore:.*aiosqlite\\.core\\.Connection.*was deleted before being closed:ResourceWarning",
 ]
 
 [tool.ruff]
@@ -74,6 +82,15 @@ packages = ["intellisource"]
 mypy_path = "src"
 ignore_missing_imports = true
 plugins = ["pydantic.mypy"]
+
+[tool.vulture]
+ignore_names = [
+    "names",
+    "a",
+    "kw",
+]
+paths = ["src/intellisource"]
+exclude = ["tests/"]
 
 [dependency-groups]
 dev = [

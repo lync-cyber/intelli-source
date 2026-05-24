@@ -294,6 +294,7 @@ class TestScheduledCollectPipeline:
         config = tools_mod.load_pipeline_config("scheduled-collect")
         allowed = set(config.tools_allowed)
         assert "collect" in allowed
+        assert "process" in allowed
         assert "distribute" in allowed
         assert "regex_extract" in allowed
 

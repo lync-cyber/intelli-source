@@ -232,6 +232,37 @@ class TestDispatchChatReply:
             f"Expected answer '{expected_answer}' in send_text call: {call_str}"
         )
 
+    async def test_dispatch_chat_reply_uses_final_answer(self) -> None:
+        """P1-8: final LLM answer is sent even when no summarizer tool ran."""
+        from intellisource.api.routers.webhooks import (
+            _dispatch_chat_reply,
+        )
+
+        expected_answer = "direct final answer"
+        mock_runner = MagicMock()
+        mock_runner.run_flexible = AsyncMock(
+            return_value={
+                "status": "success",
+                "steps_executed": 1,
+                "results": [],
+                "final_answer": expected_answer,
+                "pipeline_name": "instant-search",
+                "task_chain_id": "tc-final-answer",
+            }
+        )
+        mock_cs = MagicMock()
+        mock_cs.send_text = AsyncMock(return_value=None)
+
+        await _dispatch_chat_reply(
+            runner=mock_runner,
+            cs_messenger=mock_cs,
+            openid=_OPENID,
+            user_text="query",
+        )
+
+        call_str = str(mock_cs.send_text.call_args)
+        assert expected_answer in call_str
+
     async def test_dispatch_chat_reply_falls_back_on_exception(self) -> None:
         """_dispatch_chat_reply sends fallback text when run_flexible raises."""
         from intellisource.api.routers.webhooks import (

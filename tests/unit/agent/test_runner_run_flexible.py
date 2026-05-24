@@ -163,6 +163,42 @@ class TestRunFlexibleConsumesLLMResult:
         assert result.get("budget_exhausted") is True
         assert result["status"] == "success"
 
+    async def test_config_default_budget_stops_before_tool_dispatch(self) -> None:
+        """P1-2: config-level max_tokens_budget prevents costly tool fan-out."""
+        llm_gw = AsyncMock()
+        llm_gw.chat.return_value = LLMResult(
+            content="",
+            metadata={
+                "tool_calls": [
+                    {"name": "web_search", "arguments": {"q": "ai"}, "id": "tc-1"}
+                ],
+                "finish_reason": "tool_calls",
+                "usage": {"total_tokens": 150},
+            },
+        )
+        registry = _make_tool_registry("web_search")
+        runner = AgentRunner(tool_registry=registry, llm_gateway=llm_gw)
+        config = PipelineConfig.from_dict(
+            {
+                "name": "budget-from-config",
+                "mode": "flexible",
+                "tools_allowed": ["web_search"],
+                "tools_denied": [],
+                "steps": [],
+                "max_steps": 5,
+                "max_tokens_budget": 100,
+                "on_failure": "skip",
+            }
+        )
+
+        result = await runner.run_flexible(config, user_message="search", session={})
+
+        assert result["status"] == "success"
+        assert result["budget_exhausted"] is True
+        assert result["tokens_used"] == 150
+        assert result["results"] == []
+        registry.get("web_search").assert_not_called()
+
     async def test_no_attribute_error_on_metadata_access(self) -> None:
         """LLMResult returned by chat() does not raise AttributeError on .metadata."""
         llm_gw = AsyncMock()
@@ -177,3 +213,113 @@ class TestRunFlexibleConsumesLLMResult:
 
         result = await runner.run_flexible(config, user_message="hi", session={})
         assert result["status"] == "success"
+
+    async def test_tools_are_openai_function_schema(self) -> None:
+        """run_flexible passes LLMGateway-valid function tool descriptors."""
+        llm_gw = AsyncMock()
+        llm_gw.chat.return_value = LLMResult(
+            content="done",
+            metadata={"tool_calls": None, "finish_reason": "stop", "usage": {}},
+        )
+        registry = _make_tool_registry("web_search")
+        runner = AgentRunner(tool_registry=registry, llm_gateway=llm_gw)
+        config = _flexible_config("schema", tools_allowed=["web_search"])
+
+        await runner.run_flexible(config, user_message="hello", session={})
+
+        tools = llm_gw.chat.await_args.kwargs["tools"]
+        assert tools == [
+            {
+                "type": "function",
+                "function": {
+                    "name": "web_search",
+                    "description": "",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            }
+        ]
+
+    async def test_session_history_is_passed_to_llm_messages(self) -> None:
+        """run_flexible includes prior chat history before the current user turn."""
+        llm_gw = AsyncMock()
+        llm_gw.chat.return_value = LLMResult(
+            content="done",
+            metadata={"tool_calls": None, "finish_reason": "stop", "usage": {}},
+        )
+        registry = _make_tool_registry("web_search")
+        runner = AgentRunner(tool_registry=registry, llm_gateway=llm_gw)
+        config = _flexible_config("history", tools_allowed=["web_search"])
+
+        await runner.run_flexible(
+            config,
+            user_message="current",
+            session={
+                "messages": [
+                    {"role": "user", "content": "history-q"},
+                    {"role": "assistant", "content": "history-a"},
+                ]
+            },
+        )
+
+        messages = llm_gw.chat.await_args.kwargs["messages"]
+        assert messages[-3:] == [
+            {"role": "user", "content": "history-q"},
+            {"role": "assistant", "content": "history-a"},
+            {"role": "user", "content": "current"},
+        ]
+
+    async def test_final_llm_answer_is_returned_when_no_tools(self) -> None:
+        """P1-8: final assistant content is not dropped from flexible result."""
+        llm_gw = AsyncMock()
+        llm_gw.chat.return_value = LLMResult(
+            content="final answer",
+            metadata={"tool_calls": None, "finish_reason": "stop", "usage": {}},
+        )
+        registry = _make_tool_registry("web_search")
+        runner = AgentRunner(tool_registry=registry, llm_gateway=llm_gw)
+        config = _flexible_config("final-answer", tools_allowed=["web_search"])
+
+        result = await runner.run_flexible(config, user_message="hello", session={})
+
+        assert result["final_answer"] == "final answer"
+
+    async def test_tool_result_roundtrip_has_assistant_tool_call_message(self) -> None:
+        """P1-8: tool result messages keep the provider-required protocol chain."""
+        call_count = 0
+        llm_gw = AsyncMock()
+
+        async def _chat(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return LLMResult(
+                    content="",
+                    metadata={
+                        "tool_calls": [
+                            {
+                                "name": "web_search",
+                                "arguments": {"q": "ai"},
+                                "id": "tc-1",
+                            }
+                        ],
+                        "finish_reason": "tool_calls",
+                        "usage": {},
+                    },
+                )
+            return LLMResult(
+                content="done",
+                metadata={"tool_calls": None, "finish_reason": "stop", "usage": {}},
+            )
+
+        llm_gw.chat.side_effect = _chat
+        registry = _make_tool_registry("web_search")
+        runner = AgentRunner(tool_registry=registry, llm_gateway=llm_gw)
+        config = _flexible_config("tool-protocol", tools_allowed=["web_search"])
+
+        await runner.run_flexible(config, user_message="search", session={})
+
+        second_messages = llm_gw.chat.await_args_list[1].kwargs["messages"]
+        assert second_messages[-2]["role"] == "assistant"
+        assert second_messages[-2]["tool_calls"][0]["id"] == "tc-1"
+        assert second_messages[-1]["role"] == "tool"
+        assert second_messages[-1]["tool_call_id"] == "tc-1"

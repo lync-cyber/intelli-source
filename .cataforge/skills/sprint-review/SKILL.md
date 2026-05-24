@@ -62,10 +62,12 @@ cataforge skill run sprint-review -- {N} \
 ### Step 2: Layer 2 — AI语义审查
 通过doc-nav加载dev-plan Sprint任务详情、arch接口契约、CODE-REVIEW报告，审查:
 - 完成度(completeness): 所有计划交付物是否存在且功能完整，非空壳文件
-- AC覆盖(ac-coverage): 每个AC-NNN是否有对应测试且测试逻辑有效（非仅grep匹配）
+- AC覆盖(ac-coverage): 每个AC-NNN是否有对应测试且测试逻辑有效（非仅grep匹配）；至少一个关联测试**不**使用 `vi.mock` / `jest.mock` / `unittest.mock` 全 stub 替换被测包顶层导出（避免接口契约虚假绿色）
+- Wiring 完成度(wiring-completeness): 任务卡 `user_facing_critical_path: true` 或 `consumer_components` 非空时，验证 deliverable 真实挂载到至少一个消费点（路由 / app shell / 父组件 prop），而非仅"组件存在"。读取 implementer self-report 的 `wiring_complete` / `wiring_evidence` 字段（agent-result.schema 0.2.0+）做交叉核对；缺失 evidence 但任务声称 wiring_complete=true 时升 HIGH
 - 范围偏移(scope-drift): 实现是否偏离arch接口契约、数据模型、模块边界
 - Gold-plating(gold-plating): 是否存在计划外的额外功能、接口、文件
 - 缺失交付物(missing-deliverable): 任务卡中声明的deliverables是否全部产出
+- 偏移率(drift-rate): 对比本 Sprint 实际交付的 AC 与 dev-plan 中规划的 AC：延期的 AC（计划内但未交付）+ 计划外的 AC（交付但未在计划中声明）。偏移率 = (延期 AC + 计划外 AC) / 规划 AC 总数。偏移率 > 20% 时标记 HIGH 并建议用户重新评估剩余 Sprint 规划
 - 质量聚合(quality-summary): 聚合该Sprint所有CODE-REVIEW报告中的MEDIUM/HIGH问题模式
 
 ### Step 3: 审查报告编号
@@ -77,10 +79,12 @@ cataforge skill run sprint-review -- {N} \
 Sprint审查额外category:
 | category | 说明 |
 |----------|------|
-| ac-coverage | AC覆盖不足 |
+| ac-coverage | AC覆盖不足或测试用 mock 替换被测包导致接口契约未真实验证 |
+| wiring-completeness | user-facing critical path 任务的 deliverable 未挂载到消费点（详见 §Step 2 wiring-completeness 维度） |
 | scope-drift | 实现偏离设计 |
 | gold-plating | 计划外额外功能 |
 | missing-deliverable | 缺失交付物 |
+| drift-rate | AC 偏移率超过阈值（延期 + 计划外 / 总计划），建议重新评估 |
 
 ### Step 5: 判定结论
 三态判定按 COMMON-RULES §三态判定逻辑。Sprint needs_revision 标记具体任务 ID 以便重入 TDD。
@@ -93,7 +97,7 @@ Sprint审查额外category:
 - <!-- check_id: deliverables_exist --> 每个任务的deliverables文件路径全部存在于磁盘
 - <!-- check_id: ac_coverage --> 每个任务的tdd_acceptance中AC-NNN在tests/目录下有对应引用
 - <!-- check_id: unplanned_files --> 检测计划外文件 (WARN)：src 范围内、未被 `.gitignore` 与默认 ignore 列表 (`node_modules/`, `dist/`, `*.tsbuildinfo` 等) 过滤、且不在任何任务 deliverables 中的文件视为 gold-plating 信号；候选集合默认通过 `git ls-files -co --exclude-standard` 取得，monorepo 友好
-- <!-- check_id: code_review_present --> 每个任务有对应的CODE-REVIEW报告(docs/reviews/code/CODE-REVIEW-{task_id}-*.md)
+- <!-- check_id: code_review_present --> 每个任务有对应的CODE-REVIEW报告(docs/reviews/code/CODE-REVIEW-{task_id}-*.md)（WARN：低风险任务可由sprint-review批量审查覆盖，缺少独立报告不阻塞）
 
 ## project_features schema
 
@@ -122,6 +126,13 @@ project_features:
 | `unplanned_glob_patterns` | list[str] | `[]` | 每条 fnmatch 模式应用于 `check_unplanned_files` 输出；匹配的文件被滤掉。典型用途：项目级测试/fixture/helper 命名约定 |
 
 读取由 `cataforge.skill.builtins.sprint_review.sprint_check.load_project_features()` 完成；优先读非 sprint 分卷（不带 `-sN.md` 后缀）的第一个含 `project_features:` 的文件。
+
+## Anti-Patterns
+
+- 禁止: 跳过 ac-coverage / wiring-completeness 维度只算"测试通过率" —— 测试 PASS 不等于 AC 真实落地，可能出现测试绿但 wiring 链断
+- 禁止: 把整个 sprint 全部 task 都跑 merged-review —— merged 仅适用于同质任务（相同 task_kind / 共享 arch#§2.M-xxx），异质任务并表会丢失模式
+- 禁止: needs_revision 后整个 sprint 重跑 —— 仅 SPRINT-REVIEW 报告标记的 CRITICAL/HIGH 任务进入 TDD 重做，已通过任务保持 done 状态
+- 避免: sprint-review 报告写入 `docs/reviews/code/` —— 必须写 `docs/reviews/sprint/`（COMMON-RULES §报告编号规则）
 
 ## 效率策略
 - Layer 1 先行（脚本结构检查不通过即跳过 AI 审查）；Layer 2 聚焦脚本不可覆盖的行为偏移和质量模式

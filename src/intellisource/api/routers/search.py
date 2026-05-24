@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 import time
 import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -65,13 +67,25 @@ async def search(
     return result
 
 
+def _search_step_items(output: Any) -> list[Any]:
+    """Extract search hit rows from a tool step output dict."""
+    if not isinstance(output, dict):
+        return []
+    response = output.get("response")
+    if isinstance(response, dict):
+        return list(response.get("items") or [])
+    items = output.get("contents") or output.get("items")
+    if isinstance(items, list):
+        return items
+    return []
+
+
 def _extract_sources(flex_result: dict[str, Any]) -> list[ChatSource]:
-    """Pull hybrid_search step output (if any) and map to ChatSource list."""
+    """Pull search step output (if any) and map to ChatSource list."""
     for step in flex_result.get("results", []):
-        if step.get("tool") != "hybrid_search":
+        if step.get("tool") != "search":
             continue
-        output = step.get("output", {})
-        items = output.get("contents") or output.get("items") or []
+        items = _search_step_items(step.get("output", {}))
         sources: list[ChatSource] = []
         for item in items:
             if not isinstance(item, dict):
@@ -85,6 +99,22 @@ def _extract_sources(flex_result: dict[str, Any]) -> list[ChatSource]:
             )
         return sources
     return []
+
+
+def _extract_answer(flex_result: dict[str, Any]) -> str:
+    """Return the best assistant-facing text from flexible-mode tool results."""
+    final_answer = flex_result.get("final_answer")
+    if final_answer:
+        return str(final_answer)
+    for step in reversed(flex_result.get("results", [])):
+        output = step.get("output", {})
+        if not isinstance(output, dict):
+            continue
+        for key in ("summary", "text", "content"):
+            value = output.get(key)
+            if value:
+                return str(value)
+    return ""
 
 
 @router.post("/search/chat")
@@ -138,24 +168,19 @@ async def chat_search(
     )
     elapsed_ms = int((time.monotonic() - start) * 1000)
 
-    answer = ""
-    for step in reversed(flex_result.get("results", [])):
-        text = step.get("output", {}).get("text", "")
-        if text:
-            answer = str(text)
-            break
+    answer = _extract_answer(flex_result)
 
-    session_id_str = body.session_id or str(uuid.uuid4())
+    response_session_uuid = session_uuid or uuid.uuid4()
     steps_executed: int = int(flex_result.get("steps_executed", 0))
     task_chain_id: str = str(flex_result.get("task_chain_id", ""))
 
     if db_manager is not None:
         try:
             async with db_manager.get_session() as db_session:
-                await _persist_chat_turn(
+                response_session_uuid = await _persist_chat_turn(
                     db_session,
                     existing=stored_session,
-                    session_id_hint=body.session_id,
+                    session_id=response_session_uuid,
                     user_message=body.message,
                     assistant_answer=answer,
                 )
@@ -163,7 +188,7 @@ async def chat_search(
             logger.exception("ChatSession persist transaction failed")
 
     resp = ChatSearchResponse(
-        session_id=session_id_str,
+        session_id=str(response_session_uuid),
         answer=answer,
         sources=_extract_sources(flex_result),
         query_time_ms=elapsed_ms,
@@ -171,6 +196,34 @@ async def chat_search(
         task_chain_id=task_chain_id,
     )
     return resp
+
+
+@router.post("/search/chat/stream")
+async def chat_search_stream(
+    request: Request,
+    body: ChatSearchRequest,
+) -> StreamingResponse:
+    """SSE streaming chat via LLMGateway.stream_complete."""
+    gateway = getattr(request.app.state, "llm_gateway", None)
+    if gateway is None:
+        return StreamingResponse(
+            iter(
+                [f"data: {json.dumps({'detail': 'llm_gateway not initialised'})}\n\n"]
+            ),
+            status_code=503,
+            media_type="text/event-stream",
+        )
+
+    async def event_gen() -> Any:
+        try:
+            async for event in gateway.stream_complete(prompt=body.message):
+                if await request.is_disconnected():
+                    break
+                yield f"data: {json.dumps(event)}\n\n"
+        except asyncio.CancelledError:
+            return
+
+    return StreamingResponse(event_gen(), media_type="text/event-stream")
 
 
 async def _load_chat_session(
@@ -198,16 +251,16 @@ async def _persist_chat_turn(
     db_session: AsyncSession,
     *,
     existing: Any,
-    session_id_hint: str | None,
+    session_id: uuid.UUID,
     user_message: str,
     assistant_answer: str,
-) -> None:
+) -> uuid.UUID:
     """Append the new user+assistant turn to ChatSession.context.messages.
 
-    Creates a new row when *existing* is None — channel defaults to "api"
-    and channel_user_id is the supplied session_id_hint (or a fresh UUID
-    when the caller did not provide one). DB errors are logged but never
-    raised so the chat reply still returns.
+    Creates a new row when *existing* is None, using *session_id* as both
+    the primary key and API channel_user_id so the response token can be
+    used to load the same row on the next request. DB errors are logged
+    but never raised so the chat reply still returns.
     """
     from intellisource.storage.repositories.chat_session import (
         ChatSessionRepository,
@@ -225,11 +278,12 @@ async def _persist_chat_turn(
             history.extend(new_messages)
             context["messages"] = history[-(_MAX_HISTORY_TURNS * 2) :]
             await repo.update_context(existing.id, context)
+            session_id = existing.id
         else:
-            channel_user_id = session_id_hint or str(uuid.uuid4())
             await repo.create(
+                id=session_id,
                 channel=_CHAT_CHANNEL_API,
-                channel_user_id=channel_user_id,
+                channel_user_id=str(session_id),
                 context={"messages": new_messages},
             )
         await db_session.commit()
@@ -239,3 +293,4 @@ async def _persist_chat_turn(
             await db_session.rollback()
         except Exception:
             logger.exception("ChatSession rollback also failed")
+    return session_id

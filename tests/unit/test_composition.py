@@ -237,18 +237,23 @@ class TestWorkerComposition:
         )
 
         engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-        factory = async_sessionmaker(
-            bind=engine, class_=AsyncSession, expire_on_commit=False
-        )
-        mock_redis = MagicMock()
+        try:
+            factory = async_sessionmaker(
+                bind=engine, class_=AsyncSession, expire_on_commit=False
+            )
+            mock_redis = MagicMock()
 
-        result = build_worker_composition(
-            session_factory=factory,
-            redis_client=mock_redis,
-        )
-        assert isinstance(result, WorkerComposition), (
-            f"Expected WorkerComposition, got {type(result)}"
-        )
+            result = build_worker_composition(
+                session_factory=factory,
+                redis_client=mock_redis,
+            )
+            assert isinstance(result, WorkerComposition), (
+                f"Expected WorkerComposition, got {type(result)}"
+            )
+        finally:
+            import asyncio  # noqa: PLC0415
+
+            asyncio.run(engine.dispose())
 
 
 # ---------------------------------------------------------------------------
@@ -456,37 +461,42 @@ class TestWorkerInitHandlerPipelineLoader:
         )
 
         engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-        real_factory = async_sessionmaker(
-            bind=engine, class_=AsyncSession, expire_on_commit=False
-        )
+        try:
+            real_factory = async_sessionmaker(
+                bind=engine, class_=AsyncSession, expire_on_commit=False
+            )
 
-        with (
-            patch.object(
-                boot_mod, "build_celery_tasks", side_effect=_spy_build_celery_tasks
-            ),
-            patch.object(
-                boot_mod,
-                "init_worker_session_factory",
-                return_value=real_factory,
-            ),
-            patch(
-                "intellisource.scheduler.boot._build_redis_client",
-                return_value=mock_redis,
-            ),
-            patch(
-                "intellisource.agent.factory.get_agent_runner",
-                return_value=mock_runner,
-            ),
-        ):
-            boot_mod.worker_init_handler(sender=object())
+            with (
+                patch.object(
+                    boot_mod, "build_celery_tasks", side_effect=_spy_build_celery_tasks
+                ),
+                patch.object(
+                    boot_mod,
+                    "init_worker_session_factory",
+                    return_value=real_factory,
+                ),
+                patch(
+                    "intellisource.scheduler.boot._build_redis_client",
+                    return_value=mock_redis,
+                ),
+                patch(
+                    "intellisource.agent.factory.get_agent_runner",
+                    return_value=mock_runner,
+                ),
+            ):
+                boot_mod.worker_init_handler(sender=object())
 
-        assert len(captured_pipeline_config) == 1, (
-            "build_celery_tasks must have been called exactly once"
-        )
-        assert captured_pipeline_config[0] is not None, (
-            "AC-6: pipeline_config (2nd arg to build_celery_tasks) must not be None; "
-            "got None — boot.py still passes None"
-        )
+            assert len(captured_pipeline_config) == 1, (
+                "build_celery_tasks must have been called exactly once"
+            )
+            assert captured_pipeline_config[0] is not None, (
+                "AC-6: pipeline_config (2nd arg to build_celery_tasks) must not be "
+                "None; got None — boot.py still passes None"
+            )
+        finally:
+            import asyncio  # noqa: PLC0415
+
+            asyncio.run(engine.dispose())
 
 
 # ---------------------------------------------------------------------------

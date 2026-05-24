@@ -11,7 +11,6 @@ Covers:
 
 from __future__ import annotations
 
-import subprocess
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -19,6 +18,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
+from source_scan import find_substring_in_tree
 
 from intellisource.pipeline.base import BaseProcessor
 from intellisource.pipeline.condition import ConditionalProcessor
@@ -402,20 +402,13 @@ class TestAC5FactoryInstantiatesPipelineEngine:
 
     def test_pipeline_engine_call_site_exists_in_src(self) -> None:
         """At least one src/ file references PipelineEngine( as a constructor."""
-        result = subprocess.run(
-            ["grep", "-rn", "PipelineEngine(", "src/"],
-            cwd=str(Path(__file__).parents[3]),
-            capture_output=True,
-            text=True,
-        )
-        matches = [
-            line
-            for line in result.stdout.splitlines()
-            if "test_" not in line and ".pyc" not in line
-        ]
+        repo_root = Path(__file__).parents[3]
+        src_dir = repo_root / "src"
+        lines = find_substring_in_tree(src_dir, "PipelineEngine(")
+        matches = [line for line in lines if "test_" not in line and ".pyc" not in line]
         assert len(matches) >= 1, (
             "Expected >=1 PipelineEngine( constructor call in src/, found none.\n"
-            f"grep stdout: {result.stdout!r}"
+            + "\n".join(lines)
         )
 
 

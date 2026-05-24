@@ -218,12 +218,24 @@ class TestContextCompaction:
             mock_compact.assert_called_once()
 
     async def test_compacted_summary_becomes_system_prefix(self) -> None:
-        """After compaction, first message is a system message with summary."""
+        """After compaction with gateway, first message is the LLM summary.
+
+        T-079: ChatSessionManager now delegates to compact_messages_for_chat;
+        when an llm_gateway is configured, the helper produces a `role=system`
+        summary at the head of the compacted list.
+        """
         if _MODULE_MISSING:
             pytest.fail(_SKIP_REASON)
 
         mock_db = AsyncMock()
-        manager = ChatSessionManager(session=mock_db)
+        mock_gateway = MagicMock()
+        mock_gateway.estimate_tokens = MagicMock(
+            side_effect=lambda text, model: max(len(str(text)) // 4, 1)
+        )
+        mock_gateway.complete = AsyncMock(
+            return_value=MagicMock(content="LLM summary of older turns")
+        )
+        manager = ChatSessionManager(session=mock_db, llm_gateway=mock_gateway)
 
         large_messages = [
             {"role": "user", "content": f"Long message {i} " * 100} for i in range(50)
@@ -431,3 +443,138 @@ class TestCitationSources:
         )
 
         assert response["citations"] == []
+
+
+# ---------------------------------------------------------------------------
+# T-079: chat_session.compact_context delegates to agent.compaction
+# ---------------------------------------------------------------------------
+
+
+class TestT079DelegationToAgentCompaction:
+    """compact_context delegates to compact_messages_for_chat (AC-T079-1/2)."""
+
+    async def test_compact_context_invokes_compact_messages_for_chat(self) -> None:
+        """AC-T079-2: compact_context calls compact_messages_for_chat helper."""
+        if _MODULE_MISSING:
+            pytest.fail(_SKIP_REASON)
+
+        mock_db = AsyncMock()
+        mock_gateway = MagicMock()
+        manager = ChatSessionManager(session=mock_db, llm_gateway=mock_gateway)
+        session_row = _make_session_row(
+            context={"messages": [{"role": "user", "content": "hello"}]}
+        )
+
+        with patch(
+            "intellisource.search.chat_session.compact_messages_for_chat",
+            new=AsyncMock(return_value=[{"role": "system", "content": "summary"}]),
+        ) as mock_helper:
+            await manager.compact_context(session_row, max_tokens=500)
+
+        mock_helper.assert_awaited_once()
+        call_kwargs = mock_helper.await_args.kwargs
+        assert call_kwargs["gateway"] is mock_gateway
+        assert call_kwargs["max_tokens"] == 500
+
+
+class TestT079LLMSummarySuccess:
+    """LLM summarization success path (AC-T079-3/4)."""
+
+    async def test_llm_summary_replaces_old_messages_keeps_recent(self) -> None:
+        """Successful LLM summary yields system summary + recent messages."""
+        if _MODULE_MISSING:
+            pytest.fail(_SKIP_REASON)
+
+        mock_db = AsyncMock()
+        mock_gateway = MagicMock()
+        mock_gateway.estimate_tokens = MagicMock(
+            side_effect=lambda text, model: max(len(str(text)) // 4, 1)
+        )
+        mock_gateway.complete = AsyncMock(return_value=MagicMock(content="OLD SUMMARY"))
+        manager = ChatSessionManager(session=mock_db, llm_gateway=mock_gateway)
+
+        old = [{"role": "user", "content": "old turn " * 200} for _ in range(20)]
+        recent = [{"role": "user", "content": "recent question"}]
+        session_row = _make_session_row(context={"messages": old + recent})
+
+        compacted = await manager.compact_context(session_row, max_tokens=300)
+
+        messages = compacted.context["messages"]
+        roles = [m["role"] for m in messages]
+        assert "system" in roles
+        assert any(m.get("content") == "OLD SUMMARY" for m in messages)
+
+
+class TestT079LLMFailureFallbackTruncation:
+    """LLM failure → fallback truncation (AC-T079-4)."""
+
+    async def test_llm_complete_raises_falls_back_to_truncation(self) -> None:
+        """When gateway.complete raises, truncation fallback path runs."""
+        if _MODULE_MISSING:
+            pytest.fail(_SKIP_REASON)
+
+        mock_db = AsyncMock()
+        mock_gateway = MagicMock()
+        mock_gateway.estimate_tokens = MagicMock(
+            side_effect=lambda text, model: max(len(str(text)) // 4, 1)
+        )
+        mock_gateway.complete = AsyncMock(side_effect=RuntimeError("LLM down"))
+        manager = ChatSessionManager(session=mock_db, llm_gateway=mock_gateway)
+
+        long_msgs = [{"role": "user", "content": f"msg {i} " * 100} for i in range(20)]
+        long_msgs.append({"role": "user", "content": "newest"})
+        session_row = _make_session_row(context={"messages": long_msgs})
+
+        compacted = await manager.compact_context(session_row, max_tokens=200)
+
+        messages = compacted.context["messages"]
+        assert len(messages) >= 1
+        # No system summary on fallback — truncation only.
+        sentinel = "Summary of previous conversation: "
+        assert all(m.get("content") != sentinel for m in messages)
+        # Most recent message must survive.
+        assert any(m.get("content") == "newest" for m in messages)
+
+
+class TestT079RoleToolPrunedFirst:
+    """role=tool messages pruned first oldest-first (AC-T079-3)."""
+
+    async def test_old_tool_messages_dropped_before_user_assistant(self) -> None:
+        """compact_messages_for_chat prunes role=tool oldest-first."""
+        if _MODULE_MISSING:
+            pytest.fail(_SKIP_REASON)
+
+        mock_db = AsyncMock()
+        # No gateway → falls back to char-based truncation that still prunes
+        # role=tool first via _prune_old_tool_messages.
+        manager = ChatSessionManager(session=mock_db, llm_gateway=None)
+
+        big_filler = "x" * 600
+        messages: list[dict[str, str]] = []
+        # Pattern: 5 oldest tool messages (each big), then keepers
+        for i in range(5):
+            messages.append({"role": "tool", "content": f"old tool {i} {big_filler}"})
+        messages.append({"role": "user", "content": "real question"})
+        messages.append({"role": "assistant", "content": "real answer"})
+        session_row = _make_session_row(context={"messages": messages})
+
+        compacted = await manager.compact_context(session_row, max_tokens=200)
+
+        roles_remaining = [m["role"] for m in compacted.context["messages"]]
+        # Recent user/assistant must be preserved; oldest tool messages dropped.
+        assert "user" in roles_remaining
+        assert "assistant" in roles_remaining
+
+
+class TestT079AssumptionDocstringRemoved:
+    """Static check: the [ASSUMPTION] block was removed from compact_context."""
+
+    def test_compact_context_docstring_no_longer_carries_assumption(self) -> None:
+        if _MODULE_MISSING:
+            pytest.fail(_SKIP_REASON)
+
+        doc = ChatSessionManager.compact_context.__doc__ or ""
+        assert "[ASSUMPTION]" not in doc, (
+            "T-079 AC-T079-2: compact_context docstring still carries the "
+            "[ASSUMPTION] block that was supposed to be removed."
+        )

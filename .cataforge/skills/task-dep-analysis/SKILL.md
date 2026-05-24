@@ -10,8 +10,6 @@ user-invocable: true
 
 # 任务依赖分析 (task-dep-analysis)
 
-> **命名说明**: v0.1.15 起由原 `dep-analysis` 重命名为 `task-dep-analysis`，明确范围限定为"任务依赖"，与 code-review scan 的代码 coupling 维度区分。
-
 ## 能力边界
 - 能做: 任务间依赖关系建模、拓扑排序、关键路径计算、循环依赖检测、Sprint分组建议
 - 不做: 任务内容定义、代码实现、代码模块依赖图（→ code-review scan --focus coupling）
@@ -84,6 +82,13 @@ graph LR
   2. 通过 doc-gen write-section 将 Mermaid 图自动写入 dev-plan#§2（包裹在 ` ```mermaid ` 代码块中）
   3. 使用 `--format json` 获取关键路径和Sprint分组数据
   4. 将关键路径信息写入 dev-plan#§4
+
+## Anti-Patterns
+
+- 禁止: 引入"先做A再做B更顺手"这种人为依赖 —— 依赖只能基于数据流 / 接口契约 / consumer-producer 关系，否则 sprint_groups 会过窄、并行度白丢
+- 禁止: 检测到环依赖时静默改图绕过 —— 必须 FAIL 并要求 tech-lead 重新拆 task 或引入抽象层（task-decomp 步骤 6）
+- 禁止: 把 dep-analysis 报告写入 dev-plan#§2 之外的位置 —— 该 section 是 orchestrator §Parallel Task Dispatch 读 sprint_groups 的唯一入口
+- 避免: 未跑 `--format json` 就让 LLM 估算关键路径 —— 关键路径是确定性图算法的输出，LLM 估算既不必要也不可靠
 
 ## 效率策略
 - 依赖仅基于数据/接口，不引入人为依赖

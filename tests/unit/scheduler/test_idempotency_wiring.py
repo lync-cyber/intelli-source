@@ -48,6 +48,7 @@ def _make_idempotency_guard(acquire_return: bool = True) -> MagicMock:
     """Return an IdempotencyGuard mock with acquire wired."""
     guard = MagicMock()
     guard.acquire = AsyncMock(return_value=acquire_return)
+    guard.release = AsyncMock(return_value=None)
     return guard
 
 
@@ -503,6 +504,25 @@ class TestIdempotencyWiringEdgeCases:
                 f"run_pipeline must not propagate KeyError for missing task_id; "
                 f"got: {exc!r}"
             ) from exc
+
+    def test_run_pipeline_without_task_id_uses_source_lock_and_releases(self) -> None:
+        """Source-triggered tasks without task_id use a stable non-empty lock key."""
+        from intellisource.scheduler.tasks import CeleryTasks
+
+        guard = _make_idempotency_guard(acquire_return=True)
+        agent_runner = _make_mock_agent_runner()
+        pipeline_config = _make_mock_pipeline_config()
+
+        tasks = CeleryTasks(
+            agent_runner=agent_runner,
+            pipeline_config=pipeline_config,
+            idempotency_guard=guard,
+        )
+
+        tasks.run_pipeline("scheduled-collect", {"source_id": "src-1"})
+
+        guard.acquire.assert_awaited_once_with("scheduled-collect:source:src-1")
+        guard.release.assert_awaited_once_with("scheduled-collect:source:src-1")
 
     def test_run_pipeline_without_fingerprint_does_not_crash(self) -> None:
         """When params dict lacks 'fingerprint', run_pipeline must not crash

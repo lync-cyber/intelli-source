@@ -29,7 +29,7 @@ def _make_tool_deps(llm_gateway: Any) -> Any:
         session_factory=MagicMock(),
         llm_gateway=llm_gateway,
         pipeline_engine=MagicMock(),
-        search_engine=MagicMock(),
+        search_engine_factory=MagicMock(),
         collector_registry=MagicMock(),
         distributor=MagicMock(),
     )
@@ -203,7 +203,7 @@ class TestToolDepsContract:
             session_factory=MagicMock(),
             llm_gateway=mock_gw,
             pipeline_engine=MagicMock(),
-            search_engine=MagicMock(),
+            search_engine_factory=MagicMock(),
             collector_registry=MagicMock(),
             distributor=MagicMock(),
         )
@@ -217,13 +217,13 @@ class TestToolDepsContract:
             session_factory=MagicMock(),
             llm_gateway=MagicMock(),
             pipeline_engine=MagicMock(),
-            search_engine=MagicMock(),
+            search_engine_factory=MagicMock(),
             collector_registry=MagicMock(),
             distributor=MagicMock(),
         )
         assert hasattr(deps, "session_factory")
         assert hasattr(deps, "llm_gateway")
         assert hasattr(deps, "pipeline_engine")
-        assert hasattr(deps, "search_engine")
+        assert hasattr(deps, "search_engine_factory")
         assert hasattr(deps, "collector_registry")
         assert hasattr(deps, "distributor")

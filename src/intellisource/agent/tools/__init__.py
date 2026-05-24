@@ -6,28 +6,69 @@ by AgentRunner, and load_pipeline_config for loading YAML pipelines.
 
 from __future__ import annotations
 
+import enum
+import importlib.util
 import logging
+import sys
 import uuid as _uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Coroutine
 
 from intellisource.agent.pipeline import PipelineConfig
 from intellisource.pipeline.processors import tools as atomic_tools
 
-_PIPELINES_DIR = Path(__file__).resolve().parents[3] / "config" / "pipelines"
+_PIPELINES_DIR = Path(__file__).resolve().parents[4] / "config" / "pipelines"
+_DEFAULT_PLUGINS_DIR = Path(__file__).resolve().parent
 
 logger = logging.getLogger(__name__)
 
 
+class PermissionLevel(str, enum.Enum):
+    """Tool invocation permission level.
+
+    Values:
+        auto: executed without confirmation (default for read-only tools).
+        confirm: **confirm-as-logged** semantics — when invoked under
+            ``run_flexible``, the runner records a ``pending_confirmation``
+            event in 3 places (logger.info / tool_results entry / messages
+            entry returned to the LLM) and skips actual execution for the
+            current turn. The LLM observes the pending status via the next
+            assistant turn and decides whether to retry, escalate or abort.
+            **This is not a hard blocking-pause** — there is no callback
+            wait or user-prompt loop in the runtime; production callers
+            who need a true human-in-the-loop should subscribe to the
+            ``pending_confirmation`` log event externally and re-issue
+            the tool call with elevated permission once approved.
+        deny: never executed; runner drops from tool descriptors at
+            ``_filter_tools`` time and hard-rejects at runtime as a defence
+            against LLM hallucination of denied tool names.
+    """
+
+    auto = "auto"
+    confirm = "confirm"
+    deny = "deny"
+
+
 @dataclass
 class ToolDefinition:
-    """A single tool that can be invoked by the agent."""
+    """A single tool that can be invoked by the agent.
+
+    Fields:
+        mutates_external_state: True when the tool writes to a system the
+            user can observe outside the agent (DB, message bus, webhook,
+            outbound email, file system, etc.). Default False = read-only.
+            ``analyze`` agent mode auto-denies tools where this is True so
+            new side-effectful tools must opt in explicitly. Read-only tools
+            (search/get/summarize) keep the default.
+    """
 
     name: str
     description: str
     parameters: dict[str, Any]
     execute: Callable[..., Coroutine[Any, Any, Any]]
+    permission_level: PermissionLevel = field(default=PermissionLevel.auto)
+    mutates_external_state: bool = False
 
 
 class AgentToolRegistry:
@@ -43,6 +84,8 @@ class AgentToolRegistry:
         description: str,
         parameters: dict[str, Any],
         execute_fn: Callable[..., Coroutine[Any, Any, Any]],
+        permission_level: PermissionLevel = PermissionLevel.auto,
+        mutates_external_state: bool = False,
     ) -> None:
         """Register a tool definition."""
         self._tools[name] = ToolDefinition(
@@ -50,6 +93,8 @@ class AgentToolRegistry:
             description=description,
             parameters=parameters,
             execute=execute_fn,
+            permission_level=permission_level,
+            mutates_external_state=mutates_external_state,
         )
 
     def register_defaults(self) -> None:
@@ -88,6 +133,65 @@ class AgentToolRegistry:
             result = {k: v for k, v in result.items() if k not in denied_set}
         return result
 
+    def auto_discover(self, tools_dir: str | Path | None = None) -> None:
+        """Scan tools_dir for plugin modules exporting TOOL_DEFINITION.
+
+        Each *.py file (skipping __init__.py and dunder-prefixed names) is
+        imported under a synthetic module name and inspected for a top-level
+        TOOL_DEFINITION attribute of type ToolDefinition. Already-registered
+        tool names take precedence (manual register wins over auto-discover).
+        Import or attribute errors are logged at WARNING and skipped — they
+        do not abort discovery of remaining files or application startup.
+        """
+        base = Path(tools_dir) if tools_dir is not None else _DEFAULT_PLUGINS_DIR
+        if not base.is_dir():
+            logger.warning(
+                "auto_discover: tools_dir %s does not exist or is not a directory",
+                base,
+            )
+            return
+
+        for child in sorted(base.iterdir()):
+            if not child.is_file() or child.suffix != ".py":
+                continue
+            if child.name.startswith("_"):
+                continue
+
+            module_name = f"intellisource.agent.tools._discovered.{child.stem}"
+            try:
+                spec = importlib.util.spec_from_file_location(module_name, str(child))
+                if spec is None or spec.loader is None:
+                    logger.warning("auto_discover: failed to build spec for %s", child)
+                    continue
+                module = importlib.util.module_from_spec(spec)
+                sys.modules[module_name] = module
+                spec.loader.exec_module(module)
+            except Exception as exc:
+                logger.warning("auto_discover: import failed for %s: %s", child, exc)
+                continue
+
+            tool_def = getattr(module, "TOOL_DEFINITION", None)
+            if tool_def is None:
+                continue
+            if not isinstance(tool_def, ToolDefinition):
+                logger.warning(
+                    "auto_discover: %s.TOOL_DEFINITION is not a ToolDefinition "
+                    "(got %s); skipping",
+                    child,
+                    type(tool_def).__name__,
+                )
+                continue
+
+            if tool_def.name in self._tools:
+                logger.info(
+                    "auto_discover: tool %r already registered; "
+                    "manual registration wins over %s",
+                    tool_def.name,
+                    child,
+                )
+                continue
+            self._tools[tool_def.name] = tool_def
+
 
 def load_pipeline_config(name: str) -> PipelineConfig:
     """Load a pipeline config YAML by name from the pipelines dir."""
@@ -106,7 +210,7 @@ async def _collect_execute(
     tool_deps: Any = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """Invoke CollectorRegistry.get(source_type).collect() for the given source."""
+    """Collect from source, persist RawContent rows, return ids for downstream steps."""
     if tool_deps is None or tool_deps.collector_registry is None:
         logger.warning("tool_deps not injected for collect, returning placeholder")
         return {
@@ -118,16 +222,25 @@ async def _collect_execute(
         }
 
     source_config: dict[str, Any] = {}
-    if tool_deps.session_factory is not None:
+    source_uuid: _uuid.UUID | None = None
+    task_id_raw = kwargs.get("task_id") or kwargs.get("collect_task_id")
+    collect_task_id: _uuid.UUID | None = None
+    if task_id_raw:
         try:
-            import uuid as _uuid_mod  # noqa: PLC0415
+            collect_task_id = _uuid.UUID(str(task_id_raw))
+        except ValueError:
+            collect_task_id = None
 
+    if tool_deps.session_factory is not None and source_id:
+        try:
             from intellisource.storage.models import Source  # noqa: PLC0415
 
-            source_uuid = _uuid_mod.UUID(source_id)
+            source_uuid = _uuid.UUID(source_id)
             async with tool_deps.session_factory() as session:
                 source_row = await session.get(Source, source_uuid)
             if source_row is not None:
+                if not source_type:
+                    source_type = str(source_row.type or "")
                 source_config = {
                     "url": source_row.url,
                     "source_id": source_id,
@@ -150,7 +263,13 @@ async def _collect_execute(
             "source_id": source_id,
             "source_type": source_type,
         }
+        if source_id:
+            try:
+                source_uuid = _uuid.UUID(source_id)
+            except ValueError:
+                source_uuid = None
 
+    from intellisource.collector.base import RawContent as CollectedRawContent
     from intellisource.core.errors import CollectorError  # noqa: PLC0415
 
     try:
@@ -163,8 +282,76 @@ async def _collect_execute(
             "collected": [],
             "source_id": source_id,
         }
-    collected = await collector.collect(source_config=source_config, **kwargs)
-    return {"status": "ok", "tool": "collect", "collected": collected}
+
+    collected_items: list[CollectedRawContent] = await collector.collect(
+        source_config=source_config, **kwargs
+    )
+
+    raw_content_ids: list[str] = []
+    collected_summary: list[dict[str, Any]] = []
+
+    if tool_deps.session_factory is not None and source_uuid is not None:
+        from intellisource.storage.repositories.content import (  # noqa: PLC0415
+            ContentRepository,
+        )
+
+        async with tool_deps.session_factory() as session:
+            repo = ContentRepository(session=session)
+            for item in collected_items:
+                existing = await repo.get_raw_by_fingerprint(item.fingerprint)
+                if existing is not None:
+                    raw_content_ids.append(str(existing.id))
+                    collected_summary.append(
+                        {
+                            "id": str(existing.id),
+                            "title": existing.title,
+                            "source_url": existing.source_url,
+                            "duplicate": True,
+                        }
+                    )
+                    continue
+                raw = await repo.create_raw(
+                    source_id=source_uuid,
+                    source_url=item.source_url,
+                    fingerprint=item.fingerprint,
+                    title=item.title,
+                    author=item.author,
+                    body_html=item.body_html,
+                    body_text=item.body_text,
+                    published_at=item.published_at,
+                    raw_metadata=dict(item.raw_metadata),
+                    collect_task_id=collect_task_id,
+                )
+                raw_content_ids.append(str(raw.id))
+                collected_summary.append(
+                    {
+                        "id": str(raw.id),
+                        "title": raw.title,
+                        "source_url": raw.source_url,
+                        "duplicate": False,
+                    }
+                )
+            await session.commit()
+    else:
+        for item in collected_items:
+            collected_summary.append(
+                {
+                    "title": item.title,
+                    "source_url": item.source_url,
+                    "fingerprint": item.fingerprint,
+                }
+            )
+
+    first_id = raw_content_ids[0] if raw_content_ids else None
+    return {
+        "status": "ok",
+        "tool": "collect",
+        "collected": collected_summary,
+        "raw_content_ids": raw_content_ids,
+        "content_id": first_id,
+        "source_id": source_id,
+        "source_type": source_type,
+    }
 
 
 async def _process_execute(
@@ -172,7 +359,7 @@ async def _process_execute(
     tool_deps: Any = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """Fetch RawContent by UUID and run PipelineEngine.execute() synchronously."""
+    """Fetch RawContent, run PipelineEngine, persist ProcessedContent."""
     if tool_deps is None or tool_deps.pipeline_engine is None:
         logger.warning("tool_deps not injected for process, returning placeholder")
         return {
@@ -182,40 +369,85 @@ async def _process_execute(
             "content_id": content_id,
         }
 
+    if tool_deps.session_factory is None:
+        logger.warning(
+            "session_factory not injected for process, returning placeholder"
+        )
+        return {
+            "status": "degraded",
+            "tool": "process",
+            "reason": "session_factory not injected",
+            "content_id": content_id,
+        }
+
+    from datetime import datetime, timezone  # noqa: PLC0415
+
     from intellisource.pipeline.context import PipelineContext  # noqa: PLC0415
     from intellisource.storage.repositories.content import (  # noqa: PLC0415
         ContentRepository,
     )
 
-    raw_id = _uuid.UUID(content_id)
+    try:
+        raw_id = _uuid.UUID(content_id)
+    except ValueError:
+        return {
+            "status": "degraded",
+            "tool": "process",
+            "reason": f"invalid content_id: {content_id!r}",
+            "content_id": content_id,
+        }
+
     ctx = PipelineContext()
     ctx.set("content_id", content_id)
-    try:
-        async with tool_deps.session_factory() as session:
-            repo = ContentRepository(session=session)
-            raw = await repo.get_raw_by_id(raw_id)
-        if raw is not None:
-            ctx.set("body_html", raw.body_html or "")
-            ctx.set("body_text", raw.body_text or "")
-            ctx.set("title", raw.title or "")
-            ctx.set("fingerprint", raw.fingerprint or "")
-            ctx.set("content_id", str(raw.id))
-    except Exception as exc:
-        logger.warning(
-            "_process_execute: failed to load RawContent for %s: %s",
-            content_id,
-            exc,
-            exc_info=True,
-        )
 
-    ctx = tool_deps.pipeline_engine.execute(ctx)
+    async with tool_deps.session_factory() as session:
+        repo = ContentRepository(session=session)
+        raw = await repo.get_raw_by_id(raw_id)
+        if raw is None:
+            return {
+                "status": "degraded",
+                "tool": "process",
+                "reason": f"RawContent not found: {content_id}",
+                "content_id": content_id,
+            }
+
+        ctx.set("body_html", raw.body_html or "")
+        ctx.set("body_text", raw.body_text or "")
+        ctx.set("title", raw.title or "")
+        ctx.set("fingerprint", raw.fingerprint or "")
+        ctx.set("content_id", str(raw.id))
+
+        ctx = tool_deps.pipeline_engine.execute(ctx)
+
+        tags_val = ctx.get("tags")
+        tags: list[str] = tags_val if isinstance(tags_val, list) else []
+
+        existing_processed = await repo.get_processed_by_raw_id(raw_id)
+        if existing_processed is not None:
+            processed = existing_processed
+        else:
+            processed = await repo.create(
+                raw_content_id=raw_id,
+                title=str(ctx.get("title") or raw.title or ""),
+                body_text=str(ctx.get("body_text") or raw.body_text or ""),
+                tags=tags,
+                fingerprint=str(ctx.get("fingerprint") or raw.fingerprint or ""),
+                source_url=raw.source_url,
+                processing_status="completed",
+                processed_at=datetime.now(tz=timezone.utc),
+            )
+
+        raw.status = "processed"
+        raw.processed_at = datetime.now(tz=timezone.utc)
+        await session.commit()
 
     result: dict[str, Any] = {
         "body_html": ctx.get("body_html"),
         "body_text": ctx.get("body_text"),
         "title": ctx.get("title"),
         "fingerprint": ctx.get("fingerprint"),
-        "content_id": str(raw_id),
+        "content_id": str(processed.id),
+        "raw_content_id": str(raw_id),
     }
     return {"status": "ok", "tool": "process", "result": result}
 
@@ -250,11 +482,21 @@ async def _search_execute(
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Invoke HybridSearchEngine.search() with the given query."""
-    if tool_deps is not None and tool_deps.search_engine is not None:
-        response = await tool_deps.search_engine.search(
-            query=query, top_k=top_k, **kwargs
-        )
-        return {"status": "ok", "tool": "search", "response": response}
+    if tool_deps is None:
+        factory = None
+        session_factory = None
+    else:
+        factory = getattr(tool_deps, "search_engine_factory", None)
+        session_factory = getattr(tool_deps, "session_factory", None)
+    if factory is not None and session_factory is not None:
+        async with session_factory() as session:
+            engine = factory(session)
+            response = await engine.search(query=query, limit=top_k, **kwargs)
+        return {
+            "status": "ok",
+            "tool": "search",
+            "response": _serialize_search_response(response),
+        }
     logger.warning("tool_deps not injected for search, returning placeholder")
     return {
         "status": "degraded",
@@ -262,6 +504,32 @@ async def _search_execute(
         "reason": "tool_deps not injected",
         "query": query,
     }
+
+
+def _serialize_search_response(response: Any) -> dict[str, Any]:
+    """Convert HybridSearchEngine SearchResponse to a JSON-friendly dict."""
+    from dataclasses import asdict, is_dataclass
+
+    if is_dataclass(response) and not isinstance(response, type):
+        payload = asdict(response)
+        items = payload.get("items") or []
+        serialized_items: list[dict[str, Any]] = []
+        for item in items:
+            if is_dataclass(item) and not isinstance(item, type):
+                row = asdict(item)
+            elif isinstance(item, dict):
+                row = dict(item)
+            else:
+                continue
+            content_id = row.get("content_id")
+            if content_id is not None:
+                row["content_id"] = str(content_id)
+            serialized_items.append(row)
+        payload["items"] = serialized_items
+        return payload
+    if isinstance(response, dict):
+        return response
+    return {"items": [], "total": 0, "query_time_ms": 0}
 
 
 async def _get_content_detail_execute(
@@ -549,6 +817,7 @@ def _default_tool_defs() -> list[ToolDefinition]:
                 },
             },
             execute=_process_execute,
+            mutates_external_state=True,
         ),
         ToolDefinition(
             name="distribute",
@@ -563,6 +832,8 @@ def _default_tool_defs() -> list[ToolDefinition]:
                 },
             },
             execute=_distribute_execute,
+            permission_level=PermissionLevel.confirm,
+            mutates_external_state=True,
         ),
         ToolDefinition(
             name="search",

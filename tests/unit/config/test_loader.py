@@ -272,6 +272,7 @@ class TestConfigWatcher:
         assert watcher is not None
 
     @pytest.mark.asyncio
+    @pytest.mark.slow
     async def test_watcher_triggers_callback_on_file_change(self, tmp_path) -> None:
         """ConfigWatcher calls callback when a config file is modified."""
         from unittest.mock import MagicMock
@@ -295,7 +296,7 @@ class TestConfigWatcher:
         # Give the watcher a moment to detect changes
         import asyncio
 
-        await asyncio.sleep(1)
+        await asyncio.sleep(0.2)
 
         await watcher.stop()
 

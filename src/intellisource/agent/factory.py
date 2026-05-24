@@ -108,7 +108,7 @@ def build_agent_runner(
         session_factory=session_factory,
         llm_gateway=llm_gateway,
         pipeline_engine=pipeline_engine,
-        search_engine=search_engine_factory,
+        search_engine_factory=search_engine_factory,
         collector_registry=collector_registry,
         distributor=distributor,
     )

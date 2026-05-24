@@ -62,8 +62,14 @@ def _make_mock_session_factory_for_collector(source_url: str) -> Any:
     mock_source.rate_limit_concurrency = None
     mock_source.metadata_ = {}
 
-    mock_session = AsyncMock()
+    mock_session = MagicMock()
     mock_session.get = AsyncMock(return_value=mock_source)
+    mock_execute_result = MagicMock()
+    mock_execute_result.scalar_one_or_none = MagicMock(return_value=None)
+    mock_session.execute = AsyncMock(return_value=mock_execute_result)
+    mock_session.commit = AsyncMock()
+    mock_session.flush = AsyncMock()
+    mock_session.add = MagicMock()
 
     @asynccontextmanager
     async def _session_factory() -> AsyncIterator[Any]:
@@ -87,7 +93,7 @@ def _make_tool_deps_with_registry(session_factory: object = None) -> ToolDeps:
         session_factory=session_factory,
         llm_gateway=None,
         pipeline_engine=None,
-        search_engine=None,
+        search_engine_factory=None,
         collector_registry=build_collector_registry(),
         distributor=None,
     )

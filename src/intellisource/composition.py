@@ -139,17 +139,18 @@ def build_pipeline_loader() -> PipelineLoader:
 def build_distributor_facade(
     session_factory: async_sessionmaker[AsyncSession],
     redis_client: Any,
-    celery_app: Any = None,
+    llm_gateway: LLMGateway | None = None,
 ) -> DistributorFacade:
     """Build a DistributorFacade with all three distribution channels.
 
     Reads channel credentials from environment variables.  Missing required
-    variables cause a ValueError at startup (hard-fail by design). When a
-    ``celery_app`` instance is supplied the facade can fire push-optimize
-    follow-up tasks (AC-T100-3, gated by ``IS_PUSH_OPTIMIZE_ENABLED``).
+    variables cause a ValueError at startup (hard-fail by design). When an
+    ``llm_gateway`` is supplied the facade can optimize push copy before send
+    (F-010, gated by ``IS_PUSH_OPTIMIZE_ENABLED``).
     """
-    wechat = WeChatDistributor.from_env(redis=redis_client)
-    wework = WeWorkDistributor.from_env(redis=redis_client)
+    http_client = _build_http_client()
+    wechat = WeChatDistributor.from_env(redis=redis_client, http_client=http_client)
+    wework = WeWorkDistributor.from_env(redis=redis_client, http_client=http_client)
     email = EmailDistributor.from_env()
     matcher = SubscriptionMatcher()
     channels: dict[str, Any] = {
@@ -161,7 +162,7 @@ def build_distributor_facade(
         session_factory=session_factory,
         matcher=matcher,
         channels=channels,
-        celery_app=celery_app,
+        llm_gateway=llm_gateway,
     )
 
 
@@ -295,11 +296,13 @@ def _build_deps_bundle(
     session_factory: Any, redis_client: Any, celery_app: Any = None
 ) -> _DepsBundle:
     """Assemble the four ToolDeps-bound dependencies shared by both processes."""
+    del celery_app  # retained in signature for Worker init call-site stability
+    llm_gateway = build_llm_gateway(redis_client)
     return _DepsBundle(
-        llm_gateway=build_llm_gateway(redis_client),
+        llm_gateway=llm_gateway,
         collector_registry=build_collector_registry(),
         distributor=build_distributor_facade(
-            session_factory, redis_client, celery_app=celery_app
+            session_factory, redis_client, llm_gateway=llm_gateway
         ),
         search_engine_factory=build_search_engine_factory(),
     )
@@ -340,10 +343,9 @@ def build_worker_composition(
     `intellisource.agent.factory` module-level singleton so legacy callers
     of `get_agent_runner()` keep working.
 
-    Wires the module-level Celery app into the DistributorFacade so the
-    Worker path (which runs distribute under `run_pipeline`) can fire
-    push-optimize follow-ups when `IS_PUSH_OPTIMIZE_ENABLED=1`
-    (AC-T100-3, R-001 r2).
+    Wires ``llm_gateway`` into the DistributorFacade so the Worker path
+    (which runs distribute under ``run_pipeline``) can optimize push copy
+    before send when ``IS_PUSH_OPTIMIZE_ENABLED=1`` (F-010).
     """
     from intellisource.scheduler.celery_app import (
         celery_app as _worker_celery_app,
@@ -539,6 +541,14 @@ def _maybe_build_http_client() -> Any:
         return httpx.AsyncClient(timeout=10.0)
     except ImportError:
         return None
+
+
+def _build_http_client() -> Any:
+    """Return an async HTTP client for production channels, or fail loudly."""
+    http_client = _maybe_build_http_client()
+    if http_client is None:
+        raise CompositionError("httpx is required to build distributor channels")
+    return http_client
 
 
 class _DatabaseManagerSessionFactory:

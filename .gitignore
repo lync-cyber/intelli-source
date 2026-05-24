@@ -12,6 +12,7 @@ venv/
 *.log
 .mypy_cache/
 .pytest_cache/
+.pytest-tmp/
 .ruff_cache/
 .coverage
 .coverage.*
@@ -19,5 +20,7 @@ htmlcov/
 coverage.xml
 .claude/backup-*/
 .cataforge/.backups/
+.agents/
+.codex/
 *.egg-info/
 __pycache__/
