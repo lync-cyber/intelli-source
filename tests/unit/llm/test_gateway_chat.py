@@ -22,7 +22,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from source_scan import find_regex_in_tree
 
-from intellisource.llm.gateway import LLMGateway, SchemaEnforcer
+from intellisource.llm.gateway import LLMGateway, SchemaEnforcer, SchemaValidationError
 
 # LLMOutputError does not exist yet (added by GREEN). Import defensively so
 # that pytest can collect and individually run each test rather than blocking
@@ -244,7 +244,7 @@ class TestT086Fallback:
             with patch.object(
                 SchemaEnforcer,
                 "validate",
-                side_effect=Exception("JSON parse error"),
+                side_effect=SchemaValidationError("JSON parse error"),
             ) as spy_validate:
                 with pytest.raises(LLMOutputError):
                     await gw.chat(
@@ -266,7 +266,7 @@ class TestT086Fallback:
             with patch.object(
                 SchemaEnforcer,
                 "validate",
-                side_effect=Exception("schema failed"),
+                side_effect=SchemaValidationError("schema failed"),
             ):
                 with pytest.raises(LLMOutputError):
                     await gw.chat(
@@ -276,21 +276,23 @@ class TestT086Fallback:
                     )
 
     @pytest.mark.asyncio
-    async def test_schema_enforcer_not_called_when_valid_json(self) -> None:
-        """AC-4 negative: valid JSON response skips SchemaEnforcer fallback."""
+    async def test_schema_enforcer_called_for_valid_json(self) -> None:
+        """AC-4: SchemaEnforcer is called unconditionally when schema is provided."""
         gw = _make_gateway()
         valid_resp = _make_litellm_response(content='{"key": "value"}')
         schema = {"type": "object"}
 
         with patch("intellisource.llm.gateway.litellm") as mock_litellm:
             mock_litellm.acompletion = AsyncMock(return_value=valid_resp)
-            with patch.object(SchemaEnforcer, "validate") as spy_validate:
+            with patch.object(
+                SchemaEnforcer, "validate", return_value={"key": "value"}
+            ) as spy_validate:
                 await gw.chat(
                     messages=_SAMPLE_MESSAGES,
                     tools=None,
                     schema=schema,
                 )
-                spy_validate.assert_not_called()
+                spy_validate.assert_called_once()
 
     # SS-3: SchemaEnforcer called exactly once, no recursion
     @pytest.mark.asyncio
@@ -305,7 +307,7 @@ class TestT086Fallback:
         def _schema_enforcer_raises(_raw: str) -> dict:  # type: ignore[return]
             nonlocal call_count
             call_count += 1
-            raise Exception("still invalid")
+            raise SchemaValidationError("still invalid")
 
         with patch("intellisource.llm.gateway.litellm") as mock_litellm:
             mock_litellm.acompletion = AsyncMock(return_value=invalid_resp)

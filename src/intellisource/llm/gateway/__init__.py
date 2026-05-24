@@ -7,183 +7,38 @@ validating outputs against JSON Schema, and SchemaValidationError.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-import os
 import time
 from collections.abc import AsyncGenerator
-from dataclasses import dataclass, field
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
+
+import litellm
+from tenacity import wait_exponential
+
+from intellisource.llm.circuit_breaker import CircuitOpenError as CircuitOpenError
+from intellisource.llm.cost_tracker import LLMCallRecord
+from intellisource.llm.gateway._retry import _RetryMixin
+from intellisource.llm.gateway._routing import _classify_error, _load_routing_config
+from intellisource.llm.gateway._types import (
+    LLMOutputError,
+    LLMResult,
+    SchemaEnforcer,
+    SchemaValidationError,
+)
+from intellisource.llm.model_config import ModelRoutingConfig
+from intellisource.llm.priority_queue import PriorityLevel, PriorityQueue, QueuedRequest
+from intellisource.llm.prompt_builder import PromptBuilder
 
 if TYPE_CHECKING:
     from intellisource.llm.cache import LLMCache
     from intellisource.llm.circuit_breaker import CircuitBreaker
     from intellisource.llm.cost_tracker import CostTracker
     from intellisource.llm.fallback import FallbackManager
-    from intellisource.llm.priority_queue import PriorityQueue
-
-import jsonschema
-import litellm
-from pydantic import ValidationError as PydanticValidationError
-from tenacity import (
-    AsyncRetrying,
-    retry_if_exception,
-    stop_after_attempt,
-    wait_exponential,
-)
-
-from intellisource.core.errors import ErrorCategory, IntelliSourceError, LLMError
-from intellisource.llm.circuit_breaker import CircuitOpenError as CircuitOpenError
-from intellisource.llm.cost_tracker import LLMCallRecord
-from intellisource.llm.model_config import ModelRoutingConfig, load_model_config
-from intellisource.llm.priority_queue import PriorityLevel, PriorityQueue, QueuedRequest
-from intellisource.llm.prompt_builder import PromptBuilder
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_CONFIG_PATH = str(
-    Path(__file__).resolve().parents[3] / "config" / "llm_models.yaml"
-)
 
-_TRANSIENT_EXCEPTION_NAMES = frozenset(
-    [
-        "Timeout",
-        "APIConnectionError",
-        "RateLimitError",
-        "ServiceUnavailableError",
-        "InternalServerError",
-    ]
-)
-
-_UNRECOVERABLE_EXCEPTION_NAMES = frozenset(
-    [
-        "BadRequestError",
-        "AuthenticationError",
-        "PermissionDeniedError",
-        "NotFoundError",
-        "UnsupportedParamsError",
-        "ContextWindowExceededError",
-        "ContentPolicyViolationError",
-    ]
-)
-
-
-def _classify_error(exc: BaseException) -> ErrorCategory:
-    """Map an exception to an ErrorCategory for retry decisions.
-
-    IntelliSourceError subclasses are classified by their own .category.
-    litellm exceptions are classified by class name. Unknown exceptions
-    default to RECOVERABLE_DEGRADED.
-    """
-    if isinstance(exc, IntelliSourceError):
-        return exc.category
-
-    exc_type_name = type(exc).__name__
-    if exc_type_name in _TRANSIENT_EXCEPTION_NAMES:
-        return ErrorCategory.RECOVERABLE_TRANSIENT
-    if exc_type_name in _UNRECOVERABLE_EXCEPTION_NAMES:
-        return ErrorCategory.UNRECOVERABLE
-    return ErrorCategory.RECOVERABLE_DEGRADED
-
-
-def _load_routing_config() -> dict[str, Any]:
-    """Load model routing config from env var or default path.
-
-    Falls back to an empty config if the file does not exist.
-    """
-    config_path = os.environ.get("IS_LLM_CONFIG_PATH", _DEFAULT_CONFIG_PATH)
-    path = Path(config_path)
-    if not path.exists():
-        logger.warning(
-            "LLM routing config not found at '%s', using empty config",
-            config_path,
-        )
-        return {
-            "default_model": {"model": "gpt-4o-mini", "provider": "openai"},
-            "models": {},
-            "profiles": {},
-        }
-    try:
-        return load_model_config(config_path)
-    except PydanticValidationError as exc:
-        raise LLMError(
-            f"LLM config validation failed: {exc}",
-            category=ErrorCategory.UNRECOVERABLE,
-        ) from exc
-    except ValueError as exc:
-        raise LLMError(
-            f"LLM config file error: {exc}",
-            category=ErrorCategory.UNRECOVERABLE,
-        ) from exc
-
-
-class SchemaValidationError(LLMError):
-    """Raised when LLM output fails JSON Schema validation."""
-
-    def __init__(
-        self,
-        message: str,
-        category: ErrorCategory = ErrorCategory.RECOVERABLE_DEGRADED,
-        recovery_hint: str = "",
-    ) -> None:
-        super().__init__(message, category=category, recovery_hint=recovery_hint)
-
-
-class LLMOutputError(LLMError):
-    """Raised when LLM output cannot be parsed or validated after enforcement."""
-
-    def __init__(
-        self,
-        message: str,
-        category: ErrorCategory = ErrorCategory.RECOVERABLE_DEGRADED,
-        recovery_hint: str = "",
-    ) -> None:
-        super().__init__(message, category=category, recovery_hint=recovery_hint)
-
-
-@dataclass
-class LLMResult:
-    """Result from an LLM completion call."""
-
-    content: str
-    metadata: dict[str, Any] = field(default_factory=dict)
-
-
-class SchemaEnforcer:
-    """Validates LLM output against a JSON Schema."""
-
-    def __init__(self, schema: dict[str, Any]) -> None:
-        self._schema = schema
-
-    def validate(self, raw_output: str) -> dict[str, Any]:
-        """Parse and validate raw LLM output against the schema.
-
-        Args:
-            raw_output: Raw JSON string from LLM.
-
-        Returns:
-            Parsed and validated dictionary.
-
-        Raises:
-            SchemaValidationError: If parsing or validation fails.
-        """
-        try:
-            data = json.loads(raw_output)
-        except json.JSONDecodeError as exc:
-            raise SchemaValidationError(f"Invalid JSON: {exc}") from exc
-
-        try:
-            jsonschema.validate(instance=data, schema=self._schema)
-        except jsonschema.ValidationError as exc:
-            raise SchemaValidationError(
-                f"Schema validation failed: {exc.message}"
-            ) from exc
-
-        return dict(data)
-
-
-class LLMGateway:
+class LLMGateway(_RetryMixin):
     """Unified LLM calling interface built on litellm."""
 
     _CONTEXT_WINDOWS: dict[str, int] = {
@@ -193,6 +48,10 @@ class LLMGateway:
         "claude-sonnet-4-20250514": 200000,
     }
     _DEFAULT_CONTEXT_WINDOW = 128000
+
+    _INTERACTIVE_TASK_TYPES: frozenset[str] = frozenset(
+        ["search", "chat", "interactive", "query"]
+    )
 
     def __init__(
         self,
@@ -265,8 +124,6 @@ class LLMGateway:
                 prompt_version=cache_key_parts["prompt_version"],
             )
             if cached is not None:
-                # AC-T052-4: record cache hit to LLMCallLog with
-                # status=cached, input_tokens=0
                 await self._log_cache_hit(
                     cached=cached,
                     call_type=cache_key_parts["call_type"],
@@ -402,42 +259,6 @@ class LLMGateway:
             if "function" not in tool:
                 raise ValueError(f"tools[{i}] missing required key 'function'")
 
-    async def _chat_call_with_retry(
-        self,
-        call_kwargs: dict[str, Any],
-    ) -> Any:
-        """Invoke litellm.acompletion for chat() with retry.
-
-        Retries RECOVERABLE_TRANSIENT errors up to 3 times (4 total calls).
-        On UnsupportedParamsError, retries once without tools/response_format.
-        """
-        async for attempt in AsyncRetrying(
-            stop=stop_after_attempt(4),
-            wait=self._retry_wait,
-            retry=retry_if_exception(
-                lambda e: _classify_error(e) is ErrorCategory.RECOVERABLE_TRANSIENT
-            ),
-            reraise=True,
-        ):
-            with attempt:
-                try:
-                    return await litellm.acompletion(**call_kwargs)
-                except Exception as exc:
-                    if type(exc).__name__ == "UnsupportedParamsError":
-                        logger.warning(
-                            "Provider does not support tools/response_format; "
-                            "retrying without them: %s",
-                            exc,
-                        )
-                        degraded_kwargs = {
-                            k: v
-                            for k, v in call_kwargs.items()
-                            if k not in ("tools", "response_format")
-                        }
-                        return await litellm.acompletion(**degraded_kwargs)
-                    raise
-        return None  # unreachable; satisfies mypy
-
     async def chat(
         self,
         messages: list[dict[str, Any]],
@@ -470,7 +291,22 @@ class LLMGateway:
         if tools is not None:
             self._validate_tools(tools)
 
-        resolved_model = model or "gpt-4o-mini"
+        resolved_model = model
+        if resolved_model is None:
+            models = self._routing_config.get("models", {})
+            if "chat" in models:
+                resolved_model = models["chat"]["model"]
+            else:
+                from intellisource.core.errors import ErrorCategory, LLMError
+
+                default_cfg = self._routing_config.get("default_model")
+                if default_cfg is None:
+                    raise LLMError(
+                        "No model configured for 'chat' task and no default_model "
+                        "found in routing config.",
+                        category=ErrorCategory.UNRECOVERABLE,
+                    )
+                resolved_model = default_cfg["model"]
 
         call_kwargs: dict[str, Any] = {
             "model": resolved_model,
@@ -481,8 +317,46 @@ class LLMGateway:
         if response_format is not None:
             call_kwargs["response_format"] = response_format
 
+        async def _chat_call_fn() -> Any:
+            try:
+                return await litellm.acompletion(**call_kwargs)
+            except Exception as exc:
+                if type(exc).__name__ == "UnsupportedParamsError":
+                    logger.warning(
+                        "Provider does not support tools/response_format; "
+                        "retrying without them: %s",
+                        exc,
+                    )
+                    degraded_kwargs = {
+                        k: v
+                        for k, v in call_kwargs.items()
+                        if k not in ("tools", "response_format")
+                    }
+                    return await litellm.acompletion(**degraded_kwargs)
+                raise
+
+        fallback_text = " ".join(
+            str(m.get("content", "")) for m in messages if m.get("role") == "user"
+        )
         start_time = time.monotonic()
-        response = await self._chat_call_with_retry(call_kwargs)
+        try:
+            response = await self._unified_call_with_retry(
+                _chat_call_fn,
+                model=resolved_model,
+                call_type="chat",
+                operation_id="chat",
+                enable_fallback=False,
+                enable_circuit_breaker=True,
+                fallback_input=fallback_text,
+                task_type="chat",
+            )
+        except BaseException as exc:
+            if self._fallback_manager is not None:
+                return cast(
+                    LLMResult,
+                    await self._try_fallback(exc, "chat", fallback_text),
+                )
+            raise
         elapsed_ms = (time.monotonic() - start_time) * 1000
 
         content: str = response.choices[0].message.content or ""
@@ -497,16 +371,13 @@ class LLMGateway:
         }
 
         if schema is not None:
+            enforcer = SchemaEnforcer(schema)
             try:
-                json.loads(content)
-            except json.JSONDecodeError:
-                enforcer = SchemaEnforcer(schema)
-                try:
-                    enforcer.validate(content)
-                except Exception as exc:
-                    raise LLMOutputError(
-                        f"LLM output failed JSON validation: {exc}"
-                    ) from exc
+                enforcer.validate(content)
+            except SchemaValidationError as exc:
+                raise LLMOutputError(
+                    f"LLM output failed JSON validation: {exc}"
+                ) from exc
 
         result = LLMResult(content=content, metadata=metadata)
 
@@ -541,130 +412,22 @@ class LLMGateway:
     ) -> Any:
         """Invoke litellm.acompletion with exponential backoff retry.
 
-        Retries only RECOVERABLE_TRANSIENT errors, up to 3 times (4 total calls).
-        Logs each retry attempt via cost_tracker when available.
-        Raises on exhaustion; caller handles fallback.
+        Delegates to _unified_call_with_retry; caller handles fallback.
         """
-        if self.circuit_breaker is not None:
-            allowed = await self.circuit_breaker.allow_request()
-            if not allowed:
-                raise CircuitOpenError()
+        model = str(call_kwargs.get("model", "unknown"))
 
-        _last_exc: BaseException | None = None
-        _response: Any = None
-        async for attempt in AsyncRetrying(
-            stop=stop_after_attempt(4),
-            wait=self._retry_wait,
-            retry=retry_if_exception(
-                lambda e: _classify_error(e) is ErrorCategory.RECOVERABLE_TRANSIENT
-            ),
-            reraise=True,
-        ):
-            with attempt:
-                attempt_num = attempt.retry_state.attempt_number
-                if attempt_num > 1:
-                    await self._log_retry(
-                        model=str(call_kwargs.get("model", "unknown")),
-                        retry_attempt=attempt_num - 1,
-                        call_type=task_type or "unknown",
-                    )
-                try:
-                    _response = await litellm.acompletion(**call_kwargs)
-                except Exception as exc:
-                    _last_exc = exc
-                    if self.circuit_breaker is not None:
-                        await self.circuit_breaker.record_failure()
-                    raise
-        if self.circuit_breaker is not None:
-            await self.circuit_breaker.record_success()
-        return _response
+        async def _call_fn() -> Any:
+            return await litellm.acompletion(**call_kwargs)
 
-    async def _try_fallback(
-        self,
-        exc: BaseException,
-        task_type: str | None,
-        prompt: str,
-    ) -> Any:
-        """Attempt fallback execution; re-raise original exc when not possible.
-
-        Behavior contract:
-        - fallback_manager is None → re-raise original exc
-        - task_type not registered (KeyError from execute_fallback) → re-raise
-          original exc
-        - fallback function itself raises → that exception propagates (the original
-          transient exc is intentionally lost; the more recent fallback failure is
-          more diagnostic for operators).
-        """
-        if self._fallback_manager is not None and task_type is not None:
-            try:
-                return await self._fallback_manager.execute_fallback(
-                    task_type=task_type,
-                    input_data=prompt,
-                )
-            except KeyError:
-                raise exc
-        raise exc
-
-    async def _log_retry(self, model: str, retry_attempt: int, call_type: str) -> None:
-        """Write a retry record to LLMCallLog when cost_tracker is available."""
-        if self._cost_tracker is None:
-            logger.warning(
-                "LLM call retry attempt %d for model '%s'", retry_attempt, model
-            )
-            return
-        record = LLMCallRecord(
+        return await self._unified_call_with_retry(
+            _call_fn,
             model=model,
-            provider=model.split("/")[0] if "/" in model else "unknown",
-            call_type=call_type,
-            input_tokens=0,
-            output_tokens=0,
-            latency_ms=0,
-            input_length=0,
-            output_length=0,
-            status="retry",
-            retry_attempt=retry_attempt,
+            call_type=task_type or "unknown",
+            operation_id=task_type or "unknown",
+            enable_fallback=False,
+            enable_circuit_breaker=True,
+            task_type=task_type,
         )
-        try:
-            await self._cost_tracker.log_call(record)
-        except Exception as log_exc:
-            logger.warning("Failed to log retry to LLMCallLog: %s", log_exc)
-
-    async def _log_cache_hit(
-        self,
-        cached: LLMResult,
-        call_type: str,
-        input_text: str,
-    ) -> None:
-        """Persist a cache-hit event to LLMCallLog (AC-T052-4).
-
-        Records status='cached' with input_tokens=0 to indicate no tokens
-        were consumed by the LLM provider on this request. Skipped silently
-        when no cost_tracker is configured or when persistence fails, so
-        cache lookups never block the request path.
-        """
-        if self._cost_tracker is None:
-            return
-        model_name = str(cached.metadata.get("model", "unknown"))
-        output_tokens = int(cached.metadata.get("output_tokens", 0))
-        record = LLMCallRecord(
-            model=model_name,
-            provider=model_name.split("/")[0] if "/" in model_name else "unknown",
-            call_type=call_type,
-            input_tokens=0,
-            output_tokens=output_tokens,
-            latency_ms=0,
-            input_length=len(input_text),
-            output_length=len(cached.content),
-            status="cached",
-        )
-        try:
-            await self._cost_tracker.log_call(record)
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.warning("Failed to log cache-hit to LLMCallLog: %s", exc)
-
-    _INTERACTIVE_TASK_TYPES: frozenset[str] = frozenset(
-        ["search", "chat", "interactive", "query"]
-    )
 
     async def enqueue_request(
         self,
@@ -767,7 +530,15 @@ class LLMGateway:
         final_model = resolved_model
 
         try:
-            response = await litellm.acompletion(**call_kwargs)
+            response = await self._unified_call_with_retry(
+                lambda: litellm.acompletion(**call_kwargs),
+                model=resolved_model,
+                call_type="stream",
+                operation_id=task_type or "stream",
+                enable_fallback=False,
+                enable_circuit_breaker=True,
+                task_type=task_type,
+            )
             async for chunk in response:
                 delta_content = ""
                 try:
@@ -782,7 +553,9 @@ class LLMGateway:
                     usage = chunk.usage
                     if usage is not None:
                         input_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
-                        output_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
+                        output_tokens = int(
+                            getattr(usage, "completion_tokens", 0) or 0
+                        )
                 except AttributeError:
                     pass
                 try:
@@ -811,7 +584,9 @@ class LLMGateway:
         if self._cost_tracker is not None:
             record = LLMCallRecord(
                 model=final_model,
-                provider=final_model.split("/")[0] if "/" in final_model else "unknown",
+                provider=(
+                    final_model.split("/")[0] if "/" in final_model else "unknown"
+                ),
                 call_type="stream_complete",
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
@@ -848,3 +623,15 @@ class LLMGateway:
             return len(text) // 4
         except Exception:
             return len(text) // 4
+
+
+__all__ = [
+    "CircuitOpenError",
+    "LLMGateway",
+    "LLMOutputError",
+    "LLMResult",
+    "SchemaEnforcer",
+    "SchemaValidationError",
+    "_classify_error",
+    "_load_routing_config",
+]

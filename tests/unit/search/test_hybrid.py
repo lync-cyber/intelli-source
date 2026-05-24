@@ -195,13 +195,13 @@ class TestSearchFiltering:
     """AC-T037-3: Filtering by tags, date_from, and date_to."""
 
     async def test_search_accepts_tags_filter(self) -> None:
-        """search() accepts a tags parameter for filtering."""
+        """search() accepts a tags parameter without raising TypeError."""
         from intellisource.search.hybrid import HybridSearchEngine
 
         mock_session = _mock_db_session()
         engine = HybridSearchEngine(session=mock_session)
 
-        # Should not raise TypeError for tags parameter
+        # Must not raise TypeError for tags parameter
         results = await engine.search(
             query="AI news",
             tags=["technology", "ai"],
@@ -210,7 +210,7 @@ class TestSearchFiltering:
         assert isinstance(results.items, list)
 
     async def test_search_accepts_date_from_filter(self) -> None:
-        """search() accepts a date_from parameter for time-range filtering."""
+        """search() accepts a date_from parameter without raising TypeError."""
         from intellisource.search.hybrid import HybridSearchEngine
 
         mock_session = _mock_db_session()
@@ -225,7 +225,7 @@ class TestSearchFiltering:
         assert isinstance(results.items, list)
 
     async def test_search_accepts_date_to_filter(self) -> None:
-        """search() accepts a date_to parameter for time-range filtering."""
+        """search() accepts a date_to parameter without raising TypeError."""
         from intellisource.search.hybrid import HybridSearchEngine
 
         mock_session = _mock_db_session()
@@ -254,6 +254,94 @@ class TestSearchFiltering:
         )
 
         assert isinstance(results.items, list)
+
+    @pytest.mark.xfail(
+        reason="Tags SQL filtering not yet implemented in HybridIndex; "
+        "tags parameter accepted but not propagated to WHERE clause — backlog item",
+        strict=True,
+    )
+    async def test_tags_filter_excludes_non_matching_items(self) -> None:
+        """search(tags=['foo']) returns only items tagged 'foo'."""
+        import uuid
+        from unittest.mock import MagicMock
+
+        from intellisource.search.hybrid import HybridSearchEngine
+
+        foo_id = uuid.uuid4()
+        bar_id = uuid.uuid4()
+        foo2_id = uuid.uuid4()
+
+        def _make_row(rid: uuid.UUID, score: float = 1.0) -> MagicMock:
+            row = MagicMock()
+            row.content_id = rid
+            row.id = rid
+            row.score = score
+            row.title = "t"
+            row.body_text = "body"
+            row.source_name = "src"
+            row.published_at = None
+            return row
+
+        mock_session = _mock_db_session()
+        mock_result = mock_session.execute.return_value
+        mock_result.all.return_value = [
+            _make_row(foo_id, 0.9),
+            _make_row(bar_id, 0.8),
+            _make_row(foo2_id, 0.7),
+        ]
+
+        engine = HybridSearchEngine(session=mock_session)
+        # With tags=["foo"], only foo_id and foo2_id rows should survive filtering.
+        # Currently all 3 rows are returned because filtering is not implemented.
+        response = await engine.search(query="test", tags=["foo"])
+
+        assert len(response.items) == 2, (
+            f"Expected 2 tag-filtered items, got {len(response.items)}"
+        )
+
+    @pytest.mark.xfail(
+        reason="Date range SQL filtering not yet implemented in HybridIndex; "
+        "date_from/date_to accepted but not propagated to WHERE clause — backlog item",
+        strict=True,
+    )
+    async def test_date_range_filter_excludes_out_of_range_items(self) -> None:
+        """search(date_from, date_to) returns only items within the date range."""
+        import uuid
+        from unittest.mock import MagicMock
+
+        from intellisource.search.hybrid import HybridSearchEngine
+
+        in_range_id = uuid.uuid4()
+        out_range_id = uuid.uuid4()
+
+        def _make_row(rid: uuid.UUID, pub: datetime, score: float = 1.0) -> MagicMock:
+            row = MagicMock()
+            row.content_id = rid
+            row.id = rid
+            row.score = score
+            row.title = "t"
+            row.body_text = "body"
+            row.source_name = "src"
+            row.published_at = pub
+            return row
+
+        mock_session = _mock_db_session()
+        mock_result = mock_session.execute.return_value
+        mock_result.all.return_value = [
+            _make_row(in_range_id, datetime(2024, 3, 15, tzinfo=timezone.utc), 0.9),
+            _make_row(out_range_id, datetime(2023, 1, 1, tzinfo=timezone.utc), 0.8),
+        ]
+
+        engine = HybridSearchEngine(session=mock_session)
+        response = await engine.search(
+            query="test",
+            date_from=datetime(2024, 1, 1, tzinfo=timezone.utc),
+            date_to=datetime(2024, 12, 31, tzinfo=timezone.utc),
+        )
+
+        assert len(response.items) == 1, (
+            f"Expected 1 date-filtered item, got {len(response.items)}"
+        )
 
     async def test_search_accepts_limit_parameter(self) -> None:
         """search() accepts a limit parameter (default 10, max 50)."""

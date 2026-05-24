@@ -111,6 +111,7 @@ volume: main
 - **用户故事**: 作为内容创作者，我希望系统自动为聚类后的内容生成综合摘要和语义标签，以便快速把握主题脉络。
 - **验收标准**:
   - [ ] AC-023: 同一学科/热点事件的多篇文档生成综合简报或时间线摘要
+    - **[ASSUMPTION]** v1 实现为字符串拼接降级（`pipeline/processors/tools.py::truncate_summary` 取前 N 句作为简报），timeline/key_points 字段返回空列表；接入 LLM summarizer 实现真正的时间线/要点提取列入 P2 backlog。
   - [ ] AC-024: 基于语义自动为内容打标签，无法归类的进入"未分类"队列
   - [ ] AC-025: 支持敏感词过滤与合规检查
   - [ ] AC-026: 所有 LLM 处理均支持降级到传统逻辑（关键词打标、模板摘要等）
@@ -209,6 +210,7 @@ volume: main
   - [ ] AC-061: API 支持信源的 CRUD 操作（创建、查询、更新、删除）
   - [ ] AC-062: API 支持手动触发采集任务和查询任务执行状态
   - [ ] AC-063: API 支持定义和执行自定义工作流（采集-处理-分发的灵活组合）
+    - **[ASSUMPTION]** v1 采用 **YAML-as-source-of-truth** 设计：工作流通过 `config/pipelines/*.yaml` 声明，API 暴露 `GET /api/v1/pipelines` 列表 / `GET /api/v1/pipelines/{name}` 详情 / `POST /api/v1/pipelines/{name}/run` 执行；不提供 HTTP CRUD 写入（避免运行时 YAML 漂移与版本管理复杂度）。完整 workflow CRUD（含数据库存储与历史版本）列入 P2 backlog。
   - [ ] AC-064: 提供 CLI 工具封装常用 API 操作
   - [ ] AC-065: API 文档自动生成（OpenAPI/Swagger 格式）
 - **优先级**: P1

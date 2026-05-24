@@ -21,6 +21,7 @@ depends_on = None
 def upgrade() -> None:
     # Create extensions
     op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    op.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
     op.execute("CREATE EXTENSION IF NOT EXISTS zhparser")
 
     # E-001: sources
@@ -268,29 +269,34 @@ def upgrade() -> None:
     )
     op.create_index("ix_digests_cluster_id", "digests", ["cluster_id"])
 
-    # E-007: llm_call_logs (partitioned table via raw SQL)
-    # Note: op.create_table("llm_call_logs", ...) cannot express PARTITION BY,
-    # so we use op.execute() with raw SQL instead.
-    op.execute("""
-        CREATE TABLE llm_call_logs (
-            id UUID NOT NULL,
-            model VARCHAR(100) NOT NULL,
-            provider VARCHAR(50) NOT NULL,
-            call_type VARCHAR(50) NOT NULL,
-            content_id UUID,
-            input_tokens INTEGER NOT NULL,
-            output_tokens INTEGER NOT NULL,
-            latency_ms INTEGER NOT NULL,
-            input_length INTEGER NOT NULL,
-            output_length INTEGER NOT NULL,
-            status VARCHAR(20) NOT NULL,
-            error_message TEXT,
-            retry_attempt INTEGER,
-            created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-            PRIMARY KEY (id, created_at),
-            FOREIGN KEY (content_id) REFERENCES processed_contents(id)
-        ) PARTITION BY RANGE (created_at)
-    """)
+    # E-007: llm_call_logs
+    op.create_table(
+        "llm_call_logs",
+        sa.Column("id", UUID(as_uuid=True), primary_key=True),
+        sa.Column("model", sa.VARCHAR(100), nullable=False),
+        sa.Column("provider", sa.VARCHAR(50), nullable=False),
+        sa.Column("call_type", sa.VARCHAR(50), nullable=False),
+        sa.Column(
+            "content_id",
+            UUID(as_uuid=True),
+            sa.ForeignKey("processed_contents.id"),
+            nullable=True,
+        ),
+        sa.Column("input_tokens", sa.Integer, nullable=False),
+        sa.Column("output_tokens", sa.Integer, nullable=False),
+        sa.Column("latency_ms", sa.Integer, nullable=False),
+        sa.Column("input_length", sa.Integer, nullable=False),
+        sa.Column("output_length", sa.Integer, nullable=False),
+        sa.Column("status", sa.VARCHAR(20), nullable=False),
+        sa.Column("error_message", sa.Text, nullable=True),
+        sa.Column("retry_attempt", sa.Integer, nullable=True),
+        sa.Column(
+            "created_at",
+            TIMESTAMP(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
+    )
     op.create_index("ix_llm_call_logs_model", "llm_call_logs", ["model"])
     op.create_index("ix_llm_call_logs_created_at", "llm_call_logs", ["created_at"])
     op.create_index("ix_llm_call_logs_call_type", "llm_call_logs", ["call_type"])
@@ -403,4 +409,5 @@ def downgrade() -> None:
     op.drop_table("sources")
 
     op.execute("DROP EXTENSION IF EXISTS zhparser")
+    op.execute("DROP EXTENSION IF EXISTS pg_trgm")
     op.execute("DROP EXTENSION IF EXISTS vector")

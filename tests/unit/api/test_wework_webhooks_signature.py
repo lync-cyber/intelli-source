@@ -1,33 +1,32 @@
-"""Unit tests for WeWork webhook signature verification via HTTP router (R-005).
+"""Unit tests for WeWork webhook HTTP router under EncodingAESKey crypto (F-11).
 
-Mirror of test_webhooks_signature.py for the WeWork side. Required to close
-the test-quality gap that previously let WeWork POST handler ship without any
-signature verification (R-002).
-
-AC-9/AC-11: WeWork GET handshake + POST message handling honour msg_signature.
+Covers the WeWork GET handshake + POST message router contract via real HTTP
+calls, using encrypted payloads produced by `build_encrypted_payload`. The
+upstream contract was upgraded from plain SHA1 + clear-text echostr/XML to
+EncodingAESKey AES-CBC; the unit-level crypto tests live in
+`test_wecom_webhook_crypto.py` — this file pins the router-layer behaviour
+(status codes, dispatch wiring, missing-crypto handling).
 """
 
 from __future__ import annotations
 
-import hashlib
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-
-def _sha1_sig(token: str, timestamp: str, nonce: str) -> str:
-    raw = "".join(sorted([token, timestamp, nonce]))
-    return hashlib.sha1(raw.encode("utf-8")).hexdigest()
-
+from intellisource.api.webhook_crypto import WeComCrypto, build_encrypted_payload
 
 _TOKEN = "test_wework_token"
+_ENCODING_AES_KEY = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG"
+_CORP_ID = "wx_corp_test_001"
 _TIMESTAMP = "1700000000"
 _NONCE = "ww_nonce_001"
-_ECHOSTR = "wework_verify_payload"
+_ECHO_PLAIN = "wework_verify_payload"
 
-_TEXT_XML = (
+_TEXT_XML_PLAIN = (
     "<xml>"
     "<ToUserName><![CDATA[ww_account]]></ToUserName>"
     "<FromUserName><![CDATA[ww_user_001]]></FromUserName>"
@@ -39,13 +38,18 @@ _TEXT_XML = (
 )
 
 
-def _make_webhooks_app() -> FastAPI:
-    """Create minimal FastAPI app with the webhooks router and WeWork state."""
+def _make_webhooks_app(*, with_crypto: bool = True) -> FastAPI:
+    """Create minimal FastAPI app with the webhooks router and WeWork wiring."""
     from intellisource.api.routers.webhooks import router as webhooks_router
 
     app = FastAPI()
     app.include_router(webhooks_router, prefix="/api/v1")
-    app.state.wework_webhook_token = _TOKEN
+
+    if with_crypto:
+        app.state.wecom_crypto = WeComCrypto(
+            token=_TOKEN, encoding_aes_key=_ENCODING_AES_KEY, corp_id=_CORP_ID
+        )
+
     mock_runner = MagicMock()
     mock_runner.run_flexible = AsyncMock(
         return_value={
@@ -64,13 +68,29 @@ def _make_webhooks_app() -> FastAPI:
     return app
 
 
-class TestGetWeworkWebhookSignature:
-    """R-005/AC-11: GET /wework — verification handshake."""
+def _make_encrypted_post_body(plain_xml: str) -> tuple[str, str]:
+    """Return (xml_envelope, msg_signature) for a POST message."""
+    encrypt_b64, sig = build_encrypted_payload(
+        _TOKEN, _ENCODING_AES_KEY, _CORP_ID, plain_xml, _TIMESTAMP, _NONCE
+    )
+    envelope = (
+        "<xml>"
+        f"<Encrypt><![CDATA[{encrypt_b64}]]></Encrypt>"
+        f"<ToUserName><![CDATA[{_CORP_ID}]]></ToUserName>"
+        "</xml>"
+    )
+    return envelope, sig
 
-    async def test_get_correct_signature_returns_echostr(self) -> None:
-        """Correct signature on GET returns the echostr with 200."""
+
+class TestGetWeworkWebhookCrypto:
+    """F-11: GET /wework — EncodingAESKey URL verification."""
+
+    @pytest.mark.asyncio
+    async def test_get_correct_signature_decrypts_echostr(self) -> None:
         app = _make_webhooks_app()
-        sig = _sha1_sig(_TOKEN, _TIMESTAMP, _NONCE)
+        encrypt_b64, sig = build_encrypted_payload(
+            _TOKEN, _ENCODING_AES_KEY, _CORP_ID, _ECHO_PLAIN, _TIMESTAMP, _NONCE
+        )
 
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -81,20 +101,19 @@ class TestGetWeworkWebhookSignature:
                     "msg_signature": sig,
                     "timestamp": _TIMESTAMP,
                     "nonce": _NONCE,
-                    "echostr": _ECHOSTR,
+                    "echostr": encrypt_b64,
                 },
             )
 
-        assert resp.status_code == 200, (
-            f"Expected 200 for valid signature, got {resp.status_code}: {resp.text}"
-        )
-        assert _ECHOSTR in resp.text, (
-            f"Expected echostr '{_ECHOSTR}' in response, got: {resp.text}"
-        )
+        assert resp.status_code == 200, resp.text
+        assert resp.text == _ECHO_PLAIN
 
-    async def test_get_wrong_signature_returns_403(self) -> None:
-        """Wrong signature on GET returns 403."""
+    @pytest.mark.asyncio
+    async def test_get_wrong_signature_returns_401(self) -> None:
         app = _make_webhooks_app()
+        encrypt_b64, _correct_sig = build_encrypted_payload(
+            _TOKEN, _ENCODING_AES_KEY, _CORP_ID, _ECHO_PLAIN, _TIMESTAMP, _NONCE
+        )
 
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -105,17 +124,15 @@ class TestGetWeworkWebhookSignature:
                     "msg_signature": "invalid_signature_xyz",
                     "timestamp": _TIMESTAMP,
                     "nonce": _NONCE,
-                    "echostr": _ECHOSTR,
+                    "echostr": encrypt_b64,
                 },
             )
 
-        assert resp.status_code == 403, (
-            f"Expected 403 for wrong signature, got {resp.status_code}: {resp.text}"
-        )
+        assert resp.status_code == 401, resp.text
 
-    async def test_get_empty_signature_returns_403(self) -> None:
-        """Empty signature on GET returns 403."""
-        app = _make_webhooks_app()
+    @pytest.mark.asyncio
+    async def test_get_missing_crypto_returns_503(self) -> None:
+        app = _make_webhooks_app(with_crypto=False)
 
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -123,29 +140,30 @@ class TestGetWeworkWebhookSignature:
             resp = await client.get(
                 "/api/v1/webhooks/wework",
                 params={
-                    "msg_signature": "",
+                    "msg_signature": "anything",
                     "timestamp": _TIMESTAMP,
                     "nonce": _NONCE,
-                    "echostr": _ECHOSTR,
+                    "echostr": "garbage",
                 },
             )
 
-        assert resp.status_code == 403
+        assert resp.status_code == 503, resp.text
 
 
-class TestPostWeworkWebhookSignature:
-    """R-005/AC-11: POST /wework signature validation for inbound messages."""
+class TestPostWeworkWebhookCrypto:
+    """F-11: POST /wework — encrypted body decryption + dispatch."""
 
-    async def test_post_wrong_signature_returns_403(self) -> None:
-        """POST with wrong msg_signature must return 403 before processing."""
+    @pytest.mark.asyncio
+    async def test_post_wrong_signature_returns_401(self) -> None:
         app = _make_webhooks_app()
+        envelope, _correct_sig = _make_encrypted_post_body(_TEXT_XML_PLAIN)
 
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
             resp = await client.post(
                 "/api/v1/webhooks/wework",
-                content=_TEXT_XML,
+                content=envelope,
                 params={
                     "msg_signature": "bad_signature",
                     "timestamp": _TIMESTAMP,
@@ -154,41 +172,19 @@ class TestPostWeworkWebhookSignature:
                 headers={"Content-Type": "application/xml"},
             )
 
-        assert resp.status_code == 403, (
-            f"Expected 403 for wrong POST sig, got {resp.status_code}: {resp.text}"
-        )
+        assert resp.status_code == 401, resp.text
 
-    async def test_post_empty_signature_returns_403(self) -> None:
-        """POST with empty msg_signature must return 403."""
-        app = _make_webhooks_app()
-
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            resp = await client.post(
-                "/api/v1/webhooks/wework",
-                content=_TEXT_XML,
-                params={
-                    "msg_signature": "",
-                    "timestamp": _TIMESTAMP,
-                    "nonce": _NONCE,
-                },
-                headers={"Content-Type": "application/xml"},
-            )
-
-        assert resp.status_code == 403
-
+    @pytest.mark.asyncio
     async def test_post_correct_signature_returns_xml_ack(self) -> None:
-        """POST with correct msg_signature + text body returns XML ack with 200."""
         app = _make_webhooks_app()
-        sig = _sha1_sig(_TOKEN, _TIMESTAMP, _NONCE)
+        envelope, sig = _make_encrypted_post_body(_TEXT_XML_PLAIN)
 
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
             resp = await client.post(
                 "/api/v1/webhooks/wework",
-                content=_TEXT_XML,
+                content=envelope,
                 params={
                     "msg_signature": sig,
                     "timestamp": _TIMESTAMP,
@@ -197,17 +193,13 @@ class TestPostWeworkWebhookSignature:
                 headers={"Content-Type": "application/xml"},
             )
 
-        assert resp.status_code == 200, (
-            f"Expected 200 for valid POST, got {resp.status_code}: {resp.text}"
-        )
-        assert "<xml>" in resp.text or "success" in resp.text.lower(), (
-            f"Expected XML ack in response, got: {resp.text}"
-        )
+        assert resp.status_code == 200, resp.text
+        assert "<xml>" in resp.text and "success" in resp.text.lower()
 
+    @pytest.mark.asyncio
     async def test_post_correct_signature_dispatches_chat_reply(self) -> None:
-        """POST with valid signature spawns _dispatch_chat_reply on event loop."""
         app = _make_webhooks_app()
-        sig = _sha1_sig(_TOKEN, _TIMESTAMP, _NONCE)
+        envelope, sig = _make_encrypted_post_body(_TEXT_XML_PLAIN)
 
         dispatch_calls: list[dict[str, Any]] = []
 
@@ -223,7 +215,7 @@ class TestPostWeworkWebhookSignature:
             ) as client:
                 resp = await client.post(
                     "/api/v1/webhooks/wework",
-                    content=_TEXT_XML,
+                    content=envelope,
                     params={
                         "msg_signature": sig,
                         "timestamp": _TIMESTAMP,
@@ -233,14 +225,30 @@ class TestPostWeworkWebhookSignature:
                 )
 
         assert resp.status_code == 200
-        # Background task should have been scheduled — give the loop a tick.
-        # Use a small sleep to let the event loop drain the dispatched task.
         import asyncio
 
         await asyncio.sleep(0)
-        assert dispatch_calls, (
-            "_dispatch_chat_reply was not invoked after a valid signed POST"
-        )
+        assert dispatch_calls, "expected _dispatch_chat_reply to be invoked"
         invocation = dispatch_calls[0]["kwargs"]
         assert invocation.get("openid") == "ww_user_001"
         assert "检索综述" in invocation.get("user_text", "")
+
+    @pytest.mark.asyncio
+    async def test_post_missing_crypto_returns_503(self) -> None:
+        app = _make_webhooks_app(with_crypto=False)
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.post(
+                "/api/v1/webhooks/wework",
+                content="<xml></xml>",
+                params={
+                    "msg_signature": "any",
+                    "timestamp": _TIMESTAMP,
+                    "nonce": _NONCE,
+                },
+                headers={"Content-Type": "application/xml"},
+            )
+
+        assert resp.status_code == 503, resp.text

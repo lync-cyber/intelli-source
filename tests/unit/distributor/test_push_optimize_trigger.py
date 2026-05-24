@@ -247,7 +247,9 @@ class TestWorkerCompositionWiresLlmGateway:
         monkeypatch.setattr(
             comp_mod, "build_llm_gateway", lambda *a, **k: MagicMock(name="gw")
         )
-        monkeypatch.setattr(comp_mod, "build_collector_registry", lambda: MagicMock())
+        monkeypatch.setattr(
+            comp_mod, "build_collector_registry", lambda *a, **k: MagicMock()
+        )
         monkeypatch.setattr(
             comp_mod, "build_search_engine_factory", lambda: lambda *a, **k: MagicMock()
         )

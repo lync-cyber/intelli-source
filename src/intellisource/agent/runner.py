@@ -7,17 +7,26 @@ Supports strict mode (sequential tool execution) and flexible mode
 from __future__ import annotations
 
 import enum
-import json
 import logging
 import time
 import uuid
-from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from intellisource.agent.events import PipelineEventLogger
-from intellisource.agent.step_params import build_step_params, merge_step_output
+from intellisource.agent.executors.flexible import (
+    _ANALYZE_DENIED_TOOLS,
+    FlexibleLoop,
+    _parse_tool_call,
+    _resolve_callable,
+    _serialize_tool_call,
+    _session_messages,
+)
+from intellisource.agent.executors.strict import (
+    StrictExecutor,
+    ToolDegradedError,
+    _retry_step,
+)
 from intellisource.agent.tools import PermissionLevel, ToolDefinition
-from intellisource.core.errors import ErrorCategory, IntelliSourceError
 from intellisource.storage.models import TaskChain
 from intellisource.storage.repositories.task_chain import TaskChainRepository
 
@@ -27,12 +36,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Fallback set for callers that register tools without the
-# `ToolDefinition.mutates_external_state` flag (e.g. plain callables
-# obtained from external registries). The authoritative analyze-deny
-# decision goes through ToolDefinition.mutates_external_state; this set is
-# kept as a safety net for backward-compatible tool dicts.
-_ANALYZE_DENIED_TOOLS: frozenset[str] = frozenset({"distribute", "process"})
+__all__ = [
+    "AgentMode",
+    "AgentRunner",
+    "ToolDegradedError",
+    "_ANALYZE_DENIED_TOOLS",
+]
 
 
 class AgentMode(str, enum.Enum):
@@ -98,81 +107,14 @@ class AgentRunner:
     ) -> dict[str, Any]:
         """Execute pipeline steps sequentially without LLM."""
         effective_deps = tool_deps if tool_deps is not None else self._tool_deps
-        results: list[dict[str, Any]] = []
-        steps_executed = 0
-        step_context: dict[str, Any] = dict(params)
-        chain_id = str(uuid.uuid4())
-
-        await self._emit_pipeline_start(config.name, chain_id, "strict")
-
-        try:
-            for step in config.steps:
-                tool_name: str = step["tool"]
-                step_params = build_step_params(
-                    step,
-                    runtime_params=params,
-                    step_context=step_context,
-                    tool_deps=effective_deps,
-                )
-                tool_raw = self._tool_registry.get(tool_name)
-                tool_fn = self._resolve_callable(tool_raw)
-
-                t0 = time.monotonic()
-                try:
-                    result = await tool_fn(**step_params)
-                    await self._emit_tool_call(
-                        config.name,
-                        chain_id,
-                        tool_name,
-                        (time.monotonic() - t0) * 1000.0,
-                        "success",
-                    )
-                    results.append({"tool": tool_name, "output": result})
-                    merge_step_output(tool_name, result, step_context)
-                except Exception as exc:
-                    await self._emit_tool_call(
-                        config.name,
-                        chain_id,
-                        tool_name,
-                        (time.monotonic() - t0) * 1000.0,
-                        "error",
-                        error=str(exc),
-                    )
-                    if config.on_failure == "abort":
-                        steps_executed += 1
-                        return await self._persist(
-                            status="failed",
-                            steps_executed=steps_executed,
-                            results=results,
-                            pipeline_name=config.name,
-                            execution_mode="strict",
-                            task_chain_id=chain_id,
-                        )
-                    if config.on_failure == "retry":
-                        retry_result = await self._retry_step(
-                            self._resolve_callable(tool_raw),
-                            step_params,
-                            tool_name,
-                        )
-                        results.append(retry_result)
-                    else:
-                        results.append(
-                            {"tool": tool_name, "output": None, "skipped": True}
-                        )
-
-                steps_executed += 1
-
-            return await self._persist(
-                status="success",
-                steps_executed=steps_executed,
-                results=results,
-                pipeline_name=config.name,
-                execution_mode="strict",
-                task_chain_id=chain_id,
-            )
-        except Exception as exc:
-            await self._emit_pipeline_error(config.name, chain_id, str(exc))
-            raise
+        executor = StrictExecutor(
+            tool_registry=self._tool_registry,
+            emit_pipeline_start=self._emit_pipeline_start,
+            emit_tool_call=self._emit_tool_call,
+            emit_pipeline_error=self._emit_pipeline_error,
+            persist=self._persist,
+        )
+        return await executor.run(config, params, tool_deps=effective_deps)
 
     async def run_batch(
         self,
@@ -268,277 +210,23 @@ class AgentRunner:
             agent_mode = AgentMode.process
 
         effective_deps = tool_deps if tool_deps is not None else self._tool_deps
-        chain_id = str(uuid.uuid4())
-        await self._emit_pipeline_start(config.name, chain_id, "flexible")
-
-        available_tools = self._filter_tools(config, agent_mode=agent_mode)
-        tool_descriptors = self._build_tool_descriptors(available_tools)
-        effective_budget = (
-            max_tokens_budget
-            if max_tokens_budget is not None
-            else getattr(config, "max_tokens_budget", None)
+        loop = FlexibleLoop(
+            tool_registry=self._tool_registry,
+            llm_gateway=self._llm_gateway,
+            emit_pipeline_start=self._emit_pipeline_start,
+            emit_tool_call=self._emit_tool_call,
+            emit_llm_call=self._emit_llm_call,
+            emit_pipeline_error=self._emit_pipeline_error,
+            persist=self._persist,
         )
-
-        steps_executed = 0
-        tokens_used = 0
-        budget_exhausted = False
-        final_answer = ""
-        messages: list[dict[str, Any]] = []
-        tool_results: list[dict[str, Any]] = []
-        preview_plan: list[dict[str, Any]] = []
-
-        # Add system prompt if configured
-        sys_prompt = getattr(config, "system_prompt", None)
-        if sys_prompt:
-            messages.append({"role": "system", "content": sys_prompt})
-
-        messages.extend(self._session_messages(session))
-        messages.append({"role": "user", "content": user_message})
-
-        if effective_budget is not None and effective_budget <= 0:
-            budget_exhausted = True
-
-        if self._llm_gateway is None:
-            msg = "LLM gateway is required for flexible mode"
-            raise IntelliSourceError(msg, ErrorCategory.UNRECOVERABLE)
-
-        while steps_executed < config.max_steps and not budget_exhausted:
-            llm_t0 = time.monotonic()
-            response = await self._llm_gateway.chat(
-                messages=messages,
-                tools=tool_descriptors,
-            )
-            llm_latency_ms = (time.monotonic() - llm_t0) * 1000.0
-            steps_executed += 1
-
-            # Track token budget
-            usage = response.metadata.get("usage", {})
-            tokens_used += usage.get("total_tokens", 0)
-            budget_hit = (
-                effective_budget is not None and tokens_used >= effective_budget
-            )
-
-            await self._emit_llm_call(
-                config.name,
-                chain_id,
-                str(response.metadata.get("model", "")),
-                int(usage.get("prompt_tokens", usage.get("input_tokens", 0)) or 0),
-                int(usage.get("completion_tokens", usage.get("output_tokens", 0)) or 0),
-                llm_latency_ms,
-            )
-
-            tool_calls = response.metadata.get("tool_calls") or []
-            finish_reason = response.metadata.get("finish_reason", "")
-            if tool_calls:
-                messages.append(
-                    {
-                        "role": "assistant",
-                        "content": response.content or "",
-                        "tool_calls": [
-                            self._serialize_tool_call(tc) for tc in tool_calls
-                        ],
-                    }
-                )
-            elif response.content:
-                final_answer = response.content
-
-            if budget_hit:
-                budget_exhausted = True
-                break
-
-            done = finish_reason == "stop" or not tool_calls
-            if done:
-                break
-
-            pipeline_perms: dict[str, str] = (
-                getattr(config, "tool_permissions", {}) or {}
-            )
-
-            for tc in tool_calls:
-                tc_name, tc_id, tc_args = self._parse_tool_call(tc)
-
-                # Runtime deny check (handles LLM hallucination of deny tools)
-                _override = pipeline_perms.get(tc_name)
-                if _override is not None:
-                    _effective_perm = PermissionLevel(_override)
-                else:
-                    _tool_raw_perm = self._tool_registry.get(tc_name)
-                    _effective_perm = (
-                        _tool_raw_perm.permission_level
-                        if isinstance(_tool_raw_perm, ToolDefinition)
-                        else PermissionLevel.auto
-                    )
-                if _effective_perm is PermissionLevel.deny:
-                    messages.append(
-                        {
-                            "role": "tool",
-                            "content": json.dumps(
-                                {"status": "denied_by_permission", "tool": tc_name}
-                            ),
-                            "tool_call_id": tc_id,
-                        }
-                    )
-                    tool_results.append(
-                        {
-                            "tool": tc_name,
-                            "status": "denied_by_permission",
-                            "output": None,
-                        }
-                    )
-                    continue
-
-                if agent_mode is AgentMode.analyze and self._is_analyze_denied(tc_name):
-                    messages.append(
-                        {
-                            "role": "tool",
-                            "content": json.dumps(
-                                {"status": "denied_by_analyze_mode", "tool": tc_name}
-                            ),
-                            "tool_call_id": tc_id,
-                        }
-                    )
-                    tool_results.append(
-                        {
-                            "tool": tc_name,
-                            "output": None,
-                            "denied": True,
-                            "reason": "analyze_mode",
-                        }
-                    )
-                    continue
-
-                if agent_mode is AgentMode.preview:
-                    # Record without executing
-                    preview_plan.append(
-                        {
-                            "tool": tc_name,
-                            "args": tc_args,
-                            "would_execute_at": datetime.now(
-                                tz=timezone.utc
-                            ).isoformat(),
-                        }
-                    )
-                    messages.append(
-                        {
-                            "role": "tool",
-                            "content": json.dumps({"status": "preview_skipped"}),
-                            "tool_call_id": tc_id,
-                        }
-                    )
-                    continue
-
-                # confirm-as-logged: record the pending event in 3 channels
-                # (log / tool_results / messages) and skip execution for this
-                # turn. Not a blocking pause — see PermissionLevel.confirm
-                # docstring for the full semantics.
-                if _effective_perm is PermissionLevel.confirm:
-                    logger.info(
-                        "pending_confirmation",
-                        extra={
-                            "tool": tc_name,
-                            "args": tc_args,
-                            "tool_call_id": tc_id,
-                        },
-                    )
-                    tool_results.append(
-                        {
-                            "tool": tc_name,
-                            "status": "pending_confirmation",
-                            "args": tc_args,
-                            "tool_call_id": tc_id,
-                        }
-                    )
-                    messages.append(
-                        {
-                            "role": "tool",
-                            "content": json.dumps(
-                                {"status": "pending_confirmation", "tool": tc_name}
-                            ),
-                            "tool_call_id": tc_id,
-                        }
-                    )
-                    continue
-
-                if effective_deps is not None:
-                    tc_args = {**tc_args, "tool_deps": effective_deps}
-                tool_raw = self._tool_registry.get(tc_name)
-                if tool_raw is not None:
-                    tool_fn = self._resolve_callable(tool_raw)
-                    tool_t0 = time.monotonic()
-                    try:
-                        result = await tool_fn(**tc_args)
-
-                        await self._emit_tool_call(
-                            config.name,
-                            chain_id,
-                            tc_name,
-                            (time.monotonic() - tool_t0) * 1000.0,
-                            "success",
-                        )
-                        messages.append(
-                            {
-                                "role": "tool",
-                                "content": json.dumps(result, default=str),
-                                "tool_call_id": tc_id,
-                            }
-                        )
-                        tool_results.append({"tool": tc_name, "output": result})
-                    except Exception as exc:
-                        logger.warning(
-                            "Tool %s failed: %s",
-                            tc_name,
-                            exc,
-                        )
-                        await self._emit_tool_call(
-                            config.name,
-                            chain_id,
-                            tc_name,
-                            (time.monotonic() - tool_t0) * 1000.0,
-                            "error",
-                            error=str(exc),
-                        )
-                        messages.append(
-                            {
-                                "role": "tool",
-                                "content": f"Error: {exc}",
-                                "tool_call_id": tc_id,
-                            }
-                        )
-                        tool_results.append(
-                            {
-                                "tool": tc_name,
-                                "output": None,
-                                "error": str(exc),
-                            }
-                        )
-
-        if agent_mode is AgentMode.preview:
-            persist_result = await self._persist(
-                status="preview",
-                steps_executed=steps_executed,
-                results=tool_results,
-                pipeline_name=config.name,
-                execution_mode="flexible",
-                task_chain_id=chain_id,
-            )
-            persist_result["plan"] = preview_plan
-            persist_result["tokens_used"] = tokens_used
-            return persist_result
-
-        persist_result = await self._persist(
-            status="success",
-            steps_executed=steps_executed,
-            results=tool_results,
-            pipeline_name=config.name,
-            execution_mode="flexible",
-            task_chain_id=chain_id,
+        return await loop.run(
+            config,
+            user_message,
+            session,
+            agent_mode=agent_mode,
+            max_tokens_budget=max_tokens_budget,
+            tool_deps=effective_deps,
         )
-        if budget_exhausted:
-            persist_result["budget_exhausted"] = True
-        persist_result["tokens_used"] = tokens_used
-        if final_answer:
-            persist_result["final_answer"] = final_answer
-        return persist_result
 
     # -- event helpers -----------------------------------------------
 
@@ -625,9 +313,7 @@ class AgentRunner:
     @staticmethod
     def _resolve_callable(tool: Any) -> Any:
         """Unwrap ToolDefinition to its execute callable if needed."""
-        if isinstance(tool, ToolDefinition):
-            return tool.execute
-        return tool
+        return _resolve_callable(tool)
 
     async def _retry_step(
         self,
@@ -636,13 +322,7 @@ class AgentRunner:
         tool_name: str,
     ) -> dict[str, Any]:
         """Retry a failed step up to _MAX_RETRIES times."""
-        for _ in range(self._MAX_RETRIES):
-            try:
-                result = await tool_fn(**params)
-                return {"tool": tool_name, "output": result}
-            except Exception:
-                continue
-        return {"tool": tool_name, "output": None, "failed": True}
+        return await _retry_step(tool_fn, params, tool_name, self._MAX_RETRIES)
 
     def _filter_tools(
         self,
@@ -682,13 +362,7 @@ class AgentRunner:
         return [t for t in tools if t not in denied and t not in permission_denied]
 
     def _analyze_denied_tools(self, candidate_names: list[str]) -> set[str]:
-        """Resolve which tools are denied under analyze mode.
-
-        Primary source: ``ToolDefinition.mutates_external_state == True``.
-        Fallback: the static ``_ANALYZE_DENIED_TOOLS`` set covers tools
-        whose registry entry is not a ToolDefinition (e.g. plain callables)
-        or whose author never set the field on a custom dataclass subclass.
-        """
+        """Resolve which tools are denied under analyze mode."""
         return {n for n in candidate_names if self._is_analyze_denied(n)}
 
     def _is_analyze_denied(self, name: str) -> bool:
@@ -724,59 +398,17 @@ class AgentRunner:
     @staticmethod
     def _serialize_tool_call(tool_call: Any) -> dict[str, Any]:
         """Return an assistant-message tool_call payload for LLM continuity."""
-        name, call_id, args = AgentRunner._parse_tool_call(tool_call)
-        return {
-            "id": call_id,
-            "type": "function",
-            "function": {
-                "name": name,
-                "arguments": json.dumps(args, default=str),
-            },
-        }
+        return _serialize_tool_call(tool_call)
 
     @staticmethod
     def _parse_tool_call(tool_call: Any) -> tuple[str, str, dict[str, Any]]:
         """Extract (name, id, arguments) from SDK-style or dict tool calls."""
-        if hasattr(tool_call, "function"):
-            name = str(tool_call.function.name)
-            call_id = str(getattr(tool_call, "id", ""))
-            raw_args = tool_call.function.arguments or "{}"
-        elif isinstance(tool_call, dict) and isinstance(
-            tool_call.get("function"), dict
-        ):
-            function = tool_call["function"]
-            name = str(function["name"])
-            call_id = str(tool_call.get("id", ""))
-            raw_args = function.get("arguments", {})
-        else:
-            name = str(tool_call["name"])
-            call_id = str(tool_call.get("id", ""))
-            raw_args = tool_call.get("arguments", {})
-
-        if isinstance(raw_args, str):
-            try:
-                parsed = json.loads(raw_args)
-            except json.JSONDecodeError:
-                parsed = {}
-        else:
-            parsed = raw_args
-        return name, call_id, parsed if isinstance(parsed, dict) else {}
+        return _parse_tool_call(tool_call)
 
     @staticmethod
     def _session_messages(session: dict[str, Any]) -> list[dict[str, Any]]:
         """Return valid prior conversation messages from a session payload."""
-        raw_messages = session.get("messages")
-        if not isinstance(raw_messages, list):
-            return []
-        messages: list[dict[str, Any]] = []
-        for item in raw_messages:
-            if not isinstance(item, dict):
-                continue
-            role = item.get("role")
-            content = item.get("content")
-            if role in {"user", "assistant", "tool"} and isinstance(content, str):
-                messages.append({"role": role, "content": content})
-        return messages
+        return _session_messages(session)
 
     async def _persist(
         self,

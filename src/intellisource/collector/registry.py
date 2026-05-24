@@ -6,16 +6,30 @@ import importlib.util
 import inspect
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from intellisource.collector.base import BaseCollector
 from intellisource.core.errors import CollectorError, ErrorCategory
+
+if TYPE_CHECKING:
+    from intellisource.collector.adaptive import AdaptiveScheduler
+    from intellisource.collector.proxy import ProxyManager
+    from intellisource.collector.rate_limiter import RateLimiter
 
 
 class CollectorRegistry:
     """Registry for mapping source types to collector classes."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        rate_limiter: RateLimiter | None = None,
+        proxy_manager: ProxyManager | None = None,
+        adaptive: AdaptiveScheduler | None = None,
+    ) -> None:
         self._registry: dict[str, type[BaseCollector]] = {}
+        self._rate_limiter = rate_limiter
+        self._proxy_manager = proxy_manager
+        self._adaptive = adaptive
 
     def register(self, source_type: str, collector_cls: type[BaseCollector]) -> None:
         """Register a collector class for a given source type.
@@ -39,7 +53,11 @@ class CollectorRegistry:
                 f"IS-COL-001: No collector registered for type '{source_type}'",
                 category=ErrorCategory.UNRECOVERABLE,
             )
-        return cls()
+        return cls(
+            rate_limiter=self._rate_limiter,
+            proxy_manager=self._proxy_manager,
+            adaptive=self._adaptive,
+        )
 
     def auto_discover(self, sources_dir: str) -> None:
         """Scan sources_dir for sub-packages containing BaseCollector subclasses.

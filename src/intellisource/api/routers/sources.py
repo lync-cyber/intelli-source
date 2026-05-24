@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session
-from intellisource.config.loader import ConfigLoader
+from intellisource.config.loader import ConfigLoader, ConfigVersionManager
 from intellisource.config.validator import ConfigValidator
 from intellisource.storage.repositories.source import SourceRepository
 
@@ -57,6 +57,18 @@ class ReloadRequest(BaseModel):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+_FIELD_MAP: dict[str, str] = {
+    "schedule": "schedule_interval",
+    "rate_limit": "rate_limit_qps",
+    "metadata": "metadata_",
+}
+
+
+def _payload_to_orm_kwargs(payload: dict[str, Any]) -> dict[str, Any]:
+    """Remap public API field names to ORM column names."""
+    return {_FIELD_MAP.get(k, k): v for k, v in payload.items()}
 
 
 def _serialize_source(source: Any) -> dict[str, Any]:
@@ -148,15 +160,16 @@ async def create_source(
     session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     repo = SourceRepository(session)
-    kwargs: dict[str, Any] = {}
+    raw: dict[str, Any] = {}
     if body.schedule is not None:
-        kwargs["schedule"] = body.schedule
+        raw["schedule"] = body.schedule
     if body.proxy is not None:
-        kwargs["proxy"] = body.proxy
+        raw["proxy"] = body.proxy
     if body.rate_limit is not None:
-        kwargs["rate_limit"] = body.rate_limit
+        raw["rate_limit"] = body.rate_limit
     if body.metadata is not None:
-        kwargs["metadata"] = body.metadata
+        raw["metadata"] = body.metadata
+    kwargs = _payload_to_orm_kwargs(raw)
     try:
         created = await repo.create(
             name=body.name,
@@ -177,7 +190,7 @@ async def update_source(
     session: AsyncSession = Depends(get_db_session),
 ) -> Any:
     repo = SourceRepository(session)
-    fields = body.model_dump(exclude_unset=True)
+    fields = _payload_to_orm_kwargs(body.model_dump(exclude_unset=True))
     updated = await repo.update(id, **fields)
     if updated is None:
         return JSONResponse(status_code=404, content={"detail": "not found"})
@@ -206,3 +219,21 @@ async def reload_sources(
     except ValueError as e:
         return JSONResponse(status_code=400, content={"detail": str(e)})  # type: ignore[return-value]
     return result
+
+
+@router.post("/sources/config/rollback/{version}")
+async def rollback_source_config(
+    version: str,
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    """Rollback source configuration to a previously recorded version."""
+    manager = ConfigVersionManager()
+    try:
+        configs = await manager.rollback_by_label(version)
+    except ValueError as exc:
+        return JSONResponse(status_code=404, content={"detail": str(exc)})  # type: ignore[return-value]
+    return {
+        "rolled_back_to": version,
+        "config_count": len(configs),
+        "source_names": [c.name for c in configs],
+    }

@@ -112,6 +112,10 @@ class CeleryTasks:
         session = await self._session_factory()
         try:
             yield TaskChainRepository(session)
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
         finally:
             await session.close()
 

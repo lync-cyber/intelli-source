@@ -11,7 +11,9 @@ from typing import Any
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import PlainTextResponse
 
+from intellisource.agent.response_utils import extract_answer
 from intellisource.agent.tools import load_pipeline_config
+from intellisource.api.webhook_crypto import WeComCrypto, WeComCryptoError
 
 logger = logging.getLogger(__name__)
 
@@ -46,18 +48,6 @@ def _parse_xml_text_message(xml_body: str) -> dict[str, str] | None:
     return result if result else None
 
 
-def _extract_answer(result: dict[str, Any]) -> str:
-    final_answer = result.get("final_answer")
-    if final_answer:
-        return str(final_answer)
-    for step in reversed(result.get("results", [])):
-        output = step.get("output", {})
-        text = output.get("text", "")
-        if text:
-            return str(text)
-    return ""
-
-
 async def _dispatch_chat_reply(
     runner: Any,
     cs_messenger: Any,
@@ -72,7 +62,7 @@ async def _dispatch_chat_reply(
             user_message=user_text,
             session={},
         )
-        answer = _extract_answer(flex_result)
+        answer = extract_answer(flex_result)
         if not answer:
             answer = _FALLBACK_TEXT
         await cs_messenger.send_text(openid=openid, content=answer)
@@ -191,12 +181,15 @@ async def wework_verify(
     echostr: str = "",
 ) -> Response:
     """WeWork server URL verification handshake (GET)."""
-    token: str = getattr(request.app.state, "wework_webhook_token", "")
-    if not _verify_sha1(
-        token, signature=msg_signature, timestamp=timestamp, nonce=nonce
-    ):
-        return PlainTextResponse("forbidden", status_code=403)
-    return PlainTextResponse(echostr)
+    crypto: WeComCrypto | None = getattr(request.app.state, "wecom_crypto", None)
+    if crypto is None:
+        return PlainTextResponse("service unavailable", status_code=503)
+    try:
+        echo_plain = crypto.verify_url(msg_signature, timestamp, nonce, echostr)
+    except WeComCryptoError:
+        logger.warning("WeWork verify_url failed", exc_info=True)
+        return PlainTextResponse("forbidden", status_code=401)
+    return PlainTextResponse(echo_plain)
 
 
 @router.post("/wework")
@@ -207,18 +200,22 @@ async def wework_message(
     nonce: str = "",
 ) -> Response:
     """WeWork message callback (POST). Returns synchronous XML ack."""
-    token: str = getattr(request.app.state, "wework_webhook_token", "")
-    if not _verify_sha1(
-        token, signature=msg_signature, timestamp=timestamp, nonce=nonce
-    ):
-        return PlainTextResponse("forbidden", status_code=403)
+    crypto: WeComCrypto | None = getattr(request.app.state, "wecom_crypto", None)
+    if crypto is None:
+        return PlainTextResponse("service unavailable", status_code=503)
 
     try:
-        body = (await request.body()).decode("utf-8")
+        raw_body = (await request.body()).decode("utf-8")
     except Exception:
-        return PlainTextResponse("forbidden", status_code=403)
+        return PlainTextResponse("forbidden", status_code=401)
 
-    msg = _parse_xml_text_message(body)
+    try:
+        plain_xml = crypto.decrypt_message(msg_signature, timestamp, nonce, raw_body)
+    except WeComCryptoError:
+        logger.warning("WeWork decrypt_message failed", exc_info=True)
+        return PlainTextResponse("forbidden", status_code=401)
+
+    msg = _parse_xml_text_message(plain_xml)
 
     runner = getattr(request.app.state, "agent_runner", None)
     cs_messenger = getattr(request.app.state, "wework_cs_messenger", None)

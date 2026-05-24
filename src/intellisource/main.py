@@ -64,8 +64,8 @@ async def close_redis() -> None:
     if _redis_client is not None:
         try:
             await _redis_client.aclose()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("redis client close failed", exc_info=exc)
         _redis_client = None
 
 

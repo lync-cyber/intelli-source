@@ -7,12 +7,19 @@ import logging
 from types import SimpleNamespace
 from typing import Any
 
+from pydantic import BaseModel, Field, ValidationError
+
 from intellisource.pipeline.processors.tools import filter_sensitive, truncate_for_push
 
 _logger = logging.getLogger(__name__)
 
 _MAX_TITLE_LEN = 80
 _MAX_SUMMARY_LEN = 200
+
+
+class PushOptimization(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    summary: str = Field(..., min_length=1, max_length=2000)
 
 
 async def optimize_for_push(
@@ -43,8 +50,14 @@ async def optimize_for_push(
             response_format={"type": "json_object"},
         )
         parsed = json.loads(result.content)
-        push_title = str(parsed.get("title", push_title))[:_MAX_TITLE_LEN]
-        push_summary = str(parsed.get("summary", push_summary))[:_MAX_SUMMARY_LEN]
+        optimization = PushOptimization.model_validate(parsed)
+        push_title = optimization.title[:_MAX_TITLE_LEN]
+        push_summary = optimization.summary[:_MAX_SUMMARY_LEN]
+    except (json.JSONDecodeError, ValidationError) as e:
+        _logger.warning(
+            "push_optimizer LLM output schema mismatch, falling back to original",
+            extra={"error": repr(e), "raw_content": result.content[:200]},
+        )
     except Exception:
         _logger.exception("LLM push optimize failed; using truncated content (AC-049)")
 

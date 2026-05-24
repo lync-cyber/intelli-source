@@ -142,17 +142,6 @@ class HybridSearchEngine:
         )
 
 
-def _extract_rows(result: Any) -> list[Any]:
-    """Extract row list from a query result object."""
-    try:
-        raw = result.all()
-        if isinstance(raw, list):
-            return raw
-    except Exception:
-        pass
-    return []
-
-
 def _build_items(rows: list[Any]) -> list[EnrichedSearchResult]:
     """Build enriched results from rows, sorted by score descending."""
     items: list[EnrichedSearchResult] = []
