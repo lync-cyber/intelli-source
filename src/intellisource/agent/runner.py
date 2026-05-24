@@ -9,10 +9,12 @@ from __future__ import annotations
 import enum
 import json
 import logging
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
+from intellisource.agent.events import PipelineEventLogger
 from intellisource.agent.step_params import build_step_params, merge_step_output
 from intellisource.agent.tools import PermissionLevel, ToolDefinition
 from intellisource.core.errors import ErrorCategory, IntelliSourceError
@@ -48,11 +50,13 @@ class AgentRunner:
         *,
         pipeline_engine: PipelineEngine | None = None,
         tool_deps: ToolDeps | None = None,
+        event_logger: PipelineEventLogger | None = None,
     ) -> None:
         self._tool_registry = tool_registry
         self._llm_gateway = llm_gateway
         self._pipeline_engine = pipeline_engine
         self._tool_deps = tool_deps
+        self._event_logger = event_logger
 
     # -- public API --------------------------------------------------
 
@@ -92,52 +96,78 @@ class AgentRunner:
         results: list[dict[str, Any]] = []
         steps_executed = 0
         step_context: dict[str, Any] = dict(params)
+        chain_id = str(uuid.uuid4())
 
-        for step in config.steps:
-            tool_name: str = step["tool"]
-            step_params = build_step_params(
-                step,
-                runtime_params=params,
-                step_context=step_context,
-                tool_deps=effective_deps,
-            )
-            tool_raw = self._tool_registry.get(tool_name)
-            tool_fn = self._resolve_callable(tool_raw)
+        await self._emit_pipeline_start(config.name, chain_id, "strict")
 
-            try:
-                result = await tool_fn(**step_params)
-                results.append({"tool": tool_name, "output": result})
-                merge_step_output(tool_name, result, step_context)
-            except Exception:
-                if config.on_failure == "abort":
-                    steps_executed += 1
-                    return await self._persist(
-                        status="failed",
-                        steps_executed=steps_executed,
-                        results=results,
-                        pipeline_name=config.name,
-                        execution_mode="strict",
-                    )
-                if config.on_failure == "retry":
-                    retry_result = await self._retry_step(
-                        self._resolve_callable(tool_raw),
-                        step_params,
+        try:
+            for step in config.steps:
+                tool_name: str = step["tool"]
+                step_params = build_step_params(
+                    step,
+                    runtime_params=params,
+                    step_context=step_context,
+                    tool_deps=effective_deps,
+                )
+                tool_raw = self._tool_registry.get(tool_name)
+                tool_fn = self._resolve_callable(tool_raw)
+
+                t0 = time.monotonic()
+                try:
+                    result = await tool_fn(**step_params)
+                    await self._emit_tool_call(
+                        config.name,
+                        chain_id,
                         tool_name,
+                        (time.monotonic() - t0) * 1000.0,
+                        "success",
                     )
-                    results.append(retry_result)
-                else:
-                    # skip
-                    results.append({"tool": tool_name, "output": None, "skipped": True})
+                    results.append({"tool": tool_name, "output": result})
+                    merge_step_output(tool_name, result, step_context)
+                except Exception as exc:
+                    await self._emit_tool_call(
+                        config.name,
+                        chain_id,
+                        tool_name,
+                        (time.monotonic() - t0) * 1000.0,
+                        "error",
+                        error=str(exc),
+                    )
+                    if config.on_failure == "abort":
+                        steps_executed += 1
+                        return await self._persist(
+                            status="failed",
+                            steps_executed=steps_executed,
+                            results=results,
+                            pipeline_name=config.name,
+                            execution_mode="strict",
+                            task_chain_id=chain_id,
+                        )
+                    if config.on_failure == "retry":
+                        retry_result = await self._retry_step(
+                            self._resolve_callable(tool_raw),
+                            step_params,
+                            tool_name,
+                        )
+                        results.append(retry_result)
+                    else:
+                        results.append(
+                            {"tool": tool_name, "output": None, "skipped": True}
+                        )
 
-            steps_executed += 1
+                steps_executed += 1
 
-        return await self._persist(
-            status="success",
-            steps_executed=steps_executed,
-            results=results,
-            pipeline_name=config.name,
-            execution_mode="strict",
-        )
+            return await self._persist(
+                status="success",
+                steps_executed=steps_executed,
+                results=results,
+                pipeline_name=config.name,
+                execution_mode="strict",
+                task_chain_id=chain_id,
+            )
+        except Exception as exc:
+            await self._emit_pipeline_error(config.name, chain_id, str(exc))
+            raise
 
     async def run_batch(
         self,
@@ -148,6 +178,8 @@ class AgentRunner:
     ) -> dict[str, Any]:
         """Execute processor pipeline for a single raw content_id (batch mode)."""
         effective_deps = tool_deps if tool_deps is not None else self._tool_deps
+        chain_id = str(uuid.uuid4())
+        await self._emit_pipeline_start(config.name, chain_id, "batch")
         content_id = str(params.get("content_id") or "")
         if not content_id:
             return await self._persist(
@@ -156,14 +188,35 @@ class AgentRunner:
                 results=[],
                 pipeline_name=config.name,
                 execution_mode="batch",
+                task_chain_id=chain_id,
             )
 
         from intellisource.agent.tools import _process_execute  # noqa: PLC0415
 
-        output = await _process_execute(
-            tool_deps=effective_deps,
-            **params,
-        )
+        t0 = time.monotonic()
+        try:
+            output = await _process_execute(
+                tool_deps=effective_deps,
+                **params,
+            )
+            await self._emit_tool_call(
+                config.name,
+                chain_id,
+                "process",
+                (time.monotonic() - t0) * 1000.0,
+                "success",
+            )
+        except Exception as exc:
+            await self._emit_tool_call(
+                config.name,
+                chain_id,
+                "process",
+                (time.monotonic() - t0) * 1000.0,
+                "error",
+                error=str(exc),
+            )
+            await self._emit_pipeline_error(config.name, chain_id, str(exc))
+            raise
         tool_results = [{"tool": "process", "output": output}]
         status = "success" if output.get("status") == "ok" else "failed"
         persist_result = await self._persist(
@@ -172,6 +225,7 @@ class AgentRunner:
             results=tool_results,
             pipeline_name=config.name,
             execution_mode="batch",
+            task_chain_id=chain_id,
         )
         inner_result = output.get("result")
         inner: dict[str, Any] = inner_result if isinstance(inner_result, dict) else {}
@@ -209,6 +263,9 @@ class AgentRunner:
             agent_mode = AgentMode.process
 
         effective_deps = tool_deps if tool_deps is not None else self._tool_deps
+        chain_id = str(uuid.uuid4())
+        await self._emit_pipeline_start(config.name, chain_id, "flexible")
+
         available_tools = self._filter_tools(config, agent_mode=agent_mode)
         tool_descriptors = self._build_tool_descriptors(available_tools)
         effective_budget = (
@@ -241,10 +298,12 @@ class AgentRunner:
             raise IntelliSourceError(msg, ErrorCategory.UNRECOVERABLE)
 
         while steps_executed < config.max_steps and not budget_exhausted:
+            llm_t0 = time.monotonic()
             response = await self._llm_gateway.chat(
                 messages=messages,
                 tools=tool_descriptors,
             )
+            llm_latency_ms = (time.monotonic() - llm_t0) * 1000.0
             steps_executed += 1
 
             # Track token budget
@@ -252,6 +311,15 @@ class AgentRunner:
             tokens_used += usage.get("total_tokens", 0)
             budget_hit = (
                 effective_budget is not None and tokens_used >= effective_budget
+            )
+
+            await self._emit_llm_call(
+                config.name,
+                chain_id,
+                str(response.metadata.get("model", "")),
+                int(usage.get("prompt_tokens", usage.get("input_tokens", 0)) or 0),
+                int(usage.get("completion_tokens", usage.get("output_tokens", 0)) or 0),
+                llm_latency_ms,
             )
 
             tool_calls = response.metadata.get("tool_calls") or []
@@ -388,9 +456,17 @@ class AgentRunner:
                 tool_raw = self._tool_registry.get(tc_name)
                 if tool_raw is not None:
                     tool_fn = self._resolve_callable(tool_raw)
+                    tool_t0 = time.monotonic()
                     try:
                         result = await tool_fn(**tc_args)
 
+                        await self._emit_tool_call(
+                            config.name,
+                            chain_id,
+                            tc_name,
+                            (time.monotonic() - tool_t0) * 1000.0,
+                            "success",
+                        )
                         messages.append(
                             {
                                 "role": "tool",
@@ -404,6 +480,14 @@ class AgentRunner:
                             "Tool %s failed: %s",
                             tc_name,
                             exc,
+                        )
+                        await self._emit_tool_call(
+                            config.name,
+                            chain_id,
+                            tc_name,
+                            (time.monotonic() - tool_t0) * 1000.0,
+                            "error",
+                            error=str(exc),
                         )
                         messages.append(
                             {
@@ -427,6 +511,7 @@ class AgentRunner:
                 results=tool_results,
                 pipeline_name=config.name,
                 execution_mode="flexible",
+                task_chain_id=chain_id,
             )
             persist_result["plan"] = preview_plan
             persist_result["tokens_used"] = tokens_used
@@ -438,6 +523,7 @@ class AgentRunner:
             results=tool_results,
             pipeline_name=config.name,
             execution_mode="flexible",
+            task_chain_id=chain_id,
         )
         if budget_exhausted:
             persist_result["budget_exhausted"] = True
@@ -445,6 +531,86 @@ class AgentRunner:
         if final_answer:
             persist_result["final_answer"] = final_answer
         return persist_result
+
+    # -- event helpers -----------------------------------------------
+
+    async def _emit_pipeline_start(
+        self, pipeline_name: str, chain_id: str, mode: str
+    ) -> None:
+        if self._event_logger is None:
+            return
+        await self._event_logger.pipeline_start(
+            pipeline_name=pipeline_name,
+            task_chain_id=chain_id,
+            mode=mode,
+        )
+
+    async def _emit_tool_call(
+        self,
+        pipeline_name: str,
+        chain_id: str,
+        tool_name: str,
+        duration_ms: float,
+        status: str,
+        error: str | None = None,
+    ) -> None:
+        if self._event_logger is None:
+            return
+        await self._event_logger.tool_call(
+            pipeline_name=pipeline_name,
+            task_chain_id=chain_id,
+            tool_name=tool_name,
+            duration_ms=duration_ms,
+            status="error" if status == "error" else "success",
+            error=error,
+        )
+
+    async def _emit_llm_call(
+        self,
+        pipeline_name: str,
+        chain_id: str,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        latency_ms: float,
+    ) -> None:
+        if self._event_logger is None:
+            return
+        await self._event_logger.llm_call(
+            pipeline_name=pipeline_name,
+            task_chain_id=chain_id,
+            model=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            latency_ms=latency_ms,
+        )
+
+    async def _emit_pipeline_complete(
+        self,
+        pipeline_name: str,
+        chain_id: str,
+        status: str,
+        steps_executed: int,
+    ) -> None:
+        if self._event_logger is None:
+            return
+        await self._event_logger.pipeline_complete(
+            pipeline_name=pipeline_name,
+            task_chain_id=chain_id,
+            status=status,
+            steps_executed=steps_executed,
+        )
+
+    async def _emit_pipeline_error(
+        self, pipeline_name: str, chain_id: str, error: str
+    ) -> None:
+        if self._event_logger is None:
+            return
+        await self._event_logger.pipeline_error(
+            pipeline_name=pipeline_name,
+            task_chain_id=chain_id,
+            error=error,
+        )
 
     # -- private helpers ---------------------------------------------
 
@@ -625,6 +791,10 @@ class AgentRunner:
             chain_id = str(persisted.id)
         else:
             chain_id = str(uuid.uuid4())
+
+        await self._emit_pipeline_complete(
+            pipeline_name, chain_id, status, steps_executed
+        )
 
         return {
             "status": status,
