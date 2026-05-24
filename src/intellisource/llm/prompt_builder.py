@@ -6,18 +6,30 @@ template loading infrastructure from intellisource.llm.prompts.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
+from pathlib import Path
 from typing import Any
 
 import litellm
 
-from intellisource.llm.prompts import _read_template
+from intellisource.llm.prompts import _TEMPLATE_DIR, _read_template
 
 logger = logging.getLogger(__name__)
 
 _DEFAULT_MODEL = "gpt-4o-mini"
 _DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant."
+_UNKNOWN_VERSION = "unknown"
+
+
+def _resolve_template_path(call_type: str, style: str | None) -> Path:
+    """Resolve the on-disk template path matching `_read_template` lookup."""
+    if style is not None:
+        variant = _TEMPLATE_DIR / f"{call_type}.{style}.txt"
+        if variant.exists():
+            return variant
+    return _TEMPLATE_DIR / f"{call_type}.txt"
 
 
 class PromptBuilder:
@@ -55,10 +67,34 @@ class PromptBuilder:
             self._template: str = _read_template(call_type, prompt_style)
         except FileNotFoundError:
             raise
+        self._call_type: str = call_type
+        self._prompt_style: str | None = prompt_style
+        self._template_path: Path = _resolve_template_path(call_type, prompt_style)
         self._model: str = model if model is not None else _DEFAULT_MODEL
         self._content: str = ""
         self._context: dict[str, str] = {}
         self._system_prompt: str = self._resolve_system_prompt(call_type, system_prompt)
+
+    @property
+    def call_type(self) -> str:
+        """The call_type identifier this builder was constructed with."""
+        return self._call_type
+
+    @property
+    def prompt_version(self) -> str:
+        """SHA-256 first 8 hex chars of the template file content.
+
+        Returns ``"unknown"`` when the template file is missing or unreadable
+        at the time of access (e.g. file deleted after init).
+        """
+        path = self._template_path
+        if not path.exists():
+            return _UNKNOWN_VERSION
+        try:
+            data = path.read_bytes()
+        except OSError:
+            return _UNKNOWN_VERSION
+        return hashlib.sha256(data).hexdigest()[:8]
 
     @staticmethod
     def _resolve_system_prompt(call_type: str, override: str | None) -> str:

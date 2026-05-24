@@ -227,6 +227,7 @@ class LLMGateway:
         cache_key_parts: dict[str, str] | None = None,
         max_input_tokens: int | None = None,
         response_format: dict[str, Any] | None = None,
+        prompt_builder: PromptBuilder | None = None,
     ) -> LLMResult:
         """Call an LLM with standardized parameters.
 
@@ -242,10 +243,18 @@ class LLMGateway:
             max_input_tokens: Optional max input token limit. If set or if
                 estimated tokens exceed 80% of model context window, the
                 user prompt is truncated.
+            prompt_builder: Optional PromptBuilder. When provided and
+                cache_key_parts is given, missing ``call_type`` and
+                ``prompt_version`` keys are auto-filled from the builder so
+                callers do not have to compute the template hash themselves.
 
         Returns:
             LLMResult with content and metadata.
         """
+        if prompt_builder is not None and cache_key_parts is not None:
+            cache_key_parts.setdefault("call_type", prompt_builder.call_type)
+            cache_key_parts.setdefault("prompt_version", prompt_builder.prompt_version)
+
         # Check cache before calling LLM
         if self._cache is not None and cache_key_parts is not None:
             cached = await self._cache.get(
