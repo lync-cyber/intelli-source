@@ -6,10 +6,12 @@ validating outputs against JSON Schema, and SchemaValidationError.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
 import time
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -703,6 +705,129 @@ class LLMGateway:
             prompt=req.prompt,
             task_type=None,
         )
+
+    async def stream_complete(
+        self,
+        prompt: str,
+        model: str | None = None,
+        system_prompt: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        task_type: str | None = None,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        """Stream LLM completion via litellm.acompletion(stream=True).
+
+        Yields dicts of shape:
+        - {"content": "...", "done": False} per chunk
+        - {"content": "", "done": True, "metadata": {...}} final
+        """
+        resolved_model = model
+        if resolved_model is None and task_type is not None:
+            models = self._routing_config.get("models", {})
+            if task_type in models:
+                resolved_model = models[task_type]["model"]
+            else:
+                resolved_model = self._routing_config["default_model"]["model"]
+        if resolved_model is None:
+            resolved_model = "gpt-4o-mini"
+
+        profile = self._model_routing.get_profile(resolved_model)
+        resolved_temperature = temperature
+        if resolved_temperature is None:
+            resolved_temperature = (
+                profile.temperature
+                if profile is not None
+                else self._default_temperature
+            )
+        resolved_max_tokens = max_tokens
+        if resolved_max_tokens is None:
+            resolved_max_tokens = (
+                profile.max_tokens if profile is not None else self._default_max_tokens
+            )
+
+        messages: list[dict[str, str]] = []
+        if system_prompt is not None:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        call_kwargs: dict[str, Any] = {
+            "model": resolved_model,
+            "messages": messages,
+            "temperature": resolved_temperature,
+            "max_tokens": resolved_max_tokens,
+            "stream": True,
+        }
+        if profile is not None:
+            call_kwargs["timeout"] = profile.timeout_seconds
+
+        start_time = time.monotonic()
+        accumulated_content = ""
+        input_tokens = 0
+        output_tokens = 0
+        final_model = resolved_model
+
+        try:
+            response = await litellm.acompletion(**call_kwargs)
+            async for chunk in response:
+                delta_content = ""
+                try:
+                    delta_content = chunk.choices[0].delta.content or ""
+                except (AttributeError, IndexError):
+                    pass
+                if delta_content:
+                    accumulated_content += delta_content
+                    yield {"content": delta_content, "done": False}
+                # Capture usage from last chunk if available
+                try:
+                    usage = chunk.usage
+                    if usage is not None:
+                        input_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
+                        output_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
+                except AttributeError:
+                    pass
+                try:
+                    chunk_model = chunk.model
+                    if chunk_model:
+                        final_model = str(chunk_model)
+                except AttributeError:
+                    pass
+        except asyncio.CancelledError:
+            return
+
+        # Fallback token estimates when streaming response omits usage
+        if input_tokens == 0:
+            input_tokens = sum(len(str(m.get("content", ""))) for m in messages) // 4
+        if output_tokens == 0:
+            output_tokens = len(accumulated_content) // 4
+
+        elapsed_ms = (time.monotonic() - start_time) * 1000
+        metadata: dict[str, Any] = {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "latency_ms": elapsed_ms,
+            "model": final_model,
+        }
+
+        if self._cost_tracker is not None:
+            record = LLMCallRecord(
+                model=final_model,
+                provider=final_model.split("/")[0] if "/" in final_model else "unknown",
+                call_type="stream_complete",
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                latency_ms=int(elapsed_ms),
+                input_length=len(prompt),
+                output_length=len(accumulated_content),
+                status="success",
+            )
+            try:
+                await self._cost_tracker.log_call(record)
+            except Exception as log_exc:
+                logger.warning(
+                    "Failed to log stream_complete call to CostTracker: %s", log_exc
+                )
+
+        yield {"content": "", "done": True, "metadata": metadata}
 
     def estimate_tokens(self, text: str, model: str) -> int:
         """Estimate token count for text.

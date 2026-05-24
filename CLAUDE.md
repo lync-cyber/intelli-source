@@ -13,9 +13,9 @@
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 - 当前阶段: development — sprint-8 P2 增强 (post-deploy backlog 提前激活)
-- 下一步行动: 启动 T-070 (Chat API SSE 流式输出) — 或 user 决定下一个任务
+- 下一步行动: 启动 T-077 (信源重载残余清理) — 或 user 决定下一个任务
 - 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r, sprint-9]
-- 当前Sprint: sprint-8 P2 (in-progress — T-064/T-065/T-066/T-067/T-069 done；T-070/T-077/T-079 待做)
+- 当前Sprint: sprint-8 P2 (in-progress — T-064/T-065/T-066/T-067/T-069/T-070 done；T-077/T-079 待做)
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report = approved；ui-spec = N/A；dev-plan-s8 = draft (信任原 AC)；deploy-spec = 未开始
 - sprint-8 现状核查矩阵 (2026-05-24):
   - ✅ 已闭环 (sprint-9 / sprint-8r 自然覆盖)：
@@ -23,8 +23,7 @@
     - T-075 Agent 工具层接驳真实模块 — sprint-8r T-089 闭环，7 个 _execute 真消费 tool_deps
     - T-076 健康检查与指标端点 — sprint-9 T-099 完成
     - T-078 应用组合根 — sprint-9 T-095 完成 (composition.py + Celery 单例)
-  - 🟡 待做 (2 任务真增量 + T-077 残余清理):
-    - T-070 [standard] Chat API SSE 流式输出 — 依赖 T-057 (已完成)
+  - 🟡 待做 (1 任务真增量 + T-077 残余清理):
     - T-077 [light] 信源重载残余 (vulture 白名单 / runner.py import 清理) — reload 本体已 done
     - T-079 [light] 上下文压缩策略统一 — chat_session.py:67 仍 string-concat
   - ⏸️ 集成测试: T-071 (留尾，依赖 T-064~T-070+T-077+T-079)
@@ -33,7 +32,8 @@
   - T-065 status=done [light-dispatch 单次成功, commit 82481d3] — implementer 76K tokens / 67 tools / 20min（输出 budget 内无 truncation，Mid-Progress Drop Contract 强制 4 步契约见效）；PermissionLevel(auto/confirm/deny) 枚举 + ToolDefinition.permission_level 字段 + register(permission_level) + distribute 默认 confirm + PipelineConfig.tool_permissions 字段 YAML 覆盖 + run_flexible 双层防御（_filter_tools deny 过滤 + 运行时 tool_call deny 硬拒）+ pending_confirmation logger/messages/tool_results 三轨记录；12/12 test_tool_permissions + 2571 PASS / 0 FAIL；mypy + ruff clean；code-review 延 sprint-review；refactor_needed=false
   - T-066 status=done [light-inline, commit 7c63bd4] — orchestrator 主线程直接执行（complexity=S, 范围小, 避免 EXP-006 dispatch 风险）；git mv tools.py → tools/__init__.py 保 21 处 import 路径不变 + 修正 _PIPELINES_DIR parents[3]→[4] 防 path drift + AgentToolRegistry.auto_discover(tools_dir) 扫描 *.py / TOOL_DEFINITION 常量 / 手注册优先 / import error 容错；10/10 test_tool_discovery + 全量回归 exit 0 / mypy --strict clean (126 src files) / ruff check + format clean；code-review 延 sprint-review；refactor_needed=false
   - T-067 status=done [light-inline, commit ef57935] — orchestrator 主线程（complexity=M but 范围聚焦 events.py + runner 钩子, ~150 LOC, 边界明确）；events.py PipelineEventLogger（JSONL 追加 + asyncio.to_thread 异步 + 5 helpers + try/except 失败 log warning 不抛）+ runner.py 集成（event_logger 构造参数 + run_strict/batch/flexible 入口 uuid 预生成 chain_id 贯穿事件 + time.monotonic 计时 + LLM chat() 抽 usage 拆 prompt/completion tokens + _persist 内 emit pipeline_complete + try/except 入口包裹 emit pipeline_error）；10/10 test_pipeline_events + 全量回归 exit 0 / mypy --strict clean (127 src files) / ruff check + format clean；code-review 延 sprint-review；refactor_needed=false
-  - T-069 status=done [light-inline, commit pending] — orchestrator 主线程（complexity=S, ~30 LOC src + ~140 LOC test）；prompt_builder.py 新增 _resolve_template_path 工具 + 存 _call_type/_prompt_style/_template_path + @property call_type 暴露字段 + @property prompt_version 返回 SHA-256(file_bytes)[:8] 文件缺失返回 "unknown"；gateway.py complete() 新增 prompt_builder 参数 setdefault 自动填充 cache_key_parts.call_type/prompt_version（显式值优先 via setdefault 语义）；7/7 test_prompt_version（TestPromptVersionHash 3 + TestPromptVersionTracksContentChanges 1 + TestGatewayAutoFillsPromptVersion 2 + TestUnknownVersionWhenTemplateMissing 1）+ 全量回归 exit 0 / mypy --strict clean (127 src files) / ruff check + format clean；code-review 延 sprint-review；refactor_needed=false
+  - T-069 status=done [light-inline, commit dabd4f4] — orchestrator 主线程（complexity=S, ~30 LOC src + ~140 LOC test）；prompt_builder.py 新增 _resolve_template_path 工具 + 存 _call_type/_prompt_style/_template_path + @property call_type 暴露字段 + @property prompt_version 返回 SHA-256(file_bytes)[:8] 文件缺失返回 "unknown"；gateway.py complete() 新增 prompt_builder 参数 setdefault 自动填充 cache_key_parts.call_type/prompt_version（显式值优先 via setdefault 语义）；7/7 test_prompt_version + 全量回归 exit 0 / mypy --strict clean (127 src files) / ruff check + format clean；code-review 延 sprint-review；refactor_needed=false
+  - T-070 status=done [light-dispatch 单次成功, commit pending] — implementer 71K tokens / 31 tools / 4.5min（Mid-Progress Drop Contract 4 步契约见效，零截断）；gateway.py stream_complete() AsyncGenerator 包装 litellm.acompletion(stream=True) 逐 chunk yield {"content","done":false} 终结 {"content":"","done":true,"metadata":...} + 流结束 LLMCallRecord 统一记 success（AC-T070-5）+ asyncio.CancelledError / GeneratorExit 优雅关闭；search.py POST /api/v1/search/chat/stream 端点 FastAPI StreamingResponse + media_type=text/event-stream + json.dumps payload + await request.is_disconnected() 客户端断开短路 + app.state.llm_gateway 缺失 503；15/15（test_gateway_stream 10 + test_search_routes 5，覆盖 AC-T070-1~7 7 个 AC）+ 全量回归 exit 0 / mypy --strict clean (127 src files) / ruff check + format clean；code-review 延 sprint-review；refactor_needed=false；wiring 验证：app.state.llm_gateway 已在 composition.py:405 注入，implementer 误报 wiring gap
 - sprint-9 / sprint-8r 详细闭环记录: 参见 docs/reviews/code/CODE-REVIEW-*.md 与 docs/reviews/sprint/SPRINT-REVIEW-*.md (sprint-9 全 6 任务 + sprint-8r T-087/088/089/092/094 全 approved；全量回归 2519 PASS / 43 skip / 0 fail；mypy --strict + ruff clean)
 - 项目级 WIP 警示: 全量 ruff check 当前 13 errors 跨 6 个 test 文件 (test_pipeline_collect_process_distribute_e2e / test_app_entry / test_pipelines_router / test_search_chat_response_parsing / test_push_dedup / test_push_optimize_trigger / test_push_optimizer)，**非 T-064 自引入**（这些文件在 session 起始 git status 已为 M）。可能是 sprint-9 r2 修复 / sprint-8r 批次 4 残留未跑 ruff format 闭环，建议下次 sprint-review 前批量修
 - Learnings Registry:

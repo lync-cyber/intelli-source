@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 import time
 import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -194,6 +196,34 @@ async def chat_search(
         task_chain_id=task_chain_id,
     )
     return resp
+
+
+@router.post("/search/chat/stream")
+async def chat_search_stream(
+    request: Request,
+    body: ChatSearchRequest,
+) -> StreamingResponse:
+    """SSE streaming chat via LLMGateway.stream_complete."""
+    gateway = getattr(request.app.state, "llm_gateway", None)
+    if gateway is None:
+        return StreamingResponse(
+            iter(
+                [f"data: {json.dumps({'detail': 'llm_gateway not initialised'})}\n\n"]
+            ),
+            status_code=503,
+            media_type="text/event-stream",
+        )
+
+    async def event_gen() -> Any:
+        try:
+            async for event in gateway.stream_complete(prompt=body.message):
+                if await request.is_disconnected():
+                    break
+                yield f"data: {json.dumps(event)}\n\n"
+        except asyncio.CancelledError:
+            return
+
+    return StreamingResponse(event_gen(), media_type="text/event-stream")
 
 
 async def _load_chat_session(
