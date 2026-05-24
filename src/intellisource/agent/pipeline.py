@@ -11,6 +11,7 @@ from typing import Any
 _VALID_MODES = ("strict", "flexible", "batch")
 _VALID_ON_FAILURE = ("abort", "skip", "retry")
 _VALID_AGENT_MODES = ("process", "analyze", "preview")
+_VALID_PERMISSION_LEVELS = ("auto", "confirm", "deny")
 
 
 class PipelineConfig:
@@ -29,6 +30,7 @@ class PipelineConfig:
         system_prompt: str | None = None,
         max_tokens_budget: int | None = None,
         agent_mode: str = "process",
+        tool_permissions: dict[str, str] | None = None,
     ) -> None:
         self._name = name
         self._mode = mode
@@ -40,6 +42,7 @@ class PipelineConfig:
         self._system_prompt = system_prompt
         self._max_tokens_budget = max_tokens_budget
         self._agent_mode = agent_mode
+        self._tool_permissions: dict[str, str] = tool_permissions or {}
 
     # -- properties --------------------------------------------------
 
@@ -83,6 +86,10 @@ class PipelineConfig:
     def agent_mode(self) -> str:
         return self._agent_mode
 
+    @property
+    def tool_permissions(self) -> dict[str, str]:
+        return self._tool_permissions
+
     # -- factory methods ---------------------------------------------
 
     @classmethod
@@ -108,6 +115,18 @@ class PipelineConfig:
                 f"Must be one of {_VALID_AGENT_MODES}"
             )
 
+        raw_perms: Any = data.get("tool_permissions") or {}
+        if not isinstance(raw_perms, dict):
+            raise ValueError("tool_permissions must be a mapping of tool_name -> level")
+        tool_permissions: dict[str, str] = {}
+        for tool_name, level in raw_perms.items():
+            if level not in _VALID_PERMISSION_LEVELS:
+                raise ValueError(
+                    f"tool_permissions: invalid permission level {level!r} for tool "
+                    f"{tool_name!r}. Must be one of {_VALID_PERMISSION_LEVELS}"
+                )
+            tool_permissions[str(tool_name)] = str(level)
+
         return cls(
             name=name,
             mode=mode,
@@ -119,6 +138,7 @@ class PipelineConfig:
             system_prompt=data.get("system_prompt"),
             max_tokens_budget=data.get("max_tokens_budget"),
             agent_mode=agent_mode,
+            tool_permissions=tool_permissions,
         )
 
     @classmethod

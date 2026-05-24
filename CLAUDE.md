@@ -13,9 +13,9 @@
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 - 当前阶段: development — sprint-8 P2 增强 (post-deploy backlog 提前激活)
-- 下一步行动: 启动 T-065 (工具权限分级 auto/confirm/deny) — 或 user 决定下一个任务
+- 下一步行动: 启动 T-066 (工具自动发现机制 auto_discover) — 或 user 决定下一个任务
 - 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r, sprint-9]
-- 当前Sprint: sprint-8 P2 (in-progress — T-064 done；T-065/T-066/T-067/T-069/T-070/T-077/T-079 待做)
+- 当前Sprint: sprint-8 P2 (in-progress — T-064/T-065 done；T-066/T-067/T-069/T-070/T-077/T-079 待做)
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report = approved；ui-spec = N/A；dev-plan-s8 = draft (信任原 AC)；deploy-spec = 未开始
 - sprint-8 现状核查矩阵 (2026-05-24):
   - ✅ 已闭环 (sprint-9 / sprint-8r 自然覆盖)：
@@ -23,8 +23,7 @@
     - T-075 Agent 工具层接驳真实模块 — sprint-8r T-089 闭环，7 个 _execute 真消费 tool_deps
     - T-076 健康检查与指标端点 — sprint-9 T-099 完成
     - T-078 应用组合根 — sprint-9 T-095 完成 (composition.py + Celery 单例)
-  - 🟡 待做 (6 任务真增量 + T-077 残余清理):
-    - T-065 [light] 工具权限分级 (auto/confirm/deny) — 依赖 T-050 (已完成)
+  - 🟡 待做 (5 任务真增量 + T-077 残余清理):
     - T-066 [light] 工具自动发现 — 依赖 T-050
     - T-067 [light] Pipeline 执行事件日志 — 依赖 T-054 (已完成)
     - T-069 [light] Prompt 版本自动计算 — 依赖 T-051 / T-052
@@ -33,7 +32,8 @@
     - T-079 [light] 上下文压缩策略统一 — chat_session.py:67 仍 string-concat
   - ⏸️ 集成测试: T-071 (留尾，依赖 T-064~T-070+T-077+T-079)
 - sprint-8 批次 1 闭环检查点:
-  - T-064 status=done [light, dispatch + inline takeover] — implementer 调度在 67K tokens / 19 tools 处单 turn output cap 截断（mid-narration "Let me read the current state first:"，非硬 truncation 阈值，EXP-006 carryover-soft 形态）。orchestrator inline 完成 pipeline.py agent_mode 字段补齐 + analyze 模式 runtime guard（LLM 幻觉防御）+ runner.py 终止响应 messages-mutation 修复。最终 20/20 test_agent_mode + 30/30 agent regression + 全量 2519 PASS / 0 FAIL；mypy --strict clean；ruff clean on T-064 deliverables。code-review 延迟到 sprint-review 批量（security_sensitive=false, user_facing_critical_path=false, consumer_components=[]，无即时触发条件）。refactor_needed=false。final commit: 未提交（等用户裁决）
+  - T-064 status=done [light-dispatch + inline takeover, commit bf7da26] — implementer 67K tokens / 19 tools 单 turn output cap 截断（mid-narration 软截断 EXP-006 carryover），orchestrator inline 补齐 pipeline.py agent_mode 字段 + analyze runtime guard + runner.py 终止响应 messages-mutation 修复；20/20 test_agent_mode + 2519 PASS / 0 FAIL；code-review 延 sprint-review；refactor_needed=false
+  - T-065 status=done [light-dispatch 单次成功, commit pending] — implementer 76K tokens / 67 tools / 20min（输出 budget 内无 truncation，Mid-Progress Drop Contract 强制 4 步契约见效）；PermissionLevel(auto/confirm/deny) 枚举 + ToolDefinition.permission_level 字段 + register(permission_level) + distribute 默认 confirm + PipelineConfig.tool_permissions 字段 YAML 覆盖 + run_flexible 双层防御（_filter_tools deny 过滤 + 运行时 tool_call deny 硬拒）+ pending_confirmation logger/messages/tool_results 三轨记录；12/12 test_tool_permissions（TestPermissionLevelField 3 + TestDenyHardFilter 3 + TestConfirmPendingEvent 1 + TestPipelinePermissionOverride 3 + TestDistributeDefaultsConfirm 2）+ 2571 PASS / 0 FAIL；mypy + ruff clean；code-review 延 sprint-review；refactor_needed=false
 - sprint-9 / sprint-8r 详细闭环记录: 参见 docs/reviews/code/CODE-REVIEW-*.md 与 docs/reviews/sprint/SPRINT-REVIEW-*.md (sprint-9 全 6 任务 + sprint-8r T-087/088/089/092/094 全 approved；全量回归 2519 PASS / 43 skip / 0 fail；mypy --strict + ruff clean)
 - 项目级 WIP 警示: 全量 ruff check 当前 13 errors 跨 6 个 test 文件 (test_pipeline_collect_process_distribute_e2e / test_app_entry / test_pipelines_router / test_search_chat_response_parsing / test_push_dedup / test_push_optimize_trigger / test_push_optimizer)，**非 T-064 自引入**（这些文件在 session 起始 git status 已为 M）。可能是 sprint-9 r2 修复 / sprint-8r 批次 4 残留未跑 ruff format 闭环，建议下次 sprint-review 前批量修
 - Learnings Registry:

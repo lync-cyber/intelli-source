@@ -6,9 +6,10 @@ by AgentRunner, and load_pipeline_config for loading YAML pipelines.
 
 from __future__ import annotations
 
+import enum
 import logging
 import uuid as _uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Coroutine
 
@@ -20,6 +21,14 @@ _PIPELINES_DIR = Path(__file__).resolve().parents[3] / "config" / "pipelines"
 logger = logging.getLogger(__name__)
 
 
+class PermissionLevel(str, enum.Enum):
+    """Tool invocation permission level."""
+
+    auto = "auto"
+    confirm = "confirm"
+    deny = "deny"
+
+
 @dataclass
 class ToolDefinition:
     """A single tool that can be invoked by the agent."""
@@ -28,6 +37,7 @@ class ToolDefinition:
     description: str
     parameters: dict[str, Any]
     execute: Callable[..., Coroutine[Any, Any, Any]]
+    permission_level: PermissionLevel = field(default=PermissionLevel.auto)
 
 
 class AgentToolRegistry:
@@ -43,6 +53,7 @@ class AgentToolRegistry:
         description: str,
         parameters: dict[str, Any],
         execute_fn: Callable[..., Coroutine[Any, Any, Any]],
+        permission_level: PermissionLevel = PermissionLevel.auto,
     ) -> None:
         """Register a tool definition."""
         self._tools[name] = ToolDefinition(
@@ -50,6 +61,7 @@ class AgentToolRegistry:
             description=description,
             parameters=parameters,
             execute=execute_fn,
+            permission_level=permission_level,
         )
 
     def register_defaults(self) -> None:
@@ -727,6 +739,7 @@ def _default_tool_defs() -> list[ToolDefinition]:
                 },
             },
             execute=_distribute_execute,
+            permission_level=PermissionLevel.confirm,
         ),
         ToolDefinition(
             name="search",

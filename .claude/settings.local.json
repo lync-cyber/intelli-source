@@ -130,7 +130,8 @@
       "Bash(gh api *)",
       "Bash(grep -oE \"\\(\\\\.cataforge|\\\\.claude|tests|src\\)[\\\\\\\\/][^:]+\\\\.py\" ruff-errors.txt)",
       "Bash(awk '/Line too long/ {match\\($0, /\\\\\\(\\([0-9]+\\) > 88\\\\\\)/, a\\); print a[1]}' my-errors.txt)",
-      "Bash(PYTHONTRACEMALLOC=20 uv run pytest --tb=long -q -W error::pytest.PytestUnraisableExceptionWarning -x)"
+      "Bash(PYTHONTRACEMALLOC=20 uv run pytest --tb=long -q -W error::pytest.PytestUnraisableExceptionWarning -x)",
+      "Bash(findstr \"selected\")"
     ]
   }
 }

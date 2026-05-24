@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from intellisource.agent.step_params import build_step_params, merge_step_output
-from intellisource.agent.tools import ToolDefinition
+from intellisource.agent.tools import PermissionLevel, ToolDefinition
 from intellisource.core.errors import ErrorCategory, IntelliSourceError
 from intellisource.storage.models import TaskChain
 from intellisource.storage.repositories.task_chain import TaskChainRepository
@@ -277,8 +277,42 @@ class AgentRunner:
             if done:
                 break
 
+            pipeline_perms: dict[str, str] = (
+                getattr(config, "tool_permissions", {}) or {}
+            )
+
             for tc in tool_calls:
                 tc_name, tc_id, tc_args = self._parse_tool_call(tc)
+
+                # Runtime deny check (handles LLM hallucination of deny tools)
+                _override = pipeline_perms.get(tc_name)
+                if _override is not None:
+                    _effective_perm = PermissionLevel(_override)
+                else:
+                    _tool_raw_perm = self._tool_registry.get(tc_name)
+                    _effective_perm = (
+                        _tool_raw_perm.permission_level
+                        if isinstance(_tool_raw_perm, ToolDefinition)
+                        else PermissionLevel.auto
+                    )
+                if _effective_perm is PermissionLevel.deny:
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "content": json.dumps(
+                                {"status": "denied_by_permission", "tool": tc_name}
+                            ),
+                            "tool_call_id": tc_id,
+                        }
+                    )
+                    tool_results.append(
+                        {
+                            "tool": tc_name,
+                            "status": "denied_by_permission",
+                            "output": None,
+                        }
+                    )
+                    continue
 
                 if agent_mode is AgentMode.analyze and tc_name in _ANALYZE_DENIED_TOOLS:
                     messages.append(
@@ -315,6 +349,35 @@ class AgentRunner:
                         {
                             "role": "tool",
                             "content": json.dumps({"status": "preview_skipped"}),
+                            "tool_call_id": tc_id,
+                        }
+                    )
+                    continue
+
+                # Record pending_confirmation for confirm-level tools
+                if _effective_perm is PermissionLevel.confirm:
+                    logger.info(
+                        "pending_confirmation",
+                        extra={
+                            "tool": tc_name,
+                            "args": tc_args,
+                            "tool_call_id": tc_id,
+                        },
+                    )
+                    tool_results.append(
+                        {
+                            "tool": tc_name,
+                            "status": "pending_confirmation",
+                            "args": tc_args,
+                            "tool_call_id": tc_id,
+                        }
+                    )
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "content": json.dumps(
+                                {"status": "pending_confirmation", "tool": tc_name}
+                            ),
                             "tool_call_id": tc_id,
                         }
                     )
@@ -412,7 +475,7 @@ class AgentRunner:
         config: Any,
         agent_mode: AgentMode = AgentMode.process,
     ) -> list[str]:
-        """Build available tool list respecting allowed/denied and agent_mode."""
+        """Build available tool list respecting config filters and permission levels."""
         all_tools: list[str] = self._tool_registry.list_tools()
         denied = set(config.tools_denied)
         allowed = set(config.tools_allowed)
@@ -425,7 +488,24 @@ class AgentRunner:
         else:
             tools = list(all_tools)
 
-        return [t for t in tools if t not in denied]
+        # Resolve effective permission per tool (pipeline override > tool default)
+        pipeline_perms: dict[str, str] = getattr(config, "tool_permissions", {}) or {}
+        permission_denied: set[str] = set()
+        for t in tools:
+            override = pipeline_perms.get(t)
+            if override is not None:
+                effective = PermissionLevel(override)
+            else:
+                tool_def = self._tool_registry.get(t)
+                effective = (
+                    tool_def.permission_level
+                    if isinstance(tool_def, ToolDefinition)
+                    else PermissionLevel.auto
+                )
+            if effective is PermissionLevel.deny:
+                permission_denied.add(t)
+
+        return [t for t in tools if t not in denied and t not in permission_denied]
 
     def _build_tool_descriptors(self, tool_names: list[str]) -> list[dict[str, Any]]:
         """Build OpenAI-style function tool descriptors for LLMGateway.chat()."""
