@@ -22,6 +22,9 @@ _DEFAULT_MODEL = "gpt-4o-mini"
 _DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant."
 _UNKNOWN_VERSION = "unknown"
 
+# (path_str, mtime_ns) -> sha256[:8]
+_VERSION_CACHE: dict[tuple[str, int], str] = {}
+
 
 def _resolve_template_path(call_type: str, style: str | None) -> Path:
     """Resolve the on-disk template path matching `_read_template` lookup."""
@@ -30,6 +33,30 @@ def _resolve_template_path(call_type: str, style: str | None) -> Path:
         if variant.exists():
             return variant
     return _TEMPLATE_DIR / f"{call_type}.txt"
+
+
+def _compute_prompt_version(path: Path) -> str:
+    """Return SHA-256[:8] of *path*'s bytes, cached by (path, mtime_ns).
+
+    Returns ``"unknown"`` when the file is missing or unreadable. The cache
+    keys on ``stat().st_mtime_ns`` so any on-disk edit invalidates the entry
+    on next access, while repeated reads of an unchanged template skip disk.
+    """
+    try:
+        stat = path.stat()
+    except OSError:
+        return _UNKNOWN_VERSION
+    cache_key = (str(path), stat.st_mtime_ns)
+    cached = _VERSION_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return _UNKNOWN_VERSION
+    version = hashlib.sha256(data).hexdigest()[:8]
+    _VERSION_CACHE[cache_key] = version
+    return version
 
 
 class PromptBuilder:
@@ -84,17 +111,11 @@ class PromptBuilder:
     def prompt_version(self) -> str:
         """SHA-256 first 8 hex chars of the template file content.
 
-        Returns ``"unknown"`` when the template file is missing or unreadable
-        at the time of access (e.g. file deleted after init).
+        Cached by ``(path, mtime_ns)`` — repeated reads of an unchanged
+        template skip disk and re-hashing. Returns ``"unknown"`` when the
+        template file is missing or unreadable at the time of access.
         """
-        path = self._template_path
-        if not path.exists():
-            return _UNKNOWN_VERSION
-        try:
-            data = path.read_bytes()
-        except OSError:
-            return _UNKNOWN_VERSION
-        return hashlib.sha256(data).hexdigest()[:8]
+        return _compute_prompt_version(self._template_path)
 
     @staticmethod
     def _resolve_system_prompt(call_type: str, override: str | None) -> str:

@@ -27,6 +27,11 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Fallback set for callers that register tools without the
+# `ToolDefinition.mutates_external_state` flag (e.g. plain callables
+# obtained from external registries). The authoritative analyze-deny
+# decision goes through ToolDefinition.mutates_external_state; this set is
+# kept as a safety net for backward-compatible tool dicts.
 _ANALYZE_DENIED_TOOLS: frozenset[str] = frozenset({"distribute", "process"})
 
 
@@ -382,7 +387,7 @@ class AgentRunner:
                     )
                     continue
 
-                if agent_mode is AgentMode.analyze and tc_name in _ANALYZE_DENIED_TOOLS:
+                if agent_mode is AgentMode.analyze and self._is_analyze_denied(tc_name):
                     messages.append(
                         {
                             "role": "tool",
@@ -422,7 +427,10 @@ class AgentRunner:
                     )
                     continue
 
-                # Record pending_confirmation for confirm-level tools
+                # confirm-as-logged: record the pending event in 3 channels
+                # (log / tool_results / messages) and skip execution for this
+                # turn. Not a blocking pause — see PermissionLevel.confirm
+                # docstring for the full semantics.
                 if _effective_perm is PermissionLevel.confirm:
                     logger.info(
                         "pending_confirmation",
@@ -647,7 +655,7 @@ class AgentRunner:
         allowed = set(config.tools_allowed)
 
         if agent_mode is AgentMode.analyze:
-            denied = denied | _ANALYZE_DENIED_TOOLS
+            denied = denied | self._analyze_denied_tools(all_tools)
 
         if allowed:
             tools = [t for t in all_tools if t in allowed]
@@ -672,6 +680,23 @@ class AgentRunner:
                 permission_denied.add(t)
 
         return [t for t in tools if t not in denied and t not in permission_denied]
+
+    def _analyze_denied_tools(self, candidate_names: list[str]) -> set[str]:
+        """Resolve which tools are denied under analyze mode.
+
+        Primary source: ``ToolDefinition.mutates_external_state == True``.
+        Fallback: the static ``_ANALYZE_DENIED_TOOLS`` set covers tools
+        whose registry entry is not a ToolDefinition (e.g. plain callables)
+        or whose author never set the field on a custom dataclass subclass.
+        """
+        return {n for n in candidate_names if self._is_analyze_denied(n)}
+
+    def _is_analyze_denied(self, name: str) -> bool:
+        """Return True when ``name`` is denied under analyze mode."""
+        tool_def = self._tool_registry.get(name)
+        if isinstance(tool_def, ToolDefinition) and tool_def.mutates_external_state:
+            return True
+        return name in _ANALYZE_DENIED_TOOLS
 
     def _build_tool_descriptors(self, tool_names: list[str]) -> list[dict[str, Any]]:
         """Build OpenAI-style function tool descriptors for LLMGateway.chat()."""
@@ -790,7 +815,11 @@ class AgentRunner:
             persisted = await repo.create(task_chain)
             chain_id = str(persisted.id)
         else:
-            chain_id = str(uuid.uuid4())
+            raise ValueError(
+                "_persist requires either task_chain_id or repo; both were None. "
+                "Internal run_strict/run_batch/run_flexible always pre-generate "
+                "chain_id, so this indicates an unexpected external caller."
+            )
 
         await self._emit_pipeline_complete(
             pipeline_name, chain_id, status, steps_executed

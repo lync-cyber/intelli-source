@@ -56,6 +56,8 @@ class TestPromptVersionHash:
 
 class TestPromptVersionTracksContentChanges:
     def test_content_change_changes_version(self, tmp_path: Path) -> None:
+        import os  # noqa: PLC0415
+
         # Point the template lookup at a temporary directory.
         custom_dir = tmp_path / "templates"
         custom_dir.mkdir()
@@ -73,6 +75,12 @@ class TestPromptVersionTracksContentChanges:
             v1 = PromptBuilder(call_type="demo").prompt_version
 
             tpl.write_text("hello {name}, updated body", encoding="utf-8")
+            # Bump mtime explicitly — NTFS mtime resolution (~16ms) can
+            # collapse two writes within one tick into a single key for the
+            # (path, mtime_ns) cache. In real user-edit flows mtime advances
+            # naturally; explicit utime ensures the test exercises that path.
+            stat = tpl.stat()
+            os.utime(tpl, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
             v2 = PromptBuilder(call_type="demo").prompt_version
 
         assert v1 != v2

@@ -416,3 +416,96 @@ class TestProcessModeBackwardCompat:
 
         assert result["status"] == "success"
         assert "plan" not in result
+
+
+# ---------------------------------------------------------------------------
+# SR-001: ToolDefinition.mutates_external_state drives analyze deny
+# ---------------------------------------------------------------------------
+
+
+class TestMutatesExternalStateAnalyzeDeny:
+    """SR-001 follow-up: analyze mode reads `mutates_external_state` flag.
+
+    Replaces hardcoded `_ANALYZE_DENIED_TOOLS` reliance — new side-effectful
+    tools opt in via the flag instead of editing a frozenset elsewhere.
+    """
+
+    async def test_new_mutating_tool_auto_denied_under_analyze(self) -> None:
+        from intellisource.agent.tools import AgentToolRegistry, ToolDefinition
+
+        async def _fake_send_email(**kwargs: object) -> dict[str, object]:
+            return {"status": "sent"}
+
+        registry = AgentToolRegistry()
+        registry._tools["send_email"] = ToolDefinition(
+            name="send_email",
+            description="Sends an email externally.",
+            parameters={"type": "object", "properties": {}},
+            execute=_fake_send_email,
+            mutates_external_state=True,
+        )
+        registry._tools["search"] = ToolDefinition(
+            name="search",
+            description="Read-only search.",
+            parameters={"type": "object", "properties": {}},
+            execute=AsyncMock(return_value={"items": []}),
+        )
+
+        llm_gw = AsyncMock()
+        llm_gw.chat.return_value = LLMResult(
+            content="done",
+            metadata={"tool_calls": None, "finish_reason": "stop", "usage": {}},
+        )
+
+        runner = AgentRunner(tool_registry=registry, llm_gateway=llm_gw)
+        config = PipelineConfig.from_dict(
+            {
+                "name": "analyze-new-tool",
+                "mode": "flexible",
+                "tools_allowed": ["search", "send_email"],
+                "tools_denied": [],
+                "steps": [],
+                "max_steps": 1,
+                "on_failure": "skip",
+                "agent_mode": "analyze",
+            }
+        )
+
+        # _filter_tools drops send_email even though it's NOT in the legacy
+        # _ANALYZE_DENIED_TOOLS frozenset — proving the field, not the
+        # hardcoded set, drives the decision.
+        allowed = runner._filter_tools(config, agent_mode=AgentMode.analyze)
+        assert "search" in allowed
+        assert "send_email" not in allowed
+
+    async def test_legacy_distribute_still_denied_via_fallback_set(self) -> None:
+        """Backward compatibility: ToolDefinition-less callables still hit the
+        static fallback set so existing pipelines don't regress."""
+        from intellisource.agent.runner import _ANALYZE_DENIED_TOOLS
+
+        # Registry that returns a raw callable (not a ToolDefinition) so the
+        # field-based path can't decide — the fallback set takes over.
+        async def _raw_distribute(**kw: object) -> dict[str, object]:
+            return {}
+
+        registry = MagicMock()
+        registry.list_tools = MagicMock(return_value=["distribute", "search"])
+        registry.get = MagicMock(side_effect=lambda n: _raw_distribute if n else None)
+
+        runner = AgentRunner(tool_registry=registry, llm_gateway=AsyncMock())
+        config = PipelineConfig.from_dict(
+            {
+                "name": "legacy",
+                "mode": "flexible",
+                "tools_allowed": ["distribute", "search"],
+                "tools_denied": [],
+                "steps": [],
+                "max_steps": 1,
+                "on_failure": "skip",
+                "agent_mode": "analyze",
+            }
+        )
+
+        allowed = runner._filter_tools(config, agent_mode=AgentMode.analyze)
+        assert "distribute" not in allowed
+        assert "distribute" in _ANALYZE_DENIED_TOOLS

@@ -25,7 +25,25 @@ logger = logging.getLogger(__name__)
 
 
 class PermissionLevel(str, enum.Enum):
-    """Tool invocation permission level."""
+    """Tool invocation permission level.
+
+    Values:
+        auto: executed without confirmation (default for read-only tools).
+        confirm: **confirm-as-logged** semantics — when invoked under
+            ``run_flexible``, the runner records a ``pending_confirmation``
+            event in 3 places (logger.info / tool_results entry / messages
+            entry returned to the LLM) and skips actual execution for the
+            current turn. The LLM observes the pending status via the next
+            assistant turn and decides whether to retry, escalate or abort.
+            **This is not a hard blocking-pause** — there is no callback
+            wait or user-prompt loop in the runtime; production callers
+            who need a true human-in-the-loop should subscribe to the
+            ``pending_confirmation`` log event externally and re-issue
+            the tool call with elevated permission once approved.
+        deny: never executed; runner drops from tool descriptors at
+            ``_filter_tools`` time and hard-rejects at runtime as a defence
+            against LLM hallucination of denied tool names.
+    """
 
     auto = "auto"
     confirm = "confirm"
@@ -34,13 +52,23 @@ class PermissionLevel(str, enum.Enum):
 
 @dataclass
 class ToolDefinition:
-    """A single tool that can be invoked by the agent."""
+    """A single tool that can be invoked by the agent.
+
+    Fields:
+        mutates_external_state: True when the tool writes to a system the
+            user can observe outside the agent (DB, message bus, webhook,
+            outbound email, file system, etc.). Default False = read-only.
+            ``analyze`` agent mode auto-denies tools where this is True so
+            new side-effectful tools must opt in explicitly. Read-only tools
+            (search/get/summarize) keep the default.
+    """
 
     name: str
     description: str
     parameters: dict[str, Any]
     execute: Callable[..., Coroutine[Any, Any, Any]]
     permission_level: PermissionLevel = field(default=PermissionLevel.auto)
+    mutates_external_state: bool = False
 
 
 class AgentToolRegistry:
@@ -57,6 +85,7 @@ class AgentToolRegistry:
         parameters: dict[str, Any],
         execute_fn: Callable[..., Coroutine[Any, Any, Any]],
         permission_level: PermissionLevel = PermissionLevel.auto,
+        mutates_external_state: bool = False,
     ) -> None:
         """Register a tool definition."""
         self._tools[name] = ToolDefinition(
@@ -65,6 +94,7 @@ class AgentToolRegistry:
             parameters=parameters,
             execute=execute_fn,
             permission_level=permission_level,
+            mutates_external_state=mutates_external_state,
         )
 
     def register_defaults(self) -> None:
@@ -787,6 +817,7 @@ def _default_tool_defs() -> list[ToolDefinition]:
                 },
             },
             execute=_process_execute,
+            mutates_external_state=True,
         ),
         ToolDefinition(
             name="distribute",
@@ -802,6 +833,7 @@ def _default_tool_defs() -> list[ToolDefinition]:
             },
             execute=_distribute_execute,
             permission_level=PermissionLevel.confirm,
+            mutates_external_state=True,
         ),
         ToolDefinition(
             name="search",
