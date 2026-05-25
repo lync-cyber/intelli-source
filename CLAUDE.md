@@ -4,7 +4,7 @@
 - 项目名称: IntelliSource
 - 技术栈: Python 3.11+ / FastAPI / Celery + Redis / PostgreSQL + pgvector / SQLAlchemy 2.0 / litellm
 - 运行时: claude-code
-- 框架版本: 0.4.0
+- 框架版本: 0.4.1
 - 语言定位: 中文框架（提示词/文档/交互用中文；代码/变量/CLI参数用英文）
 - 执行模式: standard
   <!-- 可选值: standard | agile-lite | agile-prototype。矩阵见 COMMON-RULES §执行模式矩阵 -->
