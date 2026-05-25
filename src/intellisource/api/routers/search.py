@@ -7,6 +7,7 @@ import json
 import logging
 import time
 import uuid
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
@@ -41,8 +42,8 @@ class SearchRequest(BaseModel):
     query: str
     search_mode: str | None = None
     tags: list[str] | None = None
-    date_from: str | None = None
-    date_to: str | None = None
+    date_from: datetime | None = None
+    date_to: datetime | None = None
     limit: int | None = None
 
 
@@ -188,23 +189,46 @@ async def chat_search_stream(
     request: Request,
     body: ChatSearchRequest,
 ) -> StreamingResponse:
-    """SSE streaming chat via LLMGateway.stream_complete."""
-    gateway = getattr(request.app.state, "llm_gateway", None)
-    if gateway is None:
+    """SSE streaming chat via AgentRunner.run_flexible_stream (RAG-aware).
+
+    Event payloads (JSON object after ``data:``):
+      - {"type": "step", "step": int, "action": "llm_call"|"tool_call",
+         "tool": str|None, "duration_ms": float, "status": str}
+      - {"type": "sources", "items": [{title, url, content_id}, ...]}
+      - {"type": "token", "delta": str}
+      - {"type": "done", "metadata": {...task_chain payload...}}
+      - {"type": "error", "detail": str}
+    """
+    runner = getattr(request.app.state, "agent_runner", None)
+    if runner is None:
         return StreamingResponse(
             iter(
-                [f"data: {json.dumps({'detail': 'llm_gateway not initialised'})}\n\n"]
+                [
+                    "data: "
+                    + json.dumps(
+                        {"type": "error", "detail": "agent_runner not initialised"}
+                    )
+                    + "\n\n"
+                ]
             ),
             status_code=503,
             media_type="text/event-stream",
         )
 
+    config = load_pipeline_config("instant-search")
+    session_payload = dict(body.session or {})
+
     async def event_gen() -> Any:
         try:
-            async for event in gateway.stream_complete(prompt=body.message):
+            async for event in runner.run_flexible_stream(
+                config,
+                user_message=body.message,
+                session=session_payload,
+                max_tokens_budget=body.max_tokens_budget,
+            ):
                 if await request.is_disconnected():
                     break
-                yield f"data: {json.dumps(event)}\n\n"
+                yield f"data: {json.dumps(event, default=str)}\n\n"
         except asyncio.CancelledError:
             return
 

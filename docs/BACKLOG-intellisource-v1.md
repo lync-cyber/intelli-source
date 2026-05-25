@@ -9,7 +9,7 @@ deps: []
 # IntelliSource v1 Backlog
 
 > 维护：本文件梳理 PR #53 / #54 audit 闭环之后的剩余工作。完成项请直接删除条目，新增项按优先级插入。
-> 最后更新：2026-05-24 (post PR #54)
+> 最后更新：2026-05-25 (post B-001 + B-002)
 
 ## 优先级语义
 
@@ -17,24 +17,6 @@ deps: []
 - **P1 — 阻塞质量**：可观测性、性能边界、合规
 - **P2 — 架构 / 功能完整性**：上帝类拆分、PRD 接受项功能缺口
 - **P3 — 优化 / 规约**：硬编码、弱断言、风格
-
----
-
-## P0 — Audit 残留阻塞项
-
-### B-001 `/search/chat/stream` 未走 RAG / AgentRunner
-- **关联**：原 audit F-06 / D2-3
-- **现状**：[`src/intellisource/api/routers/search.py:191`](src/intellisource/api/routers/search.py:191) 仍是 `gateway.stream_complete(prompt=body.message)` — 完全绕过 RAG，与 `/search/chat` 的 `runner.run_flexible` 不一致
-- **修复方向**：① 端点改走 `AgentRunner.run_flexible_stream`（需新增流式 runner 入口），或 ② `HybridSearchEngine.search → 拼 system prompt → stream_complete`
-- **决策选项**：v1 若不做 RAG-stream，PRD 显式标注 `[ASSUMPTION] /search/chat/stream 为纯 LLM 出口` 并在响应里说明
-- **验证**：发同一 query 给 chat 和 chat/stream，断言 sources 字段一致
-
-### B-002 `/search` `date_from/date_to` 类型为 `str`
-- **关联**：原 audit F-04 / D2-1
-- **现状**：[`src/intellisource/api/routers/search.py:44`](src/intellisource/api/routers/search.py:44) `date_from: str | None`，下游引擎签名为 `datetime`；非法字符串会爆 500 而非 422
-- **修复方向**：Pydantic 改 `date_from: datetime | None`（FastAPI 自动 ISO 解析），非法格式 422
-- **验证**：合约测试三组（合法 ISO / 非法字符串 / None）
-- **依赖**：与 B-001 同模块，建议同一 PR 内一起改
 
 ---
 

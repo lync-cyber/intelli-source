@@ -249,3 +249,60 @@ class TestStreamCompleteExceptionPropagation:
             with pytest.raises(RuntimeError, match="provider error"):
                 async for _ in gw.stream_complete(prompt="q"):
                     pass
+
+
+# ---------------------------------------------------------------------------
+# B-001.1: stream_complete accepts messages= kwarg
+# ---------------------------------------------------------------------------
+
+
+class TestStreamCompleteWithMessages:
+    """B-001.1: stream_complete must accept pre-built messages list."""
+
+    @pytest.mark.asyncio
+    async def test_messages_kwarg_forwarded_verbatim(self) -> None:
+        """When messages= is supplied, it is forwarded to litellm verbatim."""
+        gw = LLMGateway()
+        captured: dict[str, Any] = {}
+        msgs: list[dict[str, Any]] = [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": "hello"},
+            {"role": "tool", "tool_call_id": "1", "content": "{}"},
+            {"role": "user", "content": "summarize"},
+        ]
+        with patch("litellm.acompletion", new_callable=AsyncMock) as mock_ac:
+
+            async def capture(**kwargs: Any) -> Any:
+                captured.update(kwargs)
+                return _AsyncIter([])
+
+            mock_ac.side_effect = capture
+            async for _ in gw.stream_complete(messages=msgs):
+                pass
+        assert captured.get("messages") == msgs
+
+    @pytest.mark.asyncio
+    async def test_messages_takes_precedence_over_prompt(self) -> None:
+        """When both prompt and messages are given, messages wins."""
+        gw = LLMGateway()
+        captured: dict[str, Any] = {}
+        msgs: list[dict[str, Any]] = [{"role": "user", "content": "from messages"}]
+        with patch("litellm.acompletion", new_callable=AsyncMock) as mock_ac:
+
+            async def capture(**kwargs: Any) -> Any:
+                captured.update(kwargs)
+                return _AsyncIter([])
+
+            mock_ac.side_effect = capture
+            async for _ in gw.stream_complete(prompt="from prompt", messages=msgs):
+                pass
+        assert captured["messages"] == msgs
+
+    @pytest.mark.asyncio
+    async def test_raises_when_neither_prompt_nor_messages(self) -> None:
+        """At least one of prompt= / messages= must be supplied."""
+        gw = LLMGateway()
+        with pytest.raises(ValueError, match="prompt|messages"):
+            async for _ in gw.stream_complete():
+                pass

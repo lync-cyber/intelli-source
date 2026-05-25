@@ -103,3 +103,83 @@ class TestSearchModeForwarding:
 
 # ---------------------------------------------------------------------------
 # R-003: empty messages -> 400
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# B-002: SearchRequest date_from / date_to typed as datetime
+# ---------------------------------------------------------------------------
+
+
+class TestSearchDateTypeValidation:
+    """B-002: date_from/date_to as datetime → FastAPI returns 422 on bad input."""
+
+    async def test_search_accepts_iso_date_from(self, search_app: FastAPI) -> None:
+        """Legal ISO 8601 date string parses into datetime and forwards to engine."""
+        captured: dict[str, Any] = {}
+
+        async def fake_search(**kwargs: Any) -> Any:
+            captured.update(kwargs)
+            return {"items": [], "total": 0, "query_time_ms": 0}
+
+        mock_engine = MagicMock(spec=HybridSearchEngine)
+        mock_engine.search = AsyncMock(side_effect=fake_search)
+
+        with patch(
+            "intellisource.api.routers.search.HybridSearchEngine",
+            return_value=mock_engine,
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=search_app), base_url="http://test"
+            ) as client:
+                resp = await client.post(
+                    "/api/v1/search",
+                    json={"query": "x", "date_from": "2025-01-01T00:00:00Z"},
+                )
+
+        from datetime import datetime as _dt
+
+        assert resp.status_code == 200
+        date_from = captured.get("date_from")
+        assert isinstance(date_from, _dt), (
+            f"date_from must be datetime, got {type(date_from).__name__}"
+        )
+
+    async def test_search_rejects_invalid_date_from_with_422(
+        self, search_app: FastAPI
+    ) -> None:
+        """Non-parseable date string must produce 422 at FastAPI validation layer."""
+        async with AsyncClient(
+            transport=ASGITransport(app=search_app), base_url="http://test"
+        ) as client:
+            resp = await client.post(
+                "/api/v1/search",
+                json={"query": "x", "date_from": "not-a-date"},
+            )
+        assert resp.status_code == 422, (
+            f"invalid date must yield 422, got {resp.status_code}: {resp.text}"
+        )
+
+    async def test_search_accepts_none_date_from(self, search_app: FastAPI) -> None:
+        """Omitting date_from is valid; engine receives None."""
+        captured: dict[str, Any] = {}
+
+        async def fake_search(**kwargs: Any) -> Any:
+            captured.update(kwargs)
+            return {"items": [], "total": 0, "query_time_ms": 0}
+
+        mock_engine = MagicMock(spec=HybridSearchEngine)
+        mock_engine.search = AsyncMock(side_effect=fake_search)
+
+        with patch(
+            "intellisource.api.routers.search.HybridSearchEngine",
+            return_value=mock_engine,
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=search_app), base_url="http://test"
+            ) as client:
+                resp = await client.post("/api/v1/search", json={"query": "x"})
+
+        assert resp.status_code == 200
+        assert captured.get("date_from") is None
+        assert captured.get("date_to") is None

@@ -10,7 +10,7 @@ import enum
 import logging
 import time
 import uuid
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, AsyncGenerator
 
 from intellisource.agent.events import PipelineEventLogger
 from intellisource.agent.executors.flexible import (
@@ -227,6 +227,47 @@ class AgentRunner:
             max_tokens_budget=max_tokens_budget,
             tool_deps=effective_deps,
         )
+
+    async def run_flexible_stream(
+        self,
+        config: Any,
+        user_message: str,
+        session: dict[str, Any],
+        *,
+        max_tokens_budget: int | None = None,
+        tool_deps: Any = None,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        """Streaming counterpart to ``run_flexible``.
+
+        Drives the same FlexibleLoop tool loop as ``run_flexible`` but yields
+        event dicts (step / sources / token / done / error) suitable for
+        SSE relay. See ``FlexibleLoop.run_stream`` for the event contract.
+        """
+        agent_mode_str = getattr(config, "agent_mode", AgentMode.process.value)
+        try:
+            agent_mode = AgentMode(agent_mode_str)
+        except ValueError:
+            agent_mode = AgentMode.process
+
+        effective_deps = tool_deps if tool_deps is not None else self._tool_deps
+        loop = FlexibleLoop(
+            tool_registry=self._tool_registry,
+            llm_gateway=self._llm_gateway,
+            emit_pipeline_start=self._emit_pipeline_start,
+            emit_tool_call=self._emit_tool_call,
+            emit_llm_call=self._emit_llm_call,
+            emit_pipeline_error=self._emit_pipeline_error,
+            persist=self._persist,
+        )
+        async for event in loop.run_stream(
+            config,
+            user_message,
+            session,
+            agent_mode=agent_mode,
+            max_tokens_budget=max_tokens_budget,
+            tool_deps=effective_deps,
+        ):
+            yield event
 
     # -- event helpers -----------------------------------------------
 

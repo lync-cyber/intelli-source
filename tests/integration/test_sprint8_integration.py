@@ -467,64 +467,12 @@ class TestCompactionConsistency:
 
 
 class TestSSEAsgiEndToEnd:
-    """SR-005: end-to-end SSE through FastAPI ASGITransport + AsyncClient.
+    """SR-005 superseded by B-001.
 
-    Mocks only litellm.acompletion at the LLMGateway boundary; everything
-    above (LLMGateway.stream_complete + FastAPI streaming route + SSE
-    encoding/decoding) runs as in production.
+    The original test mocked ``litellm.acompletion`` and asserted the legacy
+    SSE shape (``{content, done}``). B-001 routed ``/search/chat/stream``
+    through ``AgentRunner.run_flexible_stream`` and changed the SSE event
+    contract to ``{type: step|sources|token|done|error, ...}``. End-to-end
+    coverage now lives in
+    ``tests/integration/test_search_chat_stream_uses_rag.py``.
     """
-
-    @pytest.mark.asyncio
-    async def test_sse_endpoint_streams_via_real_gateway(self) -> None:
-        from fastapi import FastAPI
-        from httpx import ASGITransport, AsyncClient
-
-        from intellisource.api.routers.search import router as search_router
-        from intellisource.llm.gateway import LLMGateway
-
-        chunks_data = [("part-1", None), ("|part-2", None), ("", "stop")]
-
-        async def _fake_stream(**kwargs: Any) -> AsyncIterator[Any]:
-            for content, finish in chunks_data:
-                m = MagicMock()
-                m.choices = [MagicMock()]
-                m.choices[0].delta.content = content
-                m.choices[0].finish_reason = finish
-                yield m
-
-        gateway = LLMGateway()
-        app = FastAPI()
-        app.include_router(search_router, prefix="/api/v1")
-        app.state.llm_gateway = gateway
-
-        with patch(
-            "intellisource.llm.gateway.litellm.acompletion",
-            side_effect=lambda **kw: _fake_stream(**kw),
-        ):
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
-                resp = await client.post(
-                    "/api/v1/search/chat/stream",
-                    json={"message": "hi"},
-                )
-
-        assert resp.status_code == 200
-        assert "text/event-stream" in resp.headers["content-type"]
-
-        events: list[dict[str, Any]] = []
-        for line in resp.content.decode().splitlines():
-            if line.startswith("data: "):
-                events.append(json.loads(line[len("data: ") :]))
-
-        content_events = [e for e in events if not e.get("done", False)]
-        done_events = [e for e in events if e.get("done") is True]
-
-        assert len(content_events) >= 2, "expected at least 2 content chunks"
-        assert "part-1" in content_events[0]["content"]
-        assert len(done_events) == 1, "exactly one done:true terminal event"
-        meta = done_events[0]["metadata"]
-        assert "model" in meta
-        assert "input_tokens" in meta
-        assert "output_tokens" in meta
-        assert "latency_ms" in meta
