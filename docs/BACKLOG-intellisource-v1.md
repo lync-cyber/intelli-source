@@ -9,7 +9,7 @@ deps: []
 # IntelliSource v1 Backlog
 
 > 维护：本文件梳理 PR #53 / #54 audit 闭环之后的剩余工作。完成项请直接删除条目，新增项按优先级插入。
-> 最后更新：2026-05-25 (post B-003 ~ B-006 全闭环 + R-001 修订)
+> 最后更新：2026-05-25 (post B-007 + B-009 + B-029 + B-030 闭环)
 
 ## 优先级语义
 
@@ -28,12 +28,9 @@ deps: []
 
 ## P2 — 架构 / 功能完整性
 
-### B-007 `gateway/__init__.py` 仍 692 行
-- **关联**：原 audit F-30 / D4-4
-- **现状**：sprint-8 / 本次 audit 抽出了 `_retry / _routing / _types`，但 `LLMGateway` 主类仍承载 complete + chat + stream_complete + token 估算 + 缓存 + cost tracker，单类 692 行
-- **修复方向**：拆分 `gateway/{core_complete,core_chat,core_stream}.py` mixin，`LLMGateway(_RetryMixin, _CompleteMixin, _ChatMixin, _StreamMixin)` 组合
-- **风险**：mixin 类型推导对 mypy --strict 严格，需要 `Protocol` 兜底；大改动建议 implementer dispatch
-- **验证**：每个 mixin ≤ 200 行；__init__.py 仅 import + facade class，≤ 150 行
+> B-007 已闭环（详见 [docs/reviews/code/CODE-REVIEW-B-007-r1.md](reviews/code/CODE-REVIEW-B-007-r1.md)）— `gateway/__init__.py` 732 → 120 行，拆为 `_complete/_chat/_stream/_queue/_metrics/_protocols` 6 mixin，Protocol 自洽，2820 PASS 不退化
+>
+> B-009 已闭环（decision-only，reaffirm 选项 ②）— PRD AC-063 [ASSUMPTION] 在 sprint-9 已锁定 YAML-as-source-of-truth；`src/intellisource/api/routers/pipelines.py` 现状即决策实现（list/detail/run，无 CRUD）。完整 workflow CRUD（DB 存储 + 历史版本）保留为 v2+ 范畴，本 backlog 不立项。
 
 ### B-008 综合简报降级为字符串截断
 - **关联**：原 audit F-38 / D6-4 / AC-023
@@ -41,13 +38,6 @@ deps: []
 - **修复方向**：接 LLM summarizer（PromptBuilder + `gateway.complete` + JSON schema {title, summary, timeline:[], key_points:[]}）；失败回退当前截断
 - **决策选项**：v1 若不做，PRD AC-023 显式标 `[ASSUMPTION] v1 仅字符串截断，timeline/key_points 留 P2 backlog`
 - **验证**：注入 LLM 返回真 timeline → 字段非空；LLM 失败 → 字段空 + log warning
-
-### B-009 `pipelines` 路由缺 CRUD
-- **关联**：原 audit F-40 / D2-6 / AC-063
-- **现状**：[`src/intellisource/api/routers/pipelines.py`](src/intellisource/api/routers/pipelines.py) 仅 GET list/detail + POST run，无 POST/PATCH/DELETE 管理
-- **修复方向**：① 实现 POST/PATCH/DELETE 写 yaml + 文件锁；② 或更新 PRD AC-063 接受 "YAML as source of truth" 设计，明确 workflow 通过 git PR 修改而非 API
-- **决策选项**：建议走 ② — 项目规模不需要运行时 CRUD
-- **验证**：选 ② 时 PRD 修订；选 ① 时新增路由 + 合约测试
 
 ### B-010 Deploy 阶段未启动
 - **关联**：CLAUDE.md 原 backlog ③
@@ -71,21 +61,7 @@ deps: []
 - **修复方向**：抽常量 `DEFAULT_KEYWORD_TAG: str = "未分类"` 至模块顶层；i18n 非 v1 范围
 - **成本**：单点改动
 
-### B-029 LLM alert 表达式按 model label 拆分
-- **关联**：[CODE-REVIEW-backlog-p1-r1.md R-005](reviews/code/CODE-REVIEW-backlog-p1-r1.md)
-- **现状**：[`docker/prometheus/alerts.yml:55-58`](../docker/prometheus/alerts.yml) `LlmFailureRate30Percent5m` 使用 `rate(llm_call_failures_total[5m]) / clamp_min(rate(llm_calls_total[5m]), 0.0001)`；PromQL 自动聚合 model 维度，单一 model 故障率高时被健康 model 稀释，alert fire 后无 model 信息定位
-- **修复方向**：表达式改为 `sum by (model) (rate(llm_call_failures_total[5m])) / clamp_min(sum by (model) (rate(llm_calls_total[5m])), 0.0001) > 0.3`，`annotations.summary/description` 引用 `{{ $labels.model }}`；同步更新 `tests/unit/observability/test_alerts_yaml.py` 的 expression assertion
-- **依赖**：B-005 labeled counter 已落地（B-029 是其自然演进）
-- **成本**：alerts.yml 1 处 + 测试断言更新
-- **可选范围扩展**：`PushFailureRateHigh` 同样按 `channel` 拆分
-
-### B-030 polish — code-review backlog-p1 r1 残留 LOW
-- **关联**：[CODE-REVIEW-backlog-p1-r1.md R-002/R-003/R-004](reviews/code/CODE-REVIEW-backlog-p1-r1.md)
-- **R-003**：[`tests/unit/scheduler/test_send_task_guardrail.py:9`](../tests/unit/scheduler/test_send_task_guardrail.py) `_ALLOWED_FILE` 子串匹配改为精确路径匹配（`rel == Path("intellisource/scheduler/dispatch.py").as_posix()`）
-- **R-004**：[`src/intellisource/distributor/facade.py:31-39`](../src/intellisource/distributor/facade.py) `_record_push_outcome` hot-path register 迁移到 composition 阶段集中注册；同样审视 `llm/gateway/__init__.py` `_record_llm_call`
-- **R-002**：guardrail 范围限定 src/ 的设计理由在 `dispatch.py` 或 `test_send_task_guardrail.py` 注释中显式化（tests/ 内允许测试底层 celery 契约）
-- **成本**：三处微调，单 PR 可合
-- **触发条件**：metrics / scheduler 模块下次有相关改动时顺手清理；不单独立批
+> B-029 + B-030 已闭环 — LLM/Push alert 按 model/channel 拆分 (annotations 模板化引用 label) + R-002 注释 + R-003 精确路径匹配 + R-004 register 集中化 (facade __init__)；2827 PASS (+7 测试)。
 
 ---
 
