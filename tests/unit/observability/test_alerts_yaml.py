@@ -30,13 +30,11 @@ EMITTED_METRICS: set[str] = {
     "llm_call_latency_seconds",
     "llm_circuit_open",
     "pushes_total",
-    "pushes_sent_total",
-    "pushes_failed_total",
-    "pushes_skipped_total",
     "celery_tasks_total",
     "celery_task_failures_total",
     "celery_task_duration_seconds",
     "scheduler_beat_sync_failed_total",
+    "intellisource_health_status",
     # Prometheus built-in target liveness
     "up",
 }
@@ -169,5 +167,35 @@ def test_critical_alerts_present() -> None:
     names = {r["alert"] for r in rules}
     assert "LLMCircuitOpen" in names
     assert "PushFailureRateHigh" in names
-    # The "health 5min" requirement collapses to API liveness at the Prom layer.
     assert "ApiInstanceDown" in names
+
+
+def test_health_degraded_alert_present() -> None:
+    """B-003: HealthDegradedFor5m alert must be present in alerts.yml."""
+    rules = _load_alerts()
+    names = {r["alert"] for r in rules}
+    assert "HealthDegradedFor5m" in names, (
+        "HealthDegradedFor5m alert must be declared in alerts.yml"
+    )
+
+
+def test_health_degraded_alert_references_health_status_metric() -> None:
+    """B-003: HealthDegradedFor5m expr must reference intellisource_health_status."""
+    rules = _load_alerts()
+    health_rule = next((r for r in rules if r["alert"] == "HealthDegradedFor5m"), None)
+    assert health_rule is not None, "HealthDegradedFor5m rule not found"
+    assert "intellisource_health_status" in health_rule["expr"], (
+        "HealthDegradedFor5m expr must reference intellisource_health_status"
+    )
+
+
+def test_health_degraded_alert_fires_on_nonzero() -> None:
+    """B-003: HealthDegradedFor5m must fire when gauge > 0 (degraded or unhealthy)."""
+    rules = _load_alerts()
+    health_rule = next((r for r in rules if r["alert"] == "HealthDegradedFor5m"), None)
+    assert health_rule is not None
+    expr = health_rule["expr"]
+    assert "> 0" in expr, (
+        "HealthDegradedFor5m expr must have '> 0' threshold "
+        "to fire on degraded/unhealthy"
+    )

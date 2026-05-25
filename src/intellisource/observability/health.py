@@ -7,9 +7,20 @@ import time
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from intellisource.observability.metrics import MetricsCollector
 
 DEFAULT_CHECK_TIMEOUT_SECONDS: float = 2.0
+
+HEALTH_GAUGE_NAME = "intellisource_health_status"
+HEALTH_GAUGE_DESCRIPTION = "Component health status: 0=healthy, 1=degraded, 2=unhealthy"
+STATUS_TO_GAUGE: dict[str, int] = {
+    "healthy": 0,
+    "degraded": 1,
+    "unhealthy": 2,
+}
 
 
 @dataclass
@@ -32,16 +43,28 @@ class HealthChecker:
     dependency cannot block the entire endpoint. Per-check ``last_error`` is
     captured (timeout message or exception repr) and surfaced in
     ``HealthResult.details`` so operators can diagnose without scraping logs.
+
+    When a ``metrics_collector`` is supplied, each ``check_health()`` call sets
+    ``intellisource_health_status{component=<name>}`` to 0/1/2 per
+    ``STATUS_TO_GAUGE``.
     """
 
     def __init__(
         self,
         *,
         check_timeout_seconds: float = DEFAULT_CHECK_TIMEOUT_SECONDS,
+        metrics_collector: MetricsCollector | None = None,
     ) -> None:
         self._checks: dict[str, Callable[[], Coroutine[Any, Any, bool]]] = {}
         self._start_time: float = time.monotonic()
         self._check_timeout_seconds: float = check_timeout_seconds
+        self._metrics_collector = metrics_collector
+        if metrics_collector is not None:
+            metrics_collector.register_labeled_gauge(
+                HEALTH_GAUGE_NAME,
+                labelnames=["component"],
+                description=HEALTH_GAUGE_DESCRIPTION,
+            )
 
     def register_check(
         self, name: str, check_fn: Callable[[], Coroutine[Any, Any, bool]]
@@ -103,6 +126,15 @@ class HealthChecker:
             status = "unhealthy"
         else:
             status = "degraded"
+
+        if self._metrics_collector is not None:
+            for component, component_status in checks.items():
+                gauge_value = STATUS_TO_GAUGE.get(component_status, 2)
+                self._metrics_collector.set_labeled_gauge(
+                    HEALTH_GAUGE_NAME,
+                    {"component": component},
+                    float(gauge_value),
+                )
 
         return HealthResult(
             status=status,

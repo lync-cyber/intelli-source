@@ -436,7 +436,8 @@ def _install_observability_state(
     from intellisource.observability.health import HealthChecker
     from intellisource.observability.metrics import MetricsCollector
 
-    checker = HealthChecker()
+    metrics_collector_instance = MetricsCollector.get_instance()
+    checker = HealthChecker(metrics_collector=metrics_collector_instance)
 
     async def _check_db() -> bool:
         # Exceptions propagate so HealthChecker can capture them as
@@ -471,7 +472,7 @@ def _install_observability_state(
     checker.register_check("celery", _check_celery)
     app.state.health_checker = checker
 
-    app.state.metrics_collector = MetricsCollector.get_instance()
+    app.state.metrics_collector = metrics_collector_instance
     app.state.config_version_manager = ConfigVersionManager()
 
 

@@ -73,7 +73,7 @@ groups:
     rules:
       - alert: PushFailureRateHigh
         expr: |
-          rate(pushes_failed_total[5m])
+          rate(pushes_total{status="failed"}[5m])
             /
           clamp_min(rate(pushes_total[5m]), 0.0001)
           > 0.2
@@ -87,7 +87,23 @@ groups:
             More than 1 in 5 push attempts are raising on
             ``channel.distribute`` (email SMTP, WeChat, WeWork). Check the
             webhook signature / SMTP credential / quota state of the
-            channel that is dominating ``pushes_failed_total``.
+            failing channel via pushes_total{status="failed"}.
+
+  - name: intellisource.health
+    interval: 30s
+    rules:
+      - alert: HealthDegradedFor5m
+        expr: max(intellisource_health_status{component=~"db|redis|celery"}) > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: health
+        annotations:
+          summary: "IntelliSource component degraded for 5m"
+          description: |
+            One of db/redis/celery has reported degraded/unhealthy for 5 minutes.
+            Inspect /health for per-component details and check the relevant
+            infrastructure (PostgreSQL, Redis, Celery worker pool).
 
   - name: intellisource.scheduler
     interval: 30s

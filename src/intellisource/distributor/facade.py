@@ -15,51 +15,28 @@ if TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
-# F-22: distributor-layer metric names. Registered lazily so importing this
-# module does not require a MetricsCollector singleton.
+# B-005: distributor-layer labeled counter name.
 _METRIC_PUSHES_TOTAL: str = "pushes_total"
-_METRIC_PUSHES_SENT: str = "pushes_sent_total"
-_METRIC_PUSHES_FAILED: str = "pushes_failed_total"
-_METRIC_PUSHES_SKIPPED: str = "pushes_skipped_total"
 
 
-def _record_push_outcome(outcome: str) -> None:
-    """Bump the appropriate push counter on the singleton MetricsCollector.
+def _record_push_outcome(outcome: str, channel: str = "unknown") -> None:
+    """Bump pushes_total{channel=..., status=...} on the singleton MetricsCollector.
 
-    outcome ∈ {"sent", "failed", "skipped"}; ``pushes_total`` is always bumped
-    so dashboards can compute per-outcome ratios at scrape time.
+    outcome ∈ {"sent", "failed", "skipped"}.
     """
     try:
         from intellisource.observability.metrics import MetricsCollector
 
         mc = MetricsCollector.get_instance()
-        if _METRIC_PUSHES_TOTAL not in mc._counters:
-            mc.register_counter(
-                _METRIC_PUSHES_TOTAL,
-                "Total push attempts (any outcome)",
-            )
-        if _METRIC_PUSHES_SENT not in mc._counters:
-            mc.register_counter(
-                _METRIC_PUSHES_SENT,
-                "Push attempts that successfully reached the channel API",
-            )
-        if _METRIC_PUSHES_FAILED not in mc._counters:
-            mc.register_counter(
-                _METRIC_PUSHES_FAILED,
-                "Push attempts that raised on channel.distribute",
-            )
-        if _METRIC_PUSHES_SKIPPED not in mc._counters:
-            mc.register_counter(
-                _METRIC_PUSHES_SKIPPED,
-                "Push attempts skipped due to dedup or missing channel impl",
-            )
-        mc.increment_counter(_METRIC_PUSHES_TOTAL)
-        if outcome == "sent":
-            mc.increment_counter(_METRIC_PUSHES_SENT)
-        elif outcome == "failed":
-            mc.increment_counter(_METRIC_PUSHES_FAILED)
-        elif outcome == "skipped":
-            mc.increment_counter(_METRIC_PUSHES_SKIPPED)
+        mc.register_labeled_counter(
+            _METRIC_PUSHES_TOTAL,
+            labelnames=["channel", "status"],
+            description="Push attempts by channel and outcome",
+        )
+        mc.increment_labeled_counter(
+            _METRIC_PUSHES_TOTAL,
+            labels={"channel": channel, "status": outcome},
+        )
     except Exception:  # noqa: BLE001 — metric failures must not break delivery
         _logger.exception("failed to record push outcome metric")
 
@@ -132,7 +109,7 @@ class DistributorFacade:
             channel = self._channels.get(channel_name)
             if channel is None:
                 skipped += 1
-                _record_push_outcome("skipped")
+                _record_push_outcome("skipped", channel=channel_name or "unknown")
                 continue
 
             # Step 3: dedup gate
@@ -143,7 +120,7 @@ class DistributorFacade:
             )
             if already_pushed:
                 skipped += 1
-                _record_push_outcome("skipped")
+                _record_push_outcome("skipped", channel=channel_name)
                 continue
 
             # Step 4: pre-push optimize (F-010) then channel.send
@@ -151,7 +128,7 @@ class DistributorFacade:
             try:
                 await channel.distribute(push_content, sub)
                 sent += 1
-                _record_push_outcome("sent")
+                _record_push_outcome("sent", channel=channel_name)
             except Exception:
                 _logger.exception(
                     "channel.distribute failed for sub=%s channel=%s",
@@ -159,7 +136,7 @@ class DistributorFacade:
                     channel_name,
                 )
                 skipped += 1
-                _record_push_outcome("failed")
+                _record_push_outcome("failed", channel=channel_name)
                 continue
 
             # Step 5: record_push + PII mask

@@ -37,39 +37,45 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# F-22 metric names; registered lazily on first call so importing the module
-# doesn't force a MetricsCollector singleton allocation in pure-import tests.
+# B-005: LLM gateway labeled counter names.
 _METRIC_LLM_CALLS_TOTAL = "llm_calls_total"
 _METRIC_LLM_FAILURES_TOTAL = "llm_call_failures_total"
 _METRIC_LLM_LATENCY = "llm_call_latency_seconds"
 
 
-def _record_llm_call(*, latency_seconds: float, success: bool) -> None:
+def _record_llm_call(
+    *, latency_seconds: float, success: bool, model: str = "unknown"
+) -> None:
     """Emit per-call metrics on the singleton MetricsCollector.
 
-    Per-model granularity stays in :class:`LLMCallLogRepository`; what this
-    captures is LLM-layer health (call rate, failure rate, p99 latency) the
-    Prometheus alert rules can act on.
+    llm_calls_total and llm_call_failures_total are labeled by model so
+    per-model call and failure rates are available in Prometheus queries.
+    llm_call_latency_seconds remains an unlabeled histogram for p99 alerting.
     """
     try:
         from intellisource.observability.metrics import MetricsCollector
 
         mc = MetricsCollector.get_instance()
-        if _METRIC_LLM_CALLS_TOTAL not in mc._counters:
-            mc.register_counter(_METRIC_LLM_CALLS_TOTAL, "Total LLM calls executed")
-        if _METRIC_LLM_FAILURES_TOTAL not in mc._counters:
-            mc.register_counter(
-                _METRIC_LLM_FAILURES_TOTAL,
-                "Total LLM calls that failed before returning a response",
-            )
+        mc.register_labeled_counter(
+            _METRIC_LLM_CALLS_TOTAL,
+            labelnames=["model"],
+            description="Total LLM calls executed by model",
+        )
+        mc.register_labeled_counter(
+            _METRIC_LLM_FAILURES_TOTAL,
+            labelnames=["model"],
+            description="Total LLM calls that failed by model",
+        )
         if _METRIC_LLM_LATENCY not in mc._histograms:
             mc.register_histogram(
                 _METRIC_LLM_LATENCY,
                 "Wall-clock latency (seconds) of LLM provider calls",
             )
-        mc.increment_counter(_METRIC_LLM_CALLS_TOTAL)
+        mc.increment_labeled_counter(_METRIC_LLM_CALLS_TOTAL, labels={"model": model})
         if not success:
-            mc.increment_counter(_METRIC_LLM_FAILURES_TOTAL)
+            mc.increment_labeled_counter(
+                _METRIC_LLM_FAILURES_TOTAL, labels={"model": model}
+            )
         mc.observe_histogram(_METRIC_LLM_LATENCY, latency_seconds)
     except Exception:  # noqa: BLE001 — metric failures must not break LLM path
         logger.exception("failed to record LLM call metrics")
@@ -249,12 +255,16 @@ class LLMGateway(_RetryMixin):
             )
         except BaseException as exc:
             _record_llm_call(
-                latency_seconds=time.monotonic() - start_time, success=False
+                latency_seconds=time.monotonic() - start_time,
+                success=False,
+                model=resolved_model,
             )
             return cast(LLMResult, await self._try_fallback(exc, task_type, prompt))
         elapsed_seconds = time.monotonic() - start_time
         elapsed_ms = elapsed_seconds * 1000
-        _record_llm_call(latency_seconds=elapsed_seconds, success=True)
+        _record_llm_call(
+            latency_seconds=elapsed_seconds, success=True, model=resolved_model
+        )
 
         content: str = response.choices[0].message.content
         metadata: dict[str, Any] = {
@@ -394,7 +404,9 @@ class LLMGateway(_RetryMixin):
             )
         except BaseException as exc:
             _record_llm_call(
-                latency_seconds=time.monotonic() - start_time, success=False
+                latency_seconds=time.monotonic() - start_time,
+                success=False,
+                model=resolved_model,
             )
             if self._fallback_manager is not None:
                 return cast(
@@ -404,7 +416,9 @@ class LLMGateway(_RetryMixin):
             raise
         elapsed_seconds = time.monotonic() - start_time
         elapsed_ms = elapsed_seconds * 1000
-        _record_llm_call(latency_seconds=elapsed_seconds, success=True)
+        _record_llm_call(
+            latency_seconds=elapsed_seconds, success=True, model=resolved_model
+        )
 
         content: str = response.choices[0].message.content or ""
         metadata: dict[str, Any] = {
@@ -624,12 +638,16 @@ class LLMGateway(_RetryMixin):
                     pass
         except asyncio.CancelledError:
             _record_llm_call(
-                latency_seconds=time.monotonic() - start_time, success=False
+                latency_seconds=time.monotonic() - start_time,
+                success=False,
+                model=resolved_model,
             )
             return
         except BaseException:
             _record_llm_call(
-                latency_seconds=time.monotonic() - start_time, success=False
+                latency_seconds=time.monotonic() - start_time,
+                success=False,
+                model=resolved_model,
             )
             raise
 
@@ -643,7 +661,9 @@ class LLMGateway(_RetryMixin):
 
         elapsed_seconds = time.monotonic() - start_time
         elapsed_ms = elapsed_seconds * 1000
-        _record_llm_call(latency_seconds=elapsed_seconds, success=True)
+        _record_llm_call(
+            latency_seconds=elapsed_seconds, success=True, model=final_model
+        )
         metadata: dict[str, Any] = {
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,

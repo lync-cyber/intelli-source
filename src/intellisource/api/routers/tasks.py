@@ -12,10 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session
 from intellisource.composition import SOURCE_TYPE_TO_PIPELINE
-from intellisource.observability.trace_context import (
-    TRACE_HEADER_KEY,
-    current_trace_id,
-)
+from intellisource.scheduler.dispatch import send_task_with_trace
 from intellisource.scheduler.queues import PRIORITY_QUEUES
 from intellisource.storage.repositories.source import SourceRepository
 from intellisource.storage.repositories.task import TaskRepository
@@ -184,7 +181,7 @@ async def trigger_collect(
                 if source_type is not None
                 else "scheduled-collect"
             )
-            celery_instance.send_task(
+            send_task_with_trace(
                 "run_pipeline",
                 kwargs={
                     "pipeline_name": pipeline_name,
@@ -198,7 +195,7 @@ async def trigger_collect(
                     },
                 },
                 queue=target_queue,
-                headers={TRACE_HEADER_KEY: current_trace_id()},
+                celery_instance=celery_instance,
             )
 
     return {

@@ -14,10 +14,7 @@ from pydantic import BaseModel
 from intellisource.agent.pipeline import PipelineConfig
 from intellisource.agent.tools import _PIPELINES_DIR as _SHARED_PIPELINES_DIR
 from intellisource.agent.tools import load_pipeline_config
-from intellisource.observability.trace_context import (
-    TRACE_HEADER_KEY,
-    current_trace_id,
-)
+from intellisource.scheduler.dispatch import send_task_with_trace
 
 logger = logging.getLogger(__name__)
 
@@ -115,13 +112,13 @@ async def run_pipeline(
     """Trigger a Celery `run_pipeline` task for the named pipeline."""
     _resolve_pipeline_path(name)
 
-    celery_app = getattr(request.app.state, "celery_app", None)
-    if celery_app is None:
+    celery_instance = getattr(request.app.state, "celery_app", None)
+    if celery_instance is None:
         raise HTTPException(status_code=503, detail="celery_app not initialised")
 
-    result = celery_app.send_task(
+    result = send_task_with_trace(
         "run_pipeline",
         kwargs={"pipeline_name": name, "params": body.params or {}},
-        headers={TRACE_HEADER_KEY: current_trace_id()},
+        celery_instance=celery_instance,
     )
     return {"task_id": str(getattr(result, "id", result))}
