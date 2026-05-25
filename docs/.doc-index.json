@@ -1,15 +1,15 @@
 {
   "version": "1",
-  "generated_at": "2026-05-25T02:00:33.851185+00:00",
+  "generated_at": "2026-05-25T07:07:51.284279+00:00",
   "documents": {
     "backlog-intellisource-v1": {
       "file_path": "docs/BACKLOG-intellisource-v1.md",
       "doc_type": "backlog",
       "volume": "main",
       "status": "approved",
-      "total_lines": 274,
-      "est_tokens": 5108,
-      "content_hash": "02eb0c64",
+      "total_lines": 256,
+      "est_tokens": 4778,
+      "content_hash": "f9ecdc78",
       "sections": {}
     },
     "arch-intellisource-v1-api": {
@@ -631,7 +631,7 @@
       "dep_hashes": {
         "arch-intellisource-v1-modules": "29d390a9",
         "arch-intellisource-v1-api": "494f914e",
-        "backlog-intellisource-v1": "02eb0c64"
+        "backlog-intellisource-v1": "f9ecdc78"
       }
     },
     "dev-plan-intellisource-v1-s1": {
@@ -3322,7 +3322,7 @@
       ],
       "dep_hashes": {
         "arch-intellisource-v1-modules": "29d390a9",
-        "backlog-intellisource-v1": "02eb0c64"
+        "backlog-intellisource-v1": "f9ecdc78"
       }
     },
     "review-arch-intellisource-v1-r1": {

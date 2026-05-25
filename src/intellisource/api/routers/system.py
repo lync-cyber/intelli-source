@@ -47,6 +47,25 @@ def _format_prometheus(metrics_collector: Any) -> str:
         lines.append(f"# TYPE {name} histogram")
         lines.append(f"{name}_count {len(values)}")
         lines.append(f"{name}_sum {sum(values)}")
+    for name, desc, series in metrics_collector.iter_labeled_gauges():
+        lines.append(f"# HELP {name} {desc}")
+        lines.append(f"# TYPE {name} gauge")
+        for label_key, value in sorted(series.items()):
+            label_str = ",".join(
+                f'{k}="{v}"'
+                for pair in label_key.split(",")
+                for k, v in [pair.split("=", 1)]
+            )
+            lines.append(f"{name}{{{label_str}}} {int(value)}")
+    for name, series in metrics_collector.iter_labeled_counters():
+        lines.append(f"# TYPE {name} counter")
+        for label_key, value in sorted(series.items()):
+            label_str = ",".join(
+                f'{k}="{v}"'
+                for pair in label_key.split(",")
+                for k, v in [pair.split("=", 1)]
+            )
+            lines.append(f"{name}{{{label_str}}} {value}")
     return "\n".join(lines) + ("\n" if lines else "")
 
 

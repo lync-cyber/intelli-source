@@ -9,7 +9,7 @@ deps: []
 # IntelliSource v1 Backlog
 
 > 维护：本文件梳理 PR #53 / #54 audit 闭环之后的剩余工作。完成项请直接删除条目，新增项按优先级插入。
-> 最后更新：2026-05-25 (post B-001 + B-002)
+> 最后更新：2026-05-25 (post B-003 ~ B-006 全闭环 + R-001 修订)
 
 ## 优先级语义
 
@@ -22,30 +22,7 @@ deps: []
 
 ## P1 — Audit 残留质量项
 
-### B-003 `intellisource_health_status` gauge 未实现
-- **关联**：F-24 reviewer 关注点 / 原 audit F-21 扩展
-- **现状**：Prometheus 告警 `ApiInstanceDown` 基于内置 `up` 指标；项目侧 `HealthChecker.check_health()` 的 `degraded/unhealthy` 状态没有暴露为 metric
-- **修复方向**：`/metrics` 暴露 `intellisource_health_status{component="db|redis|celery"}` gauge，0/1/2 三态；新增 alert `HealthDegradedFor5m`
-- **验证**：单测断言 gauge 随 check 结果变化；e2e 注入 redis down → 5min 后 alert fires
-- **依赖**：F-22 埋点框架已就位
-
-### B-004 send_task trace_id 未全栈覆盖
-- **关联**：F-23 reviewer 关注点
-- **现状**：仅 `/tasks/collect` 和 `/pipelines/{name}/run` 两处 send_task 主动注入 `headers={trace_id:...}`；未来新增 send_task 入口会静默丢失链路
-- **修复方向**：① pylint / ruff 自定义规则禁止裸 `send_task`，或 ② 包装一层 `intellisource.scheduler.dispatch.send_task_with_trace()` 内部强制注入；ban 直接 `celery_app.send_task`
-- **验证**：grep 全库 `send_task(` 匹配数 == 包装函数实现处
-
-### B-005 MetricsCollector 不支持 label 维度
-- **关联**：F-22 reviewer 关注点
-- **现状**：`pushes_sent_total` / `_failed_total` / `_skipped_total` 三个独立 counter，无法按 `channel="email|wechat|wework"` 维度拆分；llm 同样无法按 model 维度
-- **修复方向**：扩展 `MetricsCollector` 支持 `register_counter(name, labelnames=["channel"])` + `increment_counter(name, labels={"channel":"email"})`；对接 prometheus_client.Counter 或自实现轻量 label 字典
-- **影响范围**：facade / gateway / signals / middleware 全部埋点点改造
-- **验证**：scrape 输出形如 `pushes_total{channel="email"} 12`
-
-### B-006 单独跑 tests/unit/storage 31 个 fail（fixture 顺序污染）
-- **现状**：`pytest tests/unit/storage/test_repositories.py` 单独执行时 `discipline_tags=[]` SQLite binding 报错；全量 pytest 跑时被前序 fixture autouse 修复掩盖
-- **修复方向**：定位 autouse 修复点（可能在 conftest.py 的 ORM JSON column adapter），把它移到 `tests/conftest.py` 顶层而非 sprint-X 子模块 conftest，让单独跑也能初始化
-- **验证**：`uv run pytest tests/unit/storage/` 单独 PASS
+> B-003 / B-004 / B-005 / B-006 已闭环（详见 [docs/reviews/code/CODE-REVIEW-backlog-p1-r1.md](reviews/code/CODE-REVIEW-backlog-p1-r1.md)，含 R-001 修订）
 
 ---
 
@@ -93,6 +70,22 @@ deps: []
 - **现状**：[`src/intellisource/pipeline/processors/tools.py:305,310`](src/intellisource/pipeline/processors/tools.py:305) 硬编码中文字符串
 - **修复方向**：抽常量 `DEFAULT_KEYWORD_TAG: str = "未分类"` 至模块顶层；i18n 非 v1 范围
 - **成本**：单点改动
+
+### B-029 LLM alert 表达式按 model label 拆分
+- **关联**：[CODE-REVIEW-backlog-p1-r1.md R-005](reviews/code/CODE-REVIEW-backlog-p1-r1.md)
+- **现状**：[`docker/prometheus/alerts.yml:55-58`](../docker/prometheus/alerts.yml) `LlmFailureRate30Percent5m` 使用 `rate(llm_call_failures_total[5m]) / clamp_min(rate(llm_calls_total[5m]), 0.0001)`；PromQL 自动聚合 model 维度，单一 model 故障率高时被健康 model 稀释，alert fire 后无 model 信息定位
+- **修复方向**：表达式改为 `sum by (model) (rate(llm_call_failures_total[5m])) / clamp_min(sum by (model) (rate(llm_calls_total[5m])), 0.0001) > 0.3`，`annotations.summary/description` 引用 `{{ $labels.model }}`；同步更新 `tests/unit/observability/test_alerts_yaml.py` 的 expression assertion
+- **依赖**：B-005 labeled counter 已落地（B-029 是其自然演进）
+- **成本**：alerts.yml 1 处 + 测试断言更新
+- **可选范围扩展**：`PushFailureRateHigh` 同样按 `channel` 拆分
+
+### B-030 polish — code-review backlog-p1 r1 残留 LOW
+- **关联**：[CODE-REVIEW-backlog-p1-r1.md R-002/R-003/R-004](reviews/code/CODE-REVIEW-backlog-p1-r1.md)
+- **R-003**：[`tests/unit/scheduler/test_send_task_guardrail.py:9`](../tests/unit/scheduler/test_send_task_guardrail.py) `_ALLOWED_FILE` 子串匹配改为精确路径匹配（`rel == Path("intellisource/scheduler/dispatch.py").as_posix()`）
+- **R-004**：[`src/intellisource/distributor/facade.py:31-39`](../src/intellisource/distributor/facade.py) `_record_push_outcome` hot-path register 迁移到 composition 阶段集中注册；同样审视 `llm/gateway/__init__.py` `_record_llm_call`
+- **R-002**：guardrail 范围限定 src/ 的设计理由在 `dispatch.py` 或 `test_send_task_guardrail.py` 注释中显式化（tests/ 内允许测试底层 celery 契约）
+- **成本**：三处微调，单 PR 可合
+- **触发条件**：metrics / scheduler 模块下次有相关改动时顺手清理；不单独立批
 
 ---
 

@@ -76,27 +76,43 @@ class TestHttpRequestMetrics:
 
 
 class TestLlmGatewayMetrics:
-    """F-22 LLM path: success + failure paths emit counters and latency histogram."""
+    """F-22 LLM path: labeled counters and latency histogram on success/failure."""
 
     def test_record_llm_call_success_path(self) -> None:
         from intellisource.llm.gateway import _record_llm_call
 
-        _record_llm_call(latency_seconds=0.12, success=True)
+        _record_llm_call(latency_seconds=0.12, success=True, model="gpt-4o-mini")
 
         mc = MetricsCollector.get_instance()
-        assert mc.get_counter_value("llm_calls_total") == 1.0
-        assert mc.get_counter_value("llm_call_failures_total") == 0.0
+        assert (
+            mc.get_labeled_counter_value("llm_calls_total", {"model": "gpt-4o-mini"})
+            == 1.0
+        )
+        assert (
+            mc.get_labeled_counter_value(
+                "llm_call_failures_total", {"model": "gpt-4o-mini"}
+            )
+            == 0.0
+        )
         summary = mc.get_histogram_summary("llm_call_latency_seconds")
         assert summary["count"] == 1
 
     def test_record_llm_call_failure_path(self) -> None:
         from intellisource.llm.gateway import _record_llm_call
 
-        _record_llm_call(latency_seconds=0.05, success=False)
+        _record_llm_call(latency_seconds=0.05, success=False, model="gpt-4o-mini")
 
         mc = MetricsCollector.get_instance()
-        assert mc.get_counter_value("llm_calls_total") == 1.0
-        assert mc.get_counter_value("llm_call_failures_total") == 1.0
+        assert (
+            mc.get_labeled_counter_value("llm_calls_total", {"model": "gpt-4o-mini"})
+            == 1.0
+        )
+        assert (
+            mc.get_labeled_counter_value(
+                "llm_call_failures_total", {"model": "gpt-4o-mini"}
+            )
+            == 1.0
+        )
 
     def test_record_llm_call_does_not_raise_on_metric_error(
         self, monkeypatch: pytest.MonkeyPatch
@@ -141,10 +157,10 @@ def _make_session_factory(content: Any, subs: list[Any]) -> MagicMock:
 
 
 class TestDistributorMetrics:
-    """F-22 distributor path: pushes_total / _sent / _failed / _skipped counters."""
+    """F-22 distributor path: pushes_total{channel,status} labeled counter."""
 
     @pytest.mark.asyncio
-    async def test_sent_push_increments_sent_and_total(self) -> None:
+    async def test_sent_push_increments_labeled_sent(self) -> None:
         import uuid
 
         from intellisource.distributor.facade import DistributorFacade
@@ -175,12 +191,21 @@ class TestDistributorMetrics:
         await facade.distribute(content_id=cid)
 
         mc = MetricsCollector.get_instance()
-        assert mc.get_counter_value("pushes_total") == 1.0
-        assert mc.get_counter_value("pushes_sent_total") == 1.0
-        assert mc.get_counter_value("pushes_failed_total") == 0.0
+        assert (
+            mc.get_labeled_counter_value(
+                "pushes_total", {"channel": "email", "status": "sent"}
+            )
+            == 1.0
+        )
+        assert (
+            mc.get_labeled_counter_value(
+                "pushes_total", {"channel": "email", "status": "failed"}
+            )
+            == 0.0
+        )
 
     @pytest.mark.asyncio
-    async def test_channel_failure_increments_failed_counter(self) -> None:
+    async def test_channel_failure_increments_labeled_failed(self) -> None:
         import uuid
 
         from intellisource.distributor.facade import DistributorFacade
@@ -211,12 +236,21 @@ class TestDistributorMetrics:
         await facade.distribute(content_id=cid)
 
         mc = MetricsCollector.get_instance()
-        assert mc.get_counter_value("pushes_total") == 1.0
-        assert mc.get_counter_value("pushes_failed_total") == 1.0
-        assert mc.get_counter_value("pushes_sent_total") == 0.0
+        assert (
+            mc.get_labeled_counter_value(
+                "pushes_total", {"channel": "email", "status": "failed"}
+            )
+            == 1.0
+        )
+        assert (
+            mc.get_labeled_counter_value(
+                "pushes_total", {"channel": "email", "status": "sent"}
+            )
+            == 0.0
+        )
 
     @pytest.mark.asyncio
-    async def test_missing_channel_increments_skipped_counter(self) -> None:
+    async def test_missing_channel_increments_labeled_skipped(self) -> None:
         import uuid
 
         from intellisource.distributor.facade import DistributorFacade
@@ -242,5 +276,15 @@ class TestDistributorMetrics:
         await facade.distribute(content_id=cid)
 
         mc = MetricsCollector.get_instance()
-        assert mc.get_counter_value("pushes_skipped_total") == 1.0
-        assert mc.get_counter_value("pushes_sent_total") == 0.0
+        assert (
+            mc.get_labeled_counter_value(
+                "pushes_total", {"channel": "telegram", "status": "skipped"}
+            )
+            == 1.0
+        )
+        assert (
+            mc.get_labeled_counter_value(
+                "pushes_total", {"channel": "telegram", "status": "sent"}
+            )
+            == 0.0
+        )
