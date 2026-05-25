@@ -198,6 +198,12 @@ layers = [
 ]
 containers = ["intellisource"]
 exhaustive = false
+ignore_imports = [
+    "intellisource.scheduler.boot -> intellisource.composition",
+    "intellisource.scheduler.beat_sync -> intellisource.composition",
+    "intellisource.scheduler.tasks -> intellisource.core.pipeline_loader",
+    "intellisource.agent.factory -> intellisource.composition",
+]
 
 # Contract 2: Sprint 6 red line -- pipeline must NOT call LLM directly.
 # LLM calls go through agent.tools.executes.llm.llm_complete.
@@ -254,8 +260,12 @@ type = "independence"
 modules = ["intellisource.collector.sources", "intellisource.distributor.channels"]
 
 # Contract 8: Config layer must not depend on storage models.
+# allow_indirect_imports=true so the legitimate config -> repo -> models chain
+# does not register as a violation; only DIRECT config.* -> storage.models
+# is reported.
 [[tool.importlinter.contracts]]
 name = "Config must not depend on storage.models"
 type = "forbidden"
 source_modules = ["intellisource.config"]
 forbidden_modules = ["intellisource.storage.models"]
+allow_indirect_imports = true

@@ -13,7 +13,7 @@ from typing import Any
 
 from sqlalchemy import text
 
-from intellisource.agent.compaction import compact_messages_for_chat
+from intellisource.llm.compaction import compact_messages_for_chat
 
 _CHARS_PER_TOKEN = 4
 
@@ -68,10 +68,10 @@ class ChatSessionManager:
     async def compact_context(self, session_row: Any, max_tokens: int) -> Any:
         """Compact context via token-aware LLM summarization.
 
-        Delegates to ``agent.compaction.compact_messages_for_chat`` to share
-        the same pruning + structured summarization pipeline used by Agent
-        flows. When ``llm_gateway`` is not configured, the underlying helper
-        falls back to character-budget truncation with role=tool messages
+        Delegates to ``llm.compaction.compact_messages_for_chat`` to share
+        the same pruning + structured summarization pipeline used by agent
+        and search flows. When ``llm_gateway`` is not configured, the underlying
+        helper falls back to character-budget truncation with role=tool messages
         pruned first.
         """
         messages: list[dict[str, Any]] = session_row.context["messages"]

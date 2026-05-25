@@ -117,7 +117,7 @@ class TestStructuredSummaryTemplate:
         gateway = _make_gateway()
         # Force trigger: tiny context window
         messages = [{"role": "user", "content": "A" * 400}]
-        with patch("intellisource.agent.compaction.PromptBuilder") as mock_builder_cls:
+        with patch("intellisource.llm.compaction.PromptBuilder") as mock_builder_cls:
             mock_builder = MagicMock()
             mock_builder.add_context.return_value = mock_builder
             mock_builder.build.return_value = "rendered prompt"

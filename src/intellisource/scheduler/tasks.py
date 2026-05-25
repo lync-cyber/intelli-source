@@ -15,7 +15,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from intellisource.composition import PipelineLoader
+from intellisource.core.pipeline_loader import PipelineLoader
 from intellisource.scheduler.celery_app import celery_app
 from intellisource.scheduler.queues import PRIORITY_QUEUES, TRIGGER_TYPE_QUEUES
 from intellisource.storage.models import TaskChain

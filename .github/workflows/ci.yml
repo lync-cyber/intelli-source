@@ -30,7 +30,7 @@ jobs:
         run: uv python install ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv sync --all-extras
+        run: uv sync
 
       - name: Run unit tests
         run: uv run pytest tests/unit/ -q --tb=short -m "not slow"
@@ -52,12 +52,14 @@ jobs:
         run: uv python install 3.11
 
       - name: Install dependencies
-        run: uv sync --all-extras
+        run: uv sync
 
       - name: Pre-pull pgvector image (testcontainers warm-up)
         run: docker pull pgvector/pgvector:pg16
 
       - name: Run integration tests
+        env:
+          IS_FORCE_DOCKER_TESTS: "1"
         run: uv run pytest tests/integration/ -v --tb=short --timeout=300 --timeout-method=thread
 
   lint:
@@ -76,7 +78,7 @@ jobs:
         run: uv python install 3.11
 
       - name: Install dependencies
-        run: uv sync --all-extras
+        run: uv sync
 
       - name: Run ruff format check
         run: uv run ruff format --check .
@@ -103,6 +105,13 @@ jobs:
         continue-on-error: true
         run: uv run vulture
 
+      - name: Validate Prometheus alert rules (promtool)
+        run: >-
+          docker run --rm
+          -v ${{ github.workspace }}/docker/prometheus:/etc/prometheus
+          prom/prometheus:v2.55.1
+          promtool check rules /etc/prometheus/alerts.yml
+
   arch-graph:
     name: Dependency Graph Snapshot
     runs-on: ubuntu-latest
@@ -125,7 +134,7 @@ jobs:
         run: uv python install 3.11
 
       - name: Install dependencies
-        run: uv sync --all-extras
+        run: uv sync
 
       - name: Render dependency graph
         run: |

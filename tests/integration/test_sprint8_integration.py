@@ -426,7 +426,7 @@ class TestCompactionConsistency:
         mock_gw.complete = AsyncMock(return_value=summary_result)
 
         with patch(
-            "intellisource.agent.compaction._build_summary_prompt",
+            "intellisource.llm.compaction._build_summary_prompt",
             return_value="summarize this",
         ):
             # Path A: compact_messages_for_chat
