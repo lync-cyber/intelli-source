@@ -40,9 +40,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
 )
 
-from intellisource.agent.pipeline import PipelineConfig
 from intellisource.agent.runner import AgentRunner
-from intellisource.agent.tools import load_pipeline_config
 from intellisource.collector.adapters.api import APICollector
 from intellisource.collector.adapters.rss import RSSCollector
 from intellisource.collector.adapters.web import WebCollector
@@ -51,6 +49,7 @@ from intellisource.collector.proxy import ProxyManager
 from intellisource.collector.rate_limiter import RateLimiter
 from intellisource.collector.registry import CollectorRegistry
 from intellisource.core.errors import ErrorCategory, IntelliSourceError
+from intellisource.core.pipeline_loader import PipelineLoader, build_pipeline_loader
 from intellisource.distributor.channels.email import EmailDistributor
 from intellisource.distributor.channels.wechat import WeChatDistributor
 from intellisource.distributor.channels.wework import WeWorkDistributor
@@ -116,27 +115,6 @@ class CompositionNotInitialisedError(IntelliSourceError, RuntimeError):
                 "build_api_composition() (API) before reaching this code path"
             ),
         )
-
-
-# ---------------------------------------------------------------------------
-# PipelineLoader
-# ---------------------------------------------------------------------------
-
-
-class PipelineLoader:
-    """Resolve a pipeline yaml name to a `PipelineConfig` instance.
-
-    Wraps `intellisource.agent.tools.load_pipeline_config` so that the
-    `CeleryTasks.run_pipeline` consumer can hold a stable, mockable
-    dependency instead of a free function.
-    """
-
-    def load(self, name: str) -> PipelineConfig:
-        return load_pipeline_config(name)
-
-
-def build_pipeline_loader() -> PipelineLoader:
-    return PipelineLoader()
 
 
 def build_distributor_facade(
@@ -513,7 +491,7 @@ def _install_webhook_state(app: FastAPI, *, redis_client: Any) -> None:
     _wecom_aes_key = os.environ.get("IS_WECOM_ENCODING_AES_KEY", "")
     _wecom_corp_id = os.environ.get("IS_WECOM_CORP_ID", "")
     if _wecom_token and _wecom_aes_key and _wecom_corp_id:
-        from intellisource.api.webhook_crypto import WeComCrypto
+        from intellisource.core.webhook_crypto import WeComCrypto
 
         app.state.wecom_crypto = WeComCrypto(
             token=_wecom_token,

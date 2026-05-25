@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Sequence
 from typing import Any
 
 from sqlalchemy import select
@@ -64,6 +65,53 @@ class SourceRepository(BaseRepository[Source]):
             await self.upsert(cfg)
             count += 1
         return count
+
+    async def bulk_sync_from_configs(self, configs: list[SourceConfig]) -> None:
+        """Sync the full set of source configs to the database.
+
+        Creates new sources, updates existing ones, and marks sources absent
+        from *configs* as paused.
+        """
+        config_by_name: dict[str, SourceConfig] = {c.name: c for c in configs}
+
+        result = await self._session.execute(select(Source))
+        existing_sources: Sequence[Source] = result.scalars().all()
+        existing_by_name: dict[str, Source] = {s.name: s for s in existing_sources}
+
+        for name, config in config_by_name.items():
+            if name in existing_by_name:
+                existing = existing_by_name[name]
+                existing.type = config.type
+                existing.url = config.url
+                existing.tags = config.tags
+                existing.schedule_interval = config.schedule_interval
+                existing.schedule_adaptive = config.schedule_adaptive
+                existing.proxy = config.proxy
+                existing.rate_limit_qps = config.rate_limit_qps
+                existing.rate_limit_concurrency = config.rate_limit_concurrency
+                existing.metadata_ = config.metadata
+            else:
+                self._session.add(
+                    Source(
+                        name=config.name,
+                        type=config.type,
+                        url=config.url,
+                        tags=config.tags,
+                        status="active",
+                        schedule_interval=config.schedule_interval,
+                        schedule_adaptive=config.schedule_adaptive,
+                        proxy=config.proxy,
+                        rate_limit_qps=config.rate_limit_qps,
+                        rate_limit_concurrency=config.rate_limit_concurrency,
+                        metadata_=config.metadata,
+                    )
+                )
+
+        for name, source in existing_by_name.items():
+            if name not in config_by_name:
+                source.status = "paused"
+
+        await self._session.flush()
 
     async def list_active_source_ids(self) -> list[uuid.UUID]:
         """Return the IDs of all sources with status='active'."""

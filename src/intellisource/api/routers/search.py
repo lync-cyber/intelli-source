@@ -246,10 +246,12 @@ async def _load_chat_session(
     except ValueError:
         return None, None
 
-    from intellisource.storage.models import ChatSession
+    from intellisource.storage.repositories.chat_session import (
+        ChatSessionRepository,
+    )
 
     try:
-        row = await db_session.get(ChatSession, session_uuid)
+        row = await ChatSessionRepository(db_session).get_by_id(session_uuid)
     except Exception:
         logger.exception("ChatSession lookup failed for session_id=%s", session_id)
         return None, session_uuid

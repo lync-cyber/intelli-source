@@ -15,7 +15,11 @@ import re
 from collections import Counter
 from typing import Any
 
+from intellisource.core.text_tools import filter_sensitive, truncate_for_push
+
 logger = logging.getLogger(__name__)
+
+DEFAULT_KEYWORD_TAG: str = "未分类"
 
 # ---------------------------------------------------------------------------
 # regex_extract
@@ -293,6 +297,22 @@ async def truncate_summary(
     return _truncate_fallback(cluster_contents)
 
 
+_SUMMARIZER_PROMPT_TEMPLATE = (
+    "Generate a JSON digest for the following clustered "
+    "documents using the structure below.\n\n"
+    "<output_format>\n"
+    '{{"title": str, "summary": str, '
+    '"timeline": [{{"date": str, "event": str}}], '
+    '"key_points": [str]}}\n'
+    "</output_format>\n\n"
+    "<documents>\n"
+    "{docs_text}\n"
+    "</documents>\n\n"
+    "Return only valid JSON. "
+    "Do not include any explanation or markdown fences."
+)
+
+
 async def _llm_summarize(
     cluster_contents: list[dict[str, str]],
     gateway: Any,
@@ -303,9 +323,7 @@ async def _llm_summarize(
         for doc in cluster_contents
     )
     try:
-        from intellisource.llm.prompts import load_prompt  # noqa: PLC0415
-
-        prompt = load_prompt("summarizer", style="structured", docs_text=docs_text)
+        prompt = _SUMMARIZER_PROMPT_TEMPLATE.format(docs_text=docs_text)
         llm_result = await gateway.complete(
             prompt=prompt,
             task_type="summarize",
@@ -364,49 +382,13 @@ async def keyword_tag(
     combined = body_text + " " + title
     matched = [tag for tag in tag_library if tag in combined]
     if not matched:
-        return ["未分类"]
+        return [DEFAULT_KEYWORD_TAG]
     return matched
 
 
-# ---------------------------------------------------------------------------
-# filter_sensitive
-# ---------------------------------------------------------------------------
-
-
-async def filter_sensitive(
-    text: str,
-    sensitive_words: list[str],
-) -> list[str]:
-    """Find sensitive words present in text.
-
-    Returns:
-        Deduplicated list of matched sensitive words.
-    """
-    if not text:
-        return []
-    text_lower = text.lower()
-    return [w for w in sensitive_words if w.lower() in text_lower]
-
-
-# ---------------------------------------------------------------------------
-# truncate_for_push
-# ---------------------------------------------------------------------------
-
-
-async def truncate_for_push(
-    title: str,
-    body_text: str,
-) -> dict[str, str]:
-    """Truncate content to reasonable push distribution lengths.
-
-    Returns:
-        Dict with ``title`` (max 80 chars) and ``summary`` (max 200 chars).
-    """
-    max_title_len = 80
-    max_summary_len = 200
-    opt_title = title[:max_title_len] if len(title) > max_title_len else title
-    sentences = body_text.split(". ")
-    summary = ". ".join(sentences[:3])
-    if len(summary) > max_summary_len:
-        summary = summary[:max_summary_len].rsplit(" ", 1)[0] + "..."
-    return {"title": opt_title, "summary": summary}
+# filter_sensitive and truncate_for_push are re-exported from core.text_tools
+# to preserve backward-compatible imports for callers of this module.
+__all__ = [
+    "filter_sensitive",
+    "truncate_for_push",
+]

@@ -95,8 +95,6 @@ class _StreamMixin:
                 lambda: self._acompletion(**call_kwargs),
                 model=resolved_model,
                 call_type="stream",
-                operation_id=task_type or "stream",
-                enable_fallback=False,
                 enable_circuit_breaker=True,
                 task_type=task_type,
             )

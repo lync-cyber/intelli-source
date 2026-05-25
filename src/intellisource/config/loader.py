@@ -11,12 +11,11 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from sqlalchemy import select, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.config.models import SourceConfig
 from intellisource.config.validator import ConfigValidator
-from intellisource.storage.models import Source
 
 logger = logging.getLogger(__name__)
 
@@ -38,36 +37,6 @@ def _detect_format(file_path: str) -> str:
         if file_path.endswith(ext):
             return fmt
     raise ValueError(f"Unsupported file extension: {file_path}")
-
-
-def _update_source_from_config(source: Source, config: SourceConfig) -> None:
-    """Apply configuration values to an existing Source ORM instance."""
-    source.type = config.type
-    source.url = config.url
-    source.tags = config.tags
-    source.schedule_interval = config.schedule_interval
-    source.schedule_adaptive = config.schedule_adaptive
-    source.proxy = config.proxy
-    source.rate_limit_qps = config.rate_limit_qps
-    source.rate_limit_concurrency = config.rate_limit_concurrency
-    source.metadata_ = config.metadata
-
-
-def _create_source_from_config(config: SourceConfig) -> Source:
-    """Create a new Source ORM instance from a SourceConfig."""
-    return Source(
-        name=config.name,
-        type=config.type,
-        url=config.url,
-        tags=config.tags,
-        status="active",
-        schedule_interval=config.schedule_interval,
-        schedule_adaptive=config.schedule_adaptive,
-        proxy=config.proxy,
-        rate_limit_qps=config.rate_limit_qps,
-        rate_limit_concurrency=config.rate_limit_concurrency,
-        metadata_=config.metadata,
-    )
 
 
 class ConfigLoader:
@@ -136,23 +105,10 @@ class ConfigLoader:
 
         Creates new sources, updates existing ones, and marks removed ones as paused.
         """
-        config_by_name: dict[str, SourceConfig] = {c.name: c for c in configs}
+        from intellisource.storage.repositories.source import SourceRepository
 
-        result = await session.execute(select(Source))
-        existing_sources: Sequence[Any] = result.scalars().all()
-        existing_by_name: dict[str, Source] = {s.name: s for s in existing_sources}
-
-        for name, config in config_by_name.items():
-            if name in existing_by_name:
-                _update_source_from_config(existing_by_name[name], config)
-            else:
-                session.add(_create_source_from_config(config))
-
-        for name, source in existing_by_name.items():
-            if name not in config_by_name:
-                source.status = "paused"
-
-        await session.flush()
+        repo = SourceRepository(session)
+        await repo.bulk_sync_from_configs(list(configs))
 
 
 class ConfigWatcher:

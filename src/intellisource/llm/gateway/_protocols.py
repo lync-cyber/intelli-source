@@ -44,10 +44,7 @@ class _GatewayProtocol(Protocol):
         *,
         model: str,
         call_type: str,
-        operation_id: str,
-        enable_fallback: bool = ...,
         enable_circuit_breaker: bool = ...,
-        fallback_input: str = ...,
         task_type: str | None = ...,
     ) -> Any: ...
 

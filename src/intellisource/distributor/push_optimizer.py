@@ -9,7 +9,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
 
-from intellisource.pipeline.processors.tools import filter_sensitive, truncate_for_push
+from intellisource.core.text_tools import filter_sensitive, truncate_for_push
 
 _logger = logging.getLogger(__name__)
 
