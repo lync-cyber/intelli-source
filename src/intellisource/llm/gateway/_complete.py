@@ -193,8 +193,6 @@ class _CompleteMixin:
             _call_fn,
             model=model,
             call_type=task_type or "unknown",
-            operation_id=task_type or "unknown",
-            enable_fallback=False,
             enable_circuit_breaker=True,
             task_type=task_type,
         )

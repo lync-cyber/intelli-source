@@ -75,8 +75,6 @@ class TestUnifiedRetryTransient:
             _flaky,
             model="gpt-4o-mini",
             call_type="complete",
-            operation_id="test",
-            enable_fallback=False,
             enable_circuit_breaker=False,
         )
 
@@ -104,8 +102,6 @@ class TestUnifiedRetryTransient:
                 _bad,
                 model="gpt-4o-mini",
                 call_type="complete",
-                operation_id="test",
-                enable_fallback=False,
                 enable_circuit_breaker=False,
             )
 
@@ -141,7 +137,6 @@ class TestUnifiedRetryCircuitBreaker:
                 _call_fn,
                 model="gpt-4o-mini",
                 call_type="complete",
-                operation_id="test",
                 enable_circuit_breaker=True,
             )
 
@@ -170,7 +165,6 @@ class TestUnifiedRetryCircuitBreaker:
                 _bad,
                 model="gpt-4o-mini",
                 call_type="complete",
-                operation_id="test",
                 enable_circuit_breaker=True,
             )
 
@@ -194,7 +188,6 @@ class TestUnifiedRetryCircuitBreaker:
             _ok,
             model="gpt-4o-mini",
             call_type="complete",
-            operation_id="test",
             enable_circuit_breaker=True,
         )
 

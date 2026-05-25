@@ -41,10 +41,7 @@ class _RetryMixin:
         *,
         model: str,
         call_type: str,
-        operation_id: str,
-        enable_fallback: bool = True,
         enable_circuit_breaker: bool = True,
-        fallback_input: str = "",
         task_type: str | None = None,
     ) -> Any:
         """Unified retry + circuit breaker + fallback for all LLM call paths.
@@ -55,10 +52,7 @@ class _RetryMixin:
             call_fn: Async callable with no arguments that invokes the provider.
             model: Resolved model identifier for logging.
             call_type: "complete" / "chat" / "stream" for log records.
-            operation_id: Opaque identifier for this call (e.g. task_type or "chat").
-            enable_fallback: Whether to attempt fallback on exhausted retries.
             enable_circuit_breaker: Whether to check/record circuit breaker state.
-            fallback_input: Input string forwarded to fallback_manager.execute_fallback.
             task_type: Task type for fallback routing and retry logging.
         """
         if enable_circuit_breaker and self.circuit_breaker is not None:

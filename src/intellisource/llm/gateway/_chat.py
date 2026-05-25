@@ -130,10 +130,7 @@ class _ChatMixin:
                 _chat_call_fn,
                 model=resolved_model,
                 call_type="chat",
-                operation_id="chat",
-                enable_fallback=False,
                 enable_circuit_breaker=True,
-                fallback_input=fallback_text,
                 task_type="chat",
             )
         except BaseException as exc:

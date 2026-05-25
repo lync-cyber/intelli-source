@@ -68,6 +68,7 @@ class TestChatSessionPersistence:
                 self._session = session
 
             create = repo_create
+            get_by_id = AsyncMock(return_value=None)
 
             async def update_context(self, *args: Any, **kwargs: Any) -> None:
                 raise AssertionError("update_context should not be called")
@@ -118,6 +119,7 @@ class TestChatSessionPersistence:
 
             update_context = repo_update
             create = repo_create
+            get_by_id = AsyncMock(return_value=existing)
 
         monkeypatch.setattr(cs_mod, "ChatSessionRepository", _FakeRepo)
 
@@ -166,6 +168,7 @@ class TestChatSessionPersistence:
 
             update_context = AsyncMock()
             create = AsyncMock()
+            get_by_id = AsyncMock(return_value=existing)
 
         monkeypatch.setattr(cs_mod, "ChatSessionRepository", _FakeRepo)
 
@@ -200,6 +203,7 @@ class TestChatSessionPersistence:
 
             create = AsyncMock()
             update_context = AsyncMock()
+            get_by_id = AsyncMock(return_value=None)
 
         monkeypatch.setattr(cs_mod, "ChatSessionRepository", _FakeRepo)
 

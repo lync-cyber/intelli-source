@@ -17,6 +17,8 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_KEYWORD_TAG: str = "未分类"
+
 # ---------------------------------------------------------------------------
 # regex_extract
 # ---------------------------------------------------------------------------
@@ -364,7 +366,7 @@ async def keyword_tag(
     combined = body_text + " " + title
     matched = [tag for tag in tag_library if tag in combined]
     if not matched:
-        return ["未分类"]
+        return [DEFAULT_KEYWORD_TAG]
     return matched
 
 
