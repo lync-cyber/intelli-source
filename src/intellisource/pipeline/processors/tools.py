@@ -9,9 +9,13 @@ algorithmic processing only.
 from __future__ import annotations
 
 import hashlib
+import json
+import logging
 import re
 from collections import Counter
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # regex_extract
@@ -261,19 +265,72 @@ async def tfidf_keywords(title: str, body_text: str) -> str:
 
 async def truncate_summary(
     cluster_contents: list[dict[str, str]],
+    *,
+    tool_deps: Any = None,
 ) -> dict[str, Any]:
-    """Generate a digest from clustered documents via truncation.
+    """Generate a digest from clustered documents.
+
+    Attempts LLM-based summarization when ``tool_deps.llm_gateway`` is
+    available; falls back to first-3-sentence truncation on failure.
 
     Args:
         cluster_contents: List of dicts with ``title``, ``body_text``,
             and optionally ``published_at``.
+        tool_deps: Optional dependency container with ``llm_gateway``.
 
     Returns:
-        Dict with title, summary, timeline (empty), key_points (empty).
+        Dict with title, summary, timeline, key_points.
     """
     if not cluster_contents:
         return {"title": "", "summary": "", "timeline": [], "key_points": []}
 
+    gateway = getattr(tool_deps, "llm_gateway", None) if tool_deps is not None else None
+    if gateway is not None:
+        result = await _llm_summarize(cluster_contents, gateway)
+        if result is not None:
+            return result
+
+    return _truncate_fallback(cluster_contents)
+
+
+async def _llm_summarize(
+    cluster_contents: list[dict[str, str]],
+    gateway: Any,
+) -> dict[str, Any] | None:
+    """Call LLM to produce a structured summary; return None on failure."""
+    docs_text = "\n\n".join(
+        f"Title: {doc.get('title', '')}\n{doc.get('body_text', '')}"
+        for doc in cluster_contents
+    )
+    try:
+        from intellisource.llm.prompts import load_prompt  # noqa: PLC0415
+
+        prompt = load_prompt("summarizer", style="structured", docs_text=docs_text)
+        llm_result = await gateway.complete(
+            prompt=prompt,
+            task_type="summarize",
+            response_format={"type": "json_object"},
+        )
+        parsed = json.loads(llm_result.content)
+    except Exception:
+        logger.warning("LLM summarize failed, falling back to truncation")
+        return None
+
+    required_keys = {"title", "summary", "timeline", "key_points"}
+    if not required_keys.issubset(parsed.keys()):
+        logger.warning("LLM response missing required keys, falling back")
+        return None
+
+    return {
+        "title": str(parsed["title"]),
+        "summary": str(parsed["summary"]),
+        "timeline": list(parsed["timeline"]),
+        "key_points": list(parsed["key_points"]),
+    }
+
+
+def _truncate_fallback(cluster_contents: list[dict[str, str]]) -> dict[str, Any]:
+    """First-3-sentence truncation (original logic)."""
     title = cluster_contents[0].get("title", "")
     combined_text = " ".join(doc.get("body_text", "") for doc in cluster_contents)
     sentences = combined_text.split(". ")

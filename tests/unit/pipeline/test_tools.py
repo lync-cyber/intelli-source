@@ -326,6 +326,123 @@ class TestTruncateSummary:
         assert result["summary"].endswith(".")
 
 
+class TestTruncateSummaryLLM:
+    """Tests for LLM-enhanced truncate_summary (B-008)."""
+
+    async def test_llm_produces_structured_summary(self) -> None:
+        """When gateway returns valid JSON, truncate_summary yields real fields."""
+        import json
+
+        llm_response = {
+            "title": "LLM Generated Title",
+            "summary": "A comprehensive summary from LLM.",
+            "timeline": [{"date": "2026-01-01", "event": "Launch"}],
+            "key_points": ["Point A", "Point B"],
+        }
+
+        async def fake_complete(**kwargs: Any) -> SimpleNamespace:
+            return SimpleNamespace(content=json.dumps(llm_response), metadata={})
+
+        gateway = SimpleNamespace(complete=fake_complete)
+        tool_deps = SimpleNamespace(llm_gateway=gateway)
+
+        contents = [
+            {"title": "Doc 1", "body_text": "Text one. Text two. Text three."},
+            {"title": "Doc 2", "body_text": "Another paragraph."},
+        ]
+        result = await truncate_summary(contents, tool_deps=tool_deps)
+        assert result["title"] == "LLM Generated Title"
+        assert result["summary"] == "A comprehensive summary from LLM."
+        assert len(result["timeline"]) == 1
+        assert result["timeline"][0]["event"] == "Launch"
+        assert result["key_points"] == ["Point A", "Point B"]
+
+    async def test_llm_failure_falls_back_to_truncation(self) -> None:
+        """When LLM raises, falls back to string truncation."""
+
+        async def failing_complete(**kwargs: Any) -> None:
+            raise RuntimeError("LLM unavailable")
+
+        gateway = SimpleNamespace(complete=failing_complete)
+        tool_deps = SimpleNamespace(llm_gateway=gateway)
+
+        contents = [
+            {
+                "title": "Fallback Title",
+                "body_text": "Sent one. Sent two. Sent three. Four.",
+            },
+        ]
+        result = await truncate_summary(contents, tool_deps=tool_deps)
+        assert result["title"] == "Fallback Title"
+        assert "Sent one" in result["summary"]
+        assert result["timeline"] == []
+        assert result["key_points"] == []
+
+    async def test_llm_invalid_json_falls_back(self) -> None:
+        """When LLM returns non-JSON, falls back to truncation."""
+
+        async def bad_json_complete(**kwargs: Any) -> SimpleNamespace:
+            return SimpleNamespace(content="not valid json {{{", metadata={})
+
+        gateway = SimpleNamespace(complete=bad_json_complete)
+        tool_deps = SimpleNamespace(llm_gateway=gateway)
+
+        contents = [{"title": "T", "body_text": "A. B. C."}]
+        result = await truncate_summary(contents, tool_deps=tool_deps)
+        assert result["title"] == "T"
+        assert result["timeline"] == []
+        assert result["key_points"] == []
+
+    async def test_llm_missing_fields_falls_back(self) -> None:
+        """When LLM JSON lacks required keys, falls back to truncation."""
+        import json
+
+        async def partial_complete(**kwargs: Any) -> SimpleNamespace:
+            return SimpleNamespace(
+                content=json.dumps({"title": "Only title"}), metadata={}
+            )
+
+        gateway = SimpleNamespace(complete=partial_complete)
+        tool_deps = SimpleNamespace(llm_gateway=gateway)
+
+        contents = [{"title": "Original", "body_text": "Text here."}]
+        result = await truncate_summary(contents, tool_deps=tool_deps)
+        assert result["title"] == "Original"
+        assert result["timeline"] == []
+        assert result["key_points"] == []
+
+    async def test_no_tool_deps_uses_truncation(self) -> None:
+        """Without tool_deps, behaves identically to the original."""
+        contents = [
+            {"title": "Plain", "body_text": "One. Two. Three. Four."},
+        ]
+        result = await truncate_summary(contents, tool_deps=None)
+        assert result["title"] == "Plain"
+        assert "One" in result["summary"]
+        assert result["timeline"] == []
+        assert result["key_points"] == []
+
+    async def test_no_gateway_on_tool_deps_uses_truncation(self) -> None:
+        """tool_deps exists but llm_gateway is None -> truncation fallback."""
+        tool_deps = SimpleNamespace(llm_gateway=None)
+        contents = [{"title": "T", "body_text": "A. B. C."}]
+        result = await truncate_summary(contents, tool_deps=tool_deps)
+        assert result["title"] == "T"
+        assert result["timeline"] == []
+
+    async def test_empty_cluster_with_tool_deps(self) -> None:
+        """Empty cluster returns empty fields even with gateway available."""
+
+        async def should_not_call(**kwargs: Any) -> None:
+            raise AssertionError("Should not call LLM for empty cluster")
+
+        gateway = SimpleNamespace(complete=should_not_call)
+        tool_deps = SimpleNamespace(llm_gateway=gateway)
+
+        result = await truncate_summary([], tool_deps=tool_deps)
+        assert result == {"title": "", "summary": "", "timeline": [], "key_points": []}
+
+
 # ---------------------------------------------------------------------------
 # 8. keyword_tag
 # ---------------------------------------------------------------------------
