@@ -518,19 +518,28 @@ class LLMGateway(_RetryMixin):
 
     async def stream_complete(
         self,
-        prompt: str,
+        prompt: str | None = None,
         model: str | None = None,
         system_prompt: str | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
         task_type: str | None = None,
+        *,
+        messages: list[dict[str, Any]] | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """Stream LLM completion via litellm.acompletion(stream=True).
+
+        Accepts either a single-turn `prompt` (+ optional system_prompt) or a
+        pre-built `messages` list (multi-turn / tool history). One of the two
+        must be supplied.
 
         Yields dicts of shape:
         - {"content": "...", "done": False} per chunk
         - {"content": "", "done": True, "metadata": {...}} final
         """
+        if messages is None and prompt is None:
+            raise ValueError("stream_complete requires either prompt= or messages=")
+
         resolved_model = model
         if resolved_model is None and task_type is not None:
             models = self._routing_config.get("models", {})
@@ -555,14 +564,18 @@ class LLMGateway(_RetryMixin):
                 profile.max_tokens if profile is not None else self._default_max_tokens
             )
 
-        messages: list[dict[str, str]] = []
-        if system_prompt is not None:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
+        call_messages: list[dict[str, Any]]
+        if messages is not None:
+            call_messages = list(messages)
+        else:
+            call_messages = []
+            if system_prompt is not None:
+                call_messages.append({"role": "system", "content": system_prompt})
+            call_messages.append({"role": "user", "content": prompt})
 
         call_kwargs: dict[str, Any] = {
             "model": resolved_model,
-            "messages": messages,
+            "messages": call_messages,
             "temperature": resolved_temperature,
             "max_tokens": resolved_max_tokens,
             "stream": True,
@@ -622,7 +635,9 @@ class LLMGateway(_RetryMixin):
 
         # Fallback token estimates when streaming response omits usage
         if input_tokens == 0:
-            input_tokens = sum(len(str(m.get("content", ""))) for m in messages) // 4
+            input_tokens = (
+                sum(len(str(m.get("content", ""))) for m in call_messages) // 4
+            )
         if output_tokens == 0:
             output_tokens = len(accumulated_content) // 4
 
@@ -637,6 +652,11 @@ class LLMGateway(_RetryMixin):
         }
 
         if self._cost_tracker is not None:
+            input_length = (
+                len(prompt)
+                if prompt is not None
+                else sum(len(str(m.get("content", ""))) for m in call_messages)
+            )
             record = LLMCallRecord(
                 model=final_model,
                 provider=(
@@ -646,7 +666,7 @@ class LLMGateway(_RetryMixin):
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 latency_ms=int(elapsed_ms),
-                input_length=len(prompt),
+                input_length=input_length,
                 output_length=len(accumulated_content),
                 status="success",
             )

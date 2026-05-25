@@ -1,0 +1,32 @@
+# 全仓库默认按文件内容自动判定文本/二进制；文本统一 LF 行尾
+* text=auto eol=lf
+
+# 文本资产强制 LF（防 Windows core.autocrlf 引入 CRLF 噪音）
+*.md       text eol=lf
+*.json     text eol=lf
+*.yaml     text eol=lf
+*.yml      text eol=lf
+*.py       text eol=lf
+*.sh       text eol=lf
+*.toml     text eol=lf
+*.cfg      text eol=lf
+*.ini      text eol=lf
+*.txt      text eol=lf
+*.jsonl    text eol=lf
+Dockerfile text eol=lf
+Makefile   text eol=lf
+
+# Windows 批处理与 PowerShell 保留 CRLF
+*.bat      text eol=crlf
+*.cmd      text eol=crlf
+*.ps1      text eol=crlf
+
+# 二进制资产
+*.png      binary
+*.jpg      binary
+*.jpeg     binary
+*.gif      binary
+*.ico      binary
+*.pdf      binary
+*.zip      binary
+*.gz       binary

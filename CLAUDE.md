@@ -4,7 +4,7 @@
 - 项目名称: IntelliSource
 - 技术栈: Python 3.11+ / FastAPI / Celery + Redis / PostgreSQL + pgvector / SQLAlchemy 2.0 / litellm
 - 运行时: claude-code
-- 框架版本: 0.4.0
+- 框架版本: 0.4.1
 - 语言定位: 中文框架（提示词/文档/交互用中文；代码/变量/CLI参数用英文）
 - 执行模式: standard
   <!-- 可选值: standard | agile-lite | agile-prototype。矩阵见 COMMON-RULES §执行模式矩阵 -->
@@ -12,13 +12,14 @@
 - model 继承: AGENT.md 中 `model: inherit` 继承父会话模型
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: post-audit-stabilization — PR #53（39 项 audit fix）+ PR #54（14 项 P1 收尾 + 测试零 skip 零 xfail）merge / pending
-- 下一步行动: 见 [docs/BACKLOG-intellisource-v1.md](docs/BACKLOG-intellisource-v1.md) — 优先级 P0 → B-001 `/search/chat/stream` RAG / B-002 `/search` date 类型；其后 P1 / Deploy 阶段
-- 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r, sprint-9, sprint-8 P2, audit-fix-pr53, audit-fix-pr54]
-- 当前回归基线: 2766 PASS / 0 FAIL / 0 skip / 0 xfail / 51 deselected；mypy --strict + ruff check + ruff format clean
+- 当前阶段: backlog-burndown — P0 (B-001 + B-002) 闭环；P1 / Deploy 待启动
+- 下一步行动: 见 [docs/BACKLOG-intellisource-v1.md](docs/BACKLOG-intellisource-v1.md) — 优先级 P1 → B-003 health gauge / B-004 send_task trace_id / B-005 MetricsCollector label / B-006 storage fixture；Deploy 阶段 B-010；架构治理 B-020~B-028
+- 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r, sprint-9, sprint-8 P2, audit-fix-pr53, audit-fix-pr54, backlog-b001-b002]
+- 当前回归基线: 2792 PASS / 0 FAIL / 0 skip / 0 xfail / 51 deselected (含 +26 新增 B-001+B-002 测试)；mypy --strict + ruff check + ruff format clean
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report = approved；ui-spec = N/A；dev-plan-s8 = draft；deploy-spec = 未开始 (B-010)；backlog = approved
 - audit-fix-pr53 闭环 (commit 7e10e77): F-01~F-11 P0 + F-12~F-27 P1 + F-28~F-48 P2/P3 — 39 项，详见 PR #53 描述
 - audit-fix-pr54 闭环 (commit 31bddde): F-11 receiver_id / F-25 health 豁免 / F-42 PG /search 真链路 / idempotency RuntimeWarning / F-20+F-21 health 并发 / F-22 metrics 4 路径 / F-23 trace_id 跨 worker / F-24 alerts.yml / F-26 priority queue / F-27 content_not_found / 2 xfail (HybridIndex tags/date) / 1 placeholder skip 删 / 46 docker skip 转 deselect — 14 项
+- backlog-b001-b002 闭环: B-001 `/search/chat/stream` 切 `AgentRunner.run_flexible_stream` (新增 RAG-aware 流式入口 + LLMGateway.stream_complete 支持 messages 参数 + FlexibleLoop.run_stream) + B-002 `SearchRequest.date_from/to: str → datetime`（非法值 422 而非 500）；SSE 事件契约 step/sources/token/done/error
 - Learnings Registry:
   - [RETRO-intellisource-v1.md](docs/reviews/retro/RETRO-intellisource-v1.md) — 6 EXP (sprint-1~7)，应用决策 deferred → backlog B-016
   - [RETRO-intellisource-v1-sprint-9.md](docs/reviews/retro/RETRO-intellisource-v1-sprint-9.md) — 2 EXP 强制立项 (EXP-005 装配缺口 5 次复发 → B-017 / EXP-006 truncation 4/4 跨 3 角色)
