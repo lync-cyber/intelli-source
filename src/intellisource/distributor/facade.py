@@ -28,11 +28,6 @@ def _record_push_outcome(outcome: str, channel: str = "unknown") -> None:
         from intellisource.observability.metrics import MetricsCollector
 
         mc = MetricsCollector.get_instance()
-        mc.register_labeled_counter(
-            _METRIC_PUSHES_TOTAL,
-            labelnames=["channel", "status"],
-            description="Push attempts by channel and outcome",
-        )
         mc.increment_labeled_counter(
             _METRIC_PUSHES_TOTAL,
             labels={"channel": channel, "status": outcome},
@@ -68,6 +63,19 @@ class DistributorFacade:
         self._matcher = matcher
         self._channels = channels
         self._llm_gateway = llm_gateway
+        self._register_metrics()
+
+    def _register_metrics(self) -> None:
+        try:
+            from intellisource.observability.metrics import MetricsCollector
+
+            MetricsCollector.get_instance().register_labeled_counter(
+                _METRIC_PUSHES_TOTAL,
+                labelnames=["channel", "status"],
+                description="Push attempts by channel and outcome",
+            )
+        except Exception:  # noqa: BLE001 — metric failures must not break delivery
+            _logger.exception("failed to register distributor metrics")
 
     async def distribute(
         self,

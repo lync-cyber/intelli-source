@@ -335,3 +335,10 @@
 {"event": "review_verdict", "phase": "backlog-burndown", "agent": "reviewer", "status": "approved", "detail": "R-001 修订增量审查通过（inline，无 r2）", "ts": "2026-05-25T09:23:07+00:00"}
 {"event": "user_decision", "phase": "backlog-burndown", "detail": "用户选择: Inline 修 R-001 后再闭环 — 修订完成", "ts": "2026-05-25T09:23:07+00:00"}
 {"event": "state_change", "phase": "backlog-burndown", "detail": "batch-3 end: B-005 closed; backlog-p1 (B-003+B-004+B-005+B-006) 全闭环 + R-001 修订完成，2820 PASS", "ts": "2026-05-25T09:23:07+00:00"}
+{"ts": "2026-05-25T09:34:58+00:00", "event": "state_change", "phase": "backlog-burndown", "detail": "B-007 start: LLMGateway facade mixin split (732 lines → mixins)"}
+{"ts": "2026-05-25T09:58:38+00:00", "event": "review_verdict", "phase": "backlog-burndown", "detail": "B-007 审查通过 0 issue — mixin 拆分严格满足行数 + 公共 API 不破坏 + mypy strict + 2820 PASS", "agent": "reviewer", "status": "approved"}
+{"event": "user_decision", "phase": "backlog-burndown", "detail": "B-009 decision: reaffirm 选项 ② (YAML-as-source-of-truth)", "ts": "2026-05-25T10:07:33+00:00"}
+{"event": "state_change", "phase": "backlog-burndown", "detail": "backlog-b009-decision closed (decision-only, sprint-9 已落地, BACKLOG 历史遗漏清理)", "ts": "2026-05-25T10:07:33+00:00"}
+{"ts": "2026-05-25T10:18:41+00:00", "event": "state_change", "phase": "backlog-burndown", "detail": "B-029 + B-030 polish start: LLM alert model 拆分 + 3 项 code-review LOW"}
+{"event": "review_verdict", "phase": "backlog-burndown", "agent": "reviewer", "status": "approved", "detail": "B-029 + B-030 polish 通过 inline 审查 0 issue (与 r1 推荐方向一致，3 项 ASSUMPTION 合理)", "ts": "2026-05-25T10:45:08+00:00"}
+{"event": "state_change", "phase": "backlog-burndown", "detail": "backlog-b029-b030-polish closed (alert split + guardrail polish + register 集中化, 2827 PASS)", "ts": "2026-05-25T10:45:08+00:00"}

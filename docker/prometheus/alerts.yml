@@ -53,19 +53,19 @@ groups:
 
       - alert: LLMCallFailureRateHigh
         expr: |
-          rate(llm_call_failures_total[5m])
+          sum by (model) (rate(llm_call_failures_total[5m]))
             /
-          clamp_min(rate(llm_calls_total[5m]), 0.0001)
+          clamp_min(sum by (model) (rate(llm_calls_total[5m])), 0.0001)
           > 0.2
         for: 10m
         labels:
           severity: warning
           component: llm
         annotations:
-          summary: "More than 20% of LLM calls failed in the last 5 minutes"
+          summary: "LLM model={{ $labels.model }} failure rate exceeded 20% over 5m"
           description: |
-            Sustained failure rate indicates provider-side outage or
-            credential issues. Check ``llm_call_latency_seconds`` for the
+            Model {{ $labels.model }} sustained failure rate indicates provider-side
+            outage or credential issues. Check ``llm_call_latency_seconds`` for the
             timing distribution before paging the on-call.
 
   - name: intellisource.distribution
@@ -73,19 +73,19 @@ groups:
     rules:
       - alert: PushFailureRateHigh
         expr: |
-          rate(pushes_total{status="failed"}[5m])
+          sum by (channel) (rate(pushes_total{status="failed"}[5m]))
             /
-          clamp_min(rate(pushes_total[5m]), 0.0001)
+          clamp_min(sum by (channel) (rate(pushes_total[5m])), 0.0001)
           > 0.2
         for: 10m
         labels:
           severity: warning
           component: distributor
         annotations:
-          summary: "Push delivery failure rate exceeds 20%"
+          summary: "Push channel={{ $labels.channel }} delivery failure rate exceeds 20%"
           description: |
-            More than 1 in 5 push attempts are raising on
-            ``channel.distribute`` (email SMTP, WeChat, WeWork). Check the
+            Channel {{ $labels.channel }}: more than 1 in 5 push attempts are failing
+            on ``channel.distribute`` (email SMTP, WeChat, WeWork). Check the
             webhook signature / SMTP credential / quota state of the
             failing channel via pushes_total{status="failed"}.
 

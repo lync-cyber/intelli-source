@@ -12,22 +12,25 @@
 - model 继承: AGENT.md 中 `model: inherit` 继承父会话模型
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: backlog-burndown — P0 + P1 全闭环；下一波 P2 / Deploy / 架构治理 baseline 待启动
-- 下一步行动: 见 [docs/BACKLOG-intellisource-v1.md](docs/BACKLOG-intellisource-v1.md) — P2 → B-007 gateway 拆分 / B-008 综合简报 LLM / B-009 pipelines CRUD 决策；Deploy 阶段 B-010（依赖已就位 B-003+B-005）；架构治理 baseline 清零 B-020~B-028 → B-025 CI 强制门禁；新增 polish B-029 (LLM alert model 拆分) + B-030 (3 项 code-review LOW)
-- 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r, sprint-9, sprint-8 P2, audit-fix-pr53, audit-fix-pr54, backlog-b001-b002, backlog-b003-b006]
-- 当前回归基线: 2820 PASS / 0 FAIL / 0 skip / 0 xfail / 51 deselected (含 +38 新增 B-003~B-006 测试 + R-001 修订 +15 校验测试)；mypy --strict + ruff check + ruff format clean
+- 当前阶段: backlog-burndown — P0 + P1 + P2(B-007/B-009) + polish(B-029/B-030) 闭环；下一波 P2(B-008) / Deploy / 架构治理 baseline 待启动
+- 下一步行动: 见 [docs/BACKLOG-intellisource-v1.md](docs/BACKLOG-intellisource-v1.md) — P2 → B-008 综合简报 LLM summarizer；Deploy 阶段 B-010（依赖已就位 B-003+B-005）；架构治理 baseline 清零 B-020~B-028 → B-025 CI 强制门禁
+- 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r, sprint-9, sprint-8 P2, audit-fix-pr53, audit-fix-pr54, backlog-b001-b002, backlog-b003-b006, backlog-b007, backlog-b009-decision, backlog-b029-b030-polish]
+- 当前回归基线: 2827 PASS / 0 FAIL / 0 skip / 0 xfail / 51 deselected (含 +38 B-003~B-006 + R-001 +15 + B-029/B-030 polish +7)；mypy --strict + ruff check + ruff format clean
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report = approved；ui-spec = N/A；dev-plan-s8 = draft；deploy-spec = 未开始 (B-010)；backlog = approved
 - audit-fix-pr53 闭环 (commit 7e10e77): F-01~F-11 P0 + F-12~F-27 P1 + F-28~F-48 P2/P3 — 39 项，详见 PR #53 描述
 - audit-fix-pr54 闭环 (commit 31bddde): F-11 receiver_id / F-25 health 豁免 / F-42 PG /search 真链路 / idempotency RuntimeWarning / F-20+F-21 health 并发 / F-22 metrics 4 路径 / F-23 trace_id 跨 worker / F-24 alerts.yml / F-26 priority queue / F-27 content_not_found / 2 xfail (HybridIndex tags/date) / 1 placeholder skip 删 / 46 docker skip 转 deselect — 14 项
 - backlog-b001-b002 闭环: B-001 `/search/chat/stream` 切 `AgentRunner.run_flexible_stream` (新增 RAG-aware 流式入口 + LLMGateway.stream_complete 支持 messages 参数 + FlexibleLoop.run_stream) + B-002 `SearchRequest.date_from/to: str → datetime`（非法值 422 而非 500）；SSE 事件契约 step/sources/token/done/error
 - backlog-b003-b006 闭环 (inline 批次，3 batch): B-006 storage fixture ARRAY→JSON conftest mutation (单跑 PASS) / B-003 `intellisource_health_status` labeled gauge + HealthDegradedFor5m alert / B-004 `scheduler.dispatch.send_task_with_trace()` facade + guardrail (src/ 范围) / B-005 MetricsCollector labeled counter (pushes_total{channel,status} + llm_calls_total{model})；code-review verdict approved_with_notes → R-001 inline 修订 (counter+gauge 子系统 labelnames 强约束对齐) → 最终 approved；详见 [docs/reviews/code/CODE-REVIEW-backlog-p1-r1.md](docs/reviews/code/CODE-REVIEW-backlog-p1-r1.md)
+- backlog-b007 闭环: LLMGateway 单类 732 行拆为 6 mixin (`_complete` 200 / `_chat` 200 / `_stream` 185 / `_queue` 54 / `_metrics` 44 / `_protocols` 80) + facade `__init__.py` 120 行；`_GatewayProtocol` mypy --strict self-type 兜底；公共 API (complete/chat/stream_complete) 零破坏；2820 PASS 不退化；code-review verdict approved 0 issue；详见 [docs/reviews/code/CODE-REVIEW-B-007-r1.md](docs/reviews/code/CODE-REVIEW-B-007-r1.md)
+- backlog-b009-decision 闭环 (decision-only, reaffirm 选项 ②): PRD AC-063 [ASSUMPTION] 已在 sprint-9 锁定 YAML-as-source-of-truth；pipelines router 现状即决策实现 (list/detail/run, 无 HTTP CRUD)；完整 workflow CRUD (DB 存储 + 历史版本) 保留 v2+ 范畴，不立项；无代码改动；BACKLOG B-009 删除
+- backlog-b029-b030-polish 闭环: B-029 alerts.yml `LLMCallFailureRateHigh` + `PushFailureRateHigh` 按 `model`/`channel` label 拆分 (`sum by (model)` / `sum by (channel)` + annotations `{{ $labels.* }}` 模板化) / B-030 R-002 guardrail 注释显式化范围 + R-003 `_ALLOWED_POSIX` 精确路径匹配 + R-004 `DistributorFacade.__init__` + `LLMGateway.__init__` 集中 `register_labeled_counter` (hot-path 重复 register 移除)；2827 PASS (+7 测试)
 - Learnings Registry:
   - [RETRO-intellisource-v1.md](docs/reviews/retro/RETRO-intellisource-v1.md) — 6 EXP (sprint-1~7)，应用决策 deferred → backlog B-016
   - [RETRO-intellisource-v1-sprint-9.md](docs/reviews/retro/RETRO-intellisource-v1-sprint-9.md) — 2 EXP 强制立项 (EXP-005 装配缺口 5 次复发 → B-017 / EXP-006 truncation 4/4 跨 3 角色)
   - [RETRO-intellisource-v1-sprint-8.md](docs/reviews/retro/RETRO-intellisource-v1-sprint-8.md) — 1 正向 EXP-007 立项 (Mid-Progress Drop Contract 通用化 → B-018)
   - [SKILL-IMPROVE-*.md](docs/reviews/retro/) — 8 份建议
 - 上游反馈: [docs/feedback/](docs/feedback/) — 1 bug + 1 suggest (B-019 未闭环)
-- Backlog 总入口: [docs/BACKLOG-intellisource-v1.md](docs/BACKLOG-intellisource-v1.md) — 17 条 (B-007~B-030)，按 P2/P3 + PR #54 验证 + 框架学习 + 上游反馈 + 架构治理 + polish 分组
+- Backlog 总入口: [docs/BACKLOG-intellisource-v1.md](docs/BACKLOG-intellisource-v1.md) — 13 条 (B-008/B-010~B-028)，按 P2/P3 + PR #54 验证 + 框架学习 + 上游反馈 + 架构治理 分组
 
 ## 执行环境
 - 包管理器: uv（fallback: pip）

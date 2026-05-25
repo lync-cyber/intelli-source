@@ -79,7 +79,12 @@ class TestLlmGatewayMetrics:
     """F-22 LLM path: labeled counters and latency histogram on success/failure."""
 
     def test_record_llm_call_success_path(self) -> None:
-        from intellisource.llm.gateway import _record_llm_call
+        from unittest.mock import MagicMock
+
+        from intellisource.llm.gateway import LLMGateway, _record_llm_call
+
+        # Instantiating the gateway registers the labeled counters.
+        LLMGateway(circuit_breaker=MagicMock())
 
         _record_llm_call(latency_seconds=0.12, success=True, model="gpt-4o-mini")
 
@@ -98,7 +103,12 @@ class TestLlmGatewayMetrics:
         assert summary["count"] == 1
 
     def test_record_llm_call_failure_path(self) -> None:
-        from intellisource.llm.gateway import _record_llm_call
+        from unittest.mock import MagicMock
+
+        from intellisource.llm.gateway import LLMGateway, _record_llm_call
+
+        # Instantiating the gateway registers the labeled counters.
+        LLMGateway(circuit_breaker=MagicMock())
 
         _record_llm_call(latency_seconds=0.05, success=False, model="gpt-4o-mini")
 
@@ -287,4 +297,57 @@ class TestDistributorMetrics:
                 "pushes_total", {"channel": "telegram", "status": "sent"}
             )
             == 0.0
+        )
+
+
+# ---------------------------------------------------------------------------
+# B-030 R-004: register labeled counters at __init__ time, not in hot path
+# ---------------------------------------------------------------------------
+
+
+class TestRegisterAtInit:
+    """R-004: labeled counters must be registered in __init__, not per-call."""
+
+    def test_distributor_facade_registers_pushes_total_on_init(self) -> None:
+        """DistributorFacade.__init__ must register pushes_total immediately."""
+        from unittest.mock import MagicMock
+
+        from intellisource.distributor.facade import DistributorFacade
+        from intellisource.distributor.matcher import SubscriptionMatcher
+
+        mc = MetricsCollector.get_instance()
+        registered_names_before = {name for name, _ in mc.iter_labeled_counters()}
+        assert "pushes_total" not in registered_names_before
+
+        _facade = DistributorFacade(
+            session_factory=MagicMock(),
+            matcher=MagicMock(spec=SubscriptionMatcher),
+            channels={},
+        )
+
+        registered_names_after = {name for name, _ in mc.iter_labeled_counters()}
+        assert "pushes_total" in registered_names_after, (
+            "DistributorFacade.__init__ must register 'pushes_total' labeled counter "
+            "so the hot-path _record_push_outcome only calls increment"
+        )
+
+    def test_llm_gateway_registers_llm_counters_on_init(self) -> None:
+        """LLMGateway.__init__ registers llm_calls_total + llm_call_failures_total."""
+        from intellisource.llm.circuit_breaker import CircuitBreaker
+        from intellisource.llm.gateway import LLMGateway
+
+        mc = MetricsCollector.get_instance()
+        registered_names_before = {name for name, _ in mc.iter_labeled_counters()}
+        assert "llm_calls_total" not in registered_names_before
+        assert "llm_call_failures_total" not in registered_names_before
+
+        _gateway = LLMGateway(circuit_breaker=CircuitBreaker(redis=MagicMock()))
+
+        registered_names_after = {name for name, _ in mc.iter_labeled_counters()}
+        assert "llm_calls_total" in registered_names_after, (
+            "LLMGateway.__init__ must register 'llm_calls_total' labeled counter"
+        )
+        assert "llm_call_failures_total" in registered_names_after, (
+            "LLMGateway.__init__ must register 'llm_call_failures_total' "
+            "labeled counter"
         )

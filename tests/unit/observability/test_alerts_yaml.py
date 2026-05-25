@@ -199,3 +199,62 @@ def test_health_degraded_alert_fires_on_nonzero() -> None:
         "HealthDegradedFor5m expr must have '> 0' threshold "
         "to fire on degraded/unhealthy"
     )
+
+
+# ---------------------------------------------------------------------------
+# B-029: LLMCallFailureRateHigh must be split by model label
+# ---------------------------------------------------------------------------
+
+
+def test_llm_failure_rate_alert_uses_sum_by_model() -> None:
+    """B-029: LLMCallFailureRateHigh expr must aggregate with sum by (model)."""
+    rules = _load_alerts()
+    llm_rule = next((r for r in rules if r["alert"] == "LLMCallFailureRateHigh"), None)
+    assert llm_rule is not None, "LLMCallFailureRateHigh rule not found"
+    expr = llm_rule["expr"]
+    assert "sum by (model)" in expr, (
+        "LLMCallFailureRateHigh expr must use 'sum by (model)' to avoid "
+        "healthy models diluting a failing model's rate"
+    )
+
+
+def test_llm_failure_rate_alert_annotations_reference_model_label() -> None:
+    """B-029: LLMCallFailureRateHigh annotations must reference {{ $labels.model }}."""
+    rules = _load_alerts()
+    llm_rule = next((r for r in rules if r["alert"] == "LLMCallFailureRateHigh"), None)
+    assert llm_rule is not None, "LLMCallFailureRateHigh rule not found"
+    ann = llm_rule.get("annotations", {})
+    label_ref = "{{ $labels.model }}"
+    summary = ann.get("summary", "")
+    description = ann.get("description", "")
+    assert label_ref in summary or label_ref in description, (
+        f"LLMCallFailureRateHigh annotations must contain '{label_ref}' in "
+        "summary or description to identify which model is failing"
+    )
+
+
+def test_push_failure_rate_alert_uses_sum_by_channel() -> None:
+    """B-029: PushFailureRateHigh expr must aggregate with sum by (channel)."""
+    rules = _load_alerts()
+    push_rule = next((r for r in rules if r["alert"] == "PushFailureRateHigh"), None)
+    assert push_rule is not None, "PushFailureRateHigh rule not found"
+    expr = push_rule["expr"]
+    assert "sum by (channel)" in expr, (
+        "PushFailureRateHigh expr must use 'sum by (channel)' so per-channel "
+        "failure rates are not averaged across all channels"
+    )
+
+
+def test_push_failure_rate_alert_annotations_reference_channel_label() -> None:
+    """B-029: PushFailureRateHigh annotations must reference {{ $labels.channel }}."""
+    rules = _load_alerts()
+    push_rule = next((r for r in rules if r["alert"] == "PushFailureRateHigh"), None)
+    assert push_rule is not None, "PushFailureRateHigh rule not found"
+    ann = push_rule.get("annotations", {})
+    label_ref = "{{ $labels.channel }}"
+    summary = ann.get("summary", "")
+    description = ann.get("description", "")
+    assert label_ref in summary or label_ref in description, (
+        f"PushFailureRateHigh annotations must contain '{label_ref}' in "
+        "summary or description to identify which channel is failing"
+    )
