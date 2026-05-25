@@ -12,10 +12,10 @@
 - model 继承: AGENT.md 中 `model: inherit` 继承父会话模型
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: backlog-burndown — P0 + P1 + P2(B-007/B-008/B-009) + polish(B-029/B-030) 闭环；下一波 Deploy B-010 / 架构治理 baseline B-020~B-028 待启动
-- 下一步行动: 见 [docs/BACKLOG-intellisource-v1.md](docs/BACKLOG-intellisource-v1.md) — Deploy 阶段 B-010（依赖已就位 B-003+B-005）；架构治理 baseline 清零 B-020~B-028 → B-025 CI 强制门禁
-- 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r, sprint-9, sprint-8 P2, audit-fix-pr53, audit-fix-pr54, backlog-b001-b002, backlog-b003-b006, backlog-b007, backlog-b009-decision, backlog-b029-b030-polish, backlog-b008]
-- 当前回归基线: 2834 PASS / 0 FAIL / 0 skip / 0 xfail / 51 deselected；mypy --strict + ruff check + ruff format clean
+- 当前阶段: backlog-burndown — B-011~B-028 架构治理 + CI 闭环；B-010 Deploy spec + B-016~B-018 框架学习待启动
+- 下一步行动: B-010 Deploy spec（devops 子代理产出 deploy-spec 文档）；B-016~B-018 框架学习 EXP 应用
+- 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r, sprint-9, sprint-8 P2, audit-fix-pr53, audit-fix-pr54, backlog-b001-b002, backlog-b003-b006, backlog-b007, backlog-b009-decision, backlog-b029-b030-polish, backlog-b008, backlog-arch-governance]
+- 当前回归基线: 2838 PASS / 0 FAIL / 0 skip / 0 xfail / 51 deselected；mypy --strict + ruff + lint-imports 8/8 + deptry + vulture clean
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report = approved；ui-spec = N/A；dev-plan-s8 = draft；deploy-spec = 未开始 (B-010)；backlog = approved
 - audit-fix-pr53 闭环 (commit 7e10e77): F-01~F-11 P0 + F-12~F-27 P1 + F-28~F-48 P2/P3 — 39 项，详见 PR #53 描述
 - audit-fix-pr54 闭环 (commit 31bddde): F-11 receiver_id / F-25 health 豁免 / F-42 PG /search 真链路 / idempotency RuntimeWarning / F-20+F-21 health 并发 / F-22 metrics 4 路径 / F-23 trace_id 跨 worker / F-24 alerts.yml / F-26 priority queue / F-27 content_not_found / 2 xfail (HybridIndex tags/date) / 1 placeholder skip 删 / 46 docker skip 转 deselect — 14 项
