@@ -474,16 +474,17 @@ class TestLLMCompleteTool:
 
 
 class TestListToolsWithAtomics:
-    """AC-T050-4: list_tools() returns atomic + llm_complete + high-level."""
+    """AC-T050-4: list_tools() returns all registered tool categories."""
 
     def test_list_includes_all_tool_types(self, full_registry: Any) -> None:
-        """AC-T050-4: list_tools includes atomics + llm_complete + defaults."""
+        """AC-T050-4: list_tools includes atomics + llm_complete + llm_summarize + defaults."""  # noqa: E501
         names = set(full_registry.list_tools())
-        # 6 defaults + 10 atomics + 1 llm_complete = 17
-        assert len(names) == 17
+        # 6 defaults + 10 atomics + 1 llm_complete + 1 llm_summarize = 18
+        assert len(names) == 18
         for atomic in _ATOMIC_TOOL_NAMES:
             assert atomic in names, f"{atomic!r} missing from list_tools()"
         assert "llm_complete" in names
+        assert "llm_summarize" in names
         assert "collect" in names  # one of the defaults
 
 
@@ -496,6 +497,51 @@ class TestFilterWithAtomics:
         assert "regex_extract" in filtered
         assert "collect" in filtered
         assert len(filtered) == 2
+
+
+# ==================================================================
+# B-008: llm_summarize tool registration
+# ==================================================================
+
+
+class TestLlmSummarizeTool:
+    """B-008: llm_summarize registered as an atomic meta-tool."""
+
+    def test_llm_summarize_registered(self, full_registry: Any) -> None:
+        """llm_summarize tool exists after register_atomic_tools."""
+        tool = full_registry.get("llm_summarize")
+        assert tool is not None
+        assert tool.name == "llm_summarize"
+
+    def test_llm_summarize_has_cluster_contents_param(self, full_registry: Any) -> None:
+        """llm_summarize parameters include cluster_contents array."""
+        tool = full_registry.get("llm_summarize")
+        props = tool.parameters.get("properties", {})
+        assert "cluster_contents" in props
+        assert props["cluster_contents"]["type"] == "array"
+
+    def test_llm_summarize_is_async(self, full_registry: Any) -> None:
+        """llm_summarize execute is an async callable."""
+        tool = full_registry.get("llm_summarize")
+        assert inspect.iscoroutinefunction(tool.execute)
+
+    def test_llm_summarize_description_non_empty(self, full_registry: Any) -> None:
+        """llm_summarize has a non-empty description."""
+        tool = full_registry.get("llm_summarize")
+        assert isinstance(tool.description, str)
+        assert len(tool.description) > 0
+
+    async def test_llm_summarize_execute_falls_back_without_tool_deps(
+        self, full_registry: Any
+    ) -> None:
+        """llm_summarize execute falls back to truncate_summary without tool_deps."""
+        tool = full_registry.get("llm_summarize")
+        contents = [{"title": "T", "body_text": "B"}]
+        result = await tool.execute(cluster_contents=contents, tool_deps=None)
+        assert "title" in result
+        assert "summary" in result
+        assert result["timeline"] == []
+        assert result["key_points"] == []
 
     def test_filter_denies_atomic_tool(self, full_registry: Any) -> None:
         """AC-T050-5: filter(denied=...) excludes atomic tools."""

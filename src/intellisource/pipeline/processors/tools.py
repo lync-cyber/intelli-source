@@ -2,16 +2,22 @@
 
 Pure, non-LLM operations extracted from the former LLM processors.
 These functions are registered as Agent-callable tools via AgentToolRegistry.
-None of them depend on LLMGateway — they perform deterministic,
-algorithmic processing only.
+Most functions perform deterministic algorithmic processing only;
+llm_summarize is the one function that depends on LLMGateway.
 """
 
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
 from collections import Counter
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from intellisource.llm.gateway import LLMGateway
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # regex_extract
@@ -287,6 +293,99 @@ async def truncate_summary(
         "timeline": [],
         "key_points": [],
     }
+
+
+# ---------------------------------------------------------------------------
+# llm_summarize
+# ---------------------------------------------------------------------------
+
+DIGEST_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "required": ["title", "summary", "timeline", "key_points"],
+    "properties": {
+        "title": {"type": "string"},
+        "summary": {"type": "string"},
+        "timeline": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["date", "event"],
+                "properties": {
+                    "date": {"type": "string"},
+                    "event": {"type": "string"},
+                },
+            },
+        },
+        "key_points": {"type": "array", "items": {"type": "string"}},
+    },
+}
+
+_SUMMARIZE_SYSTEM_PROMPT = (
+    "你是综合简报生成器。"
+    "根据提供的文档集合，生成结构化简报。"
+    "输出必须是严格的 JSON，格式如下：\n"
+    '{"title": "...", "summary": "...", '
+    '"timeline": [{"date": "...", "event": "..."}], '
+    '"key_points": ["..."]}\n'
+    "不要输出任何 JSON 之外的文字。"
+)
+
+
+def _build_summarize_prompt(cluster_contents: list[dict[str, str]]) -> str:
+    """Build the user prompt from cluster_contents."""
+    parts: list[str] = [
+        "Please generate a structured digest for the following documents:\n"
+    ]
+    for i, doc in enumerate(cluster_contents, start=1):
+        title = doc.get("title", "")
+        body = doc.get("body_text", "")
+        published_at = doc.get("published_at", "")
+        parts.append(f"[{i}] Title: {title}")
+        if published_at:
+            parts.append(f"    Date: {published_at}")
+        if body:
+            parts.append(f"    Content: {body}")
+    parts.append(
+        "\nReturn JSON with title, summary, timeline (list of {date, event}), "
+        "and key_points (list of strings)."
+    )
+    return "\n".join(parts)
+
+
+async def llm_summarize(
+    cluster_contents: list[dict[str, str]],
+    llm_gateway: "LLMGateway",
+) -> dict[str, Any]:
+    """Generate a structured digest from clustered documents via LLM.
+
+    Returns a dict with the same shape as truncate_summary:
+    {title, summary, timeline[{date,event}], key_points[str]}.
+
+    On LLM failure or schema violation, falls back to truncate_summary
+    and logs a warning. Caller can treat both output shapes identically.
+    """
+    from intellisource.llm.gateway._types import SchemaEnforcer  # noqa: PLC0415
+
+    if not cluster_contents:
+        return await truncate_summary([])
+
+    prompt = _build_summarize_prompt(cluster_contents)
+    try:
+        result = await llm_gateway.complete(
+            prompt=prompt,
+            system_prompt=_SUMMARIZE_SYSTEM_PROMPT,
+            task_type="summarize",
+        )
+        enforcer = SchemaEnforcer(DIGEST_SCHEMA)
+        validated = enforcer.validate(result.content)
+        return validated
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "llm_summarize failed (%s: %s); falling back to truncate_summary",
+            type(exc).__name__,
+            exc,
+        )
+        return await truncate_summary(cluster_contents)
 
 
 # ---------------------------------------------------------------------------

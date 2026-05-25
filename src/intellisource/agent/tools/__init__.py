@@ -704,6 +704,31 @@ async def _llm_complete_execute(
     }
 
 
+async def _llm_summarize_execute(
+    cluster_contents: list[dict[str, Any]] | None = None,
+    tool_deps: Any = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Invoke llm_summarize with gateway from tool_deps.
+
+    Falls back to truncate_summary when tool_deps.llm_gateway is None.
+    """
+    if cluster_contents is None:
+        cluster_contents = []
+    gateway = tool_deps.llm_gateway if tool_deps is not None else None
+    if gateway is None:
+        logger.warning(
+            "tool_deps not injected for llm_summarize, falling back to truncate_summary"
+        )
+        return await atomic_tools.truncate_summary(cluster_contents)
+    return await atomic_tools.llm_summarize(
+        cluster_contents=[
+            {str(k): str(v) for k, v in doc.items()} for doc in cluster_contents
+        ],
+        llm_gateway=gateway,
+    )
+
+
 def _atomic_tool_defs() -> list[ToolDefinition]:
     """Return the 10 atomic tool definitions + llm_complete meta-tool."""
     return [
@@ -869,6 +894,25 @@ def _atomic_tool_defs() -> list[ToolDefinition]:
                 "required": ["call_type", "prompt_vars"],
             },
             execute=_llm_complete_execute,
+        ),
+        ToolDefinition(
+            name="llm_summarize",
+            description=(
+                "Generate a structured digest with title/summary/timeline/key_points "
+                "from clustered documents using LLM. "
+                "Falls back to truncate_summary on failure."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "cluster_contents": {
+                        "type": "array",
+                        "items": {"type": "object"},
+                    },
+                },
+                "required": ["cluster_contents"],
+            },
+            execute=_llm_summarize_execute,
         ),
     ]
 

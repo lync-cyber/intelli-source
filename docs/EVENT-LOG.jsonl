@@ -342,3 +342,5 @@
 {"ts": "2026-05-25T10:18:41+00:00", "event": "state_change", "phase": "backlog-burndown", "detail": "B-029 + B-030 polish start: LLM alert model 拆分 + 3 项 code-review LOW"}
 {"event": "review_verdict", "phase": "backlog-burndown", "agent": "reviewer", "status": "approved", "detail": "B-029 + B-030 polish 通过 inline 审查 0 issue (与 r1 推荐方向一致，3 项 ASSUMPTION 合理)", "ts": "2026-05-25T10:45:08+00:00"}
 {"event": "state_change", "phase": "backlog-burndown", "detail": "backlog-b029-b030-polish closed (alert split + guardrail polish + register 集中化, 2827 PASS)", "ts": "2026-05-25T10:45:08+00:00"}
+{"ts": "2026-05-25T10:53:13+00:00", "event": "state_change", "phase": "backlog-burndown", "detail": "B-008 start: LLM summarizer for AC-023 timeline/key_points (stacked on PR #59)"}
+{"ts": "2026-05-25T11:08:03+00:00", "event": "review_verdict", "phase": "backlog-burndown", "detail": "B-008 LLM summarizer 审查通过 0 issue — fallback 完整 + 17 测试覆盖 + 2849 PASS", "agent": "reviewer", "status": "approved"}
