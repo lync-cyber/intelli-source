@@ -796,7 +796,10 @@ def _atomic_tool_defs() -> list[ToolDefinition]:
         ),
         ToolDefinition(
             name="truncate_summary",
-            description="Generate a digest from clustered documents via truncation.",
+            description=(
+                "Generate a structured digest from clustered documents"
+                " using LLM summarization with truncation fallback."
+            ),
             parameters={
                 "type": "object",
                 "properties": {

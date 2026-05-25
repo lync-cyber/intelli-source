@@ -31,13 +31,8 @@ deps: []
 > B-007 已闭环（详见 [docs/reviews/code/CODE-REVIEW-B-007-r1.md](reviews/code/CODE-REVIEW-B-007-r1.md)）— `gateway/__init__.py` 732 → 120 行，拆为 `_complete/_chat/_stream/_queue/_metrics/_protocols` 6 mixin，Protocol 自洽，2820 PASS 不退化
 >
 > B-009 已闭环（decision-only，reaffirm 选项 ②）— PRD AC-063 [ASSUMPTION] 在 sprint-9 已锁定 YAML-as-source-of-truth；`src/intellisource/api/routers/pipelines.py` 现状即决策实现（list/detail/run，无 CRUD）。完整 workflow CRUD（DB 存储 + 历史版本）保留为 v2+ 范畴，本 backlog 不立项。
-
-### B-008 综合简报降级为字符串截断
-- **关联**：原 audit F-38 / D6-4 / AC-023
-- **现状**：[`src/intellisource/pipeline/processors/tools.py:262`](src/intellisource/pipeline/processors/tools.py:262) `truncate_summary` 字符串截前 3 句，`timeline` / `key_points` 恒 `[]`
-- **修复方向**：接 LLM summarizer（PromptBuilder + `gateway.complete` + JSON schema {title, summary, timeline:[], key_points:[]}）；失败回退当前截断
-- **决策选项**：v1 若不做，PRD AC-023 显式标 `[ASSUMPTION] v1 仅字符串截断，timeline/key_points 留 P2 backlog`
-- **验证**：注入 LLM 返回真 timeline → 字段非空；LLM 失败 → 字段空 + log warning
+>
+> B-008 已闭环 — `truncate_summary` 接入 LLM summarizer（`summarizer.structured` 模板 + `gateway.complete` + `response_format: json_object`），产出 `{title, summary, timeline, key_points}` 结构化摘要；LLM 失败 / 返回非法 JSON / 缺字段 → 回退字符串截断；PRD AC-023 [ASSUMPTION] 已移除、标 `[x]`；2834 PASS (+7 测试) 不退化
 
 ### B-010 Deploy 阶段未启动
 - **关联**：CLAUDE.md 原 backlog ③
