@@ -200,3 +200,67 @@ deps: []
   - **B-031 阶段 1 步骤 4 ☑ Pass 签字** — [walkthrough 文档同步签字栏更新](../deploy/PRE-DEPLOY-WALKTHROUGH.md)
   - 不再阻塞 walkthrough 后续步骤（阶段 1 步骤 5 + 阶段 2-7）
 - 关联: src/intellisource/agent/tools/__init__.py + executes/collect.py 编辑；BACKLOG 新增 B-039；PRE-DEPLOY-WALKTHROUGH.md 步骤 4 ☑ 签字栏追加
+
+### 2026-05-26 | orchestrator | B-031 阶段 1 步骤 5 walkthrough (闭环)
+
+- 触发信号: pre-deploy-walkthrough-step5
+- 问题: 信源 CRUD 走查 PATCH `/api/v1/sources/{id}` → 500 `sqlalchemy.exc.MissingGreenlet: greenlet_spawn has not been called`。trace 定位 [api/routers/sources.py:84](../../src/intellisource/api/routers/sources.py) `_serialize_source` 访问 `source.updated_at` 触发跨上下文 lazy-load。
+- 根因: `Source.updated_at` 用 `onupdate=func.now()`（无 `server_default`），UPDATE 后 DB 侧值未通过 RETURNING 回灌到 ORM；SQLAlchemy 标记字段 expired；sync 序列化函数访问时触发 asyncpg 异步重取，但已脱离 greenlet → 崩。
+- 修正 #14 (inline): [`BaseRepository.update`](../../src/intellisource/storage/repositories/base.py) flush 后加 `await self._session.refresh(entity)`，在 async 上下文内主动刷取 server-computed 值。覆盖所有 ORM 模型，不只 Source；create 路径已通过 INSERT RETURNING 拿到 `created_at`，无需同改。
+- 验证（步骤 5 全 Pass 标准 GREEN）:
+  - **(1)** GET `/sources?type=rss&limit=5` → 200，`items.length=1`（HN RSS 过滤命中）
+  - **(2)** PATCH tags `["tech","news","verified"]` → 200，response 含新 tags + `updated_at` 04:49:13 → 06:58:03 推进；re-GET 列表 tags 持久化
+  - **(3)** 临时源创建 → DELETE → 204；列表再扫不再含 `_walkthrough_step5_delete`
+  - 单测回归：tests/unit/storage + tests/unit/api/test_sources*（套件全绿，无新增失败）
+- 偏差类型: design-defect（ORM expire-after-onupdate 与 sync serializer 边界冲突）
+- 影响:
+  - **B-031 阶段 1 步骤 5 ☑ Pass 签字** — [walkthrough 文档同步签字栏更新](../deploy/PRE-DEPLOY-WALKTHROUGH.md)
+  - 同类隐患在所有走 `BaseRepository.update` + 含 `onupdate` 字段的模型（如 `Source`，未来新模型若加 `updated_at` 也自动受益）一并消除
+  - 不阻塞步骤 6-8（阶段 2 pipeline 枚举/执行）
+- 关联: src/intellisource/storage/repositories/base.py 编辑；PRE-DEPLOY-WALKTHROUGH.md 步骤 5 ☑ 签字栏追加
+
+### 2026-05-26 | orchestrator | B-031 阶段 2 步骤 6-8 walkthrough (闭环)
+
+- 触发信号: pre-deploy-walkthrough-stage-2
+- 步骤 6 PASS: `/api/v1/pipelines` 列 5 项；`/pipelines/{name}` 详情字段齐全。**Doc drift**：`content-process.mode=batch`（walkthrough 写 `strict`），`manual-collect.steps` 实际 `params:{}`（已与 walkthrough 期望差异）→ 并入 B-034 walkthrough 文档订正。
+- 步骤 7 PASS (with caveat):
+  - **NO-GO #15 inline**: `manual-collect.yaml` steps[0] 硬编 `source_type: manual`，但 `collector_registry` 无 `manual` 条目 → `ToolDegradedError: unknown source_type: manual`。Fix [config/pipelines/manual-collect.yaml](../../config/pipelines/manual-collect.yaml) 删除 source_type override，让 `_collect_execute` 走 source_id → DB → `Source.type` 解析路径（与 scheduled-collect 一致）。
+  - **NO-GO #16 inline**: `content-process.yaml` `KeywordTagger` 无 `params.keywords` → 实例化为 `keywords=()` → tagger 永远输出空 tags。Walkthrough 期望 "tags 列非空数组" 失败（20/20 行 tags=[]）。Fix [config/pipelines/content-process.yaml](../../config/pipelines/content-process.yaml) 增 `params.keywords` 8 大类技术词库（ai/security/web/cloud/opensource/startup/data/language，每类 5-7 个 synonyms 含中英文常见词）。验证 truncate + 重跑后 **20/20 行**均匹配到 ≥1 个 tag。
+  - 验证全 Pass (修复后): manual-collect succeeded 3.84s / processed_contents 20 行 / 20/20 tags 非空 / 路径穿越 `..0.000000etc` → 404
+  - **⚠ trace_id 跨日志一致延后**: signals.py + 单测 F-23 已验证 propagation 机制（contextvar set/reset 跨 worker 通过 Celery message header `x-trace-id`）；但 worker 用 stdlib `logging.getLogger(__name__)` + 默认 `StreamHandler`，contextvar 不进 log format → grep `trace_id=` 命中 0。专项验证留给步骤 17 F-23 回归。**Carryover 立项 B-040 P3** worker stdlib log → structlog formatter migration（让 trace_id 进 log line）。
+- 步骤 8 PASS (with caveat): `/llm/status` 返 `circuit_state=CLOSED + queue_lengths{interactive:0,background:0}` / `/llm/stats?period=day` 返 `total_calls=0` 完整 JSON（含 by_model/by_date 数组）。**Doc drift**: walkthrough 写 "/llm/stats 不带 API key 也能查"，实际 [api/middleware.py:35](../../src/intellisource/api/middleware.py) `_EXEMPT_EXACT` 不含 `/llm/stats`，仍需 X-API-Key。并入 B-034 doc 订正。
+- 偏差类型: design-defect (NO-GO #15 yaml hard-code + #16 missing default config) + doc-drift (3 项)
+- 影响:
+  - **B-031 阶段 2 步骤 6/7/8 ☑ Pass 签字**（步骤 7 trace_id 一项延后到步骤 17）
+  - 修正 #15/#16 修复了所有 production 部署的 manual-collect 不可用 + KeywordTagger 永远空输出问题（生产硬伤）
+  - 不阻塞步骤 9-20（阶段 3-7）；步骤 9 LLM-pipeline 需要 LITELLM/OPENAI_API_KEY，用户决定何时跑
+- 关联: config/pipelines/manual-collect.yaml + content-process.yaml 编辑；BACKLOG 新增 B-040；PRE-DEPLOY-WALKTHROUGH.md 步骤 6/7/8 ☑ 签字栏追加
+
+### 2026-05-26 | orchestrator | B-041 DeepSeek V4 gateway 适配 (闭环)
+
+- 触发信号: backlog-burndown / walkthrough 步骤 9 阻塞
+- 问题: DeepSeek V4 模型族 (`deepseek-v4-flash` / `deepseek-v4-pro`) 默认 `thinking.type=enabled` → 单轮即只产 `reasoning_content`（content=""）；多轮 chat-tool-loop 时 `message.reasoning_content` 被 gateway 丢失 → DeepSeek API 报 `The reasoning_content in the thinking mode must be passed back to the API`。`deepseek-chat` / `deepseek-reasoner` 2026-07-24 下线，必须适配 V4。
+- 调研: [DeepSeek API 文档](https://api-docs.deepseek.com/zh-cn/api/create-chat-completion) — V4 通过 `thinking={"type":"enabled"\|"disabled"}` + `reasoning_effort=high\|max` 控制；assistant 上一轮 `reasoning_content` 必须在 message dict 中回传（"对话前缀续写"）；`deepseek-chat=deepseek-v4-flash 非思考`、`deepseek-reasoner=deepseek-v4-flash 思考` 等价关系。
+- 用户选 B（完整支持，per-profile 开关 + 多轮回传）。
+- 修复（B-041 6 处改动）:
+  1. [config/llm_schema.py](../../src/intellisource/config/llm_schema.py) `ModelTaskConfig` + `ModelProfileConfig` 新增 `thinking: Literal["enabled","disabled"] \| None` + `reasoning_effort: Literal["high","max"] \| None`
+  2. [llm/model_config.py](../../src/intellisource/llm/model_config.py) `ModelProfile` + `ModelConfig` dataclass 同步字段；`get_profile` 透传
+  3. **新增** [llm/gateway/_extra_body.py](../../src/intellisource/llm/gateway/_extra_body.py) — `build_extra_body(model, task_cfg, profile)` 单一来源；非 deepseek 返回 None；deepseek 默认 thinking=disabled（chat-tool-loop 安全默认）；task_cfg > profile > 默认；`extract_reasoning_content(message)` 兼容 SDK obj / dict
+  4. [llm/gateway/_chat.py](../../src/intellisource/llm/gateway/_chat.py) + [_complete.py](../../src/intellisource/llm/gateway/_complete.py) + [_stream.py](../../src/intellisource/llm/gateway/_stream.py) — call_kwargs 注入 `extra_body`；`_chat`/`_complete` 把 `reasoning_content` 写进 `metadata["reasoning_content"]`
+  5. [agent/executors/flexible.py](../../src/intellisource/agent/executors/flexible.py) `run()` + `run_stream()` 两处 — 拼 assistant message 时若 `metadata.reasoning_content` 非空则附加到 dict（下一轮 chat() 调用时整 messages 列表回传给 API）
+  6. [config/llm_models.yaml](../../config/llm_models.yaml) + [llm_models.example.yaml](../../config/llm_models.example.yaml) 切回 v4-flash（extract/dedup/tag/chat thinking=disabled）+ v4-pro（summarize thinking=enabled reasoning_effort=high）；profiles 同步
+- 验证:
+  - 新增 [tests/unit/llm/test_gateway_deepseek_v4.py](../../tests/unit/llm/test_gateway_deepseek_v4.py) 16 tests / 6 test class GREEN — `build_extra_body` 5 path + `extract_reasoning_content` 5 path + chat/complete/stream extra_body 注入 + chat metadata 携带 reasoning_content + FlexibleLoop multi-turn reasoning_content 回传
+  - llm/agent/config 整组单测 692 PASS 不退化
+  - `ruff check` + `mypy --strict` clean
+  - **真起 docker stack 集成**: `POST /search/chat "Reply with OK"` 双次成功（2.14s/1.26s），`answer="OK"`，证明 V4-flash + thinking=disabled 走通；manual-collect pipeline regression 仍 succeeded 2.53s
+- 偏差类型: design-defect（V4 API 契约变更，旧 gateway 假设 reasoning_content 可丢）
+- 影响:
+  - **walkthrough 步骤 9 LLM 链路 ☑ Pass**（gateway 层面）；llm_call_logs/cache/content-process LLM step 三项 N/A 由独立 backlog 跟踪
+  - 解锁所有 `/search/chat` + `/search/chat/stream` + `push-optimize` flexible-mode 路径（pre-B-041 均会被 reasoning_content 错误阻塞）
+  - `summarize` profile 可选启用 v4-pro 思考模式拿真实推理增益（已落地，等 [[b-044]] 接入到 truncate_summary 工具实际调用）
+- carryover:
+  - **B-042 P2** api composition 注入 CostTracker → 让 `llm_call_logs` 真写入（pre-existing wiring gap，CostTracker 当前 per-session lifecycle 与 singleton LLMGateway 不兼容；需设计 per-call session 适配）
+  - **B-043 P3** `chat()` path 接入 LLMCache（pre-existing，仅 complete() 有 cache_key_parts）
+  - **B-044 P2** `content-process` pipeline 集成 LLM summarizer step（让 walkthrough 步骤 9 summary 落库可验，从 batch processors → 添加 LLM-driven summarizer / tag 步骤）
+- 关联: src/intellisource/config/llm_schema.py + llm/model_config.py + llm/gateway/_extra_body.py(新) + _chat.py + _complete.py + _stream.py + agent/executors/flexible.py + config/llm_models{,.example}.yaml 编辑；BACKLOG B-041 闭环 + B-042/B-043/B-044 新增；PRE-DEPLOY-WALKTHROUGH.md 步骤 9 ☑ 签字栏追加

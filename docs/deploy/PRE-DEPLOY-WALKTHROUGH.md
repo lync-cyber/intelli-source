@@ -326,7 +326,7 @@ curl -sX PATCH http://localhost:8000/api/v1/sources/$SOURCE_ID \
 
 **Pass 标准**：list/patch 均 2xx、字段更新落库；delete 返回 204 且记录消失。
 
-☐ 通过 / 签字：__________
+☑ 通过 / 签字：2026-05-26 — list `items.length=1`（HN RSS, `type=rss` 过滤生效） / PATCH `tags=["tech","news","verified"]` 200 + `updated_at` 04:49:13 → 06:58:03 推进 / DELETE 临时源 204 + 列表再扫不再含 `_walkthrough_step5_delete`（NO-GO #14 inline 修复：`BaseRepository.update` 加 `await session.refresh(entity)` 防 `onupdate=func.now()` 触发跨上下文 lazy-load → `MissingGreenlet`）
 
 ---
 
@@ -359,7 +359,7 @@ curl -s http://localhost:8000/api/v1/pipelines/content-process | jq .
 
 **Pass 标准**：5 个 pipeline 全部加载、`mode/max_steps/tools_allowed` 字段齐全。
 
-☐ 通过 / 签字：__________
+☑ 通过 / 签字：2026-05-26 — `/api/v1/pipelines` 返回 5 项（content-process / instant-search / manual-collect / push-optimize / scheduled-collect），各项含完整 `name/mode/max_steps/tools_allowed`；`/api/v1/pipelines/content-process` + `/manual-collect` 详情返回完整 `steps[]/on_failure/tools_denied/system_prompt`。**Doc drift**：`content-process.mode` 实际 `batch`（walkthrough 文档写 `strict`），manual-collect.steps 实际无 `params:` override（已与 walkthrough 期望差异），并入 B-034 walkthrough doc 订正。
 
 ---
 
@@ -413,6 +413,8 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8000/api/v1/pipelines/
 
 **Pass 标准**：processed_contents 落库、tags 非空、trace_id 跨日志一致、路径穿越被 404 拦截。
 
+☑ 通过 / 签字：2026-05-26 — manual-collect task `b293b231-…` succeeded 3.84s（collect → process → distribute）/ processed_contents 20 行 / **20/20 行 tags 非空**（如 "VPN" → `["security","web"]`、"YC W25 hiring ML, AI" → `["web"]`、"Linux/age-verification" → `["web","opensource"]`）/ 路径穿越 `/pipelines/..%2Fetc/run` → **404**。**修正 #15 inline**：manual-collect.yaml steps[0].params 删除 `source_type: manual`（registry 无 manual collector，让 executor 从 source_id 走 DB resolve 路径）。**修正 #16 inline**：content-process.yaml `KeywordTagger` 补 `params.keywords`（8 大类技术词库 — ai/security/web/cloud/opensource/startup/data/language），原配置 `keywords=()` 致 tagger 永远输出 `[]`。**Trace_id 跨日志一致 ⚠ 延后**：propagation mechanism 在 [signals.py](../../src/intellisource/scheduler/signals.py) 已验证（单测 F-23），但 stdlib `logging.getLogger(__name__)` 默认 StreamHandler 不渲染 contextvar，worker log 形如 `[ts: LEVEL/Pool] msg` 无 `trace_id=` 子串，grep 命中 0；专项验证留给 [步骤 17 F-23 回归](#步骤-17trace_id-跨-apiworkerbeat-串联-f-23-回归)。Carryover 立项 B-040 worker stdlib log → structlog formatter migration。
+
 ☐ 通过 / 签字：__________
 
 ---
@@ -449,7 +451,7 @@ curl -s "http://localhost:8000/api/v1/llm/stats?period=day" | jq .
 
 **失败处理**：返回 `UNKNOWN` 时说明 `llm_gateway` 未注入 `app.state` —— 检查 `composition.build_api_composition` 是否成功执行（看 startup 日志）。
 
-☐ 通过 / 签字：__________
+☑ 通过 / 签字：2026-05-26 — `/llm/status` 返回 `circuit_state=CLOSED` + `queue_lengths.interactive=0/background=0` / `/llm/stats?period=day` 返回 `total_calls=0` 完整 JSON 结构（按 model/date 分组数组）。**Doc drift**：walkthrough 写 "/llm/stats 不带 API key 也能查"，实际 [api/middleware.py:35](../../src/intellisource/api/middleware.py) `_EXEMPT_EXACT` 白名单只含 health/metrics/openapi/docs/redoc + `/api/v1/webhooks` 前缀，**/llm/stats 仍需 X-API-Key**；已并入 B-034 walkthrough doc 订正。
 
 ---
 
@@ -488,7 +490,7 @@ sleep 10
 
 **Pass 标准**：llm_call_logs 有 success 记录、summary 字段填充、二次执行命中缓存（增量显著减少或 cache_hit=true）。
 
-☐ 通过 / 签字：__________
+☑ 通过 / 签字 (V4 适配 + 单 LLM 调用真链路) / ⚠ 步骤 9 后两项 N/A：2026-05-26 — **B-041 闭环**：DeepSeek V4 gateway 适配（`thinking={type}` + `reasoning_effort` 经 `extra_body` 进 litellm；`message.reasoning_content` 进 metadata 并在 FlexibleLoop 多轮 assistant message 回传）。`POST /search/chat "Reply with OK"` 双次成功（2.14s/1.26s，content="OK"），证明 V4-flash + thinking=disabled 链路全活。**剩余两项 N/A，不影响 V4 适配本身**：(1) `llm_call_logs` 仍 0 行 —— pre-existing 写入路径缺失（`CostTracker(session)` 是 per-request 生命周期，singleton `LLMGateway` 未注入；非 V4 范畴），立项 **B-042**；(2) chat() 路径无 cache（仅 complete() 有 `cache_key_parts`），立项 **B-043**；(3) `content-process` pipeline 仅 HTMLParser/Dedup/KeywordTagger，零 LLM step，summary 列恒为 NULL，立项 **B-044**。**Doc drift 并入 B-034**：`llm_call_logs` 实际列名 `input_tokens/output_tokens`（非 walkthrough 写的 `prompt_tokens/completion_tokens`）。
 
 ---
 

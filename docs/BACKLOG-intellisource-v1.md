@@ -9,7 +9,7 @@ deps: []
 # IntelliSource v1 Backlog
 
 > 维护：本文件梳理 PR #53 / #54 audit 闭环之后的剩余工作。完成项请直接删除条目，新增项按优先级插入。
-> 最后更新：2026-05-26 (B-031 阶段 1 步骤 4 ☑ Pass，walkthrough rerun + 修正 #13 + B-039 立项)
+> 最后更新：2026-05-26 (B-031 阶段 2/3 部分推进；B-041 V4 适配闭环；步骤 5/6/7/8/9 ☑；新立项 B-040/B-042/B-043/B-044)
 
 ## 优先级语义
 
@@ -106,12 +106,15 @@ deps: []
 
 ### B-034 PRE-DEPLOY-WALKTHROUGH 文档订正
 - **优先级**：P3
-- **关联**：CORRECTIONS-LOG 修正 #5-#7 影响 / walkthrough 步骤 2 期望与实际偏差
-- **现状**：步骤 2 "Pass 标准: /health.status == healthy" 与 celery 健康依赖 worker（步骤 12 才起）冲突；OpenAPI 端点假设公开但实际 X-API-Key 中间件保护
+- **关联**：CORRECTIONS-LOG 修正 #5-#7 影响 / walkthrough 步骤 2 期望与实际偏差 / 阶段 2 步骤 6-8 暴露 3 项新 drift
+- **现状**：步骤 2 "Pass 标准: /health.status == healthy" 与 celery 健康依赖 worker（步骤 12 才起）冲突；OpenAPI 端点假设公开但实际 X-API-Key 中间件保护；步骤 6 期望 `content-process.mode=strict` 实际 `batch` + manual-collect.steps 期望含 `params` 实际 `{}`；步骤 7 期望 trace_id 进 worker log 但 stdlib formatter 不渲染 contextvar（实际机制 OK，见 B-040）；步骤 8 期望 `/llm/stats` 不需 API key 实际需要
 - **修复方向**：
   - 步骤 2 改 `Pass 标准: /health.status in {"healthy", "degraded"}` + 注释 "celery 在步骤 12 worker 起栈后转 healthy"
   - 步骤 2 OpenAPI curl 加 `-H "X-API-Key: $IS_API_KEY"`，§0.2 增加 "IS_API_KEY 必填，对 /openapi.json + /docs + /api/v1/* 全部生效"
   - §0.2 新增 "若 docker/.env 留空分发渠道凭据，须等 B-033 闭环；当前应至少填 wechat/wework/email 占位值"（B-033 闭环后该段删除）
+  - 步骤 6 期望 JSON 同步实际值：`content-process.mode=batch` / manual-collect 详情 steps `params:{}`（修正 #15 后）
+  - 步骤 7 trace_id 子项加注 "依赖 B-040 闭环后生效；当前可跳过此项，专项验证留给步骤 17 F-23 回归"
+  - 步骤 8 修正 "`/llm/stats` 不带 API key 也能查" → "所有 /api/v1/* 端点均需 X-API-Key（webhooks/health/metrics/openapi/docs/redoc 除外）"
 
 ### B-035 CI 强制跑 docker integration
 - **优先级**：P1
@@ -151,6 +154,54 @@ deps: []
   - 选 A 更符合 "atomic tool 一文件一职责" 的模块拆分；选 B 改动最小
   - 同步审查其他工具是否有相同双副本（grep `async def _.*_execute`）
 - **验证**：仅有一个 `_collect_execute` 定义；tests/unit/agent collect 测试不退化
+
+---
+
+### B-042 api composition 注入 CostTracker（llm_call_logs 写入路径）
+- **优先级**：P2
+- **关联**：CORRECTIONS-LOG 2026-05-26 B-041 carryover；walkthrough 步骤 9 期望 `llm_call_logs 有 success 记录` 失败
+- **现状**：[composition.build_llm_gateway](../src/intellisource/composition.py) 仅传 circuit_breaker + priority_queue，**未注入** `cost_tracker`。LLMGateway 内部 `if self._cost_tracker is not None: await self._cost_tracker.log_call(record)`（chat / complete / stream 三处）→ singleton 始终 None → 真实 LLM 调用都不写 `llm_call_logs`。
+- **结构性难点**：`CostTracker(session: AsyncSession)` 构造期就绑定 session，而 LLMGateway 是进程内 singleton。直接传一个 session 会跨请求复用 → 关联事务/连接生命周期错。
+- **修复方向**：
+  - 选 A：改 `CostTracker` 为 stateless，`log_call(record, session_factory)` 调用时再开 session（最干净，但 break 现有 unit 测试 fixture）
+  - 选 B：LLMGateway 接受 `cost_tracker_factory: Callable[[], CostTracker]`，每次 log_call 通过 factory 拿新实例（用 `session_factory()` 作为 ctx mgr 内开 session）
+  - 选 C：LLMGateway.__init__ 接 `session_factory`，内部 `async with session_factory() as s: CostTracker(s).log_call(...)`，最少 API 变更
+  - 推荐：选 C（兼容已有 unit 测试，仅扩展 ctor 可选参数）
+- **验证**：真起 stack 跑 `/search/chat` 后 `psql ... SELECT count(*) FROM llm_call_logs` ≥ 1；status='success'；input_tokens/output_tokens > 0
+
+### B-043 chat() path 接入 LLMCache
+- **优先级**：P3
+- **关联**：CORRECTIONS-LOG 2026-05-26 B-041 carryover；walkthrough 步骤 9 期望 "二次执行命中缓存（增量显著减少或 cache_hit=true）"
+- **现状**：[llm/gateway/_chat.py](../src/intellisource/llm/gateway/_chat.py) `chat()` **无 cache 路径**，仅 [_complete.py](../src/intellisource/llm/gateway/_complete.py) 走 `if self._cache is not None and cache_key_parts is not None: cached = await self._cache.get(...)`。`/search/chat` 走 `chat()` → 永远不命中缓存。
+- **修复方向**：
+  - chat() 加 `cache_key_parts` 可选参数；key 构造需含 messages 全文 hash + tools schema hash + model（多轮历史变了缓存就 miss，是预期）
+  - 仅 finish_reason='stop' 且无 tool_calls 时才入缓存（中间 tool-loop 步不缓存）
+  - LLMResult 缺少 finish_reason 字段直接命中（cache 复用）
+- **验证**：连续两次相同 `/search/chat` 请求 — 第二次响应 latency 显著低（缓存返回不走 LLM API）；prometheus `llm_cache_hits_total` 计数 +1
+
+### B-044 content-process pipeline 集成 LLM summarizer step
+- **优先级**：P2
+- **关联**：CORRECTIONS-LOG 2026-05-26 B-041 carryover；walkthrough 步骤 9 期望 "processed_contents.summary 被 LLM 填充" 失败
+- **现状**：[config/pipelines/content-process.yaml](../config/pipelines/content-process.yaml) `steps` 只有 HTMLParser → ContentDedup → KeywordTagger（纯批处理器，零 LLM）；processed_contents.summary 列恒为 NULL。B-008 闭环时把 `truncate_summary` 工具接入 LLM summarizer 模板，但该工具未被 content-process pipeline 调用（仅 push-optimize flexible-mode 可能调）。
+- **修复方向**：
+  - 选 A：扩展 `_build_processors_from_config` 支持 `tool: <tool_name>` 步骤类型（除 `processor:`），allow content-process steps 包含 `- tool: truncate_summary` 直接复用 atomic tool
+  - 选 B：新增 `LLMSummarizer(BaseProcessor)` 处理器，调用 truncate_summary 内部逻辑；保持 processor-only contract
+  - 选 C：拆 content-process 为两段（batch processors + LLM enrichment），后者走 agent flexible mode
+  - 推荐：选 A 最复用已有 atomic tool，修最少
+- **验证**：跑 content-process pipeline 后 `SELECT summary FROM processed_contents` 至少一行 NOT NULL；`llm_call_logs` 同步增长
+
+---
+
+### B-040 worker stdlib log → structlog/formatter migration（trace_id 可见性）
+- **优先级**：P3
+- **关联**：CORRECTIONS-LOG 2026-05-26 B-031 阶段 2 步骤 7 trace_id 一项延后；走查暴露
+- **现状**：[scheduler/signals.py](../src/intellisource/scheduler/signals.py) `_on_task_prerun` 已通过 Celery message header `x-trace-id` 把 contextvar 正确 set/reset（F-23 已闭环，单测覆盖）；但 worker 大多数业务模块用 stdlib `logging.getLogger(__name__)`，root logger 仅挂默认 `StreamHandler`（无 formatter），log line 形如 `[ts: LEVEL/Pool] msg` 无 `trace_id=` 子串。结果：walkthrough 步骤 7 + 步骤 17 的 `grep -oE 'trace_id=[a-f0-9-]+'` 都会命中 0，**给人 propagation 失效的假错觉**，实际机制是工作的。
+- **修复方向**：
+  - 选 A：root logger 装一个 `structlog.stdlib.ProcessorFormatter` + `structlog.contextvars.merge_contextvars`，让 trace_id contextvar 自动出现在 log line（key=trace_id value=<uuid>）
+  - 选 B：自定义 `logging.Formatter` 子类，`format()` 内读 `trace_context.get_trace_id()` 拼接到 msg 前；改动小、零依赖
+  - 选 C：业务代码全量迁移到 `structlog.get_logger()`，contextvar 通过 `merge_contextvars` 自动注入（最重，符合 arch 长期方向，logging.py 已有 NOTE 提到 "mypy --strict 类型不兼容" 阻塞）
+  - 推荐：选 B 最快闭合 walkthrough 期望；选 C 留给独立 sprint
+- **验证**：worker 日志 grep `trace_id=` 至少命中一个 uuid；同一 task 内多条 log 共享同一 trace_id；步骤 17 F-23 回归 PASS
 
 ---
 
