@@ -223,12 +223,21 @@ async def pg_truncate(pg_container: str) -> AsyncIterator[None]:
     """
     yield
     engine = create_async_engine(pg_container, echo=False)
-    try:
+
+    async def _truncate() -> None:
         async with engine.begin() as conn:
             table_names = ", ".join(f'"{t}"' for t in Base.metadata.tables.keys())
             await conn.execute(
                 text(f"TRUNCATE TABLE {table_names} RESTART IDENTITY CASCADE")
             )
+
+    try:
+        # wait_for guards against pg_session's outer transaction still holding
+        # row locks when fixtures finalize in LIFO order (pg_truncate
+        # finalizes before pg_session's outer trans.rollback runs) — TRUNCATE
+        # would otherwise block on those locks for the full pytest-session
+        # timeout instead of failing fast.
+        await asyncio.wait_for(_truncate(), timeout=_TEARDOWN_TIMEOUT_S)
     except asyncio.TimeoutError:
         _logger.warning(
             "pg_truncate TRUNCATE exceeded teardown deadline; skipping cleanup"

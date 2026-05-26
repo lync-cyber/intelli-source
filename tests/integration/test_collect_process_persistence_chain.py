@@ -80,7 +80,6 @@ async def test_collect_persists_raw_content_rows(pg_session: AsyncSession) -> No
             source_id=str(source.id),
             source_type="rss",
             tool_deps=deps,
-            task_id=str(uuid.uuid4()),
         )
 
     assert result["status"] == "ok"
