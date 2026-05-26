@@ -141,6 +141,7 @@ DEP002 = [
     "regex",                     # imported by litellm internals; pinned for compatibility
     "opentelemetry-api",         # imported only when OTEL_*_ENABLED env vars are set
     "lxml",                      # parser backend for beautifulsoup4
+    "uvicorn",                   # ASGI server invoked as CLI in docker compose; never `import uvicorn`
 ]
 
 # ---------------------------------------------------------------------------
