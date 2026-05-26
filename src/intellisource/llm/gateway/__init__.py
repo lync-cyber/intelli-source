@@ -16,6 +16,7 @@ from tenacity import wait_exponential
 from intellisource.llm.circuit_breaker import CircuitOpenError as CircuitOpenError
 from intellisource.llm.gateway._chat import _ChatMixin
 from intellisource.llm.gateway._complete import _CompleteMixin
+from intellisource.llm.gateway._embed import _EmbedMixin
 from intellisource.llm.gateway._metrics import _record_llm_call as _record_llm_call
 from intellisource.llm.gateway._queue import _QueueMixin
 from intellisource.llm.gateway._retry import _RetryMixin
@@ -45,7 +46,14 @@ SessionFactory = Callable[[], Any]
 logger = logging.getLogger(__name__)
 
 
-class LLMGateway(_RetryMixin, _CompleteMixin, _ChatMixin, _StreamMixin, _QueueMixin):
+class LLMGateway(
+    _RetryMixin,
+    _CompleteMixin,
+    _ChatMixin,
+    _StreamMixin,
+    _EmbedMixin,
+    _QueueMixin,
+):
     """Unified LLM calling interface built on litellm."""
 
     _CONTEXT_WINDOWS: dict[str, int] = {

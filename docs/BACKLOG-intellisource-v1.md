@@ -9,7 +9,7 @@ deps: []
 # IntelliSource v1 Backlog
 
 > 维护：本文件梳理 PR #53 / #54 audit 闭环之后的剩余工作。完成项请直接删除条目，新增项按优先级插入。
-> 最后更新：2026-05-26 (B-042 + B-044 闭环；步骤 9 N/A 两项准备补签真起栈)
+> 最后更新：2026-05-26 (B-042 + B-044 + B-045 闭环；步骤 9 N/A + 阶段 4 vector 路径准备补签真起栈)
 
 ## 优先级语义
 
@@ -170,6 +170,8 @@ deps: []
 - **验证**：连续两次相同 `/search/chat` 请求 — 第二次响应 latency 显著低（缓存返回不走 LLM API）；prometheus `llm_cache_hits_total` 计数 +1
 
 > B-044 已闭环 (本次会话, 选 B) — 新增 [src/intellisource/pipeline/processors/summarizer.py](../src/intellisource/pipeline/processors/summarizer.py) `LLMSummarizer(BaseProcessor)`：读 ctx.title/body_text → `truncate_summary(cluster, tool_deps=_GatewayDeps(gw))` 经 `asyncio.run` 调度（无 loop 直 / 有 loop 走 ThreadPoolExecutor）→ ctx.set("summary",...)；全异常路径写 "" 不抛。`PROCESSOR_REGISTRY` 注册 + 类级 `_NEEDS_LLM_GATEWAY=True` 标记。`_build_processors_from_config(config, llm_gateway=None)` 看标记按需注入；`build_agent_runner` 把 llm_gateway 透到 factory。`config/pipelines/content-process.yaml` 追加末步骤；[agent/tools/executes/process.py:`_process_execute`](../src/intellisource/agent/tools/executes/process.py) `repo.create(summary=str(ctx.get("summary") or ""))` 持久化。新增 [tests/unit/pipeline/test_llm_summarizer.py](../tests/unit/pipeline/test_llm_summarizer.py) 11 tests / 5 class GREEN（registry / process behavior / factory injection / yaml drift guard / _process_execute persistence）。真起栈验证（步骤 9 补签）：truncate processed_contents 后重跑 content-process → `SELECT summary FROM processed_contents WHERE summary <> ''` ≥ 1 — 待用户跑。
+
+> B-045 已闭环 (本次会话, 选 B 立即闭环) — `processed_contents.embedding` 列恒 NULL 的死代码 BLOCKER 修复（`VectorStore.upsert()` 在整个代码库零调用者；vector/hybrid mode 实际只跑 keyword fallback）。新增 [src/intellisource/pipeline/processors/embedder.py](../src/intellisource/pipeline/processors/embedder.py) `EmbeddingProcessor(BaseProcessor)`：读 ctx.body_text / fallback title → `llm_gateway.embed(text)` 经 `_run_coro` 调度 → ctx.set("embedding", vec)；空文本 / 无 gateway / 异常路径全 graceful 写 None 不抛。新增 [src/intellisource/llm/gateway/_embed.py](../src/intellisource/llm/gateway/_embed.py) `_EmbedMixin.embed(text)`：经 `ModelRoutingConfig.get_model("embed")` 路由 → `litellm.aembedding` (静态 hook `_aembedding` 可测) → 取 `response.data[0].embedding`；与 B-042 一致复用 `_emit_call_log` 写 `llm_call_logs` (`call_type='embed'`)。`PROCESSOR_REGISTRY` 注册 + `_NEEDS_LLM_GATEWAY=True` 共享 B-044 factory 注入；`config/pipelines/content-process.yaml` 末段追加 `- processor: EmbeddingProcessor`；[agent/tools/executes/process.py:`_process_execute`](../src/intellisource/agent/tools/executes/process.py) `repo.create(embedding=embedding_arg)` 持久化（None 时透传保留 DB NULL）。`config/llm_models.yaml` 加 `embed: openai/text-embedding-3-small` 路由。新增 [tests/unit/pipeline/test_embedding_processor.py](../tests/unit/pipeline/test_embedding_processor.py) 12 tests + [tests/unit/llm/test_gateway_embed.py](../tests/unit/llm/test_gateway_embed.py) 7 tests = 19 GREEN（registry / process / factory / yaml drift / _process_execute persistence + None-pass-through / embed method / happy path / failure paths / call_log emission）。真起栈验证（B-031 阶段 4 步骤 10/11）：需配置 `OPENAI_API_KEY`，无 key 时 embedding 列保持 NULL，vector/hybrid mode 走 keyword fallback；有 key 时 `SELECT count(*) FROM processed_contents WHERE embedding IS NOT NULL` ≥ 1，且 `/search { search_mode: "semantic" }` 真出向量相似度排序结果 — 待用户跑。
 
 ---
 

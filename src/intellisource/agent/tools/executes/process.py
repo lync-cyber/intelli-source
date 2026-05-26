@@ -108,12 +108,17 @@ async def _process_execute(
             if existing_processed is not None:
                 processed = existing_processed
             else:
+                embedding_val = ctx.get("embedding")
+                embedding_arg: list[float] | None = (
+                    embedding_val if isinstance(embedding_val, list) else None
+                )
                 processed = await repo.create(
                     raw_content_id=raw_id,
                     title=str(ctx.get("title") or raw.title or ""),
                     body_text=str(ctx.get("body_text") or raw.body_text or ""),
                     summary=str(ctx.get("summary") or ""),
                     tags=tags,
+                    embedding=embedding_arg,
                     fingerprint=str(ctx.get("fingerprint") or raw.fingerprint or ""),
                     source_url=raw.source_url,
                     processing_status="completed",

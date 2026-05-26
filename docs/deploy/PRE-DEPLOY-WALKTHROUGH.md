@@ -541,6 +541,8 @@ done
 
 **Pass 标准**：keyword/vector/hybrid 三个 mode 均 200；date 过滤无 500 错误且语义正确（需 B-002 闭环）。
 
+**预审注（B-045，2026-05-26）**：代码侧 `_VALID_MODES = {"keyword", "semantic", "hybrid"}`（命名 `semantic` 非 `vector`），上面 `for mode in keyword vector hybrid` 用 `vector` 会触发 `ValueError → 500`，请改为 `for mode in keyword semantic hybrid`（doc-drift 已并入 B-034 跟踪）。B-045 已闭环 `EmbeddingProcessor`：无 `OPENAI_API_KEY` 时 `processed_contents.embedding` 仍 NULL → `semantic`/`hybrid` 走 keyword fallback（不 5xx 但 0 真向量结果）；配 `OPENAI_API_KEY` 后重跑 content-process 即可让 vector 真路径活。
+
 ☐ 通过 / 签字：__________
 
 ---

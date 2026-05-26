@@ -100,9 +100,7 @@ def _make_complete_response(content: str = "summary text") -> MagicMock:
     return resp
 
 
-def _gateway_with_routing(
-    routing: dict[str, Any], **kwargs: Any
-) -> LLMGateway:
+def _gateway_with_routing(routing: dict[str, Any], **kwargs: Any) -> LLMGateway:
     gw = LLMGateway(**kwargs)
     gw._routing_config = routing
     from intellisource.llm.model_config import ModelRoutingConfig
@@ -237,9 +235,7 @@ class TestStreamCompleteEmitsViaSessionFactory:
         monkeypatch.setattr(gw, "_acompletion", fake_acompletion)
 
         chunks: list[dict[str, Any]] = []
-        async for chunk in gw.stream_complete(
-            prompt="hi there", task_type="chat"
-        ):
+        async for chunk in gw.stream_complete(prompt="hi there", task_type="chat"):
             chunks.append(chunk)
 
         assert chunks[-1]["done"] is True

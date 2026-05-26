@@ -34,6 +34,9 @@ models:
     temperature: 0.7
     max_tokens: 2048
     thinking: disabled
+  embed:
+    model: openai/text-embedding-3-small
+    provider: openai
 
 profiles:
   deepseek/deepseek-v4-flash:

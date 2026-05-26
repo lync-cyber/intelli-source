@@ -320,3 +320,29 @@ deps: []
   - 为 `/api/v1/contents/processed` 提供有意义的 summary 字段输出
 - 关联: src/intellisource/pipeline/processors/summarizer.py(新) + pipeline/registry.py + agent/factory.py + agent/tools/executes/process.py + config/pipelines/content-process.yaml + tests/unit/pipeline/test_llm_summarizer.py（新）；BACKLOG B-044 标 done
 
+### 2026-05-26 | orchestrator | B-045 EmbeddingProcessor + LLM gateway embed (闭环)
+- 触发信号: 推进 B-031 阶段 4 步骤 10/11 (M-007 检索/RAG) 前的代码侧预审揪出 BLOCKER —— `VectorStore.upsert()` 在整个代码库零调用者（grep `UPDATE processed_contents SET embedding` 仅 storage/vector.py:182 一处定义），`processed_contents.embedding` 列恒 NULL。后果：步骤 10 `search_mode=semantic` / `hybrid` 由 hybrid.py:119-120 `query_vector is None` 兜底走 keyword fallback（不 5xx 但永远 0 真向量结果），步骤 11 RAG 同样降级，语义检索价值=0。用户三选：A 立项延后 / B 立即闭环（写 EmbeddingProcessor + pipeline 集成）/ C 推迟 v2；本会话采选 B。
+- 问题:
+  - LLMGateway 无 `embed()` 方法，无法生成向量
+  - pipeline / agent / repository 全无 embedding 写入路径
+  - `_process_execute.repo.create(...)` 无 `embedding=` 字段，即便 ctx 设置也不持久化
+  - `llm_models.yaml` 无 `embed` task_type 路由
+- 修复:
+  - 新增 [src/intellisource/llm/gateway/_embed.py](../../src/intellisource/llm/gateway/_embed.py) `_EmbedMixin.embed(text) -> list[float] | None`：经 `ModelRoutingConfig.get_model("embed")` 路由 → `litellm.aembedding(model=..., input=text)` (静态 `_aembedding(**kwargs)` hook，测试可 monkeypatch 隔离 SDK) → 取 `response.data[0].embedding`；空文本 / 路由缺 / 调用异常 / 非 list / 空 list 全 graceful 返 None；成功路径与 B-042 一致复用 `_emit_call_log` 写 `llm_call_logs(call_type='embed', status='success')`。`gateway/__init__.py` `LLMGateway` 加入 `_EmbedMixin` 到 MRO（排在 `_StreamMixin` 与 `_QueueMixin` 之间）。
+  - 新增 [src/intellisource/pipeline/processors/embedder.py](../../src/intellisource/pipeline/processors/embedder.py) `EmbeddingProcessor(BaseProcessor)`：`__init__(llm_gateway=None)` 存 `_llm_gateway` + 类级 `_NEEDS_LLM_GATEWAY=True`（共享 B-044 factory 注入路径）；`process(ctx)` 读 body_text → fallback title → `_run_coro(gw.embed(text))` （与 LLMSummarizer 同款无-loop 直 `asyncio.run` / 有-loop ThreadPoolExecutor）→ ctx.set("embedding", vec)；无 gateway / 空文本 / 异常 / 非 list 全写 None 不抛。
+  - `pipeline/registry.py` `PROCESSOR_REGISTRY` 注册 `"EmbeddingProcessor": EmbeddingProcessor`。
+  - `config/pipelines/content-process.yaml` `steps` 末尾追加 `- processor: EmbeddingProcessor`（LLMSummarizer 之后，让 summary 字段先就位再 embed）。
+  - `agent/tools/executes/process.py` `_process_execute` 加 `embedding_val = ctx.get("embedding"); embedding_arg = embedding_val if isinstance(embedding_val, list) else None`，作为 `repo.create(embedding=embedding_arg, ...)` 参数透传；None 时保留 DB 默认 NULL（pgvector 列 nullable=True）。
+  - `config/llm_models.yaml` `models` 追加 `embed: { model: openai/text-embedding-3-small, provider: openai }` 路由。
+- 验证:
+  - 新增 [tests/unit/pipeline/test_embedding_processor.py](../../tests/unit/pipeline/test_embedding_processor.py) 12 tests / 5 class GREEN：registry 注册 / process 写 ctx.embedding（happy / 无 gateway / 异常吞噬 / 空文本）/ factory 按标记注入 / YAML drift guard / `_process_execute` 调用 `repo.create(embedding=vec)` + None 时透传 None
+  - 新增 [tests/unit/llm/test_gateway_embed.py](../../tests/unit/llm/test_gateway_embed.py) 7 tests / 5 class GREEN：方法存在 / happy path / 空文本跳过 / `_aembedding` 异常返 None / 畸形 response 返 None / session_factory emit call_log / 失败不破坏路径
+  - 全 unit 套 2809 PASS（+19 新），mypy --strict + ruff + lint-imports 8/8 clean
+  - 真起栈验证：依赖 `OPENAI_API_KEY` 配置；无 key 时 embedding 列 NULL → vector/hybrid 走 keyword fallback（不崩），有 key 时 `SELECT count(*) FROM processed_contents WHERE embedding IS NOT NULL` ≥ 1 + `POST /search { "search_mode": "semantic" }` 真出向量相似度排序 — 待用户跑（阶段 4 步骤 10/11 补签）
+- 偏差类型: feature-gap（pipeline 步骤定义遗漏 + gateway 方法遗漏，pre-existing；预审才识别）
+- 影响:
+  - `processed_contents.embedding` 列从 100% NULL 变为按 LLM 真实输出填充（OPENAI_API_KEY 配置后）
+  - vector / hybrid search 真路径活，RAG 检索语义价值回归
+  - llm_call_logs 多 `call_type='embed'` 行（连带验证 B-042 session_factory 路径覆盖到 embed）
+- 关联: src/intellisource/llm/gateway/_embed.py(新) + llm/gateway/__init__.py + pipeline/processors/embedder.py(新) + pipeline/registry.py + agent/tools/executes/process.py + config/pipelines/content-process.yaml + config/llm_models.yaml + tests/unit/pipeline/test_embedding_processor.py(新) + tests/unit/llm/test_gateway_embed.py(新)；BACKLOG B-045 标 done；walkthrough 步骤 10/11 vector 路径阻塞解除
+
