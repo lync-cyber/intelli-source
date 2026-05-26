@@ -1,45 +1,66 @@
+# Example LLM model routing.
+#
+# DeepSeek V4 contract (https://api-docs.deepseek.com/zh-cn/api/create-chat-completion):
+#   - thinking: enabled | disabled  (default: enabled — set 'disabled' for cheap
+#     deterministic tasks and for chat-tool-loop flows where prior-turn
+#     reasoning_content roundtripping adds fragility)
+#   - reasoning_effort: high | max  (default: high; map low/medium → high,
+#     xhigh → max for back-compat)
+#
+# deepseek-chat / deepseek-reasoner are scheduled for retirement on 2026-07-24
+# — prefer v4-flash (replaces deepseek-chat + reasoner non-thinking) and
+# v4-pro (replaces reasoner thinking + extra reasoning capacity).
+
 default_model:
-  model: gpt-4o-mini
-  provider: openai
+  model: deepseek/deepseek-v4-flash
+  provider: deepseek
 
 models:
   extract:
-    model: gpt-4o-mini
-    provider: openai
+    model: deepseek/deepseek-v4-flash
+    provider: deepseek
     temperature: 0.0
     max_tokens: 4096
+    thinking: disabled
   summarize:
-    model: claude-3-haiku-20240307
-    provider: anthropic
+    model: deepseek/deepseek-v4-pro
+    provider: deepseek
     temperature: 0.3
     max_tokens: 2048
+    thinking: enabled
+    reasoning_effort: high
   dedup:
-    model: gpt-4o-mini
-    provider: openai
+    model: deepseek/deepseek-v4-flash
+    provider: deepseek
     temperature: 0.0
     max_tokens: 1024
+    thinking: disabled
   tag:
-    model: deepseek/deepseek-chat
+    model: deepseek/deepseek-v4-flash
     provider: deepseek
     temperature: 0.1
     max_tokens: 512
+    thinking: disabled
+  chat:
+    model: deepseek/deepseek-v4-flash
+    provider: deepseek
+    temperature: 0.7
+    max_tokens: 2048
+    thinking: disabled
 
 profiles:
-  gpt-4o-mini:
+  deepseek/deepseek-v4-flash:
     temperature: 0.1
     max_tokens: 4096
-    context_window: 128000
+    context_window: 1000000
     prompt_style: default
     timeout_seconds: 60
-  claude-3-haiku-20240307:
+    thinking: disabled
+  deepseek/deepseek-v4-pro:
     temperature: 0.3
-    max_tokens: 2048
-    context_window: 200000
-    prompt_style: concise
-    timeout_seconds: 90
-  deepseek/deepseek-chat:
-    temperature: 0.1
     max_tokens: 4096
-    context_window: 64000
-    prompt_style: structured
-    timeout_seconds: 60
+    context_window: 1000000
+    prompt_style: concise
+    timeout_seconds: 120
+    thinking: enabled
+    reasoning_effort: high

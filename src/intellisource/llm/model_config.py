@@ -45,6 +45,8 @@ class ModelProfile:
     context_window: int
     prompt_style: str = "default"
     timeout_seconds: int = 60
+    thinking: str | None = None
+    reasoning_effort: str | None = None
 
 
 @dataclass
@@ -59,6 +61,8 @@ class ModelConfig:
     provider: str
     temperature: float | None = None
     max_tokens: int | None = None
+    thinking: str | None = None
+    reasoning_effort: str | None = None
 
 
 class ModelRoutingConfig:
@@ -94,6 +98,8 @@ class ModelRoutingConfig:
             context_window=p["context_window"],
             prompt_style=p.get("prompt_style", "default"),
             timeout_seconds=p.get("timeout_seconds", 60),
+            thinking=p.get("thinking"),
+            reasoning_effort=p.get("reasoning_effort"),
         )
 
     @property

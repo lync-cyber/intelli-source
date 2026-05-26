@@ -114,13 +114,15 @@ class FlexibleLoop:
             tool_calls = response.metadata.get("tool_calls") or []
             finish_reason = response.metadata.get("finish_reason", "")
             if tool_calls:
-                messages.append(
-                    {
-                        "role": "assistant",
-                        "content": response.content or "",
-                        "tool_calls": [_serialize_tool_call(tc) for tc in tool_calls],
-                    }
-                )
+                assistant_msg: dict[str, Any] = {
+                    "role": "assistant",
+                    "content": response.content or "",
+                    "tool_calls": [_serialize_tool_call(tc) for tc in tool_calls],
+                }
+                rc = response.metadata.get("reasoning_content")
+                if rc:
+                    assistant_msg["reasoning_content"] = rc
+                messages.append(assistant_msg)
             elif response.content:
                 final_answer = response.content
 
@@ -431,13 +433,15 @@ class FlexibleLoop:
             finish_reason = response.metadata.get("finish_reason", "")
 
             if tool_calls:
-                messages.append(
-                    {
-                        "role": "assistant",
-                        "content": response.content or "",
-                        "tool_calls": [_serialize_tool_call(tc) for tc in tool_calls],
-                    }
-                )
+                assistant_msg: dict[str, Any] = {
+                    "role": "assistant",
+                    "content": response.content or "",
+                    "tool_calls": [_serialize_tool_call(tc) for tc in tool_calls],
+                }
+                rc = response.metadata.get("reasoning_content")
+                if rc:
+                    assistant_msg["reasoning_content"] = rc
+                messages.append(assistant_msg)
 
             if budget_hit:
                 budget_exhausted = True
