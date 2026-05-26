@@ -159,6 +159,7 @@ closeout|closes\s*#\d+|fixes\s*#\d+|landed\s+in|本次新增|本轮加入|现已
 - 禁止：遗留未标注的 TODO / TBD / FIXME（必须标注 `[ASSUMPTION]`）。强制由 doc-review Layer 1 检查器实现，参见 `cataforge.skill.builtins.doc_review.checker.check_no_todo`。
 - 禁止：写入 CLAUDE.md 项目状态区（orchestrator 专属）。
 - 禁止：硬编码 §框架配置常量 中已定义的数值（应直接引用常量名）。
+- 禁止：测试中单纯 `assert result is not None` 而不验证语义——应断言具体的属性 / 类型 / 值，如 `assert result.status == "success"` 而非 `assert result is not None`。
 
 ## 统一问题分类体系
 所有审查报告（doc-review / code-review / framework-review / sprint-review）共用以下分类。
