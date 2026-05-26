@@ -31,6 +31,9 @@ dependencies = [
     "regex>=2024.5.10",
     "aiosmtplib>=5.1.0",
     "cryptography>=42.0",
+    "asyncpg>=0.31.0",
+    "psycopg[binary]>=3.1",
+    "uvicorn[standard]>=0.27",
 ]
 
 [build-system]
@@ -138,6 +141,7 @@ DEP002 = [
     "regex",                     # imported by litellm internals; pinned for compatibility
     "opentelemetry-api",         # imported only when OTEL_*_ENABLED env vars are set
     "lxml",                      # parser backend for beautifulsoup4
+    "uvicorn",                   # ASGI server invoked as CLI in docker compose; never `import uvicorn`
 ]
 
 # ---------------------------------------------------------------------------

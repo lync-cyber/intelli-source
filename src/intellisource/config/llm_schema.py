@@ -6,7 +6,12 @@ They live in the config module (M-001) as per arch-modules §2.M-001.
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
+
+ThinkingMode = Literal["enabled", "disabled"]
+ReasoningEffort = Literal["high", "max"]
 
 
 class ModelTaskConfig(BaseModel):
@@ -16,6 +21,8 @@ class ModelTaskConfig(BaseModel):
     provider: str
     temperature: float | None = None
     max_tokens: int | None = None
+    thinking: ThinkingMode | None = None
+    reasoning_effort: ReasoningEffort | None = None
 
     @field_validator("temperature")
     @classmethod
@@ -40,6 +47,8 @@ class ModelProfileConfig(BaseModel):
     context_window: int
     prompt_style: str = "default"
     timeout_seconds: int = 60
+    thinking: ThinkingMode | None = None
+    reasoning_effort: ReasoningEffort | None = None
 
 
 class DefaultModelConfig(BaseModel):

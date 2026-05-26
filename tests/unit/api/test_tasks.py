@@ -47,8 +47,6 @@ def _make_task_obj(
     items_collected: int = 0,
     error_message: str | None = None,
     retry_count: int = 0,
-    pipeline_name: str | None = "default",
-    execution_mode: str | None = "sequential",
 ) -> MagicMock:
     """Return a MagicMock that mimics a CollectTask ORM instance."""
     obj = MagicMock()
@@ -64,9 +62,6 @@ def _make_task_obj(
     obj.started_at = None
     obj.finished_at = None
     obj.created_at = "2025-01-01T00:00:00+00:00"
-    # task_chain fields exposed via join or property
-    obj.pipeline_name = pipeline_name
-    obj.execution_mode = execution_mode
     return obj
 
 
@@ -342,13 +337,20 @@ class TestTaskCollectEndpoint:
 
 
 class TestTaskDetailEndpoint:
-    """AC-T041-3: GET /api/v1/tasks/{id} returns task with pipeline info."""
+    """AC-T041-3: GET /api/v1/tasks/{id} returns the CollectTask payload.
+
+    Pipeline metadata (pipeline_name / execution_mode) lives on the parent
+    TaskChain row; the serializer exposes ``task_chain_id`` so callers can
+    follow the link rather than reading non-existent attributes off
+    CollectTask (see api/routers/tasks.py _serialize_task).
+    """
 
     @pytest.mark.asyncio
     async def test_get_task_detail_success(self, client: AsyncClient) -> None:
-        """GET /api/v1/tasks/{id} returns task with status, pipeline_name, mode."""
+        """GET /api/v1/tasks/{id} returns the task fields plus the
+        ``task_chain_id`` link to its parent TaskChain."""
         mock_repo = AsyncMock()
-        task = _make_task_obj(pipeline_name="rss_pipeline", execution_mode="parallel")
+        task = _make_task_obj()
         mock_repo.get_by_id.return_value = task
 
         with patch(
@@ -359,9 +361,9 @@ class TestTaskDetailEndpoint:
 
         assert resp.status_code == 200
         body = resp.json()
+        assert body["id"] == str(TASK_ID)
         assert body["status"] == "pending"
-        assert body["pipeline_name"] == "rss_pipeline"
-        assert body["execution_mode"] == "parallel"
+        assert body["task_chain_id"] == str(TASK_CHAIN_ID)
 
     @pytest.mark.asyncio
     async def test_get_task_not_found_404(self, client: AsyncClient) -> None:

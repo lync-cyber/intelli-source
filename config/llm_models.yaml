@@ -1,16 +1,3 @@
-# Example LLM model routing.
-#
-# DeepSeek V4 contract (https://api-docs.deepseek.com/zh-cn/api/create-chat-completion):
-#   - thinking: enabled | disabled  (default: enabled — set 'disabled' for cheap
-#     deterministic tasks and for chat-tool-loop flows where prior-turn
-#     reasoning_content roundtripping adds fragility)
-#   - reasoning_effort: high | max  (default: high; map low/medium → high,
-#     xhigh → max for back-compat)
-#
-# deepseek-chat / deepseek-reasoner are scheduled for retirement on 2026-07-24
-# — prefer v4-flash (replaces deepseek-chat + reasoner non-thinking) and
-# v4-pro (replaces reasoner thinking + extra reasoning capacity).
-
 default_model:
   model: deepseek/deepseek-v4-flash
   provider: deepseek

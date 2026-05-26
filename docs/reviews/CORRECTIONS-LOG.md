@@ -107,3 +107,160 @@ deps: []
   - r2 inline approve 独立性损失：同 sprint-8r batch 3 r3 先例处理；CI integration 测试（test_raw_content_persist_on_pipeline_done.py 5 cases）将进一步反证 R-001 修复在端到端 PG 路径生效
   - EXP-006 frequency tick: sprint-9 reviewer truncation 2/2，retrospective 立项时需评估是否调整 reviewer maxTurns 或拆分 Layer 2 维度
 - 关联: commit c492cba (T-096 GREEN) + commit 65d443a (T-096 r2 fix + CODE-REVIEW-T-096-r1.md); reviewer subagent a678cd2f13fd2a8ea (truncated); T-096 final = approved
+
+### 2026-05-26 | orchestrator | unknown
+- 触发信号: option-override
+- 问题/假设: B-010 deploy-spec 闭环全部资产在工作区（deploy-spec主卷+changelog+r1/r2 审查报告+CLAUDE.md+PROJECT-STATE.md+BACKLOG+EVENT-LOG+doc-index）。接下来思路？
+- 基线/推荐: Commit B-010 后推进 B-016~B-018 (Recommended)
+- 实际/选择: 仅 Commit B-010，本轮会话结束
+- 偏差类型: preference
+
+### 2026-05-26 | orchestrator | B-031 walkthrough 阶段 0 步骤 1
+- 触发信号: pre-deploy-walkthrough-NO-GO
+- 问题: B-031 PRE-DEPLOY-WALKTHROUGH 首次真起 docker compose 栈，阶段 0 步骤 1（DB + Redis + migrate）触发 4 项构建/迁移缺陷连环失败。所有缺陷此前从未暴露 — 2838 PASS 单测/集成全部跑 SQLite 或 mock 路径，dockerized integration test 在本地 deselect、CI 未真跑（B-013 carryover），生产路径首次端到端验证即在本次 walkthrough。
+- 修正 #1：[docker/Dockerfile:37](../../docker/Dockerfile) `COPY alembic.ini ./alembic.ini` 找不到文件 — 项目实际把 `alembic.ini` 放在 `alembic/alembic.ini`。改为 `COPY alembic/alembic.ini ./alembic.ini`。
+- 修正 #2：`uv sync --frozen --no-dev` 在 builder 阶段 fail — hatchling 需要 `README.md`（pyproject.toml line 7 `readme = "README.md"`）但 Dockerfile 只 COPY pyproject.toml + uv.lock。改为 `uv sync --frozen --no-dev --no-install-project` — runtime 阶段已通过 `PYTHONPATH=/app/src` 加载源码，builder 不需自装包，同时让 deps layer cache 不再因 src 改动失效。
+- 修正 #3：`[project.dependencies]` **既无 asyncpg 也无 psycopg**（两者都仅在 `[dependency-groups].dev`）。生产 image (`uv sync --no-dev`) 零 Postgres driver，应用根本无法连 DB。把 `asyncpg>=0.31.0` + `psycopg[binary]>=3.1` 移入运行时依赖；`uv lock` 重生成。
+- 修正 #4：[alembic/env.py:30](../../alembic/env.py) 读 `DATABASE_URL`，compose 实际传 `IS_DATABASE_URL`；且 IS_DATABASE_URL 形如 `postgresql+asyncpg://...`，但 alembic 用同步 `engine_from_config()`，需要 sync driver。改为读 `IS_DATABASE_URL` 优先 + fallback `DATABASE_URL`，并把 `postgresql+asyncpg://` 重写为 `postgresql+psycopg://`（psycopg3）后再交给 alembic。
+- 修正 #5：migration `001_initial_schema.py:25` 执行 `CREATE EXTENSION IF NOT EXISTS zhparser`，但 `pgvector/pgvector:pg16` base image 不带 zhparser → `FeatureNotSupported` 阻断迁移。**关键观察**：`storage/vector.py` 全文检索实际用 `to_tsvector('simple', ...)`，从未引用 zhparser；扩展是为未来中文分词预留。改为 `DO $$ ... EXCEPTION WHEN feature_not_supported THEN RAISE NOTICE ...` 包裹 — 扩展不可用时优雅降级。deploy-spec §2 R-005 提到的"zhparser DB 镜像要求"是真实未闭环 carryover，**留作 B-032 待办**：制作 pgvector + zhparser 复合镜像并切到 docker-compose。
+- 偏差类型: technical-constraint + protocol-gap
+- 原因: 项目 7 个 sprint 全程未做过真 docker integration test（测试矩阵都基于 SQLite/mock）；B-013 "CI docker integration" 长期 deferred；deploy-spec r1+r2 文档审查覆盖了 SBOM / promtool / 回滚方案等，但未要求"真起栈跑 migrate"作为审查通过条件。B-031 P0 立项之后才暴露这些隐藏破口 — 印证 walkthrough 不可被自动化回归替代的核心理由。
+- 影响/缓解:
+  - 修复 #1~#4 已纳入工作区，步骤 1 PASS（migrate exit 0 / 13 tables / pgvector / Redis PONG）
+  - zhparser carryover → B-032 (P2，制作复合镜像)
+  - 后续阶段 0 步骤 2 + 阶段 1~7 可能仍有未暴露破口，本 walkthrough 继续真跑
+  - 长期改进 carryover：deploy-spec 审查模板加一条强约束 "本地最小栈 docker compose up -d db redis migrate 必须真跑通"
+- 关联: docs/deploy/PRE-DEPLOY-WALKTHROUGH.md 步骤 1 签字栏；docker/Dockerfile / pyproject.toml / alembic/env.py / alembic/versions/001_initial_schema.py 编辑
+
+### 2026-05-26 | orchestrator | B-031 walkthrough 阶段 0 步骤 2
+- 触发信号: pre-deploy-walkthrough-NO-GO
+- 问题: 阶段 0 步骤 2（API + /health）再触发 3 项部署/配置缺陷。
+- 修正 #5：[pyproject.toml `[project.dependencies]`](../../pyproject.toml) 无 `uvicorn` 也无 `fastapi[standard]` extra — runtime image (`uv sync --no-dev`) 没有 ASGI server，docker compose `command: [uvicorn, ...]` 直接 `executable file not found in $PATH`。`fastapi>=0.110.0` 不会传递依赖 uvicorn（仅 starlette）。添加 `uvicorn[standard]>=0.27` 到运行时依赖；`uv lock` 重生成。
+- 修正 #6：venv 跨路径 shebang 破口 — [docker/Dockerfile](../../docker/Dockerfile) builder 阶段 `WORKDIR /build`，产出 venv 在 `/build/.venv`；runtime 阶段 `COPY --from=builder /build/.venv /app/.venv` 把 venv 搬到 `/app/.venv`。但 venv 内 console_scripts (uvicorn, celery, alembic 等) 的 shebang 行硬编码 `#!/build/.venv/bin/python` — runtime 找不到 `/build/.venv` → `exec: no such file or directory`（指向 shebang 解释器，而非 script 本身，错误消息高度误导）。改 builder `WORKDIR /app`，让 venv 在 builder 即生成于 `/app/.venv`，COPY 后 shebangs 仍有效。**典型 multi-stage Python venv 陷阱**，框架级 anti-pattern 候选。
+- 修正 #7：composition.build_distributor_facade() 与 walkthrough §0.2 "分发渠道 key 暂可全部留空" 矛盾 — wechat/wework/email 三个 `from_env()` 均在 env 缺失时 `raise ValueError`，[composition.py:127](../../src/intellisource/composition.py) 注释自述 "hard-fail by design"。但 walkthrough §0.2 + 步骤 14 均允许这些 N/A。当前会话用占位值（`disabled-walkthrough-placeholder`）让 distributor 能实例化（webhook 流程不真调它们），**B-033 待办**：使 composition 对禁用渠道容忍（log WARNING + skip channel），统一 distributor 启动语义。
+- 偏差类型: technical-constraint + architectural-inconsistency
+- 影响/缓解:
+  - 修正 #5+#6 已纳入工作区，api 健康（db+redis healthy / celery unhealthy as expected before step 12）
+  - 修正 #7 placeholder 短路：webhook 流程不受影响，但任何"启用 wechat/wework/email 真渠道"测试需重新填真值后 force-recreate api
+  - **走查文档自身缺陷**：步骤 2 期望 `/health.status == "healthy"` 与 celery 依赖 worker（步骤 12 才起）冲突；OpenAPI 路径假设公开但实际 X-API-Key 保护。两处 walkthrough 文档应订正，**B-034 待办**。
+  - 5 项 carryover backlog 候选（B-032 zhparser 复合镜像 / B-033 distributor 渠道可禁用 / B-034 walkthrough 文档订正 / B-035 docker integration test CI 真跑 / B-036 deploy-spec 审查模板要求"docker compose 真起栈"）
+- 关联: docs/deploy/PRE-DEPLOY-WALKTHROUGH.md 步骤 2 签字栏；docker/Dockerfile + docker/.env + pyproject.toml 编辑
+
+### 2026-05-26 | orchestrator | B-031 walkthrough 阶段 1 步骤 3-4
+- 触发信号: pre-deploy-walkthrough-NO-GO
+- 问题: 阶段 1 步骤 3（信源注册）PASS；步骤 4（手动触发采集）触发 5 项 worker + API 缺陷。
+- 步骤 3 验证: POST /api/v1/sources 创建 HN RSS → 201 / DB 落库 / 列表 API 可查 / POST /sources/reload `loaded_count=2 errors=[]`（从 sources.yaml 加载 HN + GitHub Trending）。**Pass**。
+- 修正 #8: worker `celery -A intellisource.scheduler.celery_app worker` 起栈后 `[tasks]` 列表 EMPTY — celery_app.py 不 import tasks.py，`@celery_app.task(name="run_pipeline")` decorator 从不执行。dispatch run_pipeline 时 worker silent drop。改 celery_app.py 末尾追加 `from intellisource.scheduler import tasks as _tasks` (late import 避开 circular)。
+- 修正 #9: POST /tasks/collect → 500 IntegrityError FK violation `collect_tasks.task_chain_id` 引用不存在的 task_chains 行。handler [api/routers/tasks.py:158](../../src/intellisource/api/routers/tasks.py) 生成 `task_chain_id = str(uuid.uuid4())` 但**从不**创建 parent TaskChain 行，直接拿 UUID 当 FK 用。加 `TaskChainRepository.create(TaskChain(...))` 在创建 CollectTask children 前，Repository.create() 内部 flush 让 FK 可见。
+- 修正 #10: 即便 worker 注册了 run_pipeline，处理 task 时仍 raise `RuntimeError: CeleryTasks not wired: worker_process_init handler has not run`。根因：worker_process_init / worker_process_shutdown signals 在 [scheduler/boot.py:303](../../src/intellisource/scheduler/boot.py) 注册，但 boot 模块从未被 worker entry 导入。改 worker compose `command: -A intellisource.scheduler.boot`（boot 才是 worker 的真正 entry point，per 其 docstring "Worker-side bootstrap for Celery task wiring T-075"）；boot.py 加 `celery_app = _module_celery_app` 公开 re-export 让 celery CLI 找得到 app。
+- 修正 #11: GET /api/v1/tasks/{id} → 500 `'CollectTask' object has no attribute 'pipeline_name'`。serializer [api/routers/tasks.py:46](../../src/intellisource/api/routers/tasks.py) 读 task.pipeline_name / task.execution_mode，但这俩字段在 TaskChain 模型上，不在 CollectTask。从 _serialize_task 删除两字段（callers 需要 pipeline 元数据应跟 task_chain_id 查父链）。
+- 修正 #12: **设计级 NO-GO** — worker 处理 run_pipeline 时 raise `RuntimeError: Event loop is closed`（[scheduler/tasks.py:69](../../src/intellisource/scheduler/tasks.py) `_run_sync` 路径）。根因：worker_process_init 用 `asyncio.run()` 跑 setup，创建 `aioredis.from_url(...)` Redis client；setup 结束后 loop 关闭，client 的 underlying conn 引用失效；run_pipeline task body 再次 `asyncio.run(idempotency_guard.release(task_id))` 新建 loop 时尝试用旧 client → "Event loop is closed"。**不在本会话 inline 修**，立 B-037 worker async/sync bridge hardening sprint 处理：候选解（任一）—— ①每 task 内 lazy 建 Redis client；②worker 长跑单 loop（不 asyncio.run，改 loop.run_until_complete + 复用）；③用 sync `redis-py` 在 sync code path。需要单独写测试 + 评估对 idempotency / metrics / signals 的影响，不适合放走查里快改。
+- 偏差类型: technical-constraint + design-defect
+- 影响/缓解:
+  - 修正 #8~#11 已纳入工作区，步骤 3 PASS / 步骤 4 partial（dispatch link OK，consume link 阻塞于 #12）
+  - 修正 #12 阻塞步骤 4 真正消费 + 步骤 12-14 全部（任何依赖 worker 跑通）
+  - 阶段 1 步骤 5（信源 CRUD 回归）不依赖 worker，理论可在 B-037 闭环前先跑；但本会话按 §B 路径决定 commit + 结束
+- carryover: B-037 worker async/sync bridge hardening（P0 — 阻塞 B-031 阶段 1-7 大部分步骤）
+- 关联: docs/deploy/PRE-DEPLOY-WALKTHROUGH.md 步骤 3 PASS / 步骤 4 partial 签字栏；src/intellisource/scheduler/celery_app.py + boot.py + api/routers/tasks.py + docker/docker-compose.yml 编辑
+
+### 2026-05-26 | orchestrator | B-037 worker async/sync bridge hardening (闭环)
+
+- 触发信号: backlog-burndown
+- 问题: 修正 #12（B-031 阶段 1 步骤 4 阻塞）— worker 处理 `run_pipeline` 时 `RuntimeError: Event loop is closed`，根因为 `aioredis.from_url(...)` 客户端的 conn pool 首次 `await` 时绑定到 `asyncio.run()` 创建的 loop；loop 关闭后下一次 `_run_sync` 复用同 client 即崩。同样的 loop-bound 问题也存在于 async SQLAlchemy engine 的连接池。
+- 调研: WebSearch 验证业界 canonical pattern = per-task lazy + NullPool（[DEV.to "Using Async SQLAlchemy Inside Sync Celery Tasks"](https://dev.to/kevinnadar22/using-async-sqlalchemy-inside-sync-celery-tasks-3eg4)，[celery/celery #3884 discussion](https://github.com/celery/celery/issues/3884)，[earlgreyness/aio-celery](https://github.com/earlgreyness/aio-celery) 备选）。
+- 修复方向（用户选 A）: per-task lazy + NullPool —
+  1. 新增 [src/intellisource/scheduler/lazy_redis.py](../../src/intellisource/scheduler/lazy_redis.py) — `LazyLoopRedis` 包装类，按 running event loop id 缓存一份 `aioredis.Redis`；通过 `__getattr__` 透明转发所有方法（`set/get/delete/eval/hgetall/hset/setex/scan_iter/ping/aclose`）到 per-loop 客户端
+  2. [src/intellisource/scheduler/boot.py](../../src/intellisource/scheduler/boot.py) `_build_redis_client()` 返回 `LazyLoopRedis(url)` 替代原裸 `aioredis.from_url(url)`，所有下游消费方（`IdempotencyGuard` / `CircuitBreaker` / `RateLimiter` / `Distributors`）零改动（鸭子类型）
+  3. `init_worker_session_factory()` 增加 `poolclass=NullPool` 让每次 session checkout 开新 DB conn，规避 engine pool 跨 loop 复用
+- 验证:
+  - 新增 [tests/unit/scheduler/test_b037_loop_bridge.py](../../tests/unit/scheduler/test_b037_loop_bridge.py) — 14 tests / 6 test class，覆盖 LazyLoopRedis per-loop binding + same-loop reuse + 8 method delegation parametrize + IdempotencyGuard 跨 `asyncio.run()` 回归 + boot 集成（`_build_redis_client` 返回类型 + worker engine NullPool）
+  - 14/14 GREEN；scheduler / composition / worker 整组 264 PASS 不退化
+  - `ruff check`（B-037 文件）+ `mypy --strict src/intellisource/scheduler/lazy_redis.py + boot.py` 全 clean；预先存在的 boot.py E402 ×3 不在 B-037 引入
+- 偏差类型: design-defect → 闭环
+- 影响:
+  - 解锁 B-031 阶段 1 步骤 4（worker 真消费链路）+ 阶段 5 步骤 12-14 + 任何 worker 真跑步骤 → 用户可重启 walkthrough
+  - 同时修复其他 worker 路径 aioredis 客户端（LLM `CircuitBreaker` + collector `RateLimiter` + `WeChat/WeWork Distributors`）的同型缺陷
+  - 预先存在但非 B-037 范围的 unit 失败：`tests/unit/api/test_tasks.py::TestTaskDetailEndpoint::test_get_task_detail_success` 因修正 #11 删除 `pipeline_name`/`execution_mode` 字段后测试未同步（spawn 独立任务跟进）
+- 关联: B-031 carryover #12 → B-037；BACKLOG 标 done；src/intellisource/scheduler/lazy_redis.py 新增 + boot.py 编辑 + tests/unit/scheduler/test_b037_loop_bridge.py 新增
+
+### 2026-05-26 | orchestrator | B-031 阶段 1 步骤 4 walkthrough rerun (闭环)
+
+- 触发信号: pre-deploy-walkthrough-rerun
+- 问题: B-037 闭环后重启 B-031 阶段 1 步骤 4。重启走查暴露 NO-GO #13 — `_collect_execute` 将 runtime_params（task_id / task_chain_id / trigger_type / priority / fingerprint，从 router → run_pipeline → strict executor `**merged` 一路串过来的运行时上下文）通过 `**kwargs` 透传给 `collector.collect()`，但 collector 抽象契约（[`BaseCollector.collect(source_config: dict)`](../../src/intellisource/collector/base.py)）只接受 `source_config`，导致 `TypeError: RSSCollector.collect() got an unexpected keyword argument 'task_id'`。
+- 修正 #13 (inline): 删除 [src/intellisource/agent/tools/__init__.py:287-289](../../src/intellisource/agent/tools/__init__.py) `_collect_execute` 中 `collector.collect(source_config=source_config, **kwargs)` 的 `**kwargs` 透传（同时在 [src/intellisource/agent/tools/executes/collect.py:91-93](../../src/intellisource/agent/tools/executes/collect.py) 镜像副本同步修复）。
+- carryover (B-039 P3): `_collect_execute` 在 `tools/__init__.py` 与 `tools/executes/collect.py` 存在**双副本**（149 行级几乎完全一致），仅 `__init__.py` 那份被 registry 实际使用，executes/ 那份从未被引用。下一次重构应单一化（建议 `tools/__init__.py` 改为 re-export `from .executes.collect import _collect_execute`，或删除 executes/ 副本）。本次走查阻塞优先用最小 inline 修复（双改两份），不引入重构。
+- 验证（重启走查全 Pass 标准 GREEN）:
+  - **(1)** worker logs `Task run_pipeline[d33713d7-…] succeeded in 2.68s`，全 3 步执行（collect → process → distribute）；无 `RuntimeError: Event loop is closed`（B-037 LazyLoopRedis + NullPool 双重隔离生效）
+  - **(2)** DB `raw_contents` 20 行（HN RSS feed 全 20 条）/ `task_chains.status='success'` / `collect_tasks` 对应消费
+  - **(3)** 重复同源触发：raw_contents 行数**未增**（fingerprint UNIQUE 保护 + collect 内 `get_raw_by_fingerprint` 返回 existing，避免重复 INSERT），task 仍 success（IdempotencyGuard Redis lock 仅在 task 并发时拦截，串行复跑由 fingerprint 层兜底，**两层语义不同但均如设计**）
+  - **(4)** priority=high 触发：`celery inspect active_queues` 显示 5 队列全活（priority.{low,normal,high} + trigger.{scheduled,manual}），high-priority task succeeded 2.65s，验证 F-26 优先级队列路由
+  - 单测回归：tests/unit/agent (collect/tool) 214 PASS 不退化
+- 偏差类型: design-defect（kwargs 透传契约违例）+ duplication（双副本）
+- 影响:
+  - **B-031 阶段 1 步骤 4 ☑ Pass 签字** — [walkthrough 文档同步签字栏更新](../deploy/PRE-DEPLOY-WALKTHROUGH.md)
+  - 不再阻塞 walkthrough 后续步骤（阶段 1 步骤 5 + 阶段 2-7）
+- 关联: src/intellisource/agent/tools/__init__.py + executes/collect.py 编辑；BACKLOG 新增 B-039；PRE-DEPLOY-WALKTHROUGH.md 步骤 4 ☑ 签字栏追加
+
+### 2026-05-26 | orchestrator | B-031 阶段 1 步骤 5 walkthrough (闭环)
+
+- 触发信号: pre-deploy-walkthrough-step5
+- 问题: 信源 CRUD 走查 PATCH `/api/v1/sources/{id}` → 500 `sqlalchemy.exc.MissingGreenlet: greenlet_spawn has not been called`。trace 定位 [api/routers/sources.py:84](../../src/intellisource/api/routers/sources.py) `_serialize_source` 访问 `source.updated_at` 触发跨上下文 lazy-load。
+- 根因: `Source.updated_at` 用 `onupdate=func.now()`（无 `server_default`），UPDATE 后 DB 侧值未通过 RETURNING 回灌到 ORM；SQLAlchemy 标记字段 expired；sync 序列化函数访问时触发 asyncpg 异步重取，但已脱离 greenlet → 崩。
+- 修正 #14 (inline): [`BaseRepository.update`](../../src/intellisource/storage/repositories/base.py) flush 后加 `await self._session.refresh(entity)`，在 async 上下文内主动刷取 server-computed 值。覆盖所有 ORM 模型，不只 Source；create 路径已通过 INSERT RETURNING 拿到 `created_at`，无需同改。
+- 验证（步骤 5 全 Pass 标准 GREEN）:
+  - **(1)** GET `/sources?type=rss&limit=5` → 200，`items.length=1`（HN RSS 过滤命中）
+  - **(2)** PATCH tags `["tech","news","verified"]` → 200，response 含新 tags + `updated_at` 04:49:13 → 06:58:03 推进；re-GET 列表 tags 持久化
+  - **(3)** 临时源创建 → DELETE → 204；列表再扫不再含 `_walkthrough_step5_delete`
+  - 单测回归：tests/unit/storage + tests/unit/api/test_sources*（套件全绿，无新增失败）
+- 偏差类型: design-defect（ORM expire-after-onupdate 与 sync serializer 边界冲突）
+- 影响:
+  - **B-031 阶段 1 步骤 5 ☑ Pass 签字** — [walkthrough 文档同步签字栏更新](../deploy/PRE-DEPLOY-WALKTHROUGH.md)
+  - 同类隐患在所有走 `BaseRepository.update` + 含 `onupdate` 字段的模型（如 `Source`，未来新模型若加 `updated_at` 也自动受益）一并消除
+  - 不阻塞步骤 6-8（阶段 2 pipeline 枚举/执行）
+- 关联: src/intellisource/storage/repositories/base.py 编辑；PRE-DEPLOY-WALKTHROUGH.md 步骤 5 ☑ 签字栏追加
+
+### 2026-05-26 | orchestrator | B-031 阶段 2 步骤 6-8 walkthrough (闭环)
+
+- 触发信号: pre-deploy-walkthrough-stage-2
+- 步骤 6 PASS: `/api/v1/pipelines` 列 5 项；`/pipelines/{name}` 详情字段齐全。**Doc drift**：`content-process.mode=batch`（walkthrough 写 `strict`），`manual-collect.steps` 实际 `params:{}`（已与 walkthrough 期望差异）→ 并入 B-034 walkthrough 文档订正。
+- 步骤 7 PASS (with caveat):
+  - **NO-GO #15 inline**: `manual-collect.yaml` steps[0] 硬编 `source_type: manual`，但 `collector_registry` 无 `manual` 条目 → `ToolDegradedError: unknown source_type: manual`。Fix [config/pipelines/manual-collect.yaml](../../config/pipelines/manual-collect.yaml) 删除 source_type override，让 `_collect_execute` 走 source_id → DB → `Source.type` 解析路径（与 scheduled-collect 一致）。
+  - **NO-GO #16 inline**: `content-process.yaml` `KeywordTagger` 无 `params.keywords` → 实例化为 `keywords=()` → tagger 永远输出空 tags。Walkthrough 期望 "tags 列非空数组" 失败（20/20 行 tags=[]）。Fix [config/pipelines/content-process.yaml](../../config/pipelines/content-process.yaml) 增 `params.keywords` 8 大类技术词库（ai/security/web/cloud/opensource/startup/data/language，每类 5-7 个 synonyms 含中英文常见词）。验证 truncate + 重跑后 **20/20 行**均匹配到 ≥1 个 tag。
+  - 验证全 Pass (修复后): manual-collect succeeded 3.84s / processed_contents 20 行 / 20/20 tags 非空 / 路径穿越 `..0.000000etc` → 404
+  - **⚠ trace_id 跨日志一致延后**: signals.py + 单测 F-23 已验证 propagation 机制（contextvar set/reset 跨 worker 通过 Celery message header `x-trace-id`）；但 worker 用 stdlib `logging.getLogger(__name__)` + 默认 `StreamHandler`，contextvar 不进 log format → grep `trace_id=` 命中 0。专项验证留给步骤 17 F-23 回归。**Carryover 立项 B-040 P3** worker stdlib log → structlog formatter migration（让 trace_id 进 log line）。
+- 步骤 8 PASS (with caveat): `/llm/status` 返 `circuit_state=CLOSED + queue_lengths{interactive:0,background:0}` / `/llm/stats?period=day` 返 `total_calls=0` 完整 JSON（含 by_model/by_date 数组）。**Doc drift**: walkthrough 写 "/llm/stats 不带 API key 也能查"，实际 [api/middleware.py:35](../../src/intellisource/api/middleware.py) `_EXEMPT_EXACT` 不含 `/llm/stats`，仍需 X-API-Key。并入 B-034 doc 订正。
+- 偏差类型: design-defect (NO-GO #15 yaml hard-code + #16 missing default config) + doc-drift (3 项)
+- 影响:
+  - **B-031 阶段 2 步骤 6/7/8 ☑ Pass 签字**（步骤 7 trace_id 一项延后到步骤 17）
+  - 修正 #15/#16 修复了所有 production 部署的 manual-collect 不可用 + KeywordTagger 永远空输出问题（生产硬伤）
+  - 不阻塞步骤 9-20（阶段 3-7）；步骤 9 LLM-pipeline 需要 LITELLM/OPENAI_API_KEY，用户决定何时跑
+- 关联: config/pipelines/manual-collect.yaml + content-process.yaml 编辑；BACKLOG 新增 B-040；PRE-DEPLOY-WALKTHROUGH.md 步骤 6/7/8 ☑ 签字栏追加
+
+### 2026-05-26 | orchestrator | B-041 DeepSeek V4 gateway 适配 (闭环)
+
+- 触发信号: backlog-burndown / walkthrough 步骤 9 阻塞
+- 问题: DeepSeek V4 模型族 (`deepseek-v4-flash` / `deepseek-v4-pro`) 默认 `thinking.type=enabled` → 单轮即只产 `reasoning_content`（content=""）；多轮 chat-tool-loop 时 `message.reasoning_content` 被 gateway 丢失 → DeepSeek API 报 `The reasoning_content in the thinking mode must be passed back to the API`。`deepseek-chat` / `deepseek-reasoner` 2026-07-24 下线，必须适配 V4。
+- 调研: [DeepSeek API 文档](https://api-docs.deepseek.com/zh-cn/api/create-chat-completion) — V4 通过 `thinking={"type":"enabled"\|"disabled"}` + `reasoning_effort=high\|max` 控制；assistant 上一轮 `reasoning_content` 必须在 message dict 中回传（"对话前缀续写"）；`deepseek-chat=deepseek-v4-flash 非思考`、`deepseek-reasoner=deepseek-v4-flash 思考` 等价关系。
+- 用户选 B（完整支持，per-profile 开关 + 多轮回传）。
+- 修复（B-041 6 处改动）:
+  1. [config/llm_schema.py](../../src/intellisource/config/llm_schema.py) `ModelTaskConfig` + `ModelProfileConfig` 新增 `thinking: Literal["enabled","disabled"] \| None` + `reasoning_effort: Literal["high","max"] \| None`
+  2. [llm/model_config.py](../../src/intellisource/llm/model_config.py) `ModelProfile` + `ModelConfig` dataclass 同步字段；`get_profile` 透传
+  3. **新增** [llm/gateway/_extra_body.py](../../src/intellisource/llm/gateway/_extra_body.py) — `build_extra_body(model, task_cfg, profile)` 单一来源；非 deepseek 返回 None；deepseek 默认 thinking=disabled（chat-tool-loop 安全默认）；task_cfg > profile > 默认；`extract_reasoning_content(message)` 兼容 SDK obj / dict
+  4. [llm/gateway/_chat.py](../../src/intellisource/llm/gateway/_chat.py) + [_complete.py](../../src/intellisource/llm/gateway/_complete.py) + [_stream.py](../../src/intellisource/llm/gateway/_stream.py) — call_kwargs 注入 `extra_body`；`_chat`/`_complete` 把 `reasoning_content` 写进 `metadata["reasoning_content"]`
+  5. [agent/executors/flexible.py](../../src/intellisource/agent/executors/flexible.py) `run()` + `run_stream()` 两处 — 拼 assistant message 时若 `metadata.reasoning_content` 非空则附加到 dict（下一轮 chat() 调用时整 messages 列表回传给 API）
+  6. [config/llm_models.yaml](../../config/llm_models.yaml) + [llm_models.example.yaml](../../config/llm_models.example.yaml) 切回 v4-flash（extract/dedup/tag/chat thinking=disabled）+ v4-pro（summarize thinking=enabled reasoning_effort=high）；profiles 同步
+- 验证:
+  - 新增 [tests/unit/llm/test_gateway_deepseek_v4.py](../../tests/unit/llm/test_gateway_deepseek_v4.py) 16 tests / 6 test class GREEN — `build_extra_body` 5 path + `extract_reasoning_content` 5 path + chat/complete/stream extra_body 注入 + chat metadata 携带 reasoning_content + FlexibleLoop multi-turn reasoning_content 回传
+  - llm/agent/config 整组单测 692 PASS 不退化
+  - `ruff check` + `mypy --strict` clean
+  - **真起 docker stack 集成**: `POST /search/chat "Reply with OK"` 双次成功（2.14s/1.26s），`answer="OK"`，证明 V4-flash + thinking=disabled 走通；manual-collect pipeline regression 仍 succeeded 2.53s
+- 偏差类型: design-defect（V4 API 契约变更，旧 gateway 假设 reasoning_content 可丢）
+- 影响:
+  - **walkthrough 步骤 9 LLM 链路 ☑ Pass**（gateway 层面）；llm_call_logs/cache/content-process LLM step 三项 N/A 由独立 backlog 跟踪
+  - 解锁所有 `/search/chat` + `/search/chat/stream` + `push-optimize` flexible-mode 路径（pre-B-041 均会被 reasoning_content 错误阻塞）
+  - `summarize` profile 可选启用 v4-pro 思考模式拿真实推理增益（已落地，等 [[b-044]] 接入到 truncate_summary 工具实际调用）
+- carryover:
+  - **B-042 P2** api composition 注入 CostTracker → 让 `llm_call_logs` 真写入（pre-existing wiring gap，CostTracker 当前 per-session lifecycle 与 singleton LLMGateway 不兼容；需设计 per-call session 适配）
+  - **B-043 P3** `chat()` path 接入 LLMCache（pre-existing，仅 complete() 有 cache_key_parts）
+  - **B-044 P2** `content-process` pipeline 集成 LLM summarizer step（让 walkthrough 步骤 9 summary 落库可验，从 batch processors → 添加 LLM-driven summarizer / tag 步骤）
+- 关联: src/intellisource/config/llm_schema.py + llm/model_config.py + llm/gateway/_extra_body.py(新) + _chat.py + _complete.py + _stream.py + agent/executors/flexible.py + config/llm_models{,.example}.yaml 编辑；BACKLOG B-041 闭环 + B-042/B-043/B-044 新增；PRE-DEPLOY-WALKTHROUGH.md 步骤 9 ☑ 签字栏追加

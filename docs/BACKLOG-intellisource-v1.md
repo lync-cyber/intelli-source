@@ -9,7 +9,7 @@ deps: []
 # IntelliSource v1 Backlog
 
 > 维护：本文件梳理 PR #53 / #54 audit 闭环之后的剩余工作。完成项请直接删除条目，新增项按优先级插入。
-> 最后更新：2026-05-25 (post B-007 + B-009 + B-029 + B-030 闭环)
+> 最后更新：2026-05-26 (B-031 阶段 2/3 部分推进；B-041 V4 适配闭环；步骤 5/6/7/8/9 ☑；新立项 B-040/B-042/B-043/B-044)
 
 ## 优先级语义
 
@@ -17,6 +17,29 @@ deps: []
 - **P1 — 阻塞质量**：可观测性、性能边界、合规
 - **P2 — 架构 / 功能完整性**：上帝类拆分、PRD 接受项功能缺口
 - **P3 — 优化 / 规约**：硬编码、弱断言、风格
+
+---
+
+## P0 — 上线门禁人工验证
+
+### B-031 执行 PRE-DEPLOY-WALKTHROUGH 全程跑通（pre_deploy 人工 go/no-go）
+- **优先级**：P0（**最高**）— 直接对应"上线 go-no-go"语义；自动化测试无法替代人工管线 + 模块端到端走查
+- **关联**：[docs/deploy/PRE-DEPLOY-WALKTHROUGH.md](deploy/PRE-DEPLOY-WALKTHROUGH.md)（1009 行）/ [docs/deploy-spec/deploy-spec-intellisource-v1.md §3.3](deploy-spec/deploy-spec-intellisource-v1.md) 引用 / B-010 deploy-spec 已闭环
+- **现状**：walkthrough 文档由 commit `dbbb987` 引入并就位，按管线工作流分 **8 阶段 / 20 步**，覆盖 M-001~M-011 全部模块；deploy-spec §3.3 把它作为 prod 灰度发布的第 1 步 pre_deploy 检查点。但**从未由人工实际端到端跑通**——所有 2838 PASS 单元/集成测试都是 mock/容器化自动验证，不能替代真实管线的 LLM 调用 / 渠道推送 / DB 中文全文检索 / Celery 优先队列消费等行为
+- **修复方向**：
+  - 用户按 [PRE-DEPLOY-WALKTHROUGH.md](deploy/PRE-DEPLOY-WALKTHROUGH.md) 0~8 阶段 20 步逐步操作，每步对照"启动 → 触发 → 期望响应 → 验证手段 → Pass 标准"并签字
+  - 走查过程中遇到偏差 / NO-GO 项：登记到 `docs/reviews/CORRECTIONS-LOG.md` 或回填新 backlog 条目（B-032+）
+  - 全部 20 步签字 GO 后，本任务关闭；任何 NO-GO 项必须先闭环再重新跑相应阶段
+- **依赖**：B-010 deploy-spec ✅（前置就绪）
+- **覆盖关系（顺带带掉的下游任务）**：
+  - B-014（staging 验证 /api/v1/metrics）— 走查阶段 5「监控 SLO」自然覆盖
+  - B-015（promtool check rules）— 同上
+  - 部分 B-013（CI integration 真跑）— 走查会真起 PG/Redis 栈，验证不依赖 mock 路径
+- **验证**：
+  - walkthrough 文档末尾 20 个签字栏全部填写
+  - CORRECTIONS-LOG 或新 backlog 条目记录所有 NO-GO 闭环
+  - EVENT-LOG 追加 `phase_end pre_deploy walkthrough closed` 记录
+- **何时重新评估**：每次 prod 发布前或 arch / 关键模块大改后，应重新执行本走查（视为 release-gate 而非一次性任务）
 
 ---
 
@@ -33,12 +56,8 @@ deps: []
 > B-009 已闭环（decision-only，reaffirm 选项 ②）— PRD AC-063 [ASSUMPTION] 在 sprint-9 已锁定 YAML-as-source-of-truth；`src/intellisource/api/routers/pipelines.py` 现状即决策实现（list/detail/run，无 CRUD）。完整 workflow CRUD（DB 存储 + 历史版本）保留为 v2+ 范畴，本 backlog 不立项。
 >
 > B-008 已闭环 — `truncate_summary` 接入 LLM summarizer（`summarizer.structured` 模板 + `gateway.complete` + `response_format: json_object`），产出 `{title, summary, timeline, key_points}` 结构化摘要；LLM 失败 / 返回非法 JSON / 缺字段 → 回退字符串截断；PRD AC-023 [ASSUMPTION] 已移除、标 `[x]`；2834 PASS (+7 测试) 不退化
-
-### B-010 Deploy 阶段未启动
-- **关联**：CLAUDE.md 原 backlog ③
-- **现状**：`docs/deploy-spec/` 缺失；docker/ 下已有 Dockerfile + docker-compose + prometheus/，但缺正式 deploy-spec 文档梳理 staging/prod 部署清单、回滚 SOP、健康指标基线
-- **修复方向**：devops 子代理产出 `docs/deploy-spec/deploy-spec-intellisource-v1.md` — 含部署架构图 / 环境变量清单 / smoke 测试 / 回滚步骤 / 监控 SLO
-- **依赖**：B-003、B-005 完成后部署 spec 中的指标章节更准确
+>
+> B-010 已闭环 — `docs/deploy-spec/deploy-spec-intellisource-v1.md` (755 行 + changelog) 产出并通过 r1+r2 双轮审查；4 模板必填段全覆盖；dev/staging/prod 三环境矩阵；zhparser DB 镜像要求 + 11 项指标家族 (B-014) + promtool check rules (B-015) + SBOM + trivy/grype 门禁 + git checkout+rebuild 回滚方案 + run_pipeline 唯一注册任务 smoke + queue.priority.* 实际队列名 + webhook token 轮换。reviewer r1 needs_revision (2 HIGH + 4 MEDIUM + 3 LOW)；devops r2 修订全部闭环；orchestrator inline r2 audit approved。详见 [docs/reviews/doc/REVIEW-deploy-spec-intellisource-v1-r2.md](reviews/doc/REVIEW-deploy-spec-intellisource-v1-r2.md)
 
 ---
 
@@ -57,6 +76,144 @@ deps: []
 - **成本**：单点改动
 
 > B-029 + B-030 已闭环 — LLM/Push alert 按 model/channel 拆分 (annotations 模板化引用 label) + R-002 注释 + R-003 精确路径匹配 + R-004 register 集中化 (facade __init__)；2827 PASS (+7 测试)。
+
+---
+
+## B-031 走查暴露的部署破口 (2026-05-26)
+
+> 来源：B-031 PRE-DEPLOY-WALKTHROUGH 阶段 0 步骤 1+2 触发 7 项 NO-GO，部分 inline 修复（修正 #1~#6 已落地），部分需要架构/文档层面跟进。完整修正记录见 [CORRECTIONS-LOG 2026-05-26 阶段 0 步骤 1/2](reviews/CORRECTIONS-LOG.md)。
+
+### B-032 制作 pgvector + zhparser 复合 DB 镜像
+- **优先级**：P1
+- **关联**：CORRECTIONS-LOG 修正 #5；deploy-spec §2 R-005 "zhparser DB 镜像要求"
+- **现状**：当前 docker-compose 用裸 `pgvector/pgvector:pg16`，不含 zhparser。migration 001 的 `CREATE EXTENSION IF NOT EXISTS zhparser` 已包入 `DO ... EXCEPTION` 块优雅降级，FTS 退到 `to_tsvector('simple', ...)`。代码层面（storage/vector.py）**目前从未引用 zhparser**，但 deploy-spec 把 zhparser 作为中文分词目标。
+- **修复方向**：
+  - 选 A：新建 `docker/db.Dockerfile` 基于 `pgvector/pgvector:pg16` + 编译安装 SCWS + zhparser；docker-compose `db` 服务改为 `build: { context: .., dockerfile: docker/db.Dockerfile }`
+  - 选 B：寻找现成 pgvector+zhparser 公开镜像（社区 fork）
+  - 修完后把 migration 001 的 `EXCEPTION` 包裹去掉，让 zhparser 重新成为硬约束；同步把 storage/vector.py FTS configuration 从 `simple` 切到 `zhparser`
+- **验证**：步骤 1 `SELECT extname FROM pg_extension` 输出含 `zhparser`；步骤 10 中文 query 走分词路径
+
+### B-033 composition 对未配置渠道容忍
+- **优先级**：P2
+- **关联**：CORRECTIONS-LOG 修正 #7；walkthrough §0.2 与 composition.py:127 "hard-fail by design" 矛盾
+- **现状**：`build_distributor_facade()` 对 wechat/wework/email 任一缺失即 `raise ValueError`；与 walkthrough 允许 "分发渠道 key 暂可全部留空" + 步骤 14 标 N/A 直接冲突。当前 walkthrough 用 `disabled-walkthrough-placeholder` 占位绕过。
+- **修复方向**：
+  - 改 `*Distributor.from_env()` 返回 `None` 或抛 `ChannelDisabledError`（细分异常）当全部凭据缺失
+  - `build_distributor_facade()` 捕获并 `log.warning("channel X disabled: missing env Y")`，从 channels dict 中跳过
+  - `DistributorFacade.distribute()` 路由时若收到 `channel=wechat` 但 channels 不含 wechat，返回明确错误
+- **验证**：docker/.env 清空 wechat/wework/email 后 api lifespan 不再 fail；wechat push 调用返回 `ChannelUnavailable` 错误而非 KeyError
+- **回滚**：移除占位值；保留 hard-fail 也是合理设计选项（取决于"渠道是部署前提" vs "渠道是运行时能力"）
+
+### B-034 PRE-DEPLOY-WALKTHROUGH 文档订正
+- **优先级**：P3
+- **关联**：CORRECTIONS-LOG 修正 #5-#7 影响 / walkthrough 步骤 2 期望与实际偏差 / 阶段 2 步骤 6-8 暴露 3 项新 drift
+- **现状**：步骤 2 "Pass 标准: /health.status == healthy" 与 celery 健康依赖 worker（步骤 12 才起）冲突；OpenAPI 端点假设公开但实际 X-API-Key 中间件保护；步骤 6 期望 `content-process.mode=strict` 实际 `batch` + manual-collect.steps 期望含 `params` 实际 `{}`；步骤 7 期望 trace_id 进 worker log 但 stdlib formatter 不渲染 contextvar（实际机制 OK，见 B-040）；步骤 8 期望 `/llm/stats` 不需 API key 实际需要
+- **修复方向**：
+  - 步骤 2 改 `Pass 标准: /health.status in {"healthy", "degraded"}` + 注释 "celery 在步骤 12 worker 起栈后转 healthy"
+  - 步骤 2 OpenAPI curl 加 `-H "X-API-Key: $IS_API_KEY"`，§0.2 增加 "IS_API_KEY 必填，对 /openapi.json + /docs + /api/v1/* 全部生效"
+  - §0.2 新增 "若 docker/.env 留空分发渠道凭据，须等 B-033 闭环；当前应至少填 wechat/wework/email 占位值"（B-033 闭环后该段删除）
+  - 步骤 6 期望 JSON 同步实际值：`content-process.mode=batch` / manual-collect 详情 steps `params:{}`（修正 #15 后）
+  - 步骤 7 trace_id 子项加注 "依赖 B-040 闭环后生效；当前可跳过此项，专项验证留给步骤 17 F-23 回归"
+  - 步骤 8 修正 "`/llm/stats` 不带 API key 也能查" → "所有 /api/v1/* 端点均需 X-API-Key（webhooks/health/metrics/openapi/docs/redoc 除外）"
+
+### B-035 CI 强制跑 docker integration
+- **优先级**：P1
+- **关联**：B-013（已有任务，本任务是其升级）；CORRECTIONS-LOG 全部 7 项 NO-GO 的根因之一
+- **现状**：本地无 Docker → 47 docker integration tests deselect；CI 当前路径也不真跑（B-013 carryover）。**所有 NO-GO 都因 docker compose 真起栈从未在 CI 跑通而隐藏**
+- **修复方向**：
+  - GitHub Actions workflow 加 `services: { docker: { ... } }` 或用 `setup-docker` action
+  - 加 `IS_FORCE_DOCKER_TESTS=1` env 变量，让 conftest 不再 deselect docker 测试
+  - 加专门的 "docker compose smoke" job：真跑 `docker compose up -d db redis migrate api` + curl /health
+  - fail 时阻塞 merge
+- **验证**：CI 输出 `162 collected, 0 deselected, 47+ docker PASS`；smoke job 显示 api 健康
+
+### B-038 framework-feedback: 提议框架默认采用 CLAUDE.md 单一事实来源
+- **优先级**：P3（项目本地已落地，feedback 是为防止 upgrade 漂移）
+- **关联**：本次会话用户决策"删除 PROJECT-STATE.md，CLAUDE.md 为单一事实来源"
+- **现状**：CataForge 框架默认双文件状态机制 — CLAUDE.md（人面向）+ .cataforge/PROJECT-STATE.md（框架镜像）。两份内容必须手工同步，是真实的双写负担 + 不一致风险源。本项目已删除 PROJECT-STATE.md 并改写 4 处硬引用（framework.json migration_checks / scaffold-manifest.json / self-update SKILL.md / 状态持久化机制说明）。
+- **风险**：下次 `cataforge upgrade apply` 会从上游 scaffold 重新引入 PROJECT-STATE.md + migration_checks 改回，本地决策被覆盖。`cataforge upgrade rollback --from <ts>` 可救但需要每次 upgrade 后手动回滚 4 处。
+- **修复方向（feedback 内容）**：
+  - CataForge framework 改成 CLAUDE.md / AGENTS.md 单一事实来源（去 PROJECT-STATE.md 双写）
+  - 或：把 PROJECT-STATE.md 改为可选（migration_checks 不强制 + scaffold-manifest 标 `optional: true`），项目可按需启用
+- **执行路径**：
+  - `uv run cataforge feedback --type=suggest --title="..." --body="..."`（framework-feedback skill）
+  - 或直接在上游 CataForge repo 开 issue + PR
+- **验证**：上游接受后，本项目下次 `cataforge upgrade apply` 不再重新引入 PROJECT-STATE.md
+
+---
+
+> B-037 已闭环 — 用户选 A: per-task lazy + NullPool。新增 [scheduler/lazy_redis.py](../src/intellisource/scheduler/lazy_redis.py) `LazyLoopRedis` 包装类（按 running event loop 缓存 `aioredis.Redis`，通过 `__getattr__` 透明转发）；[scheduler/boot.py](../src/intellisource/scheduler/boot.py) `_build_redis_client` 返回 LazyLoopRedis，`init_worker_session_factory` 加 `poolclass=NullPool`。新增 [tests/unit/scheduler/test_b037_loop_bridge.py](../tests/unit/scheduler/test_b037_loop_bridge.py) 14 tests GREEN；scheduler/composition/worker 整组 264 PASS 不退化；ruff + mypy clean。**B-031 阶段 1 步骤 4 walkthrough rerun 全 Pass GREEN：** worker 真消费 run_pipeline 2.68s succeeded / 20 raw_contents 落库 / fingerprint 复跑去重 / priority queue 路由全活；走查中途修复 NO-GO #13（collect_execute **kwargs 透传契约违例），立 B-039 P3 处理 `_collect_execute` 双副本去重。详见 [CORRECTIONS-LOG B-037 + walkthrough rerun 条目](reviews/CORRECTIONS-LOG.md)。
+
+### B-039 `_collect_execute` 双副本去重
+- **优先级**：P3
+- **关联**：CORRECTIONS-LOG 2026-05-26 修正 #13 carryover；走查 rerun 暴露
+- **现状**：`_collect_execute` 在 [src/intellisource/agent/tools/__init__.py:208-356](../src/intellisource/agent/tools/__init__.py) 与 [src/intellisource/agent/tools/executes/collect.py](../src/intellisource/agent/tools/executes/collect.py) 几乎完全一致的双副本（149 行级别），其中 `__init__.py` 副本被 registry 实际使用（[`_default_tool_defs()` line 892](../src/intellisource/agent/tools/__init__.py)），`executes/collect.py` 副本从未被引用。维护期同改两份的双重负担 + 漂移风险。同型问题可能也存在于 `_process_execute` / `_distribute_execute` / 等其他原子工具（待审查）。
+- **修复方向**：
+  - 选 A：`tools/__init__.py` 改为 `from .executes.collect import _collect_execute`（单一实现在 executes/，__init__ 仅 re-export）
+  - 选 B：删除 `executes/collect.py` 副本（单一实现保留在 __init__.py），更新任何 import 路径
+  - 选 A 更符合 "atomic tool 一文件一职责" 的模块拆分；选 B 改动最小
+  - 同步审查其他工具是否有相同双副本（grep `async def _.*_execute`）
+- **验证**：仅有一个 `_collect_execute` 定义；tests/unit/agent collect 测试不退化
+
+---
+
+### B-042 api composition 注入 CostTracker（llm_call_logs 写入路径）
+- **优先级**：P2
+- **关联**：CORRECTIONS-LOG 2026-05-26 B-041 carryover；walkthrough 步骤 9 期望 `llm_call_logs 有 success 记录` 失败
+- **现状**：[composition.build_llm_gateway](../src/intellisource/composition.py) 仅传 circuit_breaker + priority_queue，**未注入** `cost_tracker`。LLMGateway 内部 `if self._cost_tracker is not None: await self._cost_tracker.log_call(record)`（chat / complete / stream 三处）→ singleton 始终 None → 真实 LLM 调用都不写 `llm_call_logs`。
+- **结构性难点**：`CostTracker(session: AsyncSession)` 构造期就绑定 session，而 LLMGateway 是进程内 singleton。直接传一个 session 会跨请求复用 → 关联事务/连接生命周期错。
+- **修复方向**：
+  - 选 A：改 `CostTracker` 为 stateless，`log_call(record, session_factory)` 调用时再开 session（最干净，但 break 现有 unit 测试 fixture）
+  - 选 B：LLMGateway 接受 `cost_tracker_factory: Callable[[], CostTracker]`，每次 log_call 通过 factory 拿新实例（用 `session_factory()` 作为 ctx mgr 内开 session）
+  - 选 C：LLMGateway.__init__ 接 `session_factory`，内部 `async with session_factory() as s: CostTracker(s).log_call(...)`，最少 API 变更
+  - 推荐：选 C（兼容已有 unit 测试，仅扩展 ctor 可选参数）
+- **验证**：真起 stack 跑 `/search/chat` 后 `psql ... SELECT count(*) FROM llm_call_logs` ≥ 1；status='success'；input_tokens/output_tokens > 0
+
+### B-043 chat() path 接入 LLMCache
+- **优先级**：P3
+- **关联**：CORRECTIONS-LOG 2026-05-26 B-041 carryover；walkthrough 步骤 9 期望 "二次执行命中缓存（增量显著减少或 cache_hit=true）"
+- **现状**：[llm/gateway/_chat.py](../src/intellisource/llm/gateway/_chat.py) `chat()` **无 cache 路径**，仅 [_complete.py](../src/intellisource/llm/gateway/_complete.py) 走 `if self._cache is not None and cache_key_parts is not None: cached = await self._cache.get(...)`。`/search/chat` 走 `chat()` → 永远不命中缓存。
+- **修复方向**：
+  - chat() 加 `cache_key_parts` 可选参数；key 构造需含 messages 全文 hash + tools schema hash + model（多轮历史变了缓存就 miss，是预期）
+  - 仅 finish_reason='stop' 且无 tool_calls 时才入缓存（中间 tool-loop 步不缓存）
+  - LLMResult 缺少 finish_reason 字段直接命中（cache 复用）
+- **验证**：连续两次相同 `/search/chat` 请求 — 第二次响应 latency 显著低（缓存返回不走 LLM API）；prometheus `llm_cache_hits_total` 计数 +1
+
+### B-044 content-process pipeline 集成 LLM summarizer step
+- **优先级**：P2
+- **关联**：CORRECTIONS-LOG 2026-05-26 B-041 carryover；walkthrough 步骤 9 期望 "processed_contents.summary 被 LLM 填充" 失败
+- **现状**：[config/pipelines/content-process.yaml](../config/pipelines/content-process.yaml) `steps` 只有 HTMLParser → ContentDedup → KeywordTagger（纯批处理器，零 LLM）；processed_contents.summary 列恒为 NULL。B-008 闭环时把 `truncate_summary` 工具接入 LLM summarizer 模板，但该工具未被 content-process pipeline 调用（仅 push-optimize flexible-mode 可能调）。
+- **修复方向**：
+  - 选 A：扩展 `_build_processors_from_config` 支持 `tool: <tool_name>` 步骤类型（除 `processor:`），allow content-process steps 包含 `- tool: truncate_summary` 直接复用 atomic tool
+  - 选 B：新增 `LLMSummarizer(BaseProcessor)` 处理器，调用 truncate_summary 内部逻辑；保持 processor-only contract
+  - 选 C：拆 content-process 为两段（batch processors + LLM enrichment），后者走 agent flexible mode
+  - 推荐：选 A 最复用已有 atomic tool，修最少
+- **验证**：跑 content-process pipeline 后 `SELECT summary FROM processed_contents` 至少一行 NOT NULL；`llm_call_logs` 同步增长
+
+---
+
+### B-040 worker stdlib log → structlog/formatter migration（trace_id 可见性）
+- **优先级**：P3
+- **关联**：CORRECTIONS-LOG 2026-05-26 B-031 阶段 2 步骤 7 trace_id 一项延后；走查暴露
+- **现状**：[scheduler/signals.py](../src/intellisource/scheduler/signals.py) `_on_task_prerun` 已通过 Celery message header `x-trace-id` 把 contextvar 正确 set/reset（F-23 已闭环，单测覆盖）；但 worker 大多数业务模块用 stdlib `logging.getLogger(__name__)`，root logger 仅挂默认 `StreamHandler`（无 formatter），log line 形如 `[ts: LEVEL/Pool] msg` 无 `trace_id=` 子串。结果：walkthrough 步骤 7 + 步骤 17 的 `grep -oE 'trace_id=[a-f0-9-]+'` 都会命中 0，**给人 propagation 失效的假错觉**，实际机制是工作的。
+- **修复方向**：
+  - 选 A：root logger 装一个 `structlog.stdlib.ProcessorFormatter` + `structlog.contextvars.merge_contextvars`，让 trace_id contextvar 自动出现在 log line（key=trace_id value=<uuid>）
+  - 选 B：自定义 `logging.Formatter` 子类，`format()` 内读 `trace_context.get_trace_id()` 拼接到 msg 前；改动小、零依赖
+  - 选 C：业务代码全量迁移到 `structlog.get_logger()`，contextvar 通过 `merge_contextvars` 自动注入（最重，符合 arch 长期方向，logging.py 已有 NOTE 提到 "mypy --strict 类型不兼容" 阻塞）
+  - 推荐：选 B 最快闭合 walkthrough 期望；选 C 留给独立 sprint
+- **验证**：worker 日志 grep `trace_id=` 至少命中一个 uuid；同一 task 内多条 log 共享同一 trace_id；步骤 17 F-23 回归 PASS
+
+---
+
+### B-036 deploy-spec 审查模板强化
+- **优先级**：P2
+- **关联**：CORRECTIONS-LOG 修正 #1~#7 根因；B-010 deploy-spec r1+r2 审查未覆盖 "本地真起栈" 维度
+- **现状**：deploy-spec 审查模板 ([.cataforge/skills/doc-review/](.cataforge/skills/doc-review/)) 关注 SBOM / promtool / 回滚方案 / 灰度策略，但 r1+r2 都没强制要求 "本地最小栈 docker compose up -d db redis migrate api 必须真跑通"
+- **修复方向**：
+  - doc-review skill 的 deploy-spec 维度加一条强约束 "审查前必须由人工在本地真起最小栈，截图或 log 附在审查报告"
+  - 模板增 `## §X 本地最小栈验证证据` 段，作为 reviewer 必填项
+  - 失败案例：B-031 暴露 7 项部署破口，其中 5 项（Dockerfile 路径 / README / 依赖声明 / shebang / uvicorn）在 "本地真起栈" 5 分钟内必被发现
+- **验证**：下次 deploy-spec 审查时模板自动 prompt 这条；framework-review skill 检查 deploy-spec 报告含 "本地最小栈验证证据" 段
 
 ---
 

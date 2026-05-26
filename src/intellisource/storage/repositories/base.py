@@ -80,6 +80,7 @@ class BaseRepository(Generic[ModelT]):
         for key, value in kwargs.items():
             setattr(entity, key, value)
         await self._session.flush()
+        await self._session.refresh(entity)
         return entity
 
     # -- delete --------------------------------------------------------------

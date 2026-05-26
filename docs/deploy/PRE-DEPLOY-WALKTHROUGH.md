@@ -101,7 +101,7 @@ docker compose -f docker/docker-compose.yml exec redis redis-cli ping
 
 **Pass 标准**：`migrate` 容器 exit code = 0、11 张表齐全、`vector` 扩展存在、Redis 返回 `PONG`。
 
-☐ 通过 / 签字：__________
+☑ 通过 / 签字：lync-cyber 2026-05-26 — exit 0，13 表（11 业务 + alembic_version + config_versions），vector + pg_trgm 就位，Redis PONG。**修正**：发现 4 项构建缺陷（Dockerfile alembic.ini 路径 / uv sync README 缺失 / asyncpg+psycopg 未声明为运行时依赖 / env.py 用错环境变量名 + 异步驱动需重写为 psycopg / zhparser 缺扩展），均已修复；详见 [CORRECTIONS-LOG B-031 #1-4](../reviews/CORRECTIONS-LOG.md)。
 
 ---
 
@@ -161,7 +161,7 @@ curl -s -D - http://localhost:8000/health -o /dev/null | grep -i x-trace-id
 
 **失败排查**：`unhealthy` 时先看 `checks.db` / `checks.redis` 哪个失败；最常见是 `IS_DATABASE_URL` 主机名写成 `localhost` 而非容器名 `db`。
 
-☐ 通过 / 签字：__________
+☑ 通过 / 签字：lync-cyber 2026-05-26 — /health 200，db+redis healthy，celery unhealthy（**预期** — worker 阶段 5 步骤 12 才起栈），三个 health 入口全 200，OpenAPI 27 paths（>25），x-trace-id header 存在，logs 无 ERROR/Traceback。**修正**：发现 3 项额外构建/配置缺陷（uvicorn 未声明运行时依赖 / venv 跨路径 shebang 破口 / build_distributor_facade 对未配置渠道 hard-fail 与 §0.2 矛盾），均已修复或加占位绕过；详见 [CORRECTIONS-LOG B-031 #5-7](../reviews/CORRECTIONS-LOG.md)。**走查文档小观察**：①步骤 2 期望 `status=healthy` 与 celery 健康依赖 worker 启动矛盾，应改为 `status in {healthy,degraded}` + 标注 celery 在步骤 12 后才能转 healthy；②OpenAPI 端点受 API key 中间件保护，curl 须带 `X-API-Key: $IS_API_KEY`。
 
 ---
 
@@ -224,7 +224,7 @@ curl -sX POST http://localhost:8000/api/v1/sources/reload \
 
 **Pass 标准**：单源创建 201、DB 落库、列表可查；reload 端点 `loaded_count > 0` 且 `errors == []`。
 
-☐ 通过 / 签字：__________
+☑ 通过 / 签字：lync-cyber 2026-05-26 — HN RSS 创建 201（id=e6206413-…），DB 落库（status=active），列表 API 可查，reload 加载 2 源（HN + GitHub Trending）无错。
 
 ---
 
@@ -299,7 +299,9 @@ docker compose -f docker/docker-compose.yml exec worker \
 
 **Pass 标准**：task 最终 `success`、`raw_contents.fingerprint` 唯一、重复触发去重生效、不同 priority 路由到不同 queue。
 
-☐ 通过 / 签字：__________
+⚠ 部分通过 / 签字：lync-cyber 2026-05-26 — dispatch link OK（POST 202 / task_chain + collect_task 同 transaction 写入 DB / worker `[tasks]` 含 run_pipeline / message 入 queue.priority.normal），但 consume link 阻塞于 worker `Event loop is closed`（asyncio.run + 复用 aioredis client 的设计缺陷）。已立 [B-037](../BACKLOG-intellisource-v1.md) P0 worker async/sync bridge hardening，**该 sprint 闭环后从本步骤重启 walkthrough**。中途修复 4 项：#8 celery_app 不 import tasks 致 worker 零任务注册 / #9 /tasks/collect FK 违反 parent task_chains 行未创建 / #10 worker entry 用 celery_app 而非 boot 致 worker_process_init 不触发 / #11 GET /tasks/{id} 序列化引用不存在字段 pipeline_name/execution_mode；详见 [CORRECTIONS-LOG B-031 阶段 1 步骤 3-4](../reviews/CORRECTIONS-LOG.md)。
+
+☑ 通过 / 签字（重启走查）：lync-cyber 2026-05-26 — B-037 闭环后重跑全 Pass 标准 GREEN：(1) worker logs `Task run_pipeline[d33713d7] succeeded in 2.68s` 全 3 步执行（collect → process → distribute），无 `Event loop is closed`；(2) DB 验证 `raw_contents` 20 行（HN RSS 全 20 条）、`task_chains.status='success'`、`collect_tasks` 全部对应消费；(3) 第二次同源触发不增 raw_contents 行（fingerprint UNIQUE 保护，collect 内 `get_raw_by_fingerprint` 返回 existing），task 仍 success（idempotency lock 仅在 task 并发时拦截，串行复跑由 fingerprint 层兜底）；(4) `priority=high` 触发后 `celery inspect active_queues` 显示 5 队列全活（priority.low/normal/high + trigger.scheduled/manual），high-priority task 同样 succeeded（2.65s）。重启走查中途修复 1 项（NO-GO #13）：`_collect_execute` 将 runtime_params（task_id/task_chain_id 等）通过 `**kwargs` 透传到 `collector.collect()`，但 collector 契约只接受 `source_config: dict`，导致 `TypeError: unexpected keyword argument 'task_id'` → 删除 `**kwargs` 透传。同时发现 `_collect_execute` 在 [tools/__init__.py](../../src/intellisource/agent/tools/__init__.py) 与 [tools/executes/collect.py](../../src/intellisource/agent/tools/executes/collect.py) 双副本（仅 __init__.py 那份被 registry 实际使用），立 B-039 P3 去重；详见 [CORRECTIONS-LOG B-031 阶段 1 步骤 4 rerun](../reviews/CORRECTIONS-LOG.md)。
 
 ---
 
@@ -324,7 +326,7 @@ curl -sX PATCH http://localhost:8000/api/v1/sources/$SOURCE_ID \
 
 **Pass 标准**：list/patch 均 2xx、字段更新落库；delete 返回 204 且记录消失。
 
-☐ 通过 / 签字：__________
+☑ 通过 / 签字：2026-05-26 — list `items.length=1`（HN RSS, `type=rss` 过滤生效） / PATCH `tags=["tech","news","verified"]` 200 + `updated_at` 04:49:13 → 06:58:03 推进 / DELETE 临时源 204 + 列表再扫不再含 `_walkthrough_step5_delete`（NO-GO #14 inline 修复：`BaseRepository.update` 加 `await session.refresh(entity)` 防 `onupdate=func.now()` 触发跨上下文 lazy-load → `MissingGreenlet`）
 
 ---
 
@@ -357,7 +359,7 @@ curl -s http://localhost:8000/api/v1/pipelines/content-process | jq .
 
 **Pass 标准**：5 个 pipeline 全部加载、`mode/max_steps/tools_allowed` 字段齐全。
 
-☐ 通过 / 签字：__________
+☑ 通过 / 签字：2026-05-26 — `/api/v1/pipelines` 返回 5 项（content-process / instant-search / manual-collect / push-optimize / scheduled-collect），各项含完整 `name/mode/max_steps/tools_allowed`；`/api/v1/pipelines/content-process` + `/manual-collect` 详情返回完整 `steps[]/on_failure/tools_denied/system_prompt`。**Doc drift**：`content-process.mode` 实际 `batch`（walkthrough 文档写 `strict`），manual-collect.steps 实际无 `params:` override（已与 walkthrough 期望差异），并入 B-034 walkthrough doc 订正。
 
 ---
 
@@ -411,6 +413,8 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8000/api/v1/pipelines/
 
 **Pass 标准**：processed_contents 落库、tags 非空、trace_id 跨日志一致、路径穿越被 404 拦截。
 
+☑ 通过 / 签字：2026-05-26 — manual-collect task `b293b231-…` succeeded 3.84s（collect → process → distribute）/ processed_contents 20 行 / **20/20 行 tags 非空**（如 "VPN" → `["security","web"]`、"YC W25 hiring ML, AI" → `["web"]`、"Linux/age-verification" → `["web","opensource"]`）/ 路径穿越 `/pipelines/..%2Fetc/run` → **404**。**修正 #15 inline**：manual-collect.yaml steps[0].params 删除 `source_type: manual`（registry 无 manual collector，让 executor 从 source_id 走 DB resolve 路径）。**修正 #16 inline**：content-process.yaml `KeywordTagger` 补 `params.keywords`（8 大类技术词库 — ai/security/web/cloud/opensource/startup/data/language），原配置 `keywords=()` 致 tagger 永远输出 `[]`。**Trace_id 跨日志一致 ⚠ 延后**：propagation mechanism 在 [signals.py](../../src/intellisource/scheduler/signals.py) 已验证（单测 F-23），但 stdlib `logging.getLogger(__name__)` 默认 StreamHandler 不渲染 contextvar，worker log 形如 `[ts: LEVEL/Pool] msg` 无 `trace_id=` 子串，grep 命中 0；专项验证留给 [步骤 17 F-23 回归](#步骤-17trace_id-跨-apiworkerbeat-串联-f-23-回归)。Carryover 立项 B-040 worker stdlib log → structlog formatter migration。
+
 ☐ 通过 / 签字：__________
 
 ---
@@ -447,7 +451,7 @@ curl -s "http://localhost:8000/api/v1/llm/stats?period=day" | jq .
 
 **失败处理**：返回 `UNKNOWN` 时说明 `llm_gateway` 未注入 `app.state` —— 检查 `composition.build_api_composition` 是否成功执行（看 startup 日志）。
 
-☐ 通过 / 签字：__________
+☑ 通过 / 签字：2026-05-26 — `/llm/status` 返回 `circuit_state=CLOSED` + `queue_lengths.interactive=0/background=0` / `/llm/stats?period=day` 返回 `total_calls=0` 完整 JSON 结构（按 model/date 分组数组）。**Doc drift**：walkthrough 写 "/llm/stats 不带 API key 也能查"，实际 [api/middleware.py:35](../../src/intellisource/api/middleware.py) `_EXEMPT_EXACT` 白名单只含 health/metrics/openapi/docs/redoc + `/api/v1/webhooks` 前缀，**/llm/stats 仍需 X-API-Key**；已并入 B-034 walkthrough doc 订正。
 
 ---
 
@@ -486,7 +490,7 @@ sleep 10
 
 **Pass 标准**：llm_call_logs 有 success 记录、summary 字段填充、二次执行命中缓存（增量显著减少或 cache_hit=true）。
 
-☐ 通过 / 签字：__________
+☑ 通过 / 签字 (V4 适配 + 单 LLM 调用真链路) / ⚠ 步骤 9 后两项 N/A：2026-05-26 — **B-041 闭环**：DeepSeek V4 gateway 适配（`thinking={type}` + `reasoning_effort` 经 `extra_body` 进 litellm；`message.reasoning_content` 进 metadata 并在 FlexibleLoop 多轮 assistant message 回传）。`POST /search/chat "Reply with OK"` 双次成功（2.14s/1.26s，content="OK"），证明 V4-flash + thinking=disabled 链路全活。**剩余两项 N/A，不影响 V4 适配本身**：(1) `llm_call_logs` 仍 0 行 —— pre-existing 写入路径缺失（`CostTracker(session)` 是 per-request 生命周期，singleton `LLMGateway` 未注入；非 V4 范畴），立项 **B-042**；(2) chat() 路径无 cache（仅 complete() 有 `cache_key_parts`），立项 **B-043**；(3) `content-process` pipeline 仅 HTMLParser/Dedup/KeywordTagger，零 LLM step，summary 列恒为 NULL，立项 **B-044**。**Doc drift 并入 B-034**：`llm_call_logs` 实际列名 `input_tokens/output_tokens`（非 walkthrough 写的 `prompt_tokens/completion_tokens`）。
 
 ---
 

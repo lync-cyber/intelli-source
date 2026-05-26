@@ -5,6 +5,10 @@ from __future__ import annotations
 import time
 from typing import Any, cast
 
+from intellisource.llm.gateway._extra_body import (
+    build_extra_body,
+    extract_reasoning_content,
+)
 from intellisource.llm.gateway._metrics import _record_llm_call
 from intellisource.llm.gateway._types import LLMResult
 from intellisource.llm.prompt_builder import PromptBuilder
@@ -134,6 +138,15 @@ class _CompleteMixin:
         if response_format is not None:
             call_kwargs["response_format"] = response_format
 
+        task_cfg_for_extra = (
+            self._routing_config.get("models", {}).get(task_type)
+            if task_type is not None
+            else None
+        )
+        extra_body = build_extra_body(resolved_model, task_cfg_for_extra, profile)
+        if extra_body is not None:
+            call_kwargs["extra_body"] = extra_body
+
         start_time = time.monotonic()
         try:
             response = await self._call_with_retry(
@@ -155,11 +168,13 @@ class _CompleteMixin:
         )
 
         content: str = response.choices[0].message.content
+        reasoning_content = extract_reasoning_content(response.choices[0].message)
         metadata: dict[str, Any] = {
             "input_tokens": response.usage.prompt_tokens,
             "output_tokens": response.usage.completion_tokens,
             "latency_ms": elapsed_ms,
             "model": response.model,
+            "reasoning_content": reasoning_content,
         }
 
         result = LLMResult(content=content, metadata=metadata)

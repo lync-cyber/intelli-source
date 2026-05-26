@@ -16,6 +16,7 @@ from intellisource.scheduler.dispatch import send_task_with_trace
 from intellisource.scheduler.queues import PRIORITY_QUEUES
 from intellisource.storage.repositories.source import SourceRepository
 from intellisource.storage.repositories.task import TaskRepository
+from intellisource.storage.repositories.task_chain import TaskChainRepository
 
 router = APIRouter(tags=["tasks"])
 
@@ -42,7 +43,14 @@ class TaskUpdateRequest(BaseModel):
 
 
 def _serialize_task(task: Any) -> dict[str, Any]:
-    """Convert a CollectTask ORM object to a JSON-serializable dict."""
+    """Convert a CollectTask ORM object to a JSON-serializable dict.
+
+    `pipeline_name` / `execution_mode` live on the parent TaskChain row;
+    callers who need them should follow `task_chain_id` and query
+    /tasks/chains/{id} (when available) rather than expecting them inlined
+    here. Including them inline previously caused AttributeError on every
+    GET /tasks/{id} call.
+    """
     return {
         "id": str(task.id),
         "source_id": str(task.source_id),
@@ -56,8 +64,6 @@ def _serialize_task(task: Any) -> dict[str, Any]:
         "started_at": task.started_at,
         "finished_at": task.finished_at,
         "created_at": task.created_at,
-        "pipeline_name": task.pipeline_name,
-        "execution_mode": task.execution_mode,
     }
 
 
@@ -156,6 +162,22 @@ async def trigger_collect(
         )
 
     task_chain_id = str(uuid.uuid4())
+    # Persist the parent TaskChain row before creating CollectTask children —
+    # collect_tasks.task_chain_id has a FK constraint to task_chains.id, so
+    # the parent must exist (and the INSERT must be flushed) before any child
+    # can be inserted. Repository.create() flushes inside the same async
+    # session so the FK is visible to subsequent INSERTs.
+    task_chain_repo = TaskChainRepository(session)
+    await task_chain_repo.create(
+        id=uuid.UUID(task_chain_id),
+        pipeline_name="collect",
+        status="pending",
+        trigger_type="manual",
+        execution_mode="parallel",
+        total_steps=len(source_uuids),
+        completed_steps=0,
+    )
+
     tasks: list[Any] = []
     for sid in source_uuids:
         task = await task_repo.create(

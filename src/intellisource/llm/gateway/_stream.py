@@ -9,6 +9,7 @@ from collections.abc import AsyncGenerator
 from typing import Any
 
 from intellisource.llm.cost_tracker import LLMCallRecord
+from intellisource.llm.gateway._extra_body import build_extra_body
 from intellisource.llm.gateway._metrics import _record_llm_call
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,15 @@ class _StreamMixin:
         }
         if profile is not None:
             call_kwargs["timeout"] = profile.timeout_seconds
+
+        task_cfg_for_extra = (
+            self._routing_config.get("models", {}).get(task_type)
+            if task_type is not None
+            else None
+        )
+        extra_body = build_extra_body(resolved_model, task_cfg_for_extra, profile)
+        if extra_body is not None:
+            call_kwargs["extra_body"] = extra_body
 
         start_time = time.monotonic()
         accumulated_content = ""

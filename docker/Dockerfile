@@ -5,7 +5,11 @@
 # ---------------------------------------------------------------------------
 FROM python:3.11-slim AS builder
 
-WORKDIR /build
+# Use the same WORKDIR as the runtime stage so the resulting venv's script
+# shebangs (#!/app/.venv/bin/python) remain valid after COPY --from=builder.
+# Putting builder at a different path (e.g. /build) breaks every console_script
+# in the venv with "exec: no such file or directory" at runtime.
+WORKDIR /app
 
 # Install uv
 RUN pip install --no-cache-dir uv
@@ -13,8 +17,11 @@ RUN pip install --no-cache-dir uv
 # Copy dependency manifests first to leverage layer cache
 COPY pyproject.toml uv.lock ./
 
-# Install runtime deps only (no dev extras) into /build/.venv
-RUN uv sync --frozen --no-dev
+# Install runtime deps only (no dev extras, no project itself).
+# The project source is loaded via PYTHONPATH=/app/src in the runtime stage,
+# not installed as a package — this also avoids needing README.md / src/ here
+# and keeps the dep layer cache valid across pure source changes.
+RUN uv sync --frozen --no-dev --no-install-project
 
 # ---------------------------------------------------------------------------
 # Stage 2: runtime — minimal image with venv + application source
@@ -27,14 +34,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && \
 
 WORKDIR /app
 
-# Copy the pre-built venv from builder
-COPY --from=builder /build/.venv /app/.venv
+# Copy the pre-built venv from builder (same path → shebangs valid)
+COPY --from=builder /app/.venv /app/.venv
 
 # Copy application source
 COPY src/ ./src/
 COPY config/ ./config/
 COPY alembic/ ./alembic/
-COPY alembic.ini ./alembic.ini
+COPY alembic/alembic.ini ./alembic.ini
 
 # Put venv binaries first on PATH so uv run resolves to the venv
 ENV PATH="/app/.venv/bin:$PATH" \

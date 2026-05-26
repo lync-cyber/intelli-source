@@ -52,3 +52,10 @@ celery_app.conf.update(
         "run_pipeline": {"queue": PRIORITY_QUEUES["normal"]},
     },
 )
+
+# Eagerly import task modules so worker processes (`celery -A
+# intellisource.scheduler.celery_app worker`) register handlers at startup —
+# without this, the worker boots with [tasks] empty and silently drops every
+# message. Late-imported at module end to avoid the circular dependency
+# (tasks.py imports celery_app from this module).
+from intellisource.scheduler import tasks as _tasks  # noqa: E402, F401

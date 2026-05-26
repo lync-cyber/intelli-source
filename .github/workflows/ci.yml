@@ -102,9 +102,10 @@ jobs:
       - name: Validate Prometheus alert rules (promtool)
         run: >-
           docker run --rm
+          --entrypoint promtool
           -v ${{ github.workspace }}/docker/prometheus:/etc/prometheus
           prom/prometheus:v2.55.1
-          promtool check rules /etc/prometheus/alerts.yml
+          check rules /etc/prometheus/alerts.yml
 
   arch-graph:
     name: Dependency Graph Snapshot

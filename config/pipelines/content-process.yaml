@@ -19,3 +19,13 @@ steps:
   - processor: HTMLParser
   - processor: ContentDedup
   - processor: KeywordTagger
+    params:
+      keywords:
+        ai: ["ai", "artificial intelligence", "machine learning", "ml", "llm", "gpt", "neural"]
+        security: ["security", "vulnerability", "cve", "exploit", "breach", "vpn", "encryption"]
+        web: ["html", "css", "javascript", "browser", "http", "api", "rest"]
+        cloud: ["aws", "azure", "gcp", "kubernetes", "k8s", "docker", "serverless"]
+        opensource: ["github", "open source", "open-source", "linux", "git", "fork"]
+        startup: ["yc ", " (yc ", "startup", "founder", "funding", "series a", "seed round"]
+        data: ["database", "postgres", "sql", "data engineering", "pipeline"]
+        language: ["python", "rust", "golang", " go ", "typescript", "java"]

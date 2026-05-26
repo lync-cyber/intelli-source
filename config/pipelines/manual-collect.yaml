@@ -16,11 +16,8 @@ tools_allowed:
 tools_denied: []
 steps:
   - tool: collect
-    params:
-      source_type: manual
+    params: {}
   - tool: process
-    params:
-      pipeline: default
+    params: {}
   - tool: distribute
-    params:
-      channels: all
+    params: {}

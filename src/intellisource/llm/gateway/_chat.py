@@ -7,6 +7,10 @@ import time
 from typing import Any, cast
 
 from intellisource.llm.cost_tracker import LLMCallRecord
+from intellisource.llm.gateway._extra_body import (
+    build_extra_body,
+    extract_reasoning_content,
+)
 from intellisource.llm.gateway._metrics import _record_llm_call
 from intellisource.llm.gateway._types import (
     LLMOutputError,
@@ -103,6 +107,14 @@ class _ChatMixin:
         if response_format is not None:
             call_kwargs["response_format"] = response_format
 
+        task_cfg_for_extra = self._routing_config.get("models", {}).get("chat")
+        profile_for_extra = self._model_routing.get_profile(resolved_model)
+        extra_body = build_extra_body(
+            resolved_model, task_cfg_for_extra, profile_for_extra
+        )
+        if extra_body is not None:
+            call_kwargs["extra_body"] = extra_body
+
         async def _chat_call_fn() -> Any:
             try:
                 return await self._acompletion(**call_kwargs)
@@ -152,6 +164,7 @@ class _ChatMixin:
         )
 
         content: str = response.choices[0].message.content or ""
+        reasoning_content = extract_reasoning_content(response.choices[0].message)
         metadata: dict[str, Any] = {
             "tool_calls": response.choices[0].message.tool_calls,
             "finish_reason": response.choices[0].finish_reason,
@@ -160,6 +173,7 @@ class _ChatMixin:
             "output_tokens": response.usage.completion_tokens,
             "latency_ms": elapsed_ms,
             "model": response.model,
+            "reasoning_content": reasoning_content,
         }
 
         if schema is not None:

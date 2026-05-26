@@ -1,7 +1,6 @@
 # CataForge
 
 ## 项目信息
-- 项目名称: IntelliSource
 - 技术栈: Python 3.11+ / FastAPI / Celery + Redis / PostgreSQL + pgvector / SQLAlchemy 2.0 / litellm
 - 运行时: claude-code
 - 框架版本: 0.4.1
@@ -11,12 +10,19 @@
 - 阶段配置: ui_design=N/A（backend-only），testing=启用，deployment=启用
 - model 继承: AGENT.md 中 `model: inherit` 继承父会话模型
 
+- 项目名称: IntelliSource
+## 执行环境 (Bootstrap 时由 `cataforge setup --emit-env-block` 填入)
+<!-- 本节在 Bootstrap 步骤中生成。每次会话都会作为项目指令加载，
+     权重高于 hook 注入的 additionalContext。项目生命周期内保持稳定。 -->
+{执行环境检测结果 — 未填入时 orchestrator 应在 Bootstrap 时调用:
+ cataforge setup --emit-env-block}
+
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: backlog-burndown — B-011~B-028 架构治理 + CI 闭环；B-010 Deploy spec + B-016~B-018 框架学习待启动
-- 下一步行动: B-010 Deploy spec（devops 子代理产出 deploy-spec 文档）；B-016~B-018 框架学习 EXP 应用
-- 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r, sprint-9, sprint-8 P2, audit-fix-pr53, audit-fix-pr54, backlog-b001-b002, backlog-b003-b006, backlog-b007, backlog-b009-decision, backlog-b029-b030-polish, backlog-b008, backlog-arch-governance]
+- 当前阶段: backlog-burndown — **B-031 阶段 3 步骤 9 ☑ Pass (V4 适配链路) / ⚠ 后两项 N/A（B-041 DeepSeek V4 gateway 适配闭环；真起栈双次 /search/chat OK；llm_call_logs/cache/content-process-LLM-step 三项 N/A 立项 B-042/B-043/B-044）**
+- 下一步行动: 用户按 walkthrough 推进 B-031 阶段 4 步骤 10（M-007 检索/RAG）→ 阶段 5-7；或先消化 B-042 让 llm_call_logs 真写入
+- 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r, sprint-9, sprint-8 P2, audit-fix-pr53, audit-fix-pr54, backlog-b001-b002, backlog-b003-b006, backlog-b007, backlog-b009-decision, backlog-b029-b030-polish, backlog-b008, backlog-arch-governance, backlog-b010, b031-walkthrough-phase-0-1-partial, backlog-b037, b031-walkthrough-phase-1-step-4-rerun, b031-walkthrough-phase-1-step-5, b031-walkthrough-phase-2-step-6-8, backlog-b041, b031-walkthrough-phase-3-step-9]
 - 当前回归基线: 2838 PASS / 0 FAIL / 0 skip / 0 xfail / 51 deselected；mypy --strict + ruff + lint-imports 8/8 + deptry + vulture clean
-- 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report = approved；ui-spec = N/A；dev-plan-s8 = draft；deploy-spec = 未开始 (B-010)；backlog = approved
+- 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report / deploy-spec = approved；ui-spec = N/A；dev-plan-s8 = draft；backlog = approved
 - audit-fix-pr53 闭环 (commit 7e10e77): F-01~F-11 P0 + F-12~F-27 P1 + F-28~F-48 P2/P3 — 39 项，详见 PR #53 描述
 - audit-fix-pr54 闭环 (commit 31bddde): F-11 receiver_id / F-25 health 豁免 / F-42 PG /search 真链路 / idempotency RuntimeWarning / F-20+F-21 health 并发 / F-22 metrics 4 路径 / F-23 trace_id 跨 worker / F-24 alerts.yml / F-26 priority queue / F-27 content_not_found / 2 xfail (HybridIndex tags/date) / 1 placeholder skip 删 / 46 docker skip 转 deselect — 14 项
 - backlog-b001-b002 闭环: B-001 `/search/chat/stream` 切 `AgentRunner.run_flexible_stream` (新增 RAG-aware 流式入口 + LLMGateway.stream_complete 支持 messages 参数 + FlexibleLoop.run_stream) + B-002 `SearchRequest.date_from/to: str → datetime`（非法值 422 而非 500）；SSE 事件契约 step/sources/token/done/error
@@ -25,30 +31,36 @@
 - backlog-b009-decision 闭环 (decision-only, reaffirm 选项 ②): PRD AC-063 [ASSUMPTION] 已在 sprint-9 锁定 YAML-as-source-of-truth；pipelines router 现状即决策实现 (list/detail/run, 无 HTTP CRUD)；完整 workflow CRUD (DB 存储 + 历史版本) 保留 v2+ 范畴，不立项；无代码改动；BACKLOG B-009 删除
 - backlog-b008 闭环: `truncate_summary` 接入 LLM summarizer（`summarizer.structured` 模板 + `gateway.complete(response_format=json_object)` + `tool_deps` 注入）；产出 `{title, summary, timeline[], key_points[]}` 结构化摘要；3 层 fallback（LLM 异常 / JSON 解析失败 / 缺必要字段 → 回退字符串截断）；PRD AC-023 [ASSUMPTION] 移除；2834 PASS (+7 测试)
 - backlog-b029-b030-polish 闭环: B-029 alerts.yml `LLMCallFailureRateHigh` + `PushFailureRateHigh` 按 `model`/`channel` label 拆分 (`sum by (model)` / `sum by (channel)` + annotations `{{ $labels.* }}` 模板化) / B-030 R-002 guardrail 注释显式化范围 + R-003 `_ALLOWED_POSIX` 精确路径匹配 + R-004 `DistributorFacade.__init__` + `LLMGateway.__init__` 集中 `register_labeled_counter` (hot-path 重复 register 移除)；2827 PASS (+7 测试)
+- backlog-b010 闭环: devops 子代理产出 `docs/deploy-spec/deploy-spec-intellisource-v1.md` (755 行 + changelog-intellisource-v1.md) — 4 模板必填段 (构建流程 / 环境配置 / CI/CD 流水线 / 发布检查清单) 全覆盖；§2 含 dev/staging/prod 三环境矩阵 + zhparser DB 镜像要求 (R-005) + 11 项指标家族 (B-014 全覆盖) + queue.priority.* 实际队列名；§3 含 promtool check rules 步骤 (B-015) + SBOM (syft/buildx) + trivy/grype 漏洞门禁 + run_pipeline 唯一注册任务 smoke + Prometheus rules grep；§4 8 段签字含 zhparser/pgvector 双扩展验证 + webhook token 轮换。reviewer r1 = needs_revision (2 HIGH + 4 MEDIUM + 3 LOW)；devops r2 修订 9 项全部闭环 (R-001 回滚改 git checkout+rebuild 方案 B / R-002 smoke 删 collect_source+distribute_content 假名 / R-003 指标 grep 7→11 / R-004 metrics auth 描述对齐 _EXEMPT_EXACT 已豁免 / R-005 zhparser 落地 / R-006 队列名落地 / R-007 计数同步 / R-008 webhook 双 token / R-009 §4.5 内联 promtool)。orchestrator inline r2 audit = approved；详见 [docs/reviews/doc/REVIEW-deploy-spec-intellisource-v1-r2.md](docs/reviews/doc/REVIEW-deploy-spec-intellisource-v1-r2.md)。B-014/B-015 在 deploy-spec 中已显式覆盖，待 staging 真实部署后实测验证
 - Learnings Registry:
   - [RETRO-intellisource-v1.md](docs/reviews/retro/RETRO-intellisource-v1.md) — 6 EXP (sprint-1~7)，应用决策 deferred → backlog B-016
   - [RETRO-intellisource-v1-sprint-9.md](docs/reviews/retro/RETRO-intellisource-v1-sprint-9.md) — 2 EXP 强制立项 (EXP-005 装配缺口 5 次复发 → B-017 / EXP-006 truncation 4/4 跨 3 角色)
   - [RETRO-intellisource-v1-sprint-8.md](docs/reviews/retro/RETRO-intellisource-v1-sprint-8.md) — 1 正向 EXP-007 立项 (Mid-Progress Drop Contract 通用化 → B-018)
   - [SKILL-IMPROVE-*.md](docs/reviews/retro/) — 8 份建议
+- backlog-b031-walkthrough-phase-0-1-partial 闭环 (本次会话):
+  - 阶段 0 (步骤 1-2) PASS — 步骤 1 DB+Redis+migrate exit 0 / 13 tables / pgvector + pg_trgm / Redis PONG / zhparser 优雅降级；步骤 2 api healthy / /health 200 (degraded — celery pending worker step 12) / OpenAPI 27 paths / x-trace-id / logs clean
+  - 阶段 1 步骤 3 PASS — POST /api/v1/sources 创建 HN RSS 201 / DB 落库 / 列表 API 可查 / POST /sources/reload `loaded_count=2 errors=[]`
+  - 阶段 1 步骤 4 ⚠ partial — dispatch link OK (POST 202 / task_chain + collect_task 写入 / worker run_pipeline 注册 / message 入 queue.priority.normal)；consume link 阻塞于 #12 worker async/sync bridge 设计缺陷
+  - **12 项 NO-GO 修复 inline**: 阶段 0 #1-#7 (Dockerfile alembic.ini 路径 / uv sync README 缺失 → --no-install-project / asyncpg+psycopg 未声明运行时依赖 / env.py 错环境变量名 + sync driver URL 重写 / zhparser DO-EXCEPTION 优雅降级 / uvicorn 未声明 + venv 跨路径 shebang 破口 / distributor hard-fail 占位绕过)；阶段 1 #8-#11 (celery_app 不 import tasks 致 worker 零任务注册 / /tasks/collect FK 违反 parent task_chains 行未创建 / worker entry 用 celery_app 而非 boot 致 worker_process_init 不触发 / GET /tasks/{id} 序列化引用不存在字段 pipeline_name+execution_mode)
+  - **NO-GO #12 立项 B-037** (设计级，不 inline 修): worker `_run_sync(asyncio.run(coro))` + `worker_process_init` 创建的 aioredis client 跨 loop 失效 → `RuntimeError: Event loop is closed`
+  - 详见 [CORRECTIONS-LOG B-031 阶段 0/1 entries](docs/reviews/CORRECTIONS-LOG.md) + [PRE-DEPLOY-WALKTHROUGH 步骤 1-4 签字栏](docs/deploy/PRE-DEPLOY-WALKTHROUGH.md)
+  - **6 项 carryover 立项**: B-032 P1 pgvector+zhparser 复合镜像 / B-033 P2 composition 渠道可禁用 / B-034 P3 walkthrough 文档订正 / B-035 P1 CI 强制跑 docker integration / B-036 P2 deploy-spec 审查模板要求"本地真起栈" / **B-037 P0 worker async/sync bridge hardening**
+- backlog-b037 闭环 (本次会话): worker async/sync bridge 设计缺陷 (修正 #12) 闭环。用户选 A: per-task lazy + NullPool。新增 [src/intellisource/scheduler/lazy_redis.py](src/intellisource/scheduler/lazy_redis.py) `LazyLoopRedis` 包装类（按 running event loop 缓存 `aioredis.Redis`，`__getattr__` 透明转发 set/get/delete/eval/hgetall/hset/setex/scan_iter/ping/aclose 至 per-loop 客户端；下游 IdempotencyGuard / CircuitBreaker / RateLimiter / Distributors 零改动鸭子类型）；[scheduler/boot.py](src/intellisource/scheduler/boot.py) `_build_redis_client` 返回 LazyLoopRedis，`init_worker_session_factory` 加 `poolclass=NullPool` 解决 engine pool 跨 loop 复用同型缺陷。新增 [tests/unit/scheduler/test_b037_loop_bridge.py](tests/unit/scheduler/test_b037_loop_bridge.py) 14 tests / 6 test class GREEN；scheduler + composition + worker 整组 264 PASS 不退化；ruff + mypy --strict clean（boot.py 3 项 E402 为预先存在，非本次引入）。详见 [CORRECTIONS-LOG B-037 闭环条目](docs/reviews/CORRECTIONS-LOG.md)
+- b031-walkthrough-phase-1-step-4-rerun 闭环 (本次会话): B-037 闭环后真起 docker stack 重跑步骤 4：worker logs `Task run_pipeline[d33713d7] succeeded in 2.68s` 全 3 步执行（collect → process → distribute）/ 20 raw_contents 落库 / fingerprint 复跑去重不重复 INSERT / priority queue 路由 5 队列全活（priority.{low,normal,high} + trigger.{scheduled,manual}）。**走查中途修复 NO-GO #13 inline**：`_collect_execute` 将 runtime_params 通过 `**kwargs` 透传到 `collector.collect()` 但 collector 契约只接受 `source_config` → 删 `**kwargs` 透传（双副本同改）。**carryover 立项 B-039 P3**：`_collect_execute` 在 [tools/__init__.py](src/intellisource/agent/tools/__init__.py) + [tools/executes/collect.py](src/intellisource/agent/tools/executes/collect.py) 几乎完全一致双副本（仅 __init__.py 那份被 registry 实际使用），待去重
+- b031-walkthrough-phase-1-step-5 闭环 (本次会话): 信源 CRUD 走查 list/PATCH/DELETE 全 Pass。**修正 #14 inline**：PATCH /sources/{id} → 500 `sqlalchemy.exc.MissingGreenlet`，根因 `Source.updated_at` 用 `onupdate=func.now()` 无 RETURNING 回灌，UPDATE 后 ORM 字段 expired，sync `_serialize_source` 触发跨上下文 lazy-load → asyncpg 无 greenlet 崩。Fix [`BaseRepository.update`](src/intellisource/storage/repositories/base.py) flush 后加 `await session.refresh(entity)`。验证：list `items=1`（type=rss 过滤）/ PATCH tags `["tech","news","verified"]` 200 + `updated_at` 推进 / 临时源 DELETE 204 + 列表再扫不含；tests/unit/storage + tests/unit/api/test_sources* 单测全绿
+- b031-walkthrough-phase-2-step-6-8 闭环 (本次会话): 步骤 6 pipeline 枚举 + 步骤 7 manual-collect 触发 + 步骤 8 LLM 网关状态全 Pass。**修正 #15 inline**：[manual-collect.yaml](config/pipelines/manual-collect.yaml) steps[0] hard-code `source_type: manual` 但 collector_registry 无 manual 条目 → `ToolDegradedError: unknown source_type` → 删 override 让 executor 从 source_id DB resolve（与 scheduled-collect 一致）。**修正 #16 inline**：[content-process.yaml](config/pipelines/content-process.yaml) `KeywordTagger` 无 `params.keywords` → 实例化 keywords=() → 永远输出空 tags → 增 8 大类技术词库（ai/security/web/cloud/opensource/startup/data/language）→ truncate processed_contents + 重跑后 **20/20 行 tags 非空**。**Trace_id 视觉一项延后**：F-23 propagation 机制（[signals.py](src/intellisource/scheduler/signals.py)）通过 Celery header 已工作（单测验证），但 worker stdlib log formatter 不渲染 contextvar → `grep trace_id=` 命中 0；专项留给步骤 17 F-23 回归。**carryover 立项 B-040 P3**：worker stdlib log → structlog/formatter migration 让 trace_id 进 log line。**3 项 walkthrough doc drift** 并入 B-034：步骤 6 期望 content-process.mode=strict 实际 batch、步骤 7 trace_id 期望注解、步骤 8 /llm/stats 期望免认证实际需 API key
+- backlog-b041 闭环 (本次会话): DeepSeek V4 gateway 适配（用户选 B 完整支持）。Per docs 2026-07-24 deepseek-chat 下线，V4 模型默认 `thinking.type=enabled` 致单轮内容空 + 多轮 reasoning_content 丢失。Fix：(1) `ModelTaskConfig`/`ModelProfileConfig` schema 加 `thinking` + `reasoning_effort` 字段；(2) 新增 [llm/gateway/_extra_body.py](src/intellisource/llm/gateway/_extra_body.py) `build_extra_body()` — deepseek 默认 thinking=disabled，task_cfg > profile > default 优先级；(3) chat/complete/stream 三入口注入 `extra_body` 到 litellm；(4) chat/complete metadata 携带 `reasoning_content`；(5) FlexibleLoop run+run_stream 把 `reasoning_content` 写入 assistant message dict 下一轮回传；(6) llm_models{,.example}.yaml 切回 v4-flash + v4-pro，extract/dedup/tag/chat thinking=disabled，summarize 用 v4-pro thinking=enabled effort=high。新增 [tests/unit/llm/test_gateway_deepseek_v4.py](tests/unit/llm/test_gateway_deepseek_v4.py) 16 tests / 6 test class GREEN；llm/agent/config 整组 692 PASS 不退化；mypy --strict + ruff clean。**真起 stack 验证**：`POST /search/chat "Reply with OK"` 双次成功（2.14s/1.26s 返 `answer="OK"`），证明 V4-flash + thinking=disabled 链路全活；manual-collect regression 仍 succeeded
+- b031-walkthrough-phase-3-step-9 闭环 (本次会话): V4 gateway 适配链路 Pass；llm_call_logs/cache/content-process-LLM-step 三项 N/A 立 P2-P3 carryover —— **B-042** api composition 注入 CostTracker（CostTracker 当前 per-session 与 singleton gateway 不兼容，建议选 C 在 gateway init 接 session_factory），**B-043** chat() 路径加 LLMCache（仅 complete() 有 cache_key_parts），**B-044** content-process pipeline 集成 LLM summarizer step（当前只有 HTMLParser/Dedup/KeywordTagger 零 LLM step，summary 列恒 NULL）。**Doc drift 并入 B-034**：walkthrough 写 `prompt_tokens/completion_tokens`，schema 实际 `input_tokens/output_tokens`
 - 上游反馈: [docs/feedback/](docs/feedback/) — 1 bug + 1 suggest (B-019 未闭环)
-- Backlog 总入口: [docs/BACKLOG-intellisource-v1.md](docs/BACKLOG-intellisource-v1.md) — 12 条 (B-010~B-028)，按 P2/P3 + PR #54 验证 + 框架学习 + 上游反馈 + 架构治理 分组
-
-## 执行环境
-- 包管理器: uv（fallback: pip）
-- 安装: `uv sync`
-- 测试: `uv run pytest`（全量）；`uv run pytest tests/unit/<path>` 单文件
-- 类型: `uv run mypy --strict src/`
-- 格式: `uv run ruff format . && uv run ruff check .`
-- 容器: docker / docker-compose（docker/）
-- 迁移: `uv run alembic upgrade head`
+- Backlog 总入口: [docs/BACKLOG-intellisource-v1.md](docs/BACKLOG-intellisource-v1.md) — **next: B-031 阶段 4 步骤 10（M-007 检索/RAG）→ 阶段 5-7；或先消化 B-042 让 llm_call_logs 写入** / P1: B-032 / B-035 / P2: B-033 / B-036 / B-042 / B-044 / P3: B-011 / B-012 / B-014 / B-015 / B-034 / B-039 / B-040 / B-043 + B-016~B-019
 
 ## 文档导航
-- 索引: `docs/.doc-index.json`（通过 `cataforge docs load` 查询；缺失时 `cataforge docs index` 重建）
+- 导航索引: `docs/.doc-index.json`（机器索引，所有 Agent 通过 `cataforge docs load` 查询；缺失时运行 `cataforge docs index` 重建）
 - 通用规则: .cataforge/rules/COMMON-RULES.md
 - 子代理协议: .cataforge/rules/SUB-AGENT-PROTOCOLS.md
-- 编排协议: .cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md
-- 状态码 Schema: .cataforge/schemas/agent-result.schema.json
-- 加载原则: 按需通过 `cataforge docs load` 加载章节，不全量加载
+- 编排协议: .cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md (orchestrator专属)
+- 状态码Schema: .cataforge/schemas/agent-result.schema.json
+- 加载原则: 按任务需要通过 `cataforge docs load` 加载相关章节，不全量加载
 
 ## 全局约定
 - 命名: PEP 8（snake_case / PascalCase）
@@ -60,8 +72,24 @@
 - 效率原则: 最小传递 (doc_id#section)、不确定调研、选择题优先、长文按 `DOC_SPLIT_THRESHOLD_LINES` 拆分
 
 ## 框架机制
-- Agent 编排: orchestrator 通过 agent-dispatch skill 激活子代理
-- DEV 阶段: orchestrator 通过 tdd-engine 编排 RED/GREEN/REFACTOR
-- 状态持久化: CLAUDE.md（人面向） + .cataforge/PROJECT-STATE.md（框架镜像） + docs/
-- 写权限: 项目状态由 orchestrator 独占；其他 Agent 只写 docs/ 或 src/
-- 统一配置 `.cataforge/framework.json`：`upgrade.source` 保留 / `upgrade.state` 保留 / `features` `migration_checks` 全量覆盖
+- Agent编排: orchestrator 通过 agent-dispatch skill 激活子代理
+- DEV阶段: orchestrator 通过 tdd-engine skill 编排 RED/GREEN/REFACTOR 三个子代理（独立上下文）
+- Skill调用: Agent按SKILL.md步骤式指令执行工作流
+- 状态持久化: PROJECT-STATE.md + docs/ 目录
+- 子代理通信: 通过文件系统(docs/和src/)传递产出物路径
+- 运行时: 由 framework.json runtime.platform 决定（deploy 自动适配）
+- **写权限**: PROJECT-STATE.md 由 orchestrator 独占写入；其他Agent只写 docs/ 或 src/ 下的产出文件
+- 统一配置 `.cataforge/framework.json`:
+  - `upgrade.source` — 远程升级源配置。升级时保留用户已配置值，仅补充新字段
+  - `upgrade.state` — 本地升级状态。升级时始终保留
+  - `features` — 功能注册表。升级时全量覆盖
+  - `migration_checks` — 迁移检查声明。升级时全量覆盖
+## 执行环境
+- 包管理器: uv（fallback: pip）
+- 安装: `uv sync`
+- 测试: `uv run pytest`（全量）；`uv run pytest tests/unit/<path>` 单文件
+- 类型: `uv run mypy --strict src/`
+- 格式: `uv run ruff format . && uv run ruff check .`
+- 容器: docker / docker-compose（docker/）
+- 迁移: `uv run alembic upgrade head`
+
