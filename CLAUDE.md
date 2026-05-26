@@ -1,7 +1,6 @@
 # CataForge
 
 ## 项目信息
-- 项目名称: IntelliSource
 - 技术栈: Python 3.11+ / FastAPI / Celery + Redis / PostgreSQL + pgvector / SQLAlchemy 2.0 / litellm
 - 运行时: claude-code
 - 框架版本: 0.4.1
@@ -11,10 +10,17 @@
 - 阶段配置: ui_design=N/A（backend-only），testing=启用，deployment=启用
 - model 继承: AGENT.md 中 `model: inherit` 继承父会话模型
 
+- 项目名称: IntelliSource
+## 执行环境 (Bootstrap 时由 `cataforge setup --emit-env-block` 填入)
+<!-- 本节在 Bootstrap 步骤中生成。每次会话都会作为项目指令加载，
+     权重高于 hook 注入的 additionalContext。项目生命周期内保持稳定。 -->
+{执行环境检测结果 — 未填入时 orchestrator 应在 Bootstrap 时调用:
+ cataforge setup --emit-env-block}
+
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: backlog-burndown — **B-031 阶段 0 + 阶段 1 步骤 3 PASS / 步骤 4 partial（阻塞于 B-037 worker async 设计缺陷）**，累计 12 项 NO-GO 修复 inline + 6 项 carryover 立项 (B-032~B-037)
-- 下一步行动: **B-037 P0 worker async/sync bridge hardening 优先**（阻塞 walkthrough 大半剩余步骤）；B-037 闭环后从 B-031 阶段 1 步骤 4 重启 walkthrough
-- 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r, sprint-9, sprint-8 P2, audit-fix-pr53, audit-fix-pr54, backlog-b001-b002, backlog-b003-b006, backlog-b007, backlog-b009-decision, backlog-b029-b030-polish, backlog-b008, backlog-arch-governance, backlog-b010, b031-walkthrough-phase-0-1-partial]
+- 当前阶段: backlog-burndown — **B-037 P0 闭环（worker async/sync bridge per-task lazy + NullPool）**，解锁 B-031 阶段 1 步骤 4 walkthrough rerun
+- 下一步行动: 用户重启 B-031 阶段 1 步骤 4 walkthrough（重启 worker → 重发 collect 任务 → 验证 worker 真消费 run_pipeline + raw_contents 落库 + fingerprint 唯一 + idempotency 跳过 + priority queue 路由）；通过则继续 walkthrough §2-7 剩余步骤
+- 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r, sprint-9, sprint-8 P2, audit-fix-pr53, audit-fix-pr54, backlog-b001-b002, backlog-b003-b006, backlog-b007, backlog-b009-decision, backlog-b029-b030-polish, backlog-b008, backlog-arch-governance, backlog-b010, b031-walkthrough-phase-0-1-partial, backlog-b037]
 - 当前回归基线: 2838 PASS / 0 FAIL / 0 skip / 0 xfail / 51 deselected；mypy --strict + ruff + lint-imports 8/8 + deptry + vulture clean
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report / deploy-spec = approved；ui-spec = N/A；dev-plan-s8 = draft；backlog = approved
 - audit-fix-pr53 闭环 (commit 7e10e77): F-01~F-11 P0 + F-12~F-27 P1 + F-28~F-48 P2/P3 — 39 项，详见 PR #53 描述
@@ -39,25 +45,17 @@
   - **NO-GO #12 立项 B-037** (设计级，不 inline 修): worker `_run_sync(asyncio.run(coro))` + `worker_process_init` 创建的 aioredis client 跨 loop 失效 → `RuntimeError: Event loop is closed`
   - 详见 [CORRECTIONS-LOG B-031 阶段 0/1 entries](docs/reviews/CORRECTIONS-LOG.md) + [PRE-DEPLOY-WALKTHROUGH 步骤 1-4 签字栏](docs/deploy/PRE-DEPLOY-WALKTHROUGH.md)
   - **6 项 carryover 立项**: B-032 P1 pgvector+zhparser 复合镜像 / B-033 P2 composition 渠道可禁用 / B-034 P3 walkthrough 文档订正 / B-035 P1 CI 强制跑 docker integration / B-036 P2 deploy-spec 审查模板要求"本地真起栈" / **B-037 P0 worker async/sync bridge hardening**
+- backlog-b037 闭环 (本次会话): worker async/sync bridge 设计缺陷 (修正 #12) 闭环。用户选 A: per-task lazy + NullPool。新增 [src/intellisource/scheduler/lazy_redis.py](src/intellisource/scheduler/lazy_redis.py) `LazyLoopRedis` 包装类（按 running event loop 缓存 `aioredis.Redis`，`__getattr__` 透明转发 set/get/delete/eval/hgetall/hset/setex/scan_iter/ping/aclose 至 per-loop 客户端；下游 IdempotencyGuard / CircuitBreaker / RateLimiter / Distributors 零改动鸭子类型）；[scheduler/boot.py](src/intellisource/scheduler/boot.py) `_build_redis_client` 返回 LazyLoopRedis，`init_worker_session_factory` 加 `poolclass=NullPool` 解决 engine pool 跨 loop 复用同型缺陷。新增 [tests/unit/scheduler/test_b037_loop_bridge.py](tests/unit/scheduler/test_b037_loop_bridge.py) 14 tests / 6 test class GREEN；scheduler + composition + worker 整组 264 PASS 不退化；ruff + mypy --strict clean（boot.py 3 项 E402 为预先存在，非本次引入）。详见 [CORRECTIONS-LOG B-037 闭环条目](docs/reviews/CORRECTIONS-LOG.md)
 - 上游反馈: [docs/feedback/](docs/feedback/) — 1 bug + 1 suggest (B-019 未闭环)
-- Backlog 总入口: [docs/BACKLOG-intellisource-v1.md](docs/BACKLOG-intellisource-v1.md) — **P0 next: B-037 worker async/sync bridge hardening（阻塞 B-031 阶段 1 步骤 4 + 阶段 5 步骤 12-14 等）；之后 B-031 阶段 1 步骤 4 重启 → 阶段 2-7** / P1: B-032 / B-035 / P2: B-033 / B-036 / P3: B-011 / B-012 / B-014 / B-015 / B-034 + B-016~B-019
-
-## 执行环境
-- 包管理器: uv（fallback: pip）
-- 安装: `uv sync`
-- 测试: `uv run pytest`（全量）；`uv run pytest tests/unit/<path>` 单文件
-- 类型: `uv run mypy --strict src/`
-- 格式: `uv run ruff format . && uv run ruff check .`
-- 容器: docker / docker-compose（docker/）
-- 迁移: `uv run alembic upgrade head`
+- Backlog 总入口: [docs/BACKLOG-intellisource-v1.md](docs/BACKLOG-intellisource-v1.md) — **next: B-031 阶段 1 步骤 4 walkthrough rerun（worker 真消费验证）→ 阶段 2-7 剩余步骤** / P1: B-032 / B-035 / P2: B-033 / B-036 / P3: B-011 / B-012 / B-014 / B-015 / B-034 + B-016~B-019
 
 ## 文档导航
-- 索引: `docs/.doc-index.json`（通过 `cataforge docs load` 查询；缺失时 `cataforge docs index` 重建）
+- 导航索引: `docs/.doc-index.json`（机器索引，所有 Agent 通过 `cataforge docs load` 查询；缺失时运行 `cataforge docs index` 重建）
 - 通用规则: .cataforge/rules/COMMON-RULES.md
 - 子代理协议: .cataforge/rules/SUB-AGENT-PROTOCOLS.md
-- 编排协议: .cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md
-- 状态码 Schema: .cataforge/schemas/agent-result.schema.json
-- 加载原则: 按需通过 `cataforge docs load` 加载章节，不全量加载
+- 编排协议: .cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md (orchestrator专属)
+- 状态码Schema: .cataforge/schemas/agent-result.schema.json
+- 加载原则: 按任务需要通过 `cataforge docs load` 加载相关章节，不全量加载
 
 ## 全局约定
 - 命名: PEP 8（snake_case / PascalCase）
@@ -69,8 +67,24 @@
 - 效率原则: 最小传递 (doc_id#section)、不确定调研、选择题优先、长文按 `DOC_SPLIT_THRESHOLD_LINES` 拆分
 
 ## 框架机制
-- Agent 编排: orchestrator 通过 agent-dispatch skill 激活子代理
-- DEV 阶段: orchestrator 通过 tdd-engine 编排 RED/GREEN/REFACTOR
-- 状态持久化: CLAUDE.md（单一事实来源，orchestrator 专属写入区） + docs/
-- 写权限: 项目状态由 orchestrator 独占；其他 Agent 只写 docs/ 或 src/
-- 统一配置 `.cataforge/framework.json`：`upgrade.source` 保留 / `upgrade.state` 保留 / `features` `migration_checks` 全量覆盖
+- Agent编排: orchestrator 通过 agent-dispatch skill 激活子代理
+- DEV阶段: orchestrator 通过 tdd-engine skill 编排 RED/GREEN/REFACTOR 三个子代理（独立上下文）
+- Skill调用: Agent按SKILL.md步骤式指令执行工作流
+- 状态持久化: PROJECT-STATE.md + docs/ 目录
+- 子代理通信: 通过文件系统(docs/和src/)传递产出物路径
+- 运行时: 由 framework.json runtime.platform 决定（deploy 自动适配）
+- **写权限**: PROJECT-STATE.md 由 orchestrator 独占写入；其他Agent只写 docs/ 或 src/ 下的产出文件
+- 统一配置 `.cataforge/framework.json`:
+  - `upgrade.source` — 远程升级源配置。升级时保留用户已配置值，仅补充新字段
+  - `upgrade.state` — 本地升级状态。升级时始终保留
+  - `features` — 功能注册表。升级时全量覆盖
+  - `migration_checks` — 迁移检查声明。升级时全量覆盖
+## 执行环境
+- 包管理器: uv（fallback: pip）
+- 安装: `uv sync`
+- 测试: `uv run pytest`（全量）；`uv run pytest tests/unit/<path>` 单文件
+- 类型: `uv run mypy --strict src/`
+- 格式: `uv run ruff format . && uv run ruff check .`
+- 容器: docker / docker-compose（docker/）
+- 迁移: `uv run alembic upgrade head`
+

@@ -10,7 +10,6 @@ import logging
 import os
 from typing import Any
 
-import redis.asyncio as aioredis
 from celery.signals import worker_process_init, worker_process_shutdown
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import (
@@ -19,6 +18,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import NullPool
 
 from intellisource.composition import build_worker_composition
 
@@ -26,6 +26,7 @@ from intellisource.composition import build_worker_composition
 # task_postrun / task_failure handlers (F-22 metrics + F-23 trace_id).
 from intellisource.scheduler import signals as _signals_module  # noqa: F401
 from intellisource.scheduler.celery_app import celery_app as _module_celery_app
+from intellisource.scheduler.lazy_redis import LazyLoopRedis
 
 # Public re-export so `celery -A intellisource.scheduler.boot worker` finds
 # the app. boot.py is the canonical worker entry point (registers
@@ -117,6 +118,12 @@ class _RawContentResultRepo:
 def init_worker_session_factory() -> async_sessionmaker[AsyncSession]:
     """Create an independent async session_factory from IS_DATABASE_URL.
 
+    Uses ``poolclass=NullPool`` so each session checkout opens a fresh DB
+    connection. Celery prefork worker tasks drive coroutines via
+    ``asyncio.run()``: each invocation opens a new event loop, so any
+    connection pool that was bound to a prior loop is dead. NullPool
+    avoids that by not pooling at all.
+
     Does not import or access intellisource.main or app.state.db.
     """
     global _worker_engine
@@ -125,18 +132,24 @@ def init_worker_session_factory() -> async_sessionmaker[AsyncSession]:
     )  # 12-factor §III Config
     if not url:
         raise ValueError("DATABASE_URL must be set for the worker process")
-    _worker_engine = create_async_engine(url)
+    _worker_engine = create_async_engine(url, poolclass=NullPool)
     return async_sessionmaker(
         bind=_worker_engine, class_=AsyncSession, expire_on_commit=False
     )
 
 
 def _build_redis_client() -> Any:
-    """Construct an async Redis client from IS_REDIS_URL."""
+    """Construct a per-loop aioredis client from IS_REDIS_URL.
+
+    Returns a ``LazyLoopRedis`` wrapper that caches one ``aioredis.Redis``
+    per running event loop, so worker tasks calling
+    ``_run_sync(asyncio.run(coro))`` repeatedly never reuse a client whose
+    connection pool was bound to an already-closed loop.
+    """
     redis_url = os.environ.get("IS_REDIS_URL")
     if not redis_url:
         raise ValueError("IS_REDIS_URL must be set for the worker process")
-    return aioredis.from_url(redis_url)
+    return LazyLoopRedis(redis_url)
 
 
 def build_celery_tasks(

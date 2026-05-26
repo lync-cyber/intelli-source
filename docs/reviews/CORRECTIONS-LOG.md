@@ -162,3 +162,23 @@ deps: []
   - 阶段 1 步骤 5（信源 CRUD 回归）不依赖 worker，理论可在 B-037 闭环前先跑；但本会话按 §B 路径决定 commit + 结束
 - carryover: B-037 worker async/sync bridge hardening（P0 — 阻塞 B-031 阶段 1-7 大部分步骤）
 - 关联: docs/deploy/PRE-DEPLOY-WALKTHROUGH.md 步骤 3 PASS / 步骤 4 partial 签字栏；src/intellisource/scheduler/celery_app.py + boot.py + api/routers/tasks.py + docker/docker-compose.yml 编辑
+
+### 2026-05-26 | orchestrator | B-037 worker async/sync bridge hardening (闭环)
+
+- 触发信号: backlog-burndown
+- 问题: 修正 #12（B-031 阶段 1 步骤 4 阻塞）— worker 处理 `run_pipeline` 时 `RuntimeError: Event loop is closed`，根因为 `aioredis.from_url(...)` 客户端的 conn pool 首次 `await` 时绑定到 `asyncio.run()` 创建的 loop；loop 关闭后下一次 `_run_sync` 复用同 client 即崩。同样的 loop-bound 问题也存在于 async SQLAlchemy engine 的连接池。
+- 调研: WebSearch 验证业界 canonical pattern = per-task lazy + NullPool（[DEV.to "Using Async SQLAlchemy Inside Sync Celery Tasks"](https://dev.to/kevinnadar22/using-async-sqlalchemy-inside-sync-celery-tasks-3eg4)，[celery/celery #3884 discussion](https://github.com/celery/celery/issues/3884)，[earlgreyness/aio-celery](https://github.com/earlgreyness/aio-celery) 备选）。
+- 修复方向（用户选 A）: per-task lazy + NullPool —
+  1. 新增 [src/intellisource/scheduler/lazy_redis.py](../../src/intellisource/scheduler/lazy_redis.py) — `LazyLoopRedis` 包装类，按 running event loop id 缓存一份 `aioredis.Redis`；通过 `__getattr__` 透明转发所有方法（`set/get/delete/eval/hgetall/hset/setex/scan_iter/ping/aclose`）到 per-loop 客户端
+  2. [src/intellisource/scheduler/boot.py](../../src/intellisource/scheduler/boot.py) `_build_redis_client()` 返回 `LazyLoopRedis(url)` 替代原裸 `aioredis.from_url(url)`，所有下游消费方（`IdempotencyGuard` / `CircuitBreaker` / `RateLimiter` / `Distributors`）零改动（鸭子类型）
+  3. `init_worker_session_factory()` 增加 `poolclass=NullPool` 让每次 session checkout 开新 DB conn，规避 engine pool 跨 loop 复用
+- 验证:
+  - 新增 [tests/unit/scheduler/test_b037_loop_bridge.py](../../tests/unit/scheduler/test_b037_loop_bridge.py) — 14 tests / 6 test class，覆盖 LazyLoopRedis per-loop binding + same-loop reuse + 8 method delegation parametrize + IdempotencyGuard 跨 `asyncio.run()` 回归 + boot 集成（`_build_redis_client` 返回类型 + worker engine NullPool）
+  - 14/14 GREEN；scheduler / composition / worker 整组 264 PASS 不退化
+  - `ruff check`（B-037 文件）+ `mypy --strict src/intellisource/scheduler/lazy_redis.py + boot.py` 全 clean；预先存在的 boot.py E402 ×3 不在 B-037 引入
+- 偏差类型: design-defect → 闭环
+- 影响:
+  - 解锁 B-031 阶段 1 步骤 4（worker 真消费链路）+ 阶段 5 步骤 12-14 + 任何 worker 真跑步骤 → 用户可重启 walkthrough
+  - 同时修复其他 worker 路径 aioredis 客户端（LLM `CircuitBreaker` + collector `RateLimiter` + `WeChat/WeWork Distributors`）的同型缺陷
+  - 预先存在但非 B-037 范围的 unit 失败：`tests/unit/api/test_tasks.py::TestTaskDetailEndpoint::test_get_task_detail_success` 因修正 #11 删除 `pipeline_name`/`execution_mode` 字段后测试未同步（spawn 独立任务跟进）
+- 关联: B-031 carryover #12 → B-037；BACKLOG 标 done；src/intellisource/scheduler/lazy_redis.py 新增 + boot.py 编辑 + tests/unit/scheduler/test_b037_loop_bridge.py 新增
