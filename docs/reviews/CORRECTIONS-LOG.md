@@ -145,3 +145,20 @@ deps: []
   - **走查文档自身缺陷**：步骤 2 期望 `/health.status == "healthy"` 与 celery 依赖 worker（步骤 12 才起）冲突；OpenAPI 路径假设公开但实际 X-API-Key 保护。两处 walkthrough 文档应订正，**B-034 待办**。
   - 5 项 carryover backlog 候选（B-032 zhparser 复合镜像 / B-033 distributor 渠道可禁用 / B-034 walkthrough 文档订正 / B-035 docker integration test CI 真跑 / B-036 deploy-spec 审查模板要求"docker compose 真起栈"）
 - 关联: docs/deploy/PRE-DEPLOY-WALKTHROUGH.md 步骤 2 签字栏；docker/Dockerfile + docker/.env + pyproject.toml 编辑
+
+### 2026-05-26 | orchestrator | B-031 walkthrough 阶段 1 步骤 3-4
+- 触发信号: pre-deploy-walkthrough-NO-GO
+- 问题: 阶段 1 步骤 3（信源注册）PASS；步骤 4（手动触发采集）触发 5 项 worker + API 缺陷。
+- 步骤 3 验证: POST /api/v1/sources 创建 HN RSS → 201 / DB 落库 / 列表 API 可查 / POST /sources/reload `loaded_count=2 errors=[]`（从 sources.yaml 加载 HN + GitHub Trending）。**Pass**。
+- 修正 #8: worker `celery -A intellisource.scheduler.celery_app worker` 起栈后 `[tasks]` 列表 EMPTY — celery_app.py 不 import tasks.py，`@celery_app.task(name="run_pipeline")` decorator 从不执行。dispatch run_pipeline 时 worker silent drop。改 celery_app.py 末尾追加 `from intellisource.scheduler import tasks as _tasks` (late import 避开 circular)。
+- 修正 #9: POST /tasks/collect → 500 IntegrityError FK violation `collect_tasks.task_chain_id` 引用不存在的 task_chains 行。handler [api/routers/tasks.py:158](../../src/intellisource/api/routers/tasks.py) 生成 `task_chain_id = str(uuid.uuid4())` 但**从不**创建 parent TaskChain 行，直接拿 UUID 当 FK 用。加 `TaskChainRepository.create(TaskChain(...))` 在创建 CollectTask children 前，Repository.create() 内部 flush 让 FK 可见。
+- 修正 #10: 即便 worker 注册了 run_pipeline，处理 task 时仍 raise `RuntimeError: CeleryTasks not wired: worker_process_init handler has not run`。根因：worker_process_init / worker_process_shutdown signals 在 [scheduler/boot.py:303](../../src/intellisource/scheduler/boot.py) 注册，但 boot 模块从未被 worker entry 导入。改 worker compose `command: -A intellisource.scheduler.boot`（boot 才是 worker 的真正 entry point，per 其 docstring "Worker-side bootstrap for Celery task wiring T-075"）；boot.py 加 `celery_app = _module_celery_app` 公开 re-export 让 celery CLI 找得到 app。
+- 修正 #11: GET /api/v1/tasks/{id} → 500 `'CollectTask' object has no attribute 'pipeline_name'`。serializer [api/routers/tasks.py:46](../../src/intellisource/api/routers/tasks.py) 读 task.pipeline_name / task.execution_mode，但这俩字段在 TaskChain 模型上，不在 CollectTask。从 _serialize_task 删除两字段（callers 需要 pipeline 元数据应跟 task_chain_id 查父链）。
+- 修正 #12: **设计级 NO-GO** — worker 处理 run_pipeline 时 raise `RuntimeError: Event loop is closed`（[scheduler/tasks.py:69](../../src/intellisource/scheduler/tasks.py) `_run_sync` 路径）。根因：worker_process_init 用 `asyncio.run()` 跑 setup，创建 `aioredis.from_url(...)` Redis client；setup 结束后 loop 关闭，client 的 underlying conn 引用失效；run_pipeline task body 再次 `asyncio.run(idempotency_guard.release(task_id))` 新建 loop 时尝试用旧 client → "Event loop is closed"。**不在本会话 inline 修**，立 B-037 worker async/sync bridge hardening sprint 处理：候选解（任一）—— ①每 task 内 lazy 建 Redis client；②worker 长跑单 loop（不 asyncio.run，改 loop.run_until_complete + 复用）；③用 sync `redis-py` 在 sync code path。需要单独写测试 + 评估对 idempotency / metrics / signals 的影响，不适合放走查里快改。
+- 偏差类型: technical-constraint + design-defect
+- 影响/缓解:
+  - 修正 #8~#11 已纳入工作区，步骤 3 PASS / 步骤 4 partial（dispatch link OK，consume link 阻塞于 #12）
+  - 修正 #12 阻塞步骤 4 真正消费 + 步骤 12-14 全部（任何依赖 worker 跑通）
+  - 阶段 1 步骤 5（信源 CRUD 回归）不依赖 worker，理论可在 B-037 闭环前先跑；但本会话按 §B 路径决定 commit + 结束
+- carryover: B-037 worker async/sync bridge hardening（P0 — 阻塞 B-031 阶段 1-7 大部分步骤）
+- 关联: docs/deploy/PRE-DEPLOY-WALKTHROUGH.md 步骤 3 PASS / 步骤 4 partial 签字栏；src/intellisource/scheduler/celery_app.py + boot.py + api/routers/tasks.py + docker/docker-compose.yml 编辑

@@ -83,7 +83,7 @@ services:
     command:
       - celery
       - "-A"
-      - "intellisource.scheduler.celery_app"
+      - "intellisource.scheduler.boot"
       - worker
       - "--loglevel=info"
     env_file:

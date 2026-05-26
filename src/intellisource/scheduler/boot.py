@@ -26,6 +26,13 @@ from intellisource.composition import build_worker_composition
 # task_postrun / task_failure handlers (F-22 metrics + F-23 trace_id).
 from intellisource.scheduler import signals as _signals_module  # noqa: F401
 from intellisource.scheduler.celery_app import celery_app as _module_celery_app
+
+# Public re-export so `celery -A intellisource.scheduler.boot worker` finds
+# the app. boot.py is the canonical worker entry point (registers
+# worker_process_init/shutdown signals + composition graph). The internal
+# `_module_celery_app` alias is preserved for clarity inside the signal
+# handlers that mutate the celery app instance.
+celery_app = _module_celery_app
 from intellisource.scheduler.idempotency import FingerprintChecker, IdempotencyGuard
 from intellisource.scheduler.tasks import CeleryTasks
 from intellisource.storage.models import RawContent

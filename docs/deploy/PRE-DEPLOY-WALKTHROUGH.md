@@ -224,7 +224,7 @@ curl -sX POST http://localhost:8000/api/v1/sources/reload \
 
 **Pass 标准**：单源创建 201、DB 落库、列表可查；reload 端点 `loaded_count > 0` 且 `errors == []`。
 
-☐ 通过 / 签字：__________
+☑ 通过 / 签字：lync-cyber 2026-05-26 — HN RSS 创建 201（id=e6206413-…），DB 落库（status=active），列表 API 可查，reload 加载 2 源（HN + GitHub Trending）无错。
 
 ---
 
@@ -299,7 +299,7 @@ docker compose -f docker/docker-compose.yml exec worker \
 
 **Pass 标准**：task 最终 `success`、`raw_contents.fingerprint` 唯一、重复触发去重生效、不同 priority 路由到不同 queue。
 
-☐ 通过 / 签字：__________
+⚠ 部分通过 / 签字：lync-cyber 2026-05-26 — dispatch link OK（POST 202 / task_chain + collect_task 同 transaction 写入 DB / worker `[tasks]` 含 run_pipeline / message 入 queue.priority.normal），但 consume link 阻塞于 worker `Event loop is closed`（asyncio.run + 复用 aioredis client 的设计缺陷）。已立 [B-037](../BACKLOG-intellisource-v1.md) P0 worker async/sync bridge hardening，**该 sprint 闭环后从本步骤重启 walkthrough**。中途修复 4 项：#8 celery_app 不 import tasks 致 worker 零任务注册 / #9 /tasks/collect FK 违反 parent task_chains 行未创建 / #10 worker entry 用 celery_app 而非 boot 致 worker_process_init 不触发 / #11 GET /tasks/{id} 序列化引用不存在字段 pipeline_name/execution_mode；详见 [CORRECTIONS-LOG B-031 阶段 1 步骤 3-4](../reviews/CORRECTIONS-LOG.md)。
 
 ---
 

@@ -124,6 +124,25 @@ deps: []
   - fail 时阻塞 merge
 - **验证**：CI 输出 `162 collected, 0 deselected, 47+ docker PASS`；smoke job 显示 api 健康
 
+### B-037 worker async/sync bridge hardening
+- **优先级**：P0（**阻塞 B-031 阶段 1 步骤 4 + 阶段 5 步骤 12-14 全部 + 任何依赖 worker 真消费的步骤**）
+- **关联**：CORRECTIONS-LOG 修正 #12（阶段 1 步骤 4）；scheduler/tasks.py `_run_sync` + scheduler/boot.py worker_process_init + scheduler/idempotency.py Redis 客户端
+- **现状**：worker 处理 run_pipeline 时 raise `RuntimeError: Event loop is closed`。`worker_process_init` 用 `asyncio.run()` 跑 setup（创建 `aioredis.from_url(...)` Redis client 绑定到首个 event loop）；setup 结束后 loop 关闭，client 的 underlying conn 失效；后续 `_run_sync` 又 `asyncio.run(coro)` 新建 loop 时尝试用旧 client → 崩。
+- **根因**：scheduler/tasks.py 的 `_run_sync` 把每个 await 包成独立的 `asyncio.run` call，而所有 await 的对象（Redis client / DB session）期望长寿命单 loop。Celery prefork worker 模型本身要求 sync task body，但 IntelliSource 把异步资源（aioredis、async SQLAlchemy）暴露给 sync body 又不做 loop 复用，是 fundamental design issue。
+- **修复方向（候选）**：
+  - 选 A：每 task 内 lazy 建 Redis client / DB session（最简但每 task 一次 conn 开销）
+  - 选 B：worker 长跑单 loop — 用 `celery.platforms.maybe_drop_privileges` 风格 hook 起一个后台 thread 跑长寿命 event loop，sync task body 通过 `asyncio.run_coroutine_threadsafe(coro, loop).result()` 投递 coroutine。复用 conn 池但代码复杂度大
+  - 选 C：sync code path 用 `redis-py` sync client（`redis.Redis`），async code path 用 `redis.asyncio`；两份 client。对 idempotency_guard / fingerprint_checker 等组件影响最小
+  - 选 D：换 worker model — 用 `gevent` / `eventlet` worker pool 而非 prefork，整个 task body 跑在 cooperative loop。需要审查所有 task code 兼容性
+- **验证**：
+  - 步骤 4 worker 消费 run_pipeline 任务 → task 状态 success / raw_contents 落库 / fingerprint 唯一
+  - 重复触发同源采集 → 第二次因 idempotency 跳过（不重复进 DB）
+  - 不同 priority 任务路由到对应 queue（worker logs 显示 received on `queue.priority.{high,normal,low}`）
+- **依赖**：无（独立于 B-032~B-036）
+- **何时重新评估**：实施前需 framework-feedback 上报到 CataForge 上游 — Celery prefork + async stack 是常见 anti-pattern，可能有通用范式
+
+---
+
 ### B-036 deploy-spec 审查模板强化
 - **优先级**：P2
 - **关联**：CORRECTIONS-LOG 修正 #1~#7 根因；B-010 deploy-spec r1+r2 审查未覆盖 "本地真起栈" 维度
