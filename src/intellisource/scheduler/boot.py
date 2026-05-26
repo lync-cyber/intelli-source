@@ -34,9 +34,16 @@ from intellisource.scheduler.lazy_redis import LazyLoopRedis
 # `_module_celery_app` alias is preserved for clarity inside the signal
 # handlers that mutate the celery app instance.
 celery_app = _module_celery_app
-from intellisource.scheduler.idempotency import FingerprintChecker, IdempotencyGuard
-from intellisource.scheduler.tasks import CeleryTasks
-from intellisource.storage.models import RawContent
+from intellisource.scheduler.idempotency import (  # noqa: E402 — defer until celery_app re-export is bound
+    FingerprintChecker,
+    IdempotencyGuard,
+)
+from intellisource.scheduler.tasks import (  # noqa: E402 — defer until celery_app re-export is bound
+    CeleryTasks,
+)
+from intellisource.storage.models import (  # noqa: E402 — defer until celery_app re-export is bound
+    RawContent,
+)
 
 logger = logging.getLogger(__name__)
 
