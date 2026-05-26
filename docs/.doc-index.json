@@ -1,15 +1,15 @@
 {
   "version": "1",
-  "generated_at": "2026-05-26T03:01:18.415171+00:00",
+  "generated_at": "2026-05-26T03:14:49.022253+00:00",
   "documents": {
     "backlog-intellisource-v1": {
       "file_path": "docs/BACKLOG-intellisource-v1.md",
       "doc_type": "backlog",
       "volume": "main",
       "status": "approved",
-      "total_lines": 216,
-      "est_tokens": 4132,
-      "content_hash": "29fcfb23",
+      "total_lines": 239,
+      "est_tokens": 4584,
+      "content_hash": "9c0aaec3",
       "sections": {}
     },
     "arch-intellisource-v1-api": {
@@ -572,9 +572,9 @@
       "file_path": "docs/changelog/changelog-intellisource-v1.md",
       "doc_type": "changelog",
       "volume": "main",
-      "status": "draft",
+      "status": "approved",
       "total_lines": 37,
-      "est_tokens": 738,
+      "est_tokens": 739,
       "content_hash": "fef4f9d0",
       "sections": {}
     },
@@ -859,7 +859,7 @@
       "dep_hashes": {
         "arch-intellisource-v1-modules": "29d390a9",
         "arch-intellisource-v1-api": "494f914e",
-        "backlog-intellisource-v1": "29fcfb23"
+        "backlog-intellisource-v1": "9c0aaec3"
       }
     },
     "dev-plan-intellisource-v1-s1": {
@@ -2549,9 +2549,9 @@
       "doc_type": "correction-log",
       "volume": "main",
       "status": "approved",
-      "total_lines": 109,
-      "est_tokens": 2689,
-      "content_hash": "ef5235a0",
+      "total_lines": 116,
+      "est_tokens": 2790,
+      "content_hash": "851c2c86",
       "sections": {}
     },
     "code-review-B-007-r1": {
@@ -3579,7 +3579,7 @@
       ],
       "dep_hashes": {
         "arch-intellisource-v1-modules": "29d390a9",
-        "backlog-intellisource-v1": "29fcfb23"
+        "backlog-intellisource-v1": "9c0aaec3"
       }
     },
     "review-arch-intellisource-v1-r1": {

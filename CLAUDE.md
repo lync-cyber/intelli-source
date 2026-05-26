@@ -12,8 +12,8 @@
 - model 继承: AGENT.md 中 `model: inherit` 继承父会话模型
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: backlog-burndown — B-010 Deploy spec 闭环；剩余 B-011 / B-012 polish + B-014 / B-015 待 staging 验证 + B-016~B-018 框架学习 + B-019 上游反馈
-- 下一步行动: B-016~B-018 框架学习 EXP 应用（应用 RETRO 6 EXP + EXP-005 装配缺口 lint + EXP-006/EXP-007 anti-truncation 协议到 reviewer/test-writer/debugger 三角色）；或 B-019 上游反馈 triage
+- 当前阶段: backlog-burndown — B-010 Deploy spec 闭环；**B-031 PRE-DEPLOY-WALKTHROUGH 人工跑通立项为 P0 最高优先级**；剩余 B-011 / B-012 polish + B-014 / B-015 待 staging 验证 + B-016~B-018 框架学习 + B-019 上游反馈
+- 下一步行动: **B-031 用户按 [docs/deploy/PRE-DEPLOY-WALKTHROUGH.md](docs/deploy/PRE-DEPLOY-WALKTHROUGH.md) 8 阶段 20 步逐步跑通管线 + 模块端到端验证**（顺带覆盖 B-014/B-015 部分自动化目标）；走查发现的 NO-GO 项登记 CORRECTIONS-LOG 或新 backlog 条目。B-016~B-018 框架学习 / B-019 上游反馈 排队等 B-031 闭环
 - 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r, sprint-9, sprint-8 P2, audit-fix-pr53, audit-fix-pr54, backlog-b001-b002, backlog-b003-b006, backlog-b007, backlog-b009-decision, backlog-b029-b030-polish, backlog-b008, backlog-arch-governance, backlog-b010]
 - 当前回归基线: 2838 PASS / 0 FAIL / 0 skip / 0 xfail / 51 deselected；mypy --strict + ruff + lint-imports 8/8 + deptry + vulture clean
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report / deploy-spec = approved；ui-spec = N/A；dev-plan-s8 = draft；backlog = approved
@@ -32,7 +32,7 @@
   - [RETRO-intellisource-v1-sprint-8.md](docs/reviews/retro/RETRO-intellisource-v1-sprint-8.md) — 1 正向 EXP-007 立项 (Mid-Progress Drop Contract 通用化 → B-018)
   - [SKILL-IMPROVE-*.md](docs/reviews/retro/) — 8 份建议
 - 上游反馈: [docs/feedback/](docs/feedback/) — 1 bug + 1 suggest (B-019 未闭环)
-- Backlog 总入口: [docs/BACKLOG-intellisource-v1.md](docs/BACKLOG-intellisource-v1.md) — 剩余 B-011 / B-012 / B-014 / B-015 / B-016~B-019 (B-010 已闭环，B-020~B-028 已闭环移入 backlog-arch-governance 历史)
+- Backlog 总入口: [docs/BACKLOG-intellisource-v1.md](docs/BACKLOG-intellisource-v1.md) — **P0: B-031（最高，人工 walkthrough）** / P1~P3 剩余 B-011 / B-012 / B-014 / B-015 / B-016~B-019 (B-010 已闭环，B-020~B-028 已闭环移入 backlog-arch-governance 历史)
 
 ## 执行环境
 - 包管理器: uv（fallback: pip）

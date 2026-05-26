@@ -9,7 +9,7 @@ deps: []
 # IntelliSource v1 Backlog
 
 > 维护：本文件梳理 PR #53 / #54 audit 闭环之后的剩余工作。完成项请直接删除条目，新增项按优先级插入。
-> 最后更新：2026-05-26 (post B-010 闭环)
+> 最后更新：2026-05-26 (post B-010 闭环 + B-031 立项)
 
 ## 优先级语义
 
@@ -17,6 +17,29 @@ deps: []
 - **P1 — 阻塞质量**：可观测性、性能边界、合规
 - **P2 — 架构 / 功能完整性**：上帝类拆分、PRD 接受项功能缺口
 - **P3 — 优化 / 规约**：硬编码、弱断言、风格
+
+---
+
+## P0 — 上线门禁人工验证
+
+### B-031 执行 PRE-DEPLOY-WALKTHROUGH 全程跑通（pre_deploy 人工 go/no-go）
+- **优先级**：P0（**最高**）— 直接对应"上线 go-no-go"语义；自动化测试无法替代人工管线 + 模块端到端走查
+- **关联**：[docs/deploy/PRE-DEPLOY-WALKTHROUGH.md](deploy/PRE-DEPLOY-WALKTHROUGH.md)（1009 行）/ [docs/deploy-spec/deploy-spec-intellisource-v1.md §3.3](deploy-spec/deploy-spec-intellisource-v1.md) 引用 / B-010 deploy-spec 已闭环
+- **现状**：walkthrough 文档由 commit `dbbb987` 引入并就位，按管线工作流分 **8 阶段 / 20 步**，覆盖 M-001~M-011 全部模块；deploy-spec §3.3 把它作为 prod 灰度发布的第 1 步 pre_deploy 检查点。但**从未由人工实际端到端跑通**——所有 2838 PASS 单元/集成测试都是 mock/容器化自动验证，不能替代真实管线的 LLM 调用 / 渠道推送 / DB 中文全文检索 / Celery 优先队列消费等行为
+- **修复方向**：
+  - 用户按 [PRE-DEPLOY-WALKTHROUGH.md](deploy/PRE-DEPLOY-WALKTHROUGH.md) 0~8 阶段 20 步逐步操作，每步对照"启动 → 触发 → 期望响应 → 验证手段 → Pass 标准"并签字
+  - 走查过程中遇到偏差 / NO-GO 项：登记到 `docs/reviews/CORRECTIONS-LOG.md` 或回填新 backlog 条目（B-032+）
+  - 全部 20 步签字 GO 后，本任务关闭；任何 NO-GO 项必须先闭环再重新跑相应阶段
+- **依赖**：B-010 deploy-spec ✅（前置就绪）
+- **覆盖关系（顺带带掉的下游任务）**：
+  - B-014（staging 验证 /api/v1/metrics）— 走查阶段 5「监控 SLO」自然覆盖
+  - B-015（promtool check rules）— 同上
+  - 部分 B-013（CI integration 真跑）— 走查会真起 PG/Redis 栈，验证不依赖 mock 路径
+- **验证**：
+  - walkthrough 文档末尾 20 个签字栏全部填写
+  - CORRECTIONS-LOG 或新 backlog 条目记录所有 NO-GO 闭环
+  - EVENT-LOG 追加 `phase_end pre_deploy walkthrough closed` 记录
+- **何时重新评估**：每次 prod 发布前或 arch / 关键模块大改后，应重新执行本走查（视为 release-gate 而非一次性任务）
 
 ---
 

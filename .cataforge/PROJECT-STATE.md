@@ -17,8 +17,8 @@
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 
-- 当前阶段: backlog-burndown — B-010 Deploy spec 闭环；剩余 B-011 / B-012 polish + B-014 / B-015 staging 验证 + B-016~B-018 框架学习 + B-019 上游反馈
-- 下一步行动: B-016~B-018 框架学习 EXP 应用；或 B-019 上游反馈 triage
+- 当前阶段: backlog-burndown — B-010 Deploy spec 闭环；**B-031 PRE-DEPLOY-WALKTHROUGH 人工跑通立项为 P0 最高优先级**；剩余 B-011 / B-012 polish + B-014 / B-015 待 staging 验证 + B-016~B-018 框架学习 + B-019 上游反馈
+- 下一步行动: **B-031 用户按 docs/deploy/PRE-DEPLOY-WALKTHROUGH.md 8 阶段 20 步逐步跑通管线 + 模块端到端验证**；走查发现的 NO-GO 项登记 CORRECTIONS-LOG 或新 backlog 条目。B-016~B-018 框架学习 / B-019 上游反馈 排队等 B-031 闭环
 - 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r, sprint-9, sprint-8 P2, audit-fix-pr53, audit-fix-pr54, backlog-b001-b002, backlog-b003-b006, backlog-b007, backlog-b009-decision, backlog-b029-b030-polish, backlog-b008, backlog-arch-governance, backlog-b010]
 - 当前 Sprint: N/A（backlog-burndown 模式，无 Sprint 推进）
 - 当前回归基线: 2838 PASS / 0 FAIL / 0 skip / 0 xfail / 51 deselected；mypy --strict + ruff + lint-imports 8/8 + deptry + vulture clean
@@ -46,5 +46,5 @@
   - [RETRO-intellisource-v1-sprint-8.md](../docs/reviews/retro/RETRO-intellisource-v1-sprint-8.md) — 1 正向 EXP-007 立项 (Mid-Progress Drop Contract 通用化 → B-018)
   - SKILL-IMPROVE-*.md — 8 份建议
 - 上游反馈: [docs/feedback/](../docs/feedback/) — 1 bug + 1 suggest (B-019 未闭环)
-- Backlog 总入口: [docs/BACKLOG-intellisource-v1.md](../docs/BACKLOG-intellisource-v1.md) — 剩余 B-011 / B-012 / B-014 / B-015 / B-016~B-019，按 P3 polish + staging 验证 + 框架学习 + 上游反馈 分组
+- Backlog 总入口: [docs/BACKLOG-intellisource-v1.md](../docs/BACKLOG-intellisource-v1.md) — **P0: B-031（最高，人工 walkthrough）** / 剩余 B-011 / B-012 / B-014 / B-015 / B-016~B-019，按 P3 polish + staging 验证 + 框架学习 + 上游反馈 分组
 - 框架升级备注: framework.json 版本 0.4.1（autocrlf=false + cataforge mirror sync 完成于 commit a2b9095）
