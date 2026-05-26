@@ -89,7 +89,7 @@ async def _collect_execute(
         }
 
     collected_items: list[CollectedRawContent] = await collector.collect(
-        source_config=source_config, **kwargs
+        source_config=source_config
     )
 
     raw_content_ids: list[str] = []

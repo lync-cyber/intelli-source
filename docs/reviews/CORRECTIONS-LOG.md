@@ -182,3 +182,21 @@ deps: []
   - 同时修复其他 worker 路径 aioredis 客户端（LLM `CircuitBreaker` + collector `RateLimiter` + `WeChat/WeWork Distributors`）的同型缺陷
   - 预先存在但非 B-037 范围的 unit 失败：`tests/unit/api/test_tasks.py::TestTaskDetailEndpoint::test_get_task_detail_success` 因修正 #11 删除 `pipeline_name`/`execution_mode` 字段后测试未同步（spawn 独立任务跟进）
 - 关联: B-031 carryover #12 → B-037；BACKLOG 标 done；src/intellisource/scheduler/lazy_redis.py 新增 + boot.py 编辑 + tests/unit/scheduler/test_b037_loop_bridge.py 新增
+
+### 2026-05-26 | orchestrator | B-031 阶段 1 步骤 4 walkthrough rerun (闭环)
+
+- 触发信号: pre-deploy-walkthrough-rerun
+- 问题: B-037 闭环后重启 B-031 阶段 1 步骤 4。重启走查暴露 NO-GO #13 — `_collect_execute` 将 runtime_params（task_id / task_chain_id / trigger_type / priority / fingerprint，从 router → run_pipeline → strict executor `**merged` 一路串过来的运行时上下文）通过 `**kwargs` 透传给 `collector.collect()`，但 collector 抽象契约（[`BaseCollector.collect(source_config: dict)`](../../src/intellisource/collector/base.py)）只接受 `source_config`，导致 `TypeError: RSSCollector.collect() got an unexpected keyword argument 'task_id'`。
+- 修正 #13 (inline): 删除 [src/intellisource/agent/tools/__init__.py:287-289](../../src/intellisource/agent/tools/__init__.py) `_collect_execute` 中 `collector.collect(source_config=source_config, **kwargs)` 的 `**kwargs` 透传（同时在 [src/intellisource/agent/tools/executes/collect.py:91-93](../../src/intellisource/agent/tools/executes/collect.py) 镜像副本同步修复）。
+- carryover (B-039 P3): `_collect_execute` 在 `tools/__init__.py` 与 `tools/executes/collect.py` 存在**双副本**（149 行级几乎完全一致），仅 `__init__.py` 那份被 registry 实际使用，executes/ 那份从未被引用。下一次重构应单一化（建议 `tools/__init__.py` 改为 re-export `from .executes.collect import _collect_execute`，或删除 executes/ 副本）。本次走查阻塞优先用最小 inline 修复（双改两份），不引入重构。
+- 验证（重启走查全 Pass 标准 GREEN）:
+  - **(1)** worker logs `Task run_pipeline[d33713d7-…] succeeded in 2.68s`，全 3 步执行（collect → process → distribute）；无 `RuntimeError: Event loop is closed`（B-037 LazyLoopRedis + NullPool 双重隔离生效）
+  - **(2)** DB `raw_contents` 20 行（HN RSS feed 全 20 条）/ `task_chains.status='success'` / `collect_tasks` 对应消费
+  - **(3)** 重复同源触发：raw_contents 行数**未增**（fingerprint UNIQUE 保护 + collect 内 `get_raw_by_fingerprint` 返回 existing，避免重复 INSERT），task 仍 success（IdempotencyGuard Redis lock 仅在 task 并发时拦截，串行复跑由 fingerprint 层兜底，**两层语义不同但均如设计**）
+  - **(4)** priority=high 触发：`celery inspect active_queues` 显示 5 队列全活（priority.{low,normal,high} + trigger.{scheduled,manual}），high-priority task succeeded 2.65s，验证 F-26 优先级队列路由
+  - 单测回归：tests/unit/agent (collect/tool) 214 PASS 不退化
+- 偏差类型: design-defect（kwargs 透传契约违例）+ duplication（双副本）
+- 影响:
+  - **B-031 阶段 1 步骤 4 ☑ Pass 签字** — [walkthrough 文档同步签字栏更新](../deploy/PRE-DEPLOY-WALKTHROUGH.md)
+  - 不再阻塞 walkthrough 后续步骤（阶段 1 步骤 5 + 阶段 2-7）
+- 关联: src/intellisource/agent/tools/__init__.py + executes/collect.py 编辑；BACKLOG 新增 B-039；PRE-DEPLOY-WALKTHROUGH.md 步骤 4 ☑ 签字栏追加

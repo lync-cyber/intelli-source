@@ -18,9 +18,9 @@
  cataforge setup --emit-env-block}
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: backlog-burndown — **B-037 P0 闭环（worker async/sync bridge per-task lazy + NullPool）**，解锁 B-031 阶段 1 步骤 4 walkthrough rerun
-- 下一步行动: 用户重启 B-031 阶段 1 步骤 4 walkthrough（重启 worker → 重发 collect 任务 → 验证 worker 真消费 run_pipeline + raw_contents 落库 + fingerprint 唯一 + idempotency 跳过 + priority queue 路由）；通过则继续 walkthrough §2-7 剩余步骤
-- 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r, sprint-9, sprint-8 P2, audit-fix-pr53, audit-fix-pr54, backlog-b001-b002, backlog-b003-b006, backlog-b007, backlog-b009-decision, backlog-b029-b030-polish, backlog-b008, backlog-arch-governance, backlog-b010, b031-walkthrough-phase-0-1-partial, backlog-b037]
+- 当前阶段: backlog-burndown — **B-031 阶段 1 步骤 4 ☑ Pass GREEN（walkthrough rerun，B-037 LazyLoopRedis + NullPool 验证生效 + 修正 #13 inline 修复 + B-039 立项）**
+- 下一步行动: 用户按 walkthrough 推进 B-031 阶段 1 步骤 5（信源 CRUD 列表/更新/删除，不依赖 worker）→ 阶段 2 步骤 6-8（pipeline 枚举/执行）→ 阶段 3-7
+- 已完成阶段: [bootstrap, requirements, architecture, ui_design(N/A), dev_planning, sprint-1..7, retrospective, testing, sprint-7r, sprint-8r, sprint-9, sprint-8 P2, audit-fix-pr53, audit-fix-pr54, backlog-b001-b002, backlog-b003-b006, backlog-b007, backlog-b009-decision, backlog-b029-b030-polish, backlog-b008, backlog-arch-governance, backlog-b010, b031-walkthrough-phase-0-1-partial, backlog-b037, b031-walkthrough-phase-1-step-4-rerun]
 - 当前回归基线: 2838 PASS / 0 FAIL / 0 skip / 0 xfail / 51 deselected；mypy --strict + ruff + lint-imports 8/8 + deptry + vulture clean
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report / deploy-spec = approved；ui-spec = N/A；dev-plan-s8 = draft；backlog = approved
 - audit-fix-pr53 闭环 (commit 7e10e77): F-01~F-11 P0 + F-12~F-27 P1 + F-28~F-48 P2/P3 — 39 项，详见 PR #53 描述
@@ -46,8 +46,9 @@
   - 详见 [CORRECTIONS-LOG B-031 阶段 0/1 entries](docs/reviews/CORRECTIONS-LOG.md) + [PRE-DEPLOY-WALKTHROUGH 步骤 1-4 签字栏](docs/deploy/PRE-DEPLOY-WALKTHROUGH.md)
   - **6 项 carryover 立项**: B-032 P1 pgvector+zhparser 复合镜像 / B-033 P2 composition 渠道可禁用 / B-034 P3 walkthrough 文档订正 / B-035 P1 CI 强制跑 docker integration / B-036 P2 deploy-spec 审查模板要求"本地真起栈" / **B-037 P0 worker async/sync bridge hardening**
 - backlog-b037 闭环 (本次会话): worker async/sync bridge 设计缺陷 (修正 #12) 闭环。用户选 A: per-task lazy + NullPool。新增 [src/intellisource/scheduler/lazy_redis.py](src/intellisource/scheduler/lazy_redis.py) `LazyLoopRedis` 包装类（按 running event loop 缓存 `aioredis.Redis`，`__getattr__` 透明转发 set/get/delete/eval/hgetall/hset/setex/scan_iter/ping/aclose 至 per-loop 客户端；下游 IdempotencyGuard / CircuitBreaker / RateLimiter / Distributors 零改动鸭子类型）；[scheduler/boot.py](src/intellisource/scheduler/boot.py) `_build_redis_client` 返回 LazyLoopRedis，`init_worker_session_factory` 加 `poolclass=NullPool` 解决 engine pool 跨 loop 复用同型缺陷。新增 [tests/unit/scheduler/test_b037_loop_bridge.py](tests/unit/scheduler/test_b037_loop_bridge.py) 14 tests / 6 test class GREEN；scheduler + composition + worker 整组 264 PASS 不退化；ruff + mypy --strict clean（boot.py 3 项 E402 为预先存在，非本次引入）。详见 [CORRECTIONS-LOG B-037 闭环条目](docs/reviews/CORRECTIONS-LOG.md)
+- b031-walkthrough-phase-1-step-4-rerun 闭环 (本次会话): B-037 闭环后真起 docker stack 重跑步骤 4：worker logs `Task run_pipeline[d33713d7] succeeded in 2.68s` 全 3 步执行（collect → process → distribute）/ 20 raw_contents 落库 / fingerprint 复跑去重不重复 INSERT / priority queue 路由 5 队列全活（priority.{low,normal,high} + trigger.{scheduled,manual}）。**走查中途修复 NO-GO #13 inline**：`_collect_execute` 将 runtime_params 通过 `**kwargs` 透传到 `collector.collect()` 但 collector 契约只接受 `source_config` → 删 `**kwargs` 透传（双副本同改）。**carryover 立项 B-039 P3**：`_collect_execute` 在 [tools/__init__.py](src/intellisource/agent/tools/__init__.py) + [tools/executes/collect.py](src/intellisource/agent/tools/executes/collect.py) 几乎完全一致双副本（仅 __init__.py 那份被 registry 实际使用），待去重
 - 上游反馈: [docs/feedback/](docs/feedback/) — 1 bug + 1 suggest (B-019 未闭环)
-- Backlog 总入口: [docs/BACKLOG-intellisource-v1.md](docs/BACKLOG-intellisource-v1.md) — **next: B-031 阶段 1 步骤 4 walkthrough rerun（worker 真消费验证）→ 阶段 2-7 剩余步骤** / P1: B-032 / B-035 / P2: B-033 / B-036 / P3: B-011 / B-012 / B-014 / B-015 / B-034 + B-016~B-019
+- Backlog 总入口: [docs/BACKLOG-intellisource-v1.md](docs/BACKLOG-intellisource-v1.md) — **next: B-031 阶段 1 步骤 5（信源 CRUD 回归）→ 阶段 2-7 剩余步骤** / P1: B-032 / B-035 / P2: B-033 / B-036 / P3: B-011 / B-012 / B-014 / B-015 / B-034 / B-039 + B-016~B-019
 
 ## 文档导航
 - 导航索引: `docs/.doc-index.json`（机器索引，所有 Agent 通过 `cataforge docs load` 查询；缺失时运行 `cataforge docs index` 重建）

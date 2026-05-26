@@ -9,7 +9,7 @@ deps: []
 # IntelliSource v1 Backlog
 
 > 维护：本文件梳理 PR #53 / #54 audit 闭环之后的剩余工作。完成项请直接删除条目，新增项按优先级插入。
-> 最后更新：2026-05-26 (B-037 闭环 — worker async/sync bridge per-task lazy + NullPool)
+> 最后更新：2026-05-26 (B-031 阶段 1 步骤 4 ☑ Pass，walkthrough rerun + 修正 #13 + B-039 立项)
 
 ## 优先级语义
 
@@ -139,7 +139,18 @@ deps: []
 
 ---
 
-> B-037 已闭环 — 用户选 A: per-task lazy + NullPool。新增 [scheduler/lazy_redis.py](../src/intellisource/scheduler/lazy_redis.py) `LazyLoopRedis` 包装类（按 running event loop 缓存 `aioredis.Redis`，通过 `__getattr__` 透明转发）；[scheduler/boot.py](../src/intellisource/scheduler/boot.py) `_build_redis_client` 返回 LazyLoopRedis，`init_worker_session_factory` 加 `poolclass=NullPool`。新增 [tests/unit/scheduler/test_b037_loop_bridge.py](../tests/unit/scheduler/test_b037_loop_bridge.py) 14 tests GREEN；scheduler/composition/worker 整组 264 PASS 不退化；ruff + mypy clean。详见 [CORRECTIONS-LOG B-037 闭环条目](reviews/CORRECTIONS-LOG.md)。**解锁 B-031 阶段 1 步骤 4 walkthrough rerun。**
+> B-037 已闭环 — 用户选 A: per-task lazy + NullPool。新增 [scheduler/lazy_redis.py](../src/intellisource/scheduler/lazy_redis.py) `LazyLoopRedis` 包装类（按 running event loop 缓存 `aioredis.Redis`，通过 `__getattr__` 透明转发）；[scheduler/boot.py](../src/intellisource/scheduler/boot.py) `_build_redis_client` 返回 LazyLoopRedis，`init_worker_session_factory` 加 `poolclass=NullPool`。新增 [tests/unit/scheduler/test_b037_loop_bridge.py](../tests/unit/scheduler/test_b037_loop_bridge.py) 14 tests GREEN；scheduler/composition/worker 整组 264 PASS 不退化；ruff + mypy clean。**B-031 阶段 1 步骤 4 walkthrough rerun 全 Pass GREEN：** worker 真消费 run_pipeline 2.68s succeeded / 20 raw_contents 落库 / fingerprint 复跑去重 / priority queue 路由全活；走查中途修复 NO-GO #13（collect_execute **kwargs 透传契约违例），立 B-039 P3 处理 `_collect_execute` 双副本去重。详见 [CORRECTIONS-LOG B-037 + walkthrough rerun 条目](reviews/CORRECTIONS-LOG.md)。
+
+### B-039 `_collect_execute` 双副本去重
+- **优先级**：P3
+- **关联**：CORRECTIONS-LOG 2026-05-26 修正 #13 carryover；走查 rerun 暴露
+- **现状**：`_collect_execute` 在 [src/intellisource/agent/tools/__init__.py:208-356](../src/intellisource/agent/tools/__init__.py) 与 [src/intellisource/agent/tools/executes/collect.py](../src/intellisource/agent/tools/executes/collect.py) 几乎完全一致的双副本（149 行级别），其中 `__init__.py` 副本被 registry 实际使用（[`_default_tool_defs()` line 892](../src/intellisource/agent/tools/__init__.py)），`executes/collect.py` 副本从未被引用。维护期同改两份的双重负担 + 漂移风险。同型问题可能也存在于 `_process_execute` / `_distribute_execute` / 等其他原子工具（待审查）。
+- **修复方向**：
+  - 选 A：`tools/__init__.py` 改为 `from .executes.collect import _collect_execute`（单一实现在 executes/，__init__ 仅 re-export）
+  - 选 B：删除 `executes/collect.py` 副本（单一实现保留在 __init__.py），更新任何 import 路径
+  - 选 A 更符合 "atomic tool 一文件一职责" 的模块拆分；选 B 改动最小
+  - 同步审查其他工具是否有相同双副本（grep `async def _.*_execute`）
+- **验证**：仅有一个 `_collect_execute` 定义；tests/unit/agent collect 测试不退化
 
 ---
 
