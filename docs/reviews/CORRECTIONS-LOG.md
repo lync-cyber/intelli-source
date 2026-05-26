@@ -114,3 +114,34 @@ deps: []
 - 基线/推荐: Commit B-010 后推进 B-016~B-018 (Recommended)
 - 实际/选择: 仅 Commit B-010，本轮会话结束
 - 偏差类型: preference
+
+### 2026-05-26 | orchestrator | B-031 walkthrough 阶段 0 步骤 1
+- 触发信号: pre-deploy-walkthrough-NO-GO
+- 问题: B-031 PRE-DEPLOY-WALKTHROUGH 首次真起 docker compose 栈，阶段 0 步骤 1（DB + Redis + migrate）触发 4 项构建/迁移缺陷连环失败。所有缺陷此前从未暴露 — 2838 PASS 单测/集成全部跑 SQLite 或 mock 路径，dockerized integration test 在本地 deselect、CI 未真跑（B-013 carryover），生产路径首次端到端验证即在本次 walkthrough。
+- 修正 #1：[docker/Dockerfile:37](../../docker/Dockerfile) `COPY alembic.ini ./alembic.ini` 找不到文件 — 项目实际把 `alembic.ini` 放在 `alembic/alembic.ini`。改为 `COPY alembic/alembic.ini ./alembic.ini`。
+- 修正 #2：`uv sync --frozen --no-dev` 在 builder 阶段 fail — hatchling 需要 `README.md`（pyproject.toml line 7 `readme = "README.md"`）但 Dockerfile 只 COPY pyproject.toml + uv.lock。改为 `uv sync --frozen --no-dev --no-install-project` — runtime 阶段已通过 `PYTHONPATH=/app/src` 加载源码，builder 不需自装包，同时让 deps layer cache 不再因 src 改动失效。
+- 修正 #3：`[project.dependencies]` **既无 asyncpg 也无 psycopg**（两者都仅在 `[dependency-groups].dev`）。生产 image (`uv sync --no-dev`) 零 Postgres driver，应用根本无法连 DB。把 `asyncpg>=0.31.0` + `psycopg[binary]>=3.1` 移入运行时依赖；`uv lock` 重生成。
+- 修正 #4：[alembic/env.py:30](../../alembic/env.py) 读 `DATABASE_URL`，compose 实际传 `IS_DATABASE_URL`；且 IS_DATABASE_URL 形如 `postgresql+asyncpg://...`，但 alembic 用同步 `engine_from_config()`，需要 sync driver。改为读 `IS_DATABASE_URL` 优先 + fallback `DATABASE_URL`，并把 `postgresql+asyncpg://` 重写为 `postgresql+psycopg://`（psycopg3）后再交给 alembic。
+- 修正 #5：migration `001_initial_schema.py:25` 执行 `CREATE EXTENSION IF NOT EXISTS zhparser`，但 `pgvector/pgvector:pg16` base image 不带 zhparser → `FeatureNotSupported` 阻断迁移。**关键观察**：`storage/vector.py` 全文检索实际用 `to_tsvector('simple', ...)`，从未引用 zhparser；扩展是为未来中文分词预留。改为 `DO $$ ... EXCEPTION WHEN feature_not_supported THEN RAISE NOTICE ...` 包裹 — 扩展不可用时优雅降级。deploy-spec §2 R-005 提到的"zhparser DB 镜像要求"是真实未闭环 carryover，**留作 B-032 待办**：制作 pgvector + zhparser 复合镜像并切到 docker-compose。
+- 偏差类型: technical-constraint + protocol-gap
+- 原因: 项目 7 个 sprint 全程未做过真 docker integration test（测试矩阵都基于 SQLite/mock）；B-013 "CI docker integration" 长期 deferred；deploy-spec r1+r2 文档审查覆盖了 SBOM / promtool / 回滚方案等，但未要求"真起栈跑 migrate"作为审查通过条件。B-031 P0 立项之后才暴露这些隐藏破口 — 印证 walkthrough 不可被自动化回归替代的核心理由。
+- 影响/缓解:
+  - 修复 #1~#4 已纳入工作区，步骤 1 PASS（migrate exit 0 / 13 tables / pgvector / Redis PONG）
+  - zhparser carryover → B-032 (P2，制作复合镜像)
+  - 后续阶段 0 步骤 2 + 阶段 1~7 可能仍有未暴露破口，本 walkthrough 继续真跑
+  - 长期改进 carryover：deploy-spec 审查模板加一条强约束 "本地最小栈 docker compose up -d db redis migrate 必须真跑通"
+- 关联: docs/deploy/PRE-DEPLOY-WALKTHROUGH.md 步骤 1 签字栏；docker/Dockerfile / pyproject.toml / alembic/env.py / alembic/versions/001_initial_schema.py 编辑
+
+### 2026-05-26 | orchestrator | B-031 walkthrough 阶段 0 步骤 2
+- 触发信号: pre-deploy-walkthrough-NO-GO
+- 问题: 阶段 0 步骤 2（API + /health）再触发 3 项部署/配置缺陷。
+- 修正 #5：[pyproject.toml `[project.dependencies]`](../../pyproject.toml) 无 `uvicorn` 也无 `fastapi[standard]` extra — runtime image (`uv sync --no-dev`) 没有 ASGI server，docker compose `command: [uvicorn, ...]` 直接 `executable file not found in $PATH`。`fastapi>=0.110.0` 不会传递依赖 uvicorn（仅 starlette）。添加 `uvicorn[standard]>=0.27` 到运行时依赖；`uv lock` 重生成。
+- 修正 #6：venv 跨路径 shebang 破口 — [docker/Dockerfile](../../docker/Dockerfile) builder 阶段 `WORKDIR /build`，产出 venv 在 `/build/.venv`；runtime 阶段 `COPY --from=builder /build/.venv /app/.venv` 把 venv 搬到 `/app/.venv`。但 venv 内 console_scripts (uvicorn, celery, alembic 等) 的 shebang 行硬编码 `#!/build/.venv/bin/python` — runtime 找不到 `/build/.venv` → `exec: no such file or directory`（指向 shebang 解释器，而非 script 本身，错误消息高度误导）。改 builder `WORKDIR /app`，让 venv 在 builder 即生成于 `/app/.venv`，COPY 后 shebangs 仍有效。**典型 multi-stage Python venv 陷阱**，框架级 anti-pattern 候选。
+- 修正 #7：composition.build_distributor_facade() 与 walkthrough §0.2 "分发渠道 key 暂可全部留空" 矛盾 — wechat/wework/email 三个 `from_env()` 均在 env 缺失时 `raise ValueError`，[composition.py:127](../../src/intellisource/composition.py) 注释自述 "hard-fail by design"。但 walkthrough §0.2 + 步骤 14 均允许这些 N/A。当前会话用占位值（`disabled-walkthrough-placeholder`）让 distributor 能实例化（webhook 流程不真调它们），**B-033 待办**：使 composition 对禁用渠道容忍（log WARNING + skip channel），统一 distributor 启动语义。
+- 偏差类型: technical-constraint + architectural-inconsistency
+- 影响/缓解:
+  - 修正 #5+#6 已纳入工作区，api 健康（db+redis healthy / celery unhealthy as expected before step 12）
+  - 修正 #7 placeholder 短路：webhook 流程不受影响，但任何"启用 wechat/wework/email 真渠道"测试需重新填真值后 force-recreate api
+  - **走查文档自身缺陷**：步骤 2 期望 `/health.status == "healthy"` 与 celery 依赖 worker（步骤 12 才起）冲突；OpenAPI 路径假设公开但实际 X-API-Key 保护。两处 walkthrough 文档应订正，**B-034 待办**。
+  - 5 项 carryover backlog 候选（B-032 zhparser 复合镜像 / B-033 distributor 渠道可禁用 / B-034 walkthrough 文档订正 / B-035 docker integration test CI 真跑 / B-036 deploy-spec 审查模板要求"docker compose 真起栈"）
+- 关联: docs/deploy/PRE-DEPLOY-WALKTHROUGH.md 步骤 2 签字栏；docker/Dockerfile + docker/.env + pyproject.toml 编辑

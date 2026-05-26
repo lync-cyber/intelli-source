@@ -31,6 +31,9 @@ dependencies = [
     "regex>=2024.5.10",
     "aiosmtplib>=5.1.0",
     "cryptography>=42.0",
+    "asyncpg>=0.31.0",
+    "psycopg[binary]>=3.1",
+    "uvicorn[standard]>=0.27",
 ]
 
 [build-system]

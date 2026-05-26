@@ -26,9 +26,14 @@ if config.config_file_name is not None:
 # Set target_metadata to Base.metadata for autogenerate support
 target_metadata = Base.metadata
 
-# Override sqlalchemy.url from environment variable if set
-db_url = os.environ.get("DATABASE_URL")
+# Override sqlalchemy.url from environment variable if set.
+# Production / docker-compose passes IS_DATABASE_URL; legacy / local dev
+# may set DATABASE_URL. Alembic uses a sync engine via engine_from_config(),
+# so async driver URLs (postgresql+asyncpg://) must be rewritten to the sync
+# psycopg3 driver (postgresql+psycopg://) before alembic consumes them.
+db_url = os.environ.get("IS_DATABASE_URL") or os.environ.get("DATABASE_URL")
 if db_url:
+    db_url = db_url.replace("postgresql+asyncpg://", "postgresql+psycopg://", 1)
     config.set_main_option("sqlalchemy.url", db_url)
 
 

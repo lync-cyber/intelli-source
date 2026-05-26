@@ -101,7 +101,7 @@ docker compose -f docker/docker-compose.yml exec redis redis-cli ping
 
 **Pass 标准**：`migrate` 容器 exit code = 0、11 张表齐全、`vector` 扩展存在、Redis 返回 `PONG`。
 
-☐ 通过 / 签字：__________
+☑ 通过 / 签字：lync-cyber 2026-05-26 — exit 0，13 表（11 业务 + alembic_version + config_versions），vector + pg_trgm 就位，Redis PONG。**修正**：发现 4 项构建缺陷（Dockerfile alembic.ini 路径 / uv sync README 缺失 / asyncpg+psycopg 未声明为运行时依赖 / env.py 用错环境变量名 + 异步驱动需重写为 psycopg / zhparser 缺扩展），均已修复；详见 [CORRECTIONS-LOG B-031 #1-4](../reviews/CORRECTIONS-LOG.md)。
 
 ---
 
@@ -161,7 +161,7 @@ curl -s -D - http://localhost:8000/health -o /dev/null | grep -i x-trace-id
 
 **失败排查**：`unhealthy` 时先看 `checks.db` / `checks.redis` 哪个失败；最常见是 `IS_DATABASE_URL` 主机名写成 `localhost` 而非容器名 `db`。
 
-☐ 通过 / 签字：__________
+☑ 通过 / 签字：lync-cyber 2026-05-26 — /health 200，db+redis healthy，celery unhealthy（**预期** — worker 阶段 5 步骤 12 才起栈），三个 health 入口全 200，OpenAPI 27 paths（>25），x-trace-id header 存在，logs 无 ERROR/Traceback。**修正**：发现 3 项额外构建/配置缺陷（uvicorn 未声明运行时依赖 / venv 跨路径 shebang 破口 / build_distributor_facade 对未配置渠道 hard-fail 与 §0.2 矛盾），均已修复或加占位绕过；详见 [CORRECTIONS-LOG B-031 #5-7](../reviews/CORRECTIONS-LOG.md)。**走查文档小观察**：①步骤 2 期望 `status=healthy` 与 celery 健康依赖 worker 启动矛盾，应改为 `status in {healthy,degraded}` + 标注 celery 在步骤 12 后才能转 healthy；②OpenAPI 端点受 API key 中间件保护，curl 须带 `X-API-Key: $IS_API_KEY`。
 
 ---
 

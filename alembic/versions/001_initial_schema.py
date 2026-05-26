@@ -22,7 +22,17 @@ def upgrade() -> None:
     # Create extensions
     op.execute("CREATE EXTENSION IF NOT EXISTS vector")
     op.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
-    op.execute("CREATE EXTENSION IF NOT EXISTS zhparser")
+    # zhparser is optional: storage/vector.py currently uses the built-in
+    # 'simple' parser for FTS. When a custom DB image ships with zhparser,
+    # this extension becomes available and downstream migrations can switch
+    # the FTS configuration. Skip silently on images without it.
+    op.execute(
+        "DO $$ BEGIN "
+        "CREATE EXTENSION IF NOT EXISTS zhparser; "
+        "EXCEPTION WHEN feature_not_supported THEN "
+        "RAISE NOTICE 'zhparser unavailable; Chinese FTS will use simple parser'; "
+        "END $$"
+    )
 
     # E-001: sources
     op.create_table(
