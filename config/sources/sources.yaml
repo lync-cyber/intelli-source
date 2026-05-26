@@ -1,0 +1,20 @@
+# IntelliSource 信源配置示例
+# 支持 rss / api / web 三种类型
+# 支持 ${ENV_VAR} 环境变量占位符
+
+sources:
+  - name: "Hacker News"
+    type: "rss"
+    url: "https://hnrss.org/frontpage"
+    tags: ["tech", "news"]
+    schedule_interval: 1800
+    schedule_adaptive: true
+
+  - name: "GitHub Trending"
+    type: "web"
+    url: "https://github.com/trending"
+    tags: ["tech", "open-source"]
+    schedule_interval: 3600
+    schedule_adaptive: false
+    rate_limit_qps: 1.0
+    rate_limit_concurrency: 1
