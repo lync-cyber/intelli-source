@@ -9,7 +9,7 @@ deps: []
 # IntelliSource v1 Backlog
 
 > 维护：本文件梳理 PR #53 / #54 audit 闭环之后的剩余工作。完成项请直接删除条目，新增项按优先级插入。
-> 最后更新：2026-05-26 (B-042 + B-044 + B-045 闭环；步骤 9 N/A + 阶段 4 vector 路径准备补签真起栈)
+> 最后更新：2026-05-26 (B-039 + B-042 + B-044 + B-045 闭环；步骤 9 真起栈 PASS 补签；阶段 4 vector 路径待 OPENAI_API_KEY)
 
 ## 优先级语义
 
@@ -144,16 +144,7 @@ deps: []
 
 > B-037 已闭环 — 用户选 A: per-task lazy + NullPool。新增 [scheduler/lazy_redis.py](../src/intellisource/scheduler/lazy_redis.py) `LazyLoopRedis` 包装类（按 running event loop 缓存 `aioredis.Redis`，通过 `__getattr__` 透明转发）；[scheduler/boot.py](../src/intellisource/scheduler/boot.py) `_build_redis_client` 返回 LazyLoopRedis，`init_worker_session_factory` 加 `poolclass=NullPool`。新增 [tests/unit/scheduler/test_b037_loop_bridge.py](../tests/unit/scheduler/test_b037_loop_bridge.py) 14 tests GREEN；scheduler/composition/worker 整组 264 PASS 不退化；ruff + mypy clean。**B-031 阶段 1 步骤 4 walkthrough rerun 全 Pass GREEN：** worker 真消费 run_pipeline 2.68s succeeded / 20 raw_contents 落库 / fingerprint 复跑去重 / priority queue 路由全活；走查中途修复 NO-GO #13（collect_execute **kwargs 透传契约违例），立 B-039 P3 处理 `_collect_execute` 双副本去重。详见 [CORRECTIONS-LOG B-037 + walkthrough rerun 条目](reviews/CORRECTIONS-LOG.md)。
 
-### B-039 `_collect_execute` 双副本去重
-- **优先级**：P3
-- **关联**：CORRECTIONS-LOG 2026-05-26 修正 #13 carryover；走查 rerun 暴露
-- **现状**：`_collect_execute` 在 [src/intellisource/agent/tools/__init__.py:208-356](../src/intellisource/agent/tools/__init__.py) 与 [src/intellisource/agent/tools/executes/collect.py](../src/intellisource/agent/tools/executes/collect.py) 几乎完全一致的双副本（149 行级别），其中 `__init__.py` 副本被 registry 实际使用（[`_default_tool_defs()` line 892](../src/intellisource/agent/tools/__init__.py)），`executes/collect.py` 副本从未被引用。维护期同改两份的双重负担 + 漂移风险。同型问题可能也存在于 `_process_execute` / `_distribute_execute` / 等其他原子工具（待审查）。
-- **修复方向**：
-  - 选 A：`tools/__init__.py` 改为 `from .executes.collect import _collect_execute`（单一实现在 executes/，__init__ 仅 re-export）
-  - 选 B：删除 `executes/collect.py` 副本（单一实现保留在 __init__.py），更新任何 import 路径
-  - 选 A 更符合 "atomic tool 一文件一职责" 的模块拆分；选 B 改动最小
-  - 同步审查其他工具是否有相同双副本（grep `async def _.*_execute`）
-- **验证**：仅有一个 `_collect_execute` 定义；tests/unit/agent collect 测试不退化
+> B-039 已闭环 (本次会话, 选 A 升级版) — 走查 B-031 步骤 9 时发现真起栈跑 manual-collect 后 `processed_contents.summary` 仍 NULL，根因：B-044/B-045 的 `summary`/`embedding` kwarg 只加到了 `tools/executes/process.py` 孤儿副本，**registry 实际调用的是 `tools/__init__.py:457` 那份**。同型双副本在 `_collect_execute` / `_process_execute` / `_distribute_execute` / `_search_execute` / `_get_content_detail_execute` / `_summarize_for_user_execute` / `_llm_complete_execute` 全部 7 个 atomic execute 函数 + `_serialize_search_response` helper 上都存在。**重构方向**：(1) `tools/executes/{collect,process,distribute,search_and_content,llm}.py` 5 个文件升级为单一事实来源（用 __init__.py 历史漂移最新版本覆盖，含 B-044/B-045 的 summary/embedding kwarg）；(2) 新增 `tools/registry.py` (453 行) 集中 `PermissionLevel`/`ToolDefinition`/`AgentToolRegistry`/`_atomic_tool_defs`/`_default_tool_defs` 业务实现，`_*_execute` 通过 `from intellisource.agent.tools.executes.* import` 引用真源；(3) `tools/__init__.py` 974→55 行 facade，仅保留 `__all__` + re-export + `load_pipeline_config` helper；(4) `executes/__init__.py` 剩 1 行 docstring。**真起栈验证**：truncate processed_contents + 重跑 manual-collect → 20/20 summary 非空 + 20/20 llm_call_logs success（B-042/B-044 同时活路径 PASS）。**测试侧**：tests/unit/agent/test_tools_fanout_and_dto.py 修一处 monkeypatch 路径（`tools_mod.asyncio` → `executes.process.asyncio`）；2790 PASS 不退化；mypy --strict + ruff + lint-imports 8/8 clean。
 
 ---
 

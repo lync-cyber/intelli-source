@@ -280,7 +280,11 @@ class TestAsyncToolUsesToThread:
             to_thread_calls.append((func,) + args)
             return await original_to_thread(func, *args, **kwargs)
 
-        monkeypatch.setattr(tools_mod.asyncio, "to_thread", recording_to_thread)
+        from intellisource.agent.tools.executes import (  # noqa: PLC0415
+            process as process_mod,
+        )
+
+        monkeypatch.setattr(process_mod.asyncio, "to_thread", recording_to_thread)
 
         tool_deps = MagicMock()
         tool_deps.pipeline_engine = engine_mock

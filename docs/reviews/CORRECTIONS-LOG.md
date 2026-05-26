@@ -346,3 +346,29 @@ deps: []
   - llm_call_logs 多 `call_type='embed'` 行（连带验证 B-042 session_factory 路径覆盖到 embed）
 - 关联: src/intellisource/llm/gateway/_embed.py(新) + llm/gateway/__init__.py + pipeline/processors/embedder.py(新) + pipeline/registry.py + agent/tools/executes/process.py + config/pipelines/content-process.yaml + config/llm_models.yaml + tests/unit/pipeline/test_embedding_processor.py(新) + tests/unit/llm/test_gateway_embed.py(新)；BACKLOG B-045 标 done；walkthrough 步骤 10/11 vector 路径阻塞解除
 
+### 2026-05-26 | orchestrator | B-039 inline 重构 + 步骤 9 真起栈 PASS (闭环)
+- 触发信号: 真起栈跑 manual-collect 验证 B-042/B-044 步骤 9 补签时，processed_contents.summary 列**仍** NULL。单测 19 GREEN 但真路径失败 — 经典 silent drift。
+- 问题:
+  - `_*_execute` 7 个函数 + `_serialize_search_response` helper 在 `tools/__init__.py` (208-712, 504 行) 与 `tools/executes/*.py` (collect/process/distribute/search_and_content/llm 共 572 行) **字面级双副本**。B-044 (summary kwarg) / B-045 (embedding kwarg) 改动只落 `executes/process.py` 孤儿副本，registry 实际调用的是 `__init__.py:457` 那份。
+  - `executes/__init__.py` 23 行 re-export 是死代码 — 全仓 0 引用者，`from intellisource.agent.tools.executes import` 找不到任何调用。
+  - `tools/__init__.py` 974 行 fat module，混合 4 类职责（registry primitives / load_pipeline_config helper / 11 atomic tool defs / 7 default tool defs + 7 execute functions）。
+- 修复:
+  - **executes/* 升级为单一事实来源**：用 __init__.py 历史最新版本（含 B-044 summary / B-045 embedding kwarg）覆盖 [executes/collect.py](../../src/intellisource/agent/tools/executes/collect.py) / [executes/process.py](../../src/intellisource/agent/tools/executes/process.py) / [executes/distribute.py](../../src/intellisource/agent/tools/executes/distribute.py) / [executes/search_and_content.py](../../src/intellisource/agent/tools/executes/search_and_content.py) / [executes/llm.py](../../src/intellisource/agent/tools/executes/llm.py)。`_serialize_search_response` helper 内聚到 `search_and_content.py`。
+  - **新增 [src/intellisource/agent/tools/registry.py](../../src/intellisource/agent/tools/registry.py)** (453 行) — 集中 `PermissionLevel`/`ToolDefinition`/`AgentToolRegistry`/`_atomic_tool_defs`/`_default_tool_defs`；`_*_execute` 通过 `from intellisource.agent.tools.executes.* import` 引用真源。
+  - **[tools/__init__.py](../../src/intellisource/agent/tools/__init__.py) 974→55 行 facade**：只剩 imports + `__all__` + `_PIPELINES_DIR` + `load_pipeline_config` helper + re-export `registry` 的公共符号 + re-export `executes/*` 的 7 个 execute 函数。外部 import 路径 `from intellisource.agent.tools import _collect_execute / _process_execute / PermissionLevel / ...` 完全兼容（runner.py、executors/、api/routers/ 等 11+ 调用点零改动）。
+  - **[executes/__init__.py](../../src/intellisource/agent/tools/executes/__init__.py)** 23 行死 re-export 清空为 1 行 docstring。
+  - **测试 monkeypatch 路径修正**：[tests/unit/agent/test_tools_fanout_and_dto.py:283](../../tests/unit/agent/test_tools_fanout_and_dto.py) `tools_mod.asyncio` → `executes.process.asyncio`（因为 asyncio import 跟 _process_execute 一起搬到了 executes/process.py）。
+- 验证:
+  - **单测**: 2790 PASS 不退化；mypy --strict + ruff + lint-imports 8/8 clean
+  - **真起栈步骤 9 重跑（manual-collect task `140d0e2a`，336.9s success）**:
+    - B-042 ✓ `SELECT count(*) FROM llm_call_logs WHERE status='success'` = 20；model=deepseek-v4-pro；sum_input=3767 sum_output=15747 tokens
+    - B-044 ✓ `SELECT count(*) FROM processed_contents WHERE summary IS NOT NULL AND summary <> ''` = 20/20；样本 summary 含 LLM 真生成内容（如 "Japan has successfully tested a ramjet engine for a Mach-5 hypersonic aircraft..."）
+    - B-045 旁证 ✓ embedding 列保持 NULL（无 OPENAI_API_KEY graceful 设计；worker log 含 LLMGateway.embed _aembedding failed warning 1 行但 pipeline 整链 success）
+- 偏差类型: refactor + dup-clean（双副本 silent drift 揪出 B-044/B-045 隐式回归）
+- 影响:
+  - tools/__init__.py 收缩 ~95%（974→55 行）
+  - executes/* 5 个文件成为 7 个 atomic execute 的单一事实来源
+  - 后续任务卡（B-016 / B-035 etc）改这些函数只需改一处，silent drift 风险消除
+  - 步骤 9 ☐→☑ 补签完成；阶段 4 步骤 10/11 vector 路径仅待 OPENAI_API_KEY 即可真验证
+- 关联: src/intellisource/agent/tools/__init__.py (大幅瘦身) + tools/registry.py (新) + tools/executes/{collect,process,distribute,search_and_content,llm}.py (覆盖) + tools/executes/__init__.py (清空) + tests/unit/agent/test_tools_fanout_and_dto.py (monkeypatch 修)；BACKLOG B-039 标 done；walkthrough 步骤 9 ☑ 真起栈签字
+
