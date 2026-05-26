@@ -34,6 +34,39 @@ class _RetryMixin:
     _cost_tracker: CostTracker | None
     _fallback_manager: FallbackManager | None
     circuit_breaker: CircuitBreaker | None
+    _session_factory: Any  # Callable returning async ctx mgr → AsyncSession
+
+    async def _emit_call_log(self, record: LLMCallRecord) -> None:
+        """Persist an LLMCallRecord through whichever logging path is wired.
+
+        Explicit ``cost_tracker`` wins (legacy unit-test path with a mocked
+        session). Otherwise a session is opened per call via
+        ``session_factory`` and a fresh ``CostTracker`` writes through it.
+        Both arms swallow exceptions so logging never breaks the LLM call
+        path.
+        """
+        if self._cost_tracker is not None:
+            try:
+                await self._cost_tracker.log_call(record)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to log %s call via cost_tracker: %s",
+                    record.call_type,
+                    exc,
+                )
+            return
+        if self._session_factory is not None:
+            from intellisource.llm.cost_tracker import CostTracker as _CostTracker
+
+            try:
+                async with self._session_factory() as session:
+                    await _CostTracker(session).log_call(record)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to log %s call via session_factory: %s",
+                    record.call_type,
+                    exc,
+                )
 
     async def _unified_call_with_retry(
         self,

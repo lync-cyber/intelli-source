@@ -9,7 +9,7 @@ deps: []
 # IntelliSource v1 Backlog
 
 > 维护：本文件梳理 PR #53 / #54 audit 闭环之后的剩余工作。完成项请直接删除条目，新增项按优先级插入。
-> 最后更新：2026-05-26 (B-031 阶段 2/3 部分推进；B-041 V4 适配闭环；步骤 5/6/7/8/9 ☑；新立项 B-040/B-042/B-043/B-044)
+> 最后更新：2026-05-26 (B-042 + B-044 闭环；步骤 9 N/A 两项准备补签真起栈)
 
 ## 优先级语义
 
@@ -157,17 +157,7 @@ deps: []
 
 ---
 
-### B-042 api composition 注入 CostTracker（llm_call_logs 写入路径）
-- **优先级**：P2
-- **关联**：CORRECTIONS-LOG 2026-05-26 B-041 carryover；walkthrough 步骤 9 期望 `llm_call_logs 有 success 记录` 失败
-- **现状**：[composition.build_llm_gateway](../src/intellisource/composition.py) 仅传 circuit_breaker + priority_queue，**未注入** `cost_tracker`。LLMGateway 内部 `if self._cost_tracker is not None: await self._cost_tracker.log_call(record)`（chat / complete / stream 三处）→ singleton 始终 None → 真实 LLM 调用都不写 `llm_call_logs`。
-- **结构性难点**：`CostTracker(session: AsyncSession)` 构造期就绑定 session，而 LLMGateway 是进程内 singleton。直接传一个 session 会跨请求复用 → 关联事务/连接生命周期错。
-- **修复方向**：
-  - 选 A：改 `CostTracker` 为 stateless，`log_call(record, session_factory)` 调用时再开 session（最干净，但 break 现有 unit 测试 fixture）
-  - 选 B：LLMGateway 接受 `cost_tracker_factory: Callable[[], CostTracker]`，每次 log_call 通过 factory 拿新实例（用 `session_factory()` 作为 ctx mgr 内开 session）
-  - 选 C：LLMGateway.__init__ 接 `session_factory`，内部 `async with session_factory() as s: CostTracker(s).log_call(...)`，最少 API 变更
-  - 推荐：选 C（兼容已有 unit 测试，仅扩展 ctor 可选参数）
-- **验证**：真起 stack 跑 `/search/chat` 后 `psql ... SELECT count(*) FROM llm_call_logs` ≥ 1；status='success'；input_tokens/output_tokens > 0
+> B-042 已闭环 (本次会话, 选 C) — `LLMGateway.__init__` 新增 `session_factory` kwarg；`_RetryMixin._emit_call_log()` 统一 cost_tracker（legacy）+ session_factory（生产）双源；chat/stream 切到 helper，**complete 补 log_call**（之前缺失）；`composition.build_llm_gateway(redis, session_factory=None)` 经 `_build_deps_bundle` 注入；worker + api 进程 singleton 现具 per-call 会话能力。新增 [tests/unit/llm/test_gateway_session_factory.py](../tests/unit/llm/test_gateway_session_factory.py) 10 tests / 7 class GREEN（覆盖构造 / 三入口 emit / 异常吞噬 / 显式 cost_tracker 优先 / 复合 wiring）；test_cache.py 单测重命名 `test_cache_miss_logs_success_not_cached` 适配新契约。真起栈验证（步骤 9 补签）：`SELECT count(*) FROM llm_call_logs WHERE status='success'` ≥ 1，input/output_tokens > 0 — 待用户跑。
 
 ### B-043 chat() path 接入 LLMCache
 - **优先级**：P3
@@ -179,16 +169,7 @@ deps: []
   - LLMResult 缺少 finish_reason 字段直接命中（cache 复用）
 - **验证**：连续两次相同 `/search/chat` 请求 — 第二次响应 latency 显著低（缓存返回不走 LLM API）；prometheus `llm_cache_hits_total` 计数 +1
 
-### B-044 content-process pipeline 集成 LLM summarizer step
-- **优先级**：P2
-- **关联**：CORRECTIONS-LOG 2026-05-26 B-041 carryover；walkthrough 步骤 9 期望 "processed_contents.summary 被 LLM 填充" 失败
-- **现状**：[config/pipelines/content-process.yaml](../config/pipelines/content-process.yaml) `steps` 只有 HTMLParser → ContentDedup → KeywordTagger（纯批处理器，零 LLM）；processed_contents.summary 列恒为 NULL。B-008 闭环时把 `truncate_summary` 工具接入 LLM summarizer 模板，但该工具未被 content-process pipeline 调用（仅 push-optimize flexible-mode 可能调）。
-- **修复方向**：
-  - 选 A：扩展 `_build_processors_from_config` 支持 `tool: <tool_name>` 步骤类型（除 `processor:`），allow content-process steps 包含 `- tool: truncate_summary` 直接复用 atomic tool
-  - 选 B：新增 `LLMSummarizer(BaseProcessor)` 处理器，调用 truncate_summary 内部逻辑；保持 processor-only contract
-  - 选 C：拆 content-process 为两段（batch processors + LLM enrichment），后者走 agent flexible mode
-  - 推荐：选 A 最复用已有 atomic tool，修最少
-- **验证**：跑 content-process pipeline 后 `SELECT summary FROM processed_contents` 至少一行 NOT NULL；`llm_call_logs` 同步增长
+> B-044 已闭环 (本次会话, 选 B) — 新增 [src/intellisource/pipeline/processors/summarizer.py](../src/intellisource/pipeline/processors/summarizer.py) `LLMSummarizer(BaseProcessor)`：读 ctx.title/body_text → `truncate_summary(cluster, tool_deps=_GatewayDeps(gw))` 经 `asyncio.run` 调度（无 loop 直 / 有 loop 走 ThreadPoolExecutor）→ ctx.set("summary",...)；全异常路径写 "" 不抛。`PROCESSOR_REGISTRY` 注册 + 类级 `_NEEDS_LLM_GATEWAY=True` 标记。`_build_processors_from_config(config, llm_gateway=None)` 看标记按需注入；`build_agent_runner` 把 llm_gateway 透到 factory。`config/pipelines/content-process.yaml` 追加末步骤；[agent/tools/executes/process.py:`_process_execute`](../src/intellisource/agent/tools/executes/process.py) `repo.create(summary=str(ctx.get("summary") or ""))` 持久化。新增 [tests/unit/pipeline/test_llm_summarizer.py](../tests/unit/pipeline/test_llm_summarizer.py) 11 tests / 5 class GREEN（registry / process behavior / factory injection / yaml drift guard / _process_execute persistence）。真起栈验证（步骤 9 补签）：truncate processed_contents 后重跑 content-process → `SELECT summary FROM processed_contents WHERE summary <> ''` ≥ 1 — 待用户跑。
 
 ---
 

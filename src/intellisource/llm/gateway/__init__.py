@@ -7,6 +7,7 @@ validating outputs against JSON Schema, and SchemaValidationError.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 import litellm
@@ -35,6 +36,12 @@ if TYPE_CHECKING:
     from intellisource.llm.cost_tracker import CostTracker
     from intellisource.llm.fallback import FallbackManager
 
+# A callable that opens an async session context manager. Worker uses
+# `async_sessionmaker[AsyncSession]`; API process uses
+# `_DatabaseManagerSessionFactory.__call__`. Both return an object usable as
+# `async with session_factory() as session`.
+SessionFactory = Callable[[], Any]
+
 logger = logging.getLogger(__name__)
 
 
@@ -61,6 +68,7 @@ class LLMGateway(_RetryMixin, _CompleteMixin, _ChatMixin, _StreamMixin, _QueueMi
         _retry_wait: Any = None,
         circuit_breaker: CircuitBreaker | None = None,
         priority_queue: PriorityQueue | None = None,
+        session_factory: SessionFactory | None = None,
     ) -> None:
         self._default_temperature: float = 0.7
         self._default_max_tokens: int = 4096
@@ -76,6 +84,7 @@ class LLMGateway(_RetryMixin, _CompleteMixin, _ChatMixin, _StreamMixin, _QueueMi
         )
         self.circuit_breaker: CircuitBreaker | None = circuit_breaker
         self._priority_queue: PriorityQueue | None = priority_queue
+        self._session_factory: SessionFactory | None = session_factory
         self._register_metrics()
 
     def _register_metrics(self) -> None:

@@ -264,3 +264,59 @@ deps: []
   - **B-043 P3** `chat()` path 接入 LLMCache（pre-existing，仅 complete() 有 cache_key_parts）
   - **B-044 P2** `content-process` pipeline 集成 LLM summarizer step（让 walkthrough 步骤 9 summary 落库可验，从 batch processors → 添加 LLM-driven summarizer / tag 步骤）
 - 关联: src/intellisource/config/llm_schema.py + llm/model_config.py + llm/gateway/_extra_body.py(新) + _chat.py + _complete.py + _stream.py + agent/executors/flexible.py + config/llm_models{,.example}.yaml 编辑；BACKLOG B-041 闭环 + B-042/B-043/B-044 新增；PRE-DEPLOY-WALKTHROUGH.md 步骤 9 ☑ 签字栏追加
+
+### 2026-05-26 | orchestrator | unknown
+- 触发信号: option-override
+- 问题/假设: B-031 walkthrough 阶段 3 已闭环，请选择下一步推进方向
+- 基线/推荐: B-031 阶段 4 步骤 10（M-007 检索/RAG）(Recommended)
+- 实际/选择: 查看 BACKLOG 全量再决定
+- 偏差类型: preference
+
+### 2026-05-26 | orchestrator | unknown
+- 触发信号: option-override
+- 问题/假设: 选择下一步推进方向（阅过完整 BACKLOG 后）
+- 基线/推荐: B-031 阶段 4 步骤 10（M-007 检索/RAG）(Recommended)
+- 实际/选择: 先闭环 B-042 + B-044（步骤 9 補签）
+- 偏差类型: preference
+
+### 2026-05-26 | orchestrator | B-042 CostTracker 注入 (闭环)
+- 触发信号: B-031 walkthrough 步骤 9 N/A 项之一（llm_call_logs 表恒空）。Backlog 推荐选 C：gateway init 接 session_factory。
+- 问题: singleton `LLMGateway` 持有 `cost_tracker: CostTracker | None`，但 `CostTracker(session)` 构造期绑定 session，不能跨请求复用 → composition 不敢注入 → `llm_call_logs` 实际无写入路径。chat 与 stream_complete 各有 log_call 块，但 complete() **完全缺**。
+- 修复:
+  - `LLMGateway.__init__` 新增 `session_factory: SessionFactory | None = None`；存为 `self._session_factory`；`_protocols._GatewayProtocol` 同步标注以保 mypy --strict 通过。
+  - `_RetryMixin._emit_call_log(record)`：优先 `_cost_tracker.log_call`（legacy 单测路径），否则 `async with session_factory() as s: CostTracker(s).log_call(record)`；两条路径都 swallow exception，logging 不破 LLM 主路径。
+  - chat / stream_complete 的内联 try/except cost_tracker 块换成 `await self._emit_call_log(record)`；触发条件改为 `cost_tracker is not None or session_factory is not None`。
+  - **complete() 补 log_call**：success 路径之前完全没 LLMCallLog 写入，本次按 chat 同型加，call_type="complete"。
+  - `composition.build_llm_gateway(redis, session_factory=None)` 签名扩；`_build_deps_bundle` 把 session_factory 透下去。
+  - `tests/unit/llm/test_cache.py` `test_cache_miss_does_not_trigger_cache_hit_log` 重命名 `test_cache_miss_logs_success_not_cached`：旧契约 "complete cache miss → 无 log"，新契约 "cache miss → log 一条 status=success（complete 现在也写）"。
+- 验证:
+  - 新增 [tests/unit/llm/test_gateway_session_factory.py](../../tests/unit/llm/test_gateway_session_factory.py) 10 tests / 7 class GREEN：构造（kwarg / 默认 None）/ 三入口（chat / complete / stream）emit / 显式 cost_tracker 覆盖 session_factory / 双 None 静默 / session_factory 异常吞噬 / build_llm_gateway 双签名
+  - 全 LLM 单测 392 PASS（含修订后的 test_cache_miss_*），mypy --strict + ruff + lint-imports 8/8 + deptry + vulture 全 clean
+  - 真起 docker stack 跑 `/search/chat` 后 `SELECT count(*) FROM llm_call_logs WHERE status='success'` ≥ 1 — 待用户验证（步骤 9 补签 N/A 项之一）
+- 偏差类型: spec-gap（singleton 与 per-session 生命周期不匹配，pre-existing wiring gap）
+- 影响:
+  - chat / complete / stream 三个入口在 production singleton 模式下都能写 llm_call_logs，CostTracker.get_stats 能查到真实数据
+  - 解锁 walkthrough 步骤 9 N/A 项 #1
+  - 为 B-043 chat 接 LLMCache 铺路（cache hit log 也走 _emit_call_log 路径）
+- 关联: src/intellisource/llm/gateway/{__init__,_chat,_complete,_stream,_retry,_protocols}.py + src/intellisource/composition.py + tests/unit/llm/test_cache.py + tests/unit/llm/test_gateway_session_factory.py（新）；BACKLOG B-042 标 done
+
+### 2026-05-26 | orchestrator | B-044 content-process LLM summarizer step (闭环)
+- 触发信号: B-031 walkthrough 步骤 9 N/A 项之二（processed_contents.summary 列恒 NULL）。Backlog 列三选：A 引入 `tool:` 步骤类型 / B 新增 `LLMSummarizer(BaseProcessor)` / C 拆 pipeline 二段；本会话采选 B（直接、processor-only contract 一致、改动收敛）。
+- 问题: `config/pipelines/content-process.yaml` `steps` 仅 `HTMLParser → ContentDedup → KeywordTagger` 三个 batch processor，零 LLM 调用；B-008 闭环时 `truncate_summary` 接入 LLM summarizer 模板但仅被 push-optimize 调用，未挂到 content-process。`_process_execute` 的 `repo.create(...)` 也无 `summary=` 参数 → 即便 ctx 设置也不持久化。
+- 修复:
+  - 新增 [src/intellisource/pipeline/processors/summarizer.py](../../src/intellisource/pipeline/processors/summarizer.py) `LLMSummarizer(BaseProcessor)`：`__init__(llm_gateway=None)` 存 `_llm_gateway` + 类级 `_NEEDS_LLM_GATEWAY=True` 标记；`process(ctx)` 读 title/body_text → cluster `[{"title":..., "body_text":...}]` → `truncate_summary(cluster, tool_deps=_GatewayDeps(gw))` 经 `_run_coro` 调度（无 loop → `asyncio.run` / 有 loop → 单线程 ThreadPoolExecutor + asyncio.run；保护 execute_stream 异步路径）→ ctx.set("summary", result["summary"])；全异常路径写 ""，不抛（pipeline _run_processors fail-soft 收尾仍可继续）。
+  - `pipeline/registry.py` `PROCESSOR_REGISTRY` 注册 `"LLMSummarizer": LLMSummarizer`。
+  - `agent/factory.py` `_build_processors_from_config(config, llm_gateway=None)` 检查 `getattr(cls, "_NEEDS_LLM_GATEWAY", False)`，按需把 llm_gateway 注入 params；`build_agent_runner` 调用处把 `llm_gateway=llm_gateway` 透下去。
+  - `config/pipelines/content-process.yaml` `steps` 末尾追加 `- processor: LLMSummarizer`（KeywordTagger 之后；保持先 batch 后 LLM 顺序）。
+  - `agent/tools/executes/process.py` `_process_execute.repo.create(...)` 加 `summary=str(ctx.get("summary") or "")` 字段。
+- 验证:
+  - 新增 [tests/unit/pipeline/test_llm_summarizer.py](../../tests/unit/pipeline/test_llm_summarizer.py) 11 tests / 5 class GREEN：registry 注册 / process 写 ctx.summary（正常 LLM / 无效 JSON 回退 / 无 gateway 回退 / gateway 异常吞噬）/ factory 按标记注入 / YAML drift guard / `_process_execute` 调用 `repo.create(summary=...)`
+  - 全 unit 套 2771 PASS（含 21 新），mypy --strict + ruff + lint-imports 8/8 + deptry + vulture 全 clean；pipeline + agent.factory 周边无回归
+  - 真起栈 truncate processed_contents → 重跑 content-process pipeline → `SELECT summary FROM processed_contents WHERE summary != ''` ≥ 1 — 待用户验证（步骤 9 补签 N/A 项之二）
+- 偏差类型: feature-gap（pipeline 步骤定义遗漏，pre-existing）
+- 影响:
+  - `processed_contents.summary` 列从 100% NULL 变为按 LLM 真实输出填充
+  - LLMSummarizer 经 B-042 链路把每条内容的 complete 调用同步写入 llm_call_logs（连带验证 B-042）
+  - 为 `/api/v1/contents/processed` 提供有意义的 summary 字段输出
+- 关联: src/intellisource/pipeline/processors/summarizer.py(新) + pipeline/registry.py + agent/factory.py + agent/tools/executes/process.py + config/pipelines/content-process.yaml + tests/unit/pipeline/test_llm_summarizer.py（新）；BACKLOG B-044 标 done
+

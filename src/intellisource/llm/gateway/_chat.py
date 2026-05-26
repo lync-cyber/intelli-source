@@ -187,7 +187,7 @@ class _ChatMixin:
 
         result = LLMResult(content=content, metadata=metadata)
 
-        if self._cost_tracker is not None:
+        if self._cost_tracker is not None or self._session_factory is not None:
             record = LLMCallRecord(
                 model=str(response.model),
                 provider=(
@@ -203,9 +203,6 @@ class _ChatMixin:
                 output_length=len(content),
                 status="success",
             )
-            try:
-                await self._cost_tracker.log_call(record)
-            except Exception as log_exc:
-                logger.warning("Failed to log chat call to CostTracker: %s", log_exc)
+            await self._emit_call_log(record)
 
         return result

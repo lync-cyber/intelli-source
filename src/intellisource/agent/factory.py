@@ -36,12 +36,17 @@ _DEFAULT_PIPELINE_YAML = (
 )
 
 
-def _build_processors_from_config(config: PipelineConfig) -> list[BaseProcessor]:
+def _build_processors_from_config(
+    config: PipelineConfig,
+    llm_gateway: LLMGateway | None = None,
+) -> list[BaseProcessor]:
     processors: list[BaseProcessor] = []
     for step in config.steps:
         step_name: str = step.get("processor") or step.get("name") or str(step)
         cls = get_processor(step_name)
-        params: dict[str, Any] = step.get("params") or {}
+        params: dict[str, Any] = dict(step.get("params") or {})
+        if getattr(cls, "_NEEDS_LLM_GATEWAY", False) and "llm_gateway" not in params:
+            params["llm_gateway"] = llm_gateway
         processors.append(cls(**params))
     return processors
 
@@ -101,7 +106,7 @@ def build_agent_runner(
     if not resolved_yaml.exists():
         raise FileNotFoundError(f"Pipeline yaml not found: {resolved_yaml.resolve()}")
     loaded_config = PipelineConfig.from_yaml(str(resolved_yaml))
-    processors = _build_processors_from_config(loaded_config)
+    processors = _build_processors_from_config(loaded_config, llm_gateway=llm_gateway)
     pipeline_engine = _engine_mod.PipelineEngine(processors=processors)
 
     tool_deps = ToolDeps(

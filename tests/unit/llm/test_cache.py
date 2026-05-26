@@ -506,10 +506,12 @@ class TestCacheHitLogging:
         assert record.model == "gpt-4o-mini"
         assert record.latency_ms == 0
 
-    async def test_cache_miss_does_not_trigger_cache_hit_log(
+    async def test_cache_miss_logs_success_not_cached(
         self, fake_redis: FakeRedis
     ) -> None:
-        """On cache miss, _log_cache_hit is not invoked."""
+        """On cache miss complete() falls through to the LLM and the cost
+        tracker records a status='success' row (not 'cached'). B-042 added
+        cost tracking to the complete() success path."""
         llm_cache = LLMCache(redis=fake_redis, ttl=3600)
         tracker = AsyncMock()
         tracker.log_call = AsyncMock()
@@ -535,7 +537,12 @@ class TestCacheHitLogging:
                 },
             )
 
-        tracker.log_call.assert_not_awaited()
+        tracker.log_call.assert_awaited_once()
+        record = tracker.log_call.await_args.args[0]
+        assert record.status == "success"
+        assert record.call_type == "complete"
+        assert record.input_tokens == 10
+        assert record.output_tokens == 5
 
     async def test_cache_hit_without_cost_tracker_does_not_raise(
         self, fake_redis: FakeRedis

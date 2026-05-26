@@ -164,7 +164,7 @@ class _StreamMixin:
             "model": final_model,
         }
 
-        if self._cost_tracker is not None:
+        if self._cost_tracker is not None or self._session_factory is not None:
             input_length = (
                 len(prompt)
                 if prompt is not None
@@ -183,11 +183,6 @@ class _StreamMixin:
                 output_length=len(accumulated_content),
                 status="success",
             )
-            try:
-                await self._cost_tracker.log_call(record)
-            except Exception as log_exc:
-                logger.warning(
-                    "Failed to log stream_complete call to CostTracker: %s", log_exc
-                )
+            await self._emit_call_log(record)
 
         yield {"content": "", "done": True, "metadata": metadata}

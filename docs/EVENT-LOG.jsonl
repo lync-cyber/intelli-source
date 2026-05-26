@@ -359,3 +359,5 @@
 {"ts": "2026-05-26T03:02:17+00:00", "event": "correction", "phase": "unknown", "detail": "option-override: B-010 deploy-spec 闭环全部资产在工作区（deploy-spec主卷+changelog+r1/r2 审查报告+CLAUDE.md+PROJEC", "agent": "orchestrator"}
 {"ts": "2026-05-26T03:14:42+00:00", "event": "state_change", "phase": "development", "detail": "skill-run: doc-review Layer 1 reported issues", "agent": "reviewer", "status": "needs_revision", "ref": "skill:doc-review/doc_check"}
 {"ts": "2026-05-26T03:14:50+00:00", "event": "state_change", "phase": "backlog-burndown", "detail": "B-031 立项: PRE-DEPLOY-WALKTHROUGH 人工跑通 (P0 最高优先级)；BACKLOG/CLAUDE.md/PROJECT-STATE.md 同步；走查文档 1009 行已就位 (commit dbbb987)，待用户按 8 阶段 20 步操作", "agent": "orchestrator", "status": "completed"}
+{"ts": "2026-05-26T12:48:43+00:00", "event": "correction", "phase": "unknown", "detail": "option-override: B-031 walkthrough 阶段 3 已闭环，请选择下一步推进方向", "agent": "orchestrator"}
+{"ts": "2026-05-26T12:49:52+00:00", "event": "correction", "phase": "unknown", "detail": "option-override: 选择下一步推进方向（阅过完整 BACKLOG 后）", "agent": "orchestrator"}

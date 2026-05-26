@@ -112,6 +112,7 @@ async def _process_execute(
                     raw_content_id=raw_id,
                     title=str(ctx.get("title") or raw.title or ""),
                     body_text=str(ctx.get("body_text") or raw.body_text or ""),
+                    summary=str(ctx.get("summary") or ""),
                     tags=tags,
                     fingerprint=str(ctx.get("fingerprint") or raw.fingerprint or ""),
                     source_url=raw.source_url,

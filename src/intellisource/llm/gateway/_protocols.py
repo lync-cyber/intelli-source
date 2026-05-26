@@ -34,6 +34,7 @@ class _GatewayProtocol(Protocol):
     _retry_wait: Any
     circuit_breaker: CircuitBreaker | None
     _priority_queue: PriorityQueue | None
+    _session_factory: Any  # Callable[[], async ctx mgr[AsyncSession]] | None
     _CONTEXT_WINDOWS: dict[str, int]
     _DEFAULT_CONTEXT_WINDOW: int
     _INTERACTIVE_TASK_TYPES: frozenset[str]
@@ -61,6 +62,8 @@ class _GatewayProtocol(Protocol):
         call_type: str,
         input_text: str,
     ) -> None: ...
+
+    async def _emit_call_log(self, record: Any) -> None: ...
 
     def estimate_tokens(self, text: str, model: str) -> int: ...
 

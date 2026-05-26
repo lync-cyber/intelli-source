@@ -29,3 +29,4 @@ steps:
         startup: ["yc ", " (yc ", "startup", "founder", "funding", "series a", "seed round"]
         data: ["database", "postgres", "sql", "data engineering", "pipeline"]
         language: ["python", "rust", "golang", " go ", "typescript", "java"]
+  - processor: LLMSummarizer

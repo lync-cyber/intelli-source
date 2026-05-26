@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from typing import Any, cast
 
+from intellisource.llm.cost_tracker import LLMCallRecord
 from intellisource.llm.gateway._extra_body import (
     build_extra_body,
     extract_reasoning_content,
@@ -186,6 +187,23 @@ class _CompleteMixin:
                 prompt_version=cache_key_parts["prompt_version"],
                 result=result,
             )
+
+        if self._cost_tracker is not None or self._session_factory is not None:
+            response_model = str(response.model)
+            record = LLMCallRecord(
+                model=response_model,
+                provider=(
+                    response_model.split("/")[0] if "/" in response_model else "unknown"
+                ),
+                call_type="complete",
+                input_tokens=int(response.usage.prompt_tokens),
+                output_tokens=int(response.usage.completion_tokens),
+                latency_ms=int(elapsed_ms),
+                input_length=len(prompt),
+                output_length=len(content),
+                status="success",
+            )
+            await self._emit_call_log(record)
 
         return result
 

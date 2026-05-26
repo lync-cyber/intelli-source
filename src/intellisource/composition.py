@@ -174,17 +174,25 @@ def build_collector_registry(redis_client: Any | None = None) -> CollectorRegist
 # ---------------------------------------------------------------------------
 
 
-def build_llm_gateway(redis_client: Any) -> LLMGateway:
-    """Assemble LLMGateway with its CircuitBreaker and PriorityQueue.
+def build_llm_gateway(
+    redis_client: Any,
+    session_factory: Any | None = None,
+) -> LLMGateway:
+    """Assemble LLMGateway with its CircuitBreaker, PriorityQueue, and
+    optional session_factory.
 
-    Mirrors the wire-up previously inlined in `intellisource.main._lifespan`
-    so the Worker process can produce an identical LLMGateway.
+    ``session_factory`` is the per-call DB session opener forwarded to
+    ``LLMGateway`` so successful chat / complete / stream calls can persist
+    ``llm_call_logs`` rows through a fresh ``CostTracker`` instance per call
+    (B-042). When ``None`` (legacy unit tests / standalone gateway
+    construction), the gateway runs without log_call persistence.
     """
     circuit_breaker = CircuitBreaker(redis=redis_client)
     priority_queue = PriorityQueue()
     return LLMGateway(
         circuit_breaker=circuit_breaker,
         priority_queue=priority_queue,
+        session_factory=session_factory,
     )
 
 
@@ -286,7 +294,7 @@ def _build_deps_bundle(
 ) -> _DepsBundle:
     """Assemble the four ToolDeps-bound dependencies shared by both processes."""
     del celery_app  # retained in signature for Worker init call-site stability
-    llm_gateway = build_llm_gateway(redis_client)
+    llm_gateway = build_llm_gateway(redis_client, session_factory=session_factory)
     return _DepsBundle(
         llm_gateway=llm_gateway,
         collector_registry=build_collector_registry(redis_client),
