@@ -107,3 +107,10 @@ deps: []
   - r2 inline approve 独立性损失：同 sprint-8r batch 3 r3 先例处理；CI integration 测试（test_raw_content_persist_on_pipeline_done.py 5 cases）将进一步反证 R-001 修复在端到端 PG 路径生效
   - EXP-006 frequency tick: sprint-9 reviewer truncation 2/2，retrospective 立项时需评估是否调整 reviewer maxTurns 或拆分 Layer 2 维度
 - 关联: commit c492cba (T-096 GREEN) + commit 65d443a (T-096 r2 fix + CODE-REVIEW-T-096-r1.md); reviewer subagent a678cd2f13fd2a8ea (truncated); T-096 final = approved
+
+### 2026-05-26 | orchestrator | unknown
+- 触发信号: option-override
+- 问题/假设: B-010 deploy-spec 闭环全部资产在工作区（deploy-spec主卷+changelog+r1/r2 审查报告+CLAUDE.md+PROJECT-STATE.md+BACKLOG+EVENT-LOG+doc-index）。接下来思路？
+- 基线/推荐: Commit B-010 后推进 B-016~B-018 (Recommended)
+- 实际/选择: 仅 Commit B-010，本轮会话结束
+- 偏差类型: preference

@@ -9,7 +9,7 @@ deps: []
 # IntelliSource v1 Backlog
 
 > 维护：本文件梳理 PR #53 / #54 audit 闭环之后的剩余工作。完成项请直接删除条目，新增项按优先级插入。
-> 最后更新：2026-05-25 (post B-007 + B-009 + B-029 + B-030 闭环)
+> 最后更新：2026-05-26 (post B-010 闭环)
 
 ## 优先级语义
 
@@ -33,12 +33,8 @@ deps: []
 > B-009 已闭环（decision-only，reaffirm 选项 ②）— PRD AC-063 [ASSUMPTION] 在 sprint-9 已锁定 YAML-as-source-of-truth；`src/intellisource/api/routers/pipelines.py` 现状即决策实现（list/detail/run，无 CRUD）。完整 workflow CRUD（DB 存储 + 历史版本）保留为 v2+ 范畴，本 backlog 不立项。
 >
 > B-008 已闭环 — `truncate_summary` 接入 LLM summarizer（`summarizer.structured` 模板 + `gateway.complete` + `response_format: json_object`），产出 `{title, summary, timeline, key_points}` 结构化摘要；LLM 失败 / 返回非法 JSON / 缺字段 → 回退字符串截断；PRD AC-023 [ASSUMPTION] 已移除、标 `[x]`；2834 PASS (+7 测试) 不退化
-
-### B-010 Deploy 阶段未启动
-- **关联**：CLAUDE.md 原 backlog ③
-- **现状**：`docs/deploy-spec/` 缺失；docker/ 下已有 Dockerfile + docker-compose + prometheus/，但缺正式 deploy-spec 文档梳理 staging/prod 部署清单、回滚 SOP、健康指标基线
-- **修复方向**：devops 子代理产出 `docs/deploy-spec/deploy-spec-intellisource-v1.md` — 含部署架构图 / 环境变量清单 / smoke 测试 / 回滚步骤 / 监控 SLO
-- **依赖**：B-003、B-005 完成后部署 spec 中的指标章节更准确
+>
+> B-010 已闭环 — `docs/deploy-spec/deploy-spec-intellisource-v1.md` (755 行 + changelog) 产出并通过 r1+r2 双轮审查；4 模板必填段全覆盖；dev/staging/prod 三环境矩阵；zhparser DB 镜像要求 + 11 项指标家族 (B-014) + promtool check rules (B-015) + SBOM + trivy/grype 门禁 + git checkout+rebuild 回滚方案 + run_pipeline 唯一注册任务 smoke + queue.priority.* 实际队列名 + webhook token 轮换。reviewer r1 needs_revision (2 HIGH + 4 MEDIUM + 3 LOW)；devops r2 修订全部闭环；orchestrator inline r2 audit approved。详见 [docs/reviews/doc/REVIEW-deploy-spec-intellisource-v1-r2.md](reviews/doc/REVIEW-deploy-spec-intellisource-v1-r2.md)
 
 ---
 
