@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from sqlalchemy import update
 
@@ -15,8 +16,20 @@ class TaskChainRepository(BaseRepository[TaskChain]):
 
     _model_class = TaskChain
 
-    async def create(self, task_chain: TaskChain) -> TaskChain:
-        """Persist a pre-constructed TaskChain instance and return it."""
+    async def create(
+        self,
+        task_chain: TaskChain | None = None,
+        **kwargs: Any,
+    ) -> TaskChain:
+        """Persist a TaskChain.
+
+        Callers in higher layers (api/routers) pass scalar kwargs so they do
+        not need to import the ORM class — lint-imports keeps
+        api.routers off storage.models. Internal callers (agent.runner,
+        tests/unit/storage) can still pass a pre-built TaskChain instance.
+        """
+        if task_chain is None:
+            task_chain = TaskChain(**kwargs)
         self._session.add(task_chain)
         await self._session.flush()
         await self._session.refresh(task_chain)

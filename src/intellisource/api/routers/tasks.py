@@ -14,7 +14,6 @@ from intellisource.api.deps import get_db_session
 from intellisource.composition import SOURCE_TYPE_TO_PIPELINE
 from intellisource.scheduler.dispatch import send_task_with_trace
 from intellisource.scheduler.queues import PRIORITY_QUEUES
-from intellisource.storage.models import TaskChain
 from intellisource.storage.repositories.source import SourceRepository
 from intellisource.storage.repositories.task import TaskRepository
 from intellisource.storage.repositories.task_chain import TaskChainRepository
@@ -170,15 +169,13 @@ async def trigger_collect(
     # session so the FK is visible to subsequent INSERTs.
     task_chain_repo = TaskChainRepository(session)
     await task_chain_repo.create(
-        TaskChain(
-            id=uuid.UUID(task_chain_id),
-            pipeline_name="collect",
-            status="pending",
-            trigger_type="manual",
-            execution_mode="parallel",
-            total_steps=len(source_uuids),
-            completed_steps=0,
-        )
+        id=uuid.UUID(task_chain_id),
+        pipeline_name="collect",
+        status="pending",
+        trigger_type="manual",
+        execution_mode="parallel",
+        total_steps=len(source_uuids),
+        completed_steps=0,
     )
 
     tasks: list[Any] = []
