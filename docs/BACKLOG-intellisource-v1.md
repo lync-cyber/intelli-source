@@ -124,6 +124,21 @@ deps: []
   - fail 时阻塞 merge
 - **验证**：CI 输出 `162 collected, 0 deselected, 47+ docker PASS`；smoke job 显示 api 健康
 
+### B-038 framework-feedback: 提议框架默认采用 CLAUDE.md 单一事实来源
+- **优先级**：P3（项目本地已落地，feedback 是为防止 upgrade 漂移）
+- **关联**：本次会话用户决策"删除 PROJECT-STATE.md，CLAUDE.md 为单一事实来源"
+- **现状**：CataForge 框架默认双文件状态机制 — CLAUDE.md（人面向）+ .cataforge/PROJECT-STATE.md（框架镜像）。两份内容必须手工同步，是真实的双写负担 + 不一致风险源。本项目已删除 PROJECT-STATE.md 并改写 4 处硬引用（framework.json migration_checks / scaffold-manifest.json / self-update SKILL.md / 状态持久化机制说明）。
+- **风险**：下次 `cataforge upgrade apply` 会从上游 scaffold 重新引入 PROJECT-STATE.md + migration_checks 改回，本地决策被覆盖。`cataforge upgrade rollback --from <ts>` 可救但需要每次 upgrade 后手动回滚 4 处。
+- **修复方向（feedback 内容）**：
+  - CataForge framework 改成 CLAUDE.md / AGENTS.md 单一事实来源（去 PROJECT-STATE.md 双写）
+  - 或：把 PROJECT-STATE.md 改为可选（migration_checks 不强制 + scaffold-manifest 标 `optional: true`），项目可按需启用
+- **执行路径**：
+  - `uv run cataforge feedback --type=suggest --title="..." --body="..."`（framework-feedback skill）
+  - 或直接在上游 CataForge repo 开 issue + PR
+- **验证**：上游接受后，本项目下次 `cataforge upgrade apply` 不再重新引入 PROJECT-STATE.md
+
+---
+
 ### B-037 worker async/sync bridge hardening
 - **优先级**：P0（**阻塞 B-031 阶段 1 步骤 4 + 阶段 5 步骤 12-14 全部 + 任何依赖 worker 真消费的步骤**）
 - **关联**：CORRECTIONS-LOG 修正 #12（阶段 1 步骤 4）；scheduler/tasks.py `_run_sync` + scheduler/boot.py worker_process_init + scheduler/idempotency.py Redis 客户端

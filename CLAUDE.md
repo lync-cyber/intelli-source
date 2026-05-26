@@ -71,6 +71,6 @@
 ## 框架机制
 - Agent 编排: orchestrator 通过 agent-dispatch skill 激活子代理
 - DEV 阶段: orchestrator 通过 tdd-engine 编排 RED/GREEN/REFACTOR
-- 状态持久化: CLAUDE.md（人面向） + .cataforge/PROJECT-STATE.md（框架镜像） + docs/
+- 状态持久化: CLAUDE.md（单一事实来源，orchestrator 专属写入区） + docs/
 - 写权限: 项目状态由 orchestrator 独占；其他 Agent 只写 docs/ 或 src/
 - 统一配置 `.cataforge/framework.json`：`upgrade.source` 保留 / `upgrade.state` 保留 / `features` `migration_checks` 全量覆盖
