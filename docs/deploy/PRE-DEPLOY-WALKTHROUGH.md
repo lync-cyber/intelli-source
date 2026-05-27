@@ -636,7 +636,7 @@ docker compose -f docker/docker-compose.yml exec worker \
 
 **Pass 标准**：worker `registered` 列表非空，beat 至少有一条 schedule，三优先级队列就绪。
 
-☐ 通过 / 签字：__________
+☑ 通过 / 签字：lync-cyber 2026-05-27 — worker healthy（celery status 健康检查），`registered=[run_pipeline]`，5 队列就绪（priority.{high,normal,low} + trigger.{scheduled,manual}）；beat 日志 `beat schedule bootstrap complete — 2 entries loaded`（GitHub Trending 3600s / Hacker News 1800s）。**修正**：发现 2 项设计缺口，inline 修复 — NO-GO #27 worker/beat 继承 Dockerfile HEALTHCHECK 跑 curl http://localhost:8000/health（Celery 容器无 HTTP 端口），worker 改 `celery status`、beat 用 `healthcheck: disable: true`；NO-GO #28 beat 进程不接 `worker_process_init` 信号导致 `_bootstrap_beat_schedule` 永不运行，加 `beat_init` 信号 handler + beat 服务命令切到 `-A intellisource.scheduler.boot`。2797 PASS unit (+5 测试)；详见 [CORRECTIONS-LOG B-031 #27-28](../reviews/CORRECTIONS-LOG.md)。
 
 ---
 
@@ -700,7 +700,7 @@ docker compose -f docker/docker-compose.yml exec db \
 
 **Pass 标准**：push_records 落库 status=sent、重复推送被去重、PII 完全脱敏。
 
-☐ 通过 / 签字：__________
+☑ 通过 / 签字：2026-05-27 — mailhog + Gmail SMTP 双路径全 PASS。**修正 #29 inline**：[src/intellisource/distributor/channels/email.py:`from_env`](../../src/intellisource/distributor/channels/email.py) 加 `IS_SMTP_USE_TLS` 环境变量读取（默认 `true` 保持向后兼容；`false`/`0`/`no` 关 implicit TLS 适配 mailhog/mailpit 1025 与 Gmail 587 STARTTLS auto-negotiate 路径）。**docker-compose**：[docker/docker-compose.yml](../../docker/docker-compose.yml) 新增 `mailhog` 服务（profile=`walkthrough`，SMTP 1025 + Web UI 8025）。**Mailhog 路径**：sub=`688f3a1e-...` channel=email match_rules.tags=[ai] → distribute → mailhog UI total=1（Subject: "Launch HN: Minicor..."）+ push_records status=sent + recipient_id=`a***@example.com` PII mask；call2 dedup skipped=1。**Gmail 真实邮箱路径**：sub=`5def1ce3-...` channel_config.to_addr=`lhcnihaoa@qq.com` → smtp.gmail.com:587 + STARTTLS → 用户确认 QQ 邮箱收到 + push_records recipient_id=`l***@qq.com` + call2 dedup + call3 tag mismatch matched=0。**Doc drift 并入 B-034**：(1) walkthrough 文档示例 channel_config 用 `"to"`，schema 实际 `"to_addr"`；(2) walkthrough 验证 #3 SQL 查 `push_records.message_preview`，schema 无此列，PII 实际落 `recipient_id`（已在 facade._record_push → _mask_recipient 路径 mask）；(3) walkthrough 用 `POST /pipelines/push-optimize/run` 入口，但 push-optimize.yaml `steps: []` 不自动触发推送，真实推送链路在 worker manual-collect/scheduled-collect pipeline 的 `tool: distribute` step（本次走 facade.distribute 直调验证同一代码路径）；(4) walkthrough header 用 `Authorization: Bearer`，AuthMiddleware 实际读 `X-API-Key`。
 
 ---
 
@@ -731,7 +731,7 @@ curl -s -o /dev/null -w "%{http_code}\n" \
 
 **Pass 标准**：正确 signature 返回 echostr 原文；错误 signature 403；POST 消息正常 ack `success`。
 
-☐ 通过 / 签字 / N/A：__________
+☑ 通过 / 签字 / N/A：2026-05-27 — WeChat 路径全 PASS（真实公众号 token）。验证：(1) GET /webhooks/wechat 正确 signature `342aca7c637dea6b6f32fe5ef079c6e8e5b227d7` → **200** + body 原样回显 `hello-wechat-walkthrough`；(2) GET 错误 signature → **403** + body `forbidden`；(3) POST text msg `<MsgType>text</MsgType><Content>ping</Content>` → **200** + body `<xml><Content><![CDATA[success]]></Content></xml>` 同步 ack 符合微信公众号协议。WeWork 路径标 **N/A — 未提供 corp_id+secret+aes_key**（同套 signature 算法 + AES 加密层，代码路径在 [src/intellisource/api/webhook_crypto.py](../../src/intellisource/api/webhook_crypto.py) 由 WeComCrypto 实现，单测覆盖 261/261 PASS）。
 
 ---
 

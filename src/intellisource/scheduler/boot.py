@@ -10,7 +10,7 @@ import logging
 import os
 from typing import Any
 
-from celery.signals import worker_process_init, worker_process_shutdown
+from celery.signals import beat_init, worker_process_init, worker_process_shutdown
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -304,6 +304,22 @@ def _bootstrap_beat_schedule(factory: async_sessionmaker[AsyncSession]) -> None:
     setattr(_module_celery_app, "_scheduler_manager", scheduler_manager)
 
 
+def beat_init_handler(**_: Any) -> None:
+    """Celery beat_init signal entry point.
+
+    The beat process does not fire `worker_process_init`, so without this
+    handler the DB-driven `beat_schedule` would never be populated and Beat
+    would idle indefinitely. This mirrors the worker init path but skips
+    the full composition graph — Beat only needs the session_factory to
+    read Source rows.
+    """
+    logger.info("beat_init signal received — bootstrapping schedule from DB")
+    factory = init_worker_session_factory()
+    _bootstrap_beat_schedule(factory)
+    entry_count = len(_module_celery_app.conf.beat_schedule)
+    logger.info("beat schedule bootstrap complete — %d entries loaded", entry_count)
+
+
 def worker_shutdown_handler(**_: Any) -> None:
     """Dispose worker engine on shutdown."""
     global _worker_engine, _celery_tasks
@@ -330,3 +346,7 @@ if not getattr(worker_process_init, "_intellisource_connected", False):
     worker_process_init.connect(worker_init_handler)
     worker_process_shutdown.connect(worker_shutdown_handler)
     worker_process_init._intellisource_connected = True
+
+if not getattr(beat_init, "_intellisource_connected", False):
+    beat_init.connect(beat_init_handler)
+    beat_init._intellisource_connected = True

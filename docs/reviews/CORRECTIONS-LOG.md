@@ -484,3 +484,50 @@ deps: []
   - SCWS 1.2.3 源码下载依赖 xunsearch.com 可用性 — 如失联 docker build 会 fail，是潜在风险点（参 B-032 research note §5 R-2）
 - 关联: B-032 PR #65 复合镜像；docs/BACKLOG-intellisource-v1.md#b-035；deploy-spec §3 CI/CD 流水线 B-013/B-014/B-015 同类强制门禁要求
 
+### 2026-05-27 | orchestrator | B-031 阶段 5 步骤 12 真起栈走查 (闭环)
+
+- 触发信号: B-035 PR push 后，用户决定立即推进 B-031 阶段 5 步骤 12（worker+beat 起栈 & Celery 自检），过程中触发 2 项设计/配置缺口
+- 修正 #27 — worker/beat 继承 Dockerfile HEALTHCHECK 跑 curl localhost:8000:
+  - 根因: [docker/Dockerfile](../../docker/Dockerfile) 定义 `HEALTHCHECK CMD curl -fsS http://localhost:8000/health || exit 1` 是 API 容器的合法值，但 docker-compose worker / beat 服务 override 了 `CMD`（跑 celery），未 override `HEALTHCHECK` → 健康检查 perpetually fail（worker `FailingStreak=339`、beat 同样跑 curl 但容器内无 HTTP server）。第一次尝试改用 `celery -A intellisource.scheduler.boot inspect ping --timeout 5 2>&1 | grep -q pong` 仍超 10s timeout — 根因 `grep -q` 命中即退出，pipe 中断 → Python Celery SIGPIPE cleanup + `--timeout 5` 累加超 10s。
+  - 修复: [docker/docker-compose.yml](../../docker/docker-compose.yml) worker `healthcheck.test` 改为 `["CMD", "celery", "-A", "intellisource.scheduler.boot", "status"]`（exit 0 = workers online；无 pipe 干净退出），timeout 10s→15s；beat `healthcheck.disable: true`（beat 进程无可外暴 endpoint，靠 worker 与 broker 间接验证）
+- 修正 #28 — beat 进程不接 worker_process_init 信号致 schedule 永空:
+  - 根因: [src/intellisource/scheduler/boot.py](../../src/intellisource/scheduler/boot.py) `_bootstrap_beat_schedule` 仅在 `worker_process_init` 信号 handler 里调用；beat 进程跑 `celery beat`，不发 worker 信号，且 docker-compose beat 命令用 `-A intellisource.scheduler.celery_app` 而非 `.boot` → `celery_app.conf.beat_schedule` 始终空，beat idle 无周期任务（即使 DB 有 2 行 `schedule_interval` 1800s/3600s 的 source）。`celery inspect scheduled` 显示 worker ETA 队列空（误判 OK，实则 beat 根本不发任务）
+  - 修复:
+    - [src/intellisource/scheduler/boot.py](../../src/intellisource/scheduler/boot.py) 新增 `beat_init_handler(**_)`：`init_worker_session_factory() → _bootstrap_beat_schedule(factory)`；module-level `if not getattr(beat_init, "_intellisource_connected", False): beat_init.connect(beat_init_handler)` 幂等连接守卫，模式同 `worker_process_init` 那段；INFO log 输出 entry count
+    - [docker/docker-compose.yml](../../docker/docker-compose.yml) beat command 改为 `-A intellisource.scheduler.boot beat`，让 celery CLI 在启动时 import boot 触发 module-level connect
+    - 新增 [tests/unit/scheduler/test_beat_init_handler.py](../../tests/unit/scheduler/test_beat_init_handler.py) 5 tests / 3 test class GREEN — 验证 signal 已注册 + handler 调用 init_worker_session_factory + 传 factory 给 _bootstrap_beat_schedule + 异常透传 + 幂等守卫不重复 register
+- 验证:
+  - 5 services up：api+db+redis healthy，worker healthy（celery status），beat running（healthcheck disable，靠日志验证）
+  - beat 日志：`INFO/MainProcess] beat_init signal received — bootstrapping schedule from DB` + `beat schedule bootstrap complete — 2 entries loaded`
+  - worker `inspect registered` = `[run_pipeline]`；`inspect active_queues` = 5 队列（priority.{high,normal,low} + trigger.{scheduled,manual}）
+  - 2797 PASS unit (+5 测试 vs 2792 baseline)；mypy --strict + ruff + lint-imports 8/8 clean
+- 偏差类型: design-gap（worker 信号 vs beat 信号路径设计未覆盖 beat 进程）+ config-drift（compose healthcheck 未隔离 worker/beat 与 API 的差异）
+- 影响:
+  - 解锁 B-031 阶段 5 步骤 13-14（订阅+推送闭环 / webhook 入站）
+  - 修正 #27 暴露的"override CMD 但忘 override HEALTHCHECK"模式在 deploy-spec 审查清单未覆盖；建议立 B-036 carryover 增加"compose service override CMD 时审查 HEALTHCHECK 兼容性"
+  - 修正 #28 暴露 beat 路径的 unit/integration 测试覆盖率为 0；B-031 walkthrough 前未发现的原因是单测全部直接调 `_bootstrap_beat_schedule` 而非通过 signal 链路
+- 关联: B-031 walkthrough §阶段 5 步骤 12；boot.py / docker-compose.yml / tests/unit/scheduler/test_beat_init_handler.py
+
+
+### 2026-05-27 | orchestrator | B-031 阶段 5 步骤 13-14 真起栈走查 (闭环)
+
+- 触发信号: B-031 阶段 5 步骤 12 闭环后，用户决定立即推进步骤 13（订阅+推送闭环）+ 步骤 14（webhook 入站），过程中触发 1 项 SMTP 配置缺口 inline 修
+- 修正 #29 — EmailDistributor 硬编码 use_tls=True 无法适配 mailhog/maildev plain SMTP 与 Gmail 587 STARTTLS 路径:
+  - 根因: [src/intellisource/distributor/channels/email.py](../../src/intellisource/distributor/channels/email.py) `EmailDistributor.from_env` 直接 `return cls(smtp_host=..., smtp_port=..., smtp_user=..., smtp_password=...)` — 不读 TLS 偏好，构造器默认 `use_tls=True`（implicit TLS，需 465 端口）。本地 walkthrough 用 mailhog 1025 是 plain SMTP，TLS 协商失败；Gmail 587 是 STARTTLS（不是 implicit TLS）。`aiosmtplib.send` 当 `use_tls=True` + 端口 587 时 TLS 协商失败被 `attempt_fn` 吞为 (False, error)，但 DistributorFacade `try: await channel.distribute(); sent+=1` 看 `channel.distribute()` 返 `{"status":"failed",...}` 不抛 → facade 误判 sent=1 写 push_records（payload 实际未送达）。
+  - 修复:
+    - [src/intellisource/distributor/channels/email.py](../../src/intellisource/distributor/channels/email.py) `from_env`: 加 `os.environ.get("IS_SMTP_USE_TLS", "true").strip().lower()` 读取，`use_tls = use_tls_str in {"true", "1", "yes"}` 默认 `true` 向后兼容；`false`/`0`/`no` 关 implicit TLS，aiosmtplib 默认 `start_tls=None` auto-detect 走 STARTTLS 路径
+    - [docker/.env.example](../../docker/.env.example) + [docker/.env](../../docker/.env) 新增 `IS_SMTP_USE_TLS` 字段（example 默认 `true`，walkthrough 现场切 `false` 配 mailhog/Gmail 587）
+    - [docker/docker-compose.yml](../../docker/docker-compose.yml) 新增 `mailhog` 服务（profile=`walkthrough`，`mailhog/mailhog:v1.0.1` 镜像，端口 1025 SMTP + 8025 Web UI）
+- 验证:
+  - distributor 单测 339/339 PASS（含 test_email.py 21 tests）+ mypy --strict + ruff clean，2797 PASS unit 基线保持
+  - 步骤 13 mailhog 路径：sub `688f3a1e-...` match=[ai] → facade.distribute call1 sent=1 (mailhog UI total=1 "Launch HN: Minicor (YC P26) – Windows desktop automations at scale" To: alice@example.com) / call2 dedup skipped=1 / push_records status=sent recipient_id=`a***@example.com` PII mask
+  - 步骤 13 Gmail 真实邮箱路径：sub `5def1ce3-...` to_addr=`lhcnihaoa@qq.com` → smtp.gmail.com:587 STARTTLS auto-detect → 用户确认 QQ 邮箱收到 + push_records recipient_id=`l***@qq.com` PII mask + call2 dedup skipped=1 + call3 content tags=[web] vs sub.match_rules=[ai] → matched=0 matcher 正确
+  - 步骤 14 WeChat webhook（真实公众号 token 32 字符注入 IS_WECHAT_WEBHOOK_TOKEN）：GET 正确 signature `342aca7c637dea6b6f32fe5ef079c6e8e5b227d7` → 200 + body 原样回显 `hello-wechat-walkthrough` / GET 错误 signature → 403 + `forbidden` / POST `<MsgType>text</MsgType><Content>ping</Content>` → 200 + `<xml><Content><![CDATA[success]]></Content></xml>` 同步 ack 符合微信公众号协议
+  - 步骤 14 WeWork 标 N/A（未提供 corp_id+secret+aes_key，同套 signature 算法 + WeComCrypto AES 加密层在 [src/intellisource/api/webhook_crypto.py](../../src/intellisource/api/webhook_crypto.py) 单测 261/261 PASS 已覆盖）
+- 偏差类型: config-gap（SMTP 仅暴露 host/port/user/password 不暴露 TLS 偏好，walkthrough 与 prod 不同 SMTP 后端无法切换）+ silent-failure（channel.distribute 异常吞为 status="failed" 不抛，facade 误判 sent — 这条留给 P3 改进，本次未修因影响 mock dedup 测试契约）
+- 影响:
+  - 解锁 B-031 阶段 6-7 步骤 15-20（Prometheus profile / AdaptiveScheduler / trace_id 跨进程 / DB-LLM-Redis 失败注入）
+  - **doc drift 并入 B-034 P3 walkthrough 订正** — 4 项: (a) channel_config 示例用 `"to"` 应为 `"to_addr"`; (b) 验证 SQL 查 `message_preview` 列不存在，PII 落 `recipient_id`; (c) `POST /pipelines/push-optimize/run` 入口 push-optimize.yaml `steps: []` 不触发推送（实际推送链路在 worker manual-collect/scheduled-collect 的 `tool: distribute` step）; (d) auth header 用 `Authorization: Bearer` 应为 `X-API-Key`
+  - **silent-failure carryover**: channel.distribute 返 `{"status":"failed",...}` 不抛 → facade sent 计数误差；建议立 B-048 P3 让 channel 失败抛 ChannelSendError 让 facade try/except 捕获正确 record skipped
+- 关联: B-031 walkthrough §阶段 5 步骤 13-14；email.py from_env + docker-compose.yml mailhog 服务 + docker/.env IS_SMTP_USE_TLS；B-034 doc drift carryover；B-048 silent-failure carryover
+

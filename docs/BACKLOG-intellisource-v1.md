@@ -98,8 +98,8 @@ deps: []
 
 ### B-034 PRE-DEPLOY-WALKTHROUGH 文档订正
 - **优先级**：P3
-- **关联**：CORRECTIONS-LOG 修正 #5-#7 影响 / walkthrough 步骤 2 期望与实际偏差 / 阶段 2 步骤 6-8 暴露 3 项新 drift
-- **现状**：步骤 2 "Pass 标准: /health.status == healthy" 与 celery 健康依赖 worker（步骤 12 才起）冲突；OpenAPI 端点假设公开但实际 X-API-Key 中间件保护；步骤 6 期望 `content-process.mode=strict` 实际 `batch` + manual-collect.steps 期望含 `params` 实际 `{}`；步骤 7 期望 trace_id 进 worker log 但 stdlib formatter 不渲染 contextvar（实际机制 OK，见 B-040）；步骤 8 期望 `/llm/stats` 不需 API key 实际需要
+- **关联**：CORRECTIONS-LOG 修正 #5-#7 影响 / walkthrough 步骤 2 期望与实际偏差 / 阶段 2 步骤 6-8 暴露 3 项新 drift / 阶段 5 步骤 13 暴露 4 项新 drift
+- **现状**：步骤 2 "Pass 标准: /health.status == healthy" 与 celery 健康依赖 worker（步骤 12 才起）冲突；OpenAPI 端点假设公开但实际 X-API-Key 中间件保护；步骤 6 期望 `content-process.mode=strict` 实际 `batch` + manual-collect.steps 期望含 `params` 实际 `{}`；步骤 7 期望 trace_id 进 worker log 但 stdlib formatter 不渲染 contextvar（实际机制 OK，见 B-040）；步骤 8 期望 `/llm/stats` 不需 API key 实际需要；步骤 13 channel_config 示例字段名 + 验证 SQL 列名 + 推送入口 + auth header 全错
 - **修复方向**：
   - 步骤 2 改 `Pass 标准: /health.status in {"healthy", "degraded"}` + 注释 "celery 在步骤 12 worker 起栈后转 healthy"
   - 步骤 2 OpenAPI curl 加 `-H "X-API-Key: $IS_API_KEY"`，§0.2 增加 "IS_API_KEY 必填，对 /openapi.json + /docs + /api/v1/* 全部生效"
@@ -107,6 +107,11 @@ deps: []
   - 步骤 6 期望 JSON 同步实际值：`content-process.mode=batch` / manual-collect 详情 steps `params:{}`（修正 #15 后）
   - 步骤 7 trace_id 子项加注 "依赖 B-040 闭环后生效；当前可跳过此项，专项验证留给步骤 17 F-23 回归"
   - 步骤 8 修正 "`/llm/stats` 不带 API key 也能查" → "所有 /api/v1/* 端点均需 X-API-Key（webhooks/health/metrics/openapi/docs/redoc 除外）"
+  - 步骤 13 channel_config 示例 `"to":"test@example.com"` → `"to_addr":"test@example.com"`（_extract_recipient 读 to_addr）
+  - 步骤 13 验证 SQL #3 `WHERE message_preview ~ '...'` → `WHERE recipient_id ~ '@.+\\.'`（push_records 表无 message_preview 列，PII 落 recipient_id 由 facade._record_push → _mask_recipient 路径 mask 后存）
+  - 步骤 13 推送入口 `POST /pipelines/push-optimize/run` → 改为 `POST /pipelines/manual-collect/run` 走完整 collect→process→distribute 链路；或注 "push-optimize.yaml steps: [] 是 flexible LLM agent 入口，本地走查可改为在 worker 容器内直调 `from intellisource.composition import build_worker_composition; ...; await wc.distributor.distribute(content_id=..., subscription_id=...)` 验证 facade 真路径"
+  - 步骤 13 所有 curl 把 `-H 'Authorization: Bearer $IS_API_KEY'` → `-H "X-API-Key: $IS_API_KEY"`
+  - 步骤 13 §0.2 增加 "若用 mailhog 做本地 SMTP receiver，须设 `IS_SMTP_HOST=mailhog / IS_SMTP_PORT=1025 / IS_SMTP_USE_TLS=false`，并启 walkthrough profile：`docker compose -f docker/docker-compose.yml --profile walkthrough up -d mailhog`"
 
 > B-035 已闭环 (本次会话) — `.github/workflows/ci.yml` 改造：(1) `integration-tests` job 用 `docker/setup-buildx-action@v3` + `docker/build-push-action@v5` 预 build `intellisource/db:pg16-pgvector-zhparser`（cache type=gha,scope=db-image 跨 job/run 复用）→ 设 `IS_FORCE_DOCKER_TESTS=1` + `IS_TEST_DB_IMAGE=intellisource/db:pg16-pgvector-zhparser` 让 conftest 不 deselect docker 测试且用 composite image；(2) 新增 `docker-compose-smoke` job — 复用 cached image，`cp .env.example .env` + sed 填 channel 占位（兼 B-033 hard-fail），`docker compose up -d --wait db redis migrate api` 借 compose 自身 healthcheck + service_completed_successfully 等待，三个 SQL 探针验证 zhparser 真路径活：`SELECT extname FROM pg_extension WHERE extname='zhparser'` / `SELECT cfgname FROM pg_ts_config WHERE cfgname='zhparser'` / `to_tsvector('zhparser', '北京天安门搜索引擎')` 返多 lexeme（防 'simple' 回退）；(3) failure 时 dump db/migrate/api logs；(4) `if: always()` 跑 down -v 清理。预期 CI 首次 1-2 min build 镜像，二次 cache hit secs；smoke job 与 integration-tests job 并行跑独立 stack 互不干扰。**待 PR push 后 GitHub Actions 真跑验证**。
 
@@ -215,6 +220,26 @@ deps: []
   - F-01: collect_tasks fixture insertion 顺序修正
   - F-02/F-03: async fixture 模式重构（参 B-037 lazy redis 经验，可能需要 per-test loop scope）
 - **验证**：CI Integration Tests job 0 failed 0 error，163 PASS
+
+### B-049 distributor channel 失败 silent-success — facade.distribute 误判 sent
+- **优先级**：P3
+- **关联**：B-031 阶段 5 步骤 13 carryover；CORRECTIONS-LOG 修正 #29 silent-failure 说明
+- **现状**：[src/intellisource/distributor/facade.py:135](../src/intellisource/distributor/facade.py)
+  ```python
+  try:
+      await channel.distribute(push_content, sub)
+      sent += 1
+      _record_push_outcome("sent", channel=channel_name)
+  except Exception:
+      ...
+      skipped += 1
+  ```
+  channel.distribute 内部 SMTP/WeChat/WeWork 异常被 attempt_fn 吞为 `(False, error, raw)`，channel 返 `{"status":"failed", "error":...}` 不抛 → facade try/except 看不见失败 → sent++ + push_records 写 status=sent（payload 实际未送达）。本次 walkthrough 步骤 13 因 use_tls 错配触发：mailhog total=0 但 facade 报 sent=1 / push_records 写 sent — 用户视角"成功"实际未送达
+- **修复方向**：
+  - A: 让 channel.distribute 在 succeeded=False 时抛 `ChannelSendError(error_msg)`，facade try/except 捕获 → skipped++ 写 status=failed；改 EmailDistributor / WeChatDistributor / WeWorkDistributor 三个 channel + 同步改 facade 单测期望
+  - B: facade.distribute 检查 channel 返回 `result.get("status") == "failed"` 而非靠异常，对返 failed 的不写 status=sent；不改 channel 契约
+  - 推荐 A：异常路径更清晰，silent-failure 反模式（"不抛错就当成功"）应根除；不过涉及 channel.distribute 调用方较多，需要全量审查 caller
+- **验证**：mock 一个返 `{"status":"failed"}` 的 channel，调 facade.distribute，断言 push_records 写 status=failed 且 facade 返 sent=0 skipped=1（当前会断言失败）
 
 ---
 
