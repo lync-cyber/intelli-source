@@ -83,15 +83,7 @@ deps: []
 
 > 来源：B-031 PRE-DEPLOY-WALKTHROUGH 阶段 0 步骤 1+2 触发 7 项 NO-GO，部分 inline 修复（修正 #1~#6 已落地），部分需要架构/文档层面跟进。完整修正记录见 [CORRECTIONS-LOG 2026-05-26 阶段 0 步骤 1/2](reviews/CORRECTIONS-LOG.md)。
 
-### B-032 制作 pgvector + zhparser 复合 DB 镜像
-- **优先级**：P1
-- **关联**：CORRECTIONS-LOG 修正 #5；deploy-spec §2 R-005 "zhparser DB 镜像要求"
-- **现状**：当前 docker-compose 用裸 `pgvector/pgvector:pg16`，不含 zhparser。migration 001 的 `CREATE EXTENSION IF NOT EXISTS zhparser` 已包入 `DO ... EXCEPTION` 块优雅降级，FTS 退到 `to_tsvector('simple', ...)`。代码层面（storage/vector.py）**目前从未引用 zhparser**，但 deploy-spec 把 zhparser 作为中文分词目标。
-- **修复方向**：
-  - 选 A：新建 `docker/db.Dockerfile` 基于 `pgvector/pgvector:pg16` + 编译安装 SCWS + zhparser；docker-compose `db` 服务改为 `build: { context: .., dockerfile: docker/db.Dockerfile }`
-  - 选 B：寻找现成 pgvector+zhparser 公开镜像（社区 fork）
-  - 修完后把 migration 001 的 `EXCEPTION` 包裹去掉，让 zhparser 重新成为硬约束；同步把 storage/vector.py FTS configuration 从 `simple` 切到 `zhparser`
-- **验证**：步骤 1 `SELECT extname FROM pg_extension` 输出含 `zhparser`；步骤 10 中文 query 走分词路径
+> B-032 已闭环 (本次会话, path A1) — research skill 调研确认公开域不存在 pgvector + zhparser 复合镜像（[docs/research/b032-pgvector-zhparser-image-options.md](research/b032-pgvector-zhparser-image-options.md)）；选 A1 (pgvector 基底 + 加 zhparser 层) 实施。新增 [docker/db.Dockerfile](../docker/db.Dockerfile)（SCWS 1.2.3 源码编译 + amutu/zhparser master 编译，参考 abcfy2/docker_zhparser）；[docker/docker-compose.yml](../docker/docker-compose.yml) db 服务 image→build；[alembic/versions/001_initial_schema.py](../alembic/versions/001_initial_schema.py) 移除 DO/EXCEPTION 包裹 + 新增 CREATE TEXT SEARCH CONFIGURATION zhparser + ALTER ADD MAPPING；[storage/vector.py](../src/intellisource/storage/vector.py) `'simple'` → `'zhparser'` 4 处；[tests/integration/conftest.py](../tests/integration/conftest.py) 删 zhparser monkeypatch + 改用 `intellisource/db:pg16-pgvector-zhparser` + lazy `docker build` 兜底；[tests/unit/storage/test_migration.py](../tests/unit/storage/test_migration.py) +2 守卫测试（防 EXCEPTION 包裹回归 / 验证 TS CONFIG 创建）。2792 PASS unit 不退化 / mypy --strict + ruff + lint-imports 8/8 clean / docker compose config 解析通过。**真起栈验证待 user**：首次 `make up` 会 build 镜像（1-2 min）后跑 `SELECT extname FROM pg_extension WHERE extname='zhparser'` 应返 1 行；中文 query `/search` 走分词路径。
 
 ### B-033 composition 对未配置渠道容忍
 - **优先级**：P2

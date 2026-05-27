@@ -1,7 +1,10 @@
 services:
 
   db:
-    image: pgvector/pgvector:pg16
+    build:
+      context: ..
+      dockerfile: docker/db.Dockerfile
+    image: intellisource/db:pg16-pgvector-zhparser
     environment:
       POSTGRES_USER: ${IS_DB_USER:-intellisource}
       POSTGRES_PASSWORD: ${IS_DB_PASSWORD:-intellisource}

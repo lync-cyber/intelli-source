@@ -435,3 +435,27 @@ deps: []
   - 长期：integration mock fixtures 应优先用真 dataclass 实例（而非 dict + duck-typing）以与生产契约共享类型
 - 关联: tests/integration/test_pg_vector_search.py + Makefile + scripts/contract_check.py（新）+ CLAUDE.md Learnings Registry；PR #64 commit 接续 c8b69f4
 
+### 2026-05-27 | orchestrator | B-032 闭环
+
+- 触发信号: backlog P1 carryover 推进（用户选 "先清 P1 carryover（B-032 / B-035）"）
+- 问题/假设: `pgvector/pgvector:pg16` 裸基底镜像不含 zhparser，migration 001 用 `DO $$ ... EXCEPTION WHEN feature_not_supported` 包裹优雅降级使 FTS 永远走 `simple` parser；deploy-spec §2 R-005 把 zhparser 列为硬约束，与现状矛盾。中文 FTS 路径在 storage/vector.py 永远不真正分词。
+- 路径调研: research skill (web-search) 调研 选 A (自建 Dockerfile) vs 选 B (现成复合镜像)，结论 **公开域不存在 pgvector + zhparser 复合镜像**，B 不可行。详见 [docs/research/b032-pgvector-zhparser-image-options.md](../research/b032-pgvector-zhparser-image-options.md)。用户选项决策：A1 (基底=pgvector + 加 zhparser 层) + FTS 切换一次到位
+- 修复:
+  - 新增 [docker/db.Dockerfile](../../docker/db.Dockerfile) — `FROM pgvector/pgvector:pg16` 基底，layered apt install build-essential + postgresql-server-dev-16 → 编译 SCWS 1.2.3 (`./configure --prefix=/usr/local && make && make install`) → clone amutu/zhparser master 并 `SCWS_HOME=/usr/local make && make install` → 卸载 build tools + ldconfig；参考 [abcfy2/docker_zhparser Dockerfile.debian](https://github.com/abcfy2/docker_zhparser/blob/main/Dockerfile.debian)
+  - [docker/docker-compose.yml](../../docker/docker-compose.yml) `db` 服务 `image: pgvector/pgvector:pg16` → `build: { context: .., dockerfile: docker/db.Dockerfile }` + `image: intellisource/db:pg16-pgvector-zhparser`
+  - [alembic/versions/001_initial_schema.py](../../alembic/versions/001_initial_schema.py) 移除 `DO $$ BEGIN CREATE EXTENSION zhparser; EXCEPTION WHEN feature_not_supported ...` 包裹 → 直接 `CREATE EXTENSION IF NOT EXISTS zhparser`；新增 `CREATE TEXT SEARCH CONFIGURATION zhparser (PARSER = zhparser) + ALTER ... ADD MAPPING FOR n,v,a,i,e,l,j WITH simple`（用 `DO $$ ... IF NOT EXISTS (SELECT 1 FROM pg_ts_config WHERE cfgname='zhparser')` 守 idempotency，因 PG 无 `CREATE TS CONFIG IF NOT EXISTS` 原生语法）；downgrade 同步 `DROP TEXT SEARCH CONFIGURATION IF EXISTS zhparser`
+  - [src/intellisource/storage/vector.py](../../src/intellisource/storage/vector.py) `_KEYWORD_SQL_TMPL` + `_HYBRID_SQL_TMPL` `to_tsvector('simple', body_text)` + `websearch_to_tsquery('simple', :query)` 4 处 `'simple'` → `'zhparser'`
+  - [tests/integration/conftest.py](../../tests/integration/conftest.py) 移除 `_patch_alembic_for_zhparser` monkeypatch（已无必要）；container image 改为 `IS_TEST_DB_IMAGE` env var 默认 `intellisource/db:pg16-pgvector-zhparser`；新增 `_docker_image_exists` + `_build_test_db_image` 兜底，session fixture 启动前 lazy `docker build -t <image> -f docker/db.Dockerfile .` 一次（image 已存在则跳过）
+  - [tests/unit/storage/test_migration.py](../../tests/unit/storage/test_migration.py) 新增 `test_zhparser_no_exception_wrapper`（防 EXCEPTION 包裹回归）+ `test_creates_zhparser_text_search_configuration`（验证 CREATE TS CONFIG zhparser + ALTER ADD MAPPING）
+- 验证:
+  - **单测**: `uv run pytest tests/unit` → **2792 PASS** / 5 deselected（基线 2790 + 2 新增 B-032 守卫测试），零回归
+  - **质量门禁**: `mypy --strict storage/vector.py` clean / `ruff check + format` 4 文件 clean / `lint-imports --no-cache` **8/8 KEPT**
+  - **docker compose config**: 解析无报错
+  - **真起栈验证**: 留给 user `make up` (首次会 build 镜像 1-2 min) → `psql -c "SELECT extname FROM pg_extension WHERE extname='zhparser'"` 应返 1 行；`SELECT cfgname FROM pg_ts_config WHERE cfgname='zhparser'` 应返 1 行；中文 query `/search` 应走 zhparser 分词路径
+- 偏差类型: deployment-gap（部署破口闭合）
+- 影响:
+  - deploy-spec §2 R-005 zhparser 硬约束从"占位描述"提升为"代码落地"
+  - integration tests 在 CI 跑通后中文 FTS 路径不再 `simple` 兜底
+  - B-035 (CI 强制跑 docker integration) 现可基于此 image 推进
+- 关联: docs/research/b032-pgvector-zhparser-image-options.md + docs/BACKLOG-intellisource-v1.md#b-032
+
