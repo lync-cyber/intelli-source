@@ -408,3 +408,30 @@ deps: []
   - B-001 SSE RAG-aware stream / B-002 datetime / B-044 LLMSummarizer / B-045 graceful embed fallback 四项连带验证
 - 关联: src/intellisource/api/routers/search.py + src/intellisource/storage/vector.py + src/intellisource/search/hybrid.py + src/intellisource/llm/gateway/_stream.py；docs/deploy/PRE-DEPLOY-WALKTHROUGH.md 步骤 10/11 签字；立 carryover B-046（published_at 上游填充）+ B-047（chat sync sources 提取 + answer 整形）；BACKLOG B-031 阶段 4 步骤 10/11 ☑
 
+### 2026-05-27 | orchestrator | PR #64 CI Integration Tests 回归修复 + 流程改进
+- 触发信号: PR #64 推送后 CI Integration Tests 失败 10 项 + 1 error。对照 main baseline（commit 0f7005e）8 项失败，分析得 **net +3 NEW regression + 1 baseline failure shape change + 1 baseline failure fixed**：
+  - **NEW × 3** (我引入): `tests/integration/test_pg_vector_search.py::{test_search_returns_http_200, test_search_returns_items_field, test_search_returns_items_ordered_by_cosine_similarity}` — `_fake_search_engine` mock 返 `{"items": [{"id": ..., "title": ...}]}` dict shape，但 PR #64 修正 #18 把 router 返回类型 `dict[str, Any]` → `SearchResponse`，FastAPI 现严格按 `EnrichedSearchResult.content_id` 字段验证 → `'content_id' Field required, input: {'id': ...}` 500
+  - **Shape change**: `test_s8r_search_pg::test_post_search_returns_200_with_items` baseline `TypeError: '<' not supported between instances of 'int' and 'NoneType'`（PR #64 修正 #20 `limit: int = 10` 解锁）→ 当前 `TypeError: 'coroutine' object is not iterable`（_fake_get_session 内开 engine + 异步 yield 与 FastAPI lifespan 不兼容；与 baseline cross-loop 同族 pre-existing infrastructure bug，非我引入）
+  - **Fixed**: `test_pg_vector_search::test_search_http_real_engine_keyword_mode` baseline `int < NoneType` 因 #20 修复消失
+- 问题:
+  - 3 个 pg_vector_search mock fixture 用了 legacy dict shape，与生产 `SearchResponse(items=[EnrichedSearchResult(content_id=...)])` 契约不一致
+  - 测试断言 `items[0]["id"]` 也用旧 key
+  - **流程缺口**: `make check` 只跑 unit 不跑 integration；PR #64 修了 6 项部署破口 + 单测 2790 PASS 但 mock-vs-prod contract drift CI 才发现
+- 修复:
+  - **mock 修正**: `tests/integration/test_pg_vector_search.py` 3 个 `_fake_search_engine` 工厂返 `SearchResponse(items=[EnrichedSearchResult(content_id=..., title=..., snippet=..., score=..., source_name=..., published_at=...)], total=..., query_time_ms=...)` 真 dataclass 实例（与生产链路一致），同步 import `from intellisource.search.hybrid import EnrichedSearchResult, SearchResponse`
+  - **断言修正**: `test_search_returns_items_ordered_by_cosine_similarity` `items[0]["id"]` → `items[0]["content_id"]`
+  - **流程加固**:
+    - `Makefile` 加 `test-unit` / `test-integration` / `check-all` / `contract-check` 4 个 target；`check` 现含 `test-unit`；`check-all = check + test-integration`
+    - 新增 `scripts/contract_check.py`：基于 `git diff vs origin/main` 检查 4 类契约敏感路径（`api/routers/` / `search/` / `storage/` / `llm/gateway/` / `agent/tools/`）→ 命中即推荐跑 `make test-integration`
+    - **CLAUDE.md Learnings Registry 加 EXP-CONTRACT-DRIFT**：契约文件修改必须 `make test-integration` push 前跑通，单测全绿不代表 integration 不回归
+- 验证:
+  - 本地 PG 真起栈跑修复后 3 测试：`DATABASE_URL=postgresql+asyncpg://intellisource:... uv run pytest tests/integration/test_pg_vector_search.py -k "test_search_returns_http_200 or test_search_returns_items_field or test_search_returns_items_ordered"` → 3 passed / 6 deselected
+  - `make contract-check` smoke test：正确识别 `api/routers/search.py` + `storage/vector.py` + `llm/gateway/_stream.py` 3 个 contract-sensitive 文件 → 推荐 `make test-integration`
+  - 待 CI 验证：integration 失败数应从 10+1 → 7 或更少（不引入 net regression）
+- 偏差类型: contract-mock-drift（mock 滞后于生产契约）+ process-gap（CI 才发现的 mock vs prod 不一致没有 push 前检查）
+- 影响:
+  - 解除 3 个 PR #64 引入的 integration 回归
+  - 后续契约文件修改 push 前 `make contract-check` 提示 → `make test-integration` 守门
+  - 长期：integration mock fixtures 应优先用真 dataclass 实例（而非 dict + duck-typing）以与生产契约共享类型
+- 关联: tests/integration/test_pg_vector_search.py + Makefile + scripts/contract_check.py（新）+ CLAUDE.md Learnings Registry；PR #64 commit 接续 c8b69f4
+

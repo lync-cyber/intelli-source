@@ -37,6 +37,7 @@
   - [RETRO-intellisource-v1-sprint-9.md](docs/reviews/retro/RETRO-intellisource-v1-sprint-9.md) — 2 EXP 强制立项 (EXP-005 装配缺口 5 次复发 → B-017 / EXP-006 truncation 4/4 跨 3 角色)
   - [RETRO-intellisource-v1-sprint-8.md](docs/reviews/retro/RETRO-intellisource-v1-sprint-8.md) — 1 正向 EXP-007 立项 (Mid-Progress Drop Contract 通用化 → B-018)
   - [SKILL-IMPROVE-*.md](docs/reviews/retro/) — 8 份建议
+  - **EXP-CONTRACT-DRIFT (PR #64)**：改动 `api/routers/` 返回类型 / `search.*` dataclass 字段 / `storage.*` SQL SELECT 列 / `llm/gateway/_stream` 模型解析 等"契约文件"时，**必须** 在 push 前跑 `make test-integration`（单测全绿不代表 integration 不会回归——mock fixtures 常用旧契约 shape）。强制门禁通过 `make contract-check`（diff 触发清单）+ `make check-all`（check + integration）实现
 - backlog-b031-walkthrough-phase-0-1-partial 闭环 (本次会话):
   - 阶段 0 (步骤 1-2) PASS — 步骤 1 DB+Redis+migrate exit 0 / 13 tables / pgvector + pg_trgm / Redis PONG / zhparser 优雅降级；步骤 2 api healthy / /health 200 (degraded — celery pending worker step 12) / OpenAPI 27 paths / x-trace-id / logs clean
   - 阶段 1 步骤 3 PASS — POST /api/v1/sources 创建 HN RSS 201 / DB 落库 / 列表 API 可查 / POST /sources/reload `loaded_count=2 errors=[]`
