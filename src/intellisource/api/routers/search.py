@@ -8,7 +8,7 @@ import logging
 import time
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -23,7 +23,7 @@ from intellisource.api.schemas.search import (
     ChatSearchResponse,
     ChatSource,
 )
-from intellisource.search.hybrid import HybridSearchEngine
+from intellisource.search.hybrid import HybridSearchEngine, SearchResponse
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +40,11 @@ _MAX_HISTORY_TURNS: int = 10
 
 class SearchRequest(BaseModel):
     query: str
-    search_mode: str | None = None
+    search_mode: Literal["keyword", "semantic", "hybrid"] = "hybrid"
     tags: list[str] | None = None
     date_from: datetime | None = None
     date_to: datetime | None = None
-    limit: int | None = None
+    limit: int = 10
 
 
 # ---------------------------------------------------------------------------
@@ -56,9 +56,9 @@ class SearchRequest(BaseModel):
 async def search(
     body: SearchRequest,
     session: AsyncSession = Depends(get_db_session),
-) -> dict[str, Any]:
-    engine: Any = HybridSearchEngine(session)
-    result: dict[str, Any] = await engine.search(
+) -> SearchResponse:
+    engine = HybridSearchEngine(session)
+    return await engine.search(
         query=body.query,
         mode=body.search_mode,
         tags=body.tags,
@@ -66,7 +66,6 @@ async def search(
         date_to=body.date_to,
         limit=body.limit,
     )
-    return result
 
 
 def _search_step_items(output: Any) -> list[Any]:

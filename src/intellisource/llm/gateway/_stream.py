@@ -43,14 +43,12 @@ class _StreamMixin:
             raise ValueError("stream_complete requires either prompt= or messages=")
 
         resolved_model = model
-        if resolved_model is None and task_type is not None:
+        if resolved_model is None:
             models = self._routing_config.get("models", {})
-            if task_type in models:
+            if task_type is not None and task_type in models:
                 resolved_model = models[task_type]["model"]
             else:
                 resolved_model = self._routing_config["default_model"]["model"]
-        if resolved_model is None:
-            resolved_model = "gpt-4o-mini"
 
         profile = self._model_routing.get_profile(resolved_model)
         resolved_temperature = temperature

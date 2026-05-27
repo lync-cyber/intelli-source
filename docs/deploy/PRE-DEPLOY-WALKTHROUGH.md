@@ -543,7 +543,9 @@ done
 
 **预审注（B-045，2026-05-26）**：代码侧 `_VALID_MODES = {"keyword", "semantic", "hybrid"}`（命名 `semantic` 非 `vector`），上面 `for mode in keyword vector hybrid` 用 `vector` 会触发 `ValueError → 500`，请改为 `for mode in keyword semantic hybrid`（doc-drift 已并入 B-034 跟踪）。B-045 已闭环 `EmbeddingProcessor`：无 `OPENAI_API_KEY` 时 `processed_contents.embedding` 仍 NULL → `semantic`/`hybrid` 走 keyword fallback（不 5xx 但 0 真向量结果）；配 `OPENAI_API_KEY` 后重跑 content-process 即可让 vector 真路径活。
 
-☐ 通过 / 签字：__________
+**走查实跑（2026-05-27）**：触发 6 项 inline 修复（修正 #17 SearchRequest.search_mode 默认 None → Literal=hybrid / #18 router 返回类型 dict → SearchResponse / #19 SearchResult 缺 title+body_text+source_name / #20 limit 默认 None → 10 / #25 to_tsquery → websearch_to_tsquery 解锁多词查询 / #26 stream_complete fallback gpt-4o-mini → default_model.model）。三档 search_mode 200 + score=0.0760 一致；keyword 真路径 ts_rank 真值（"URL" 命中）；tag filter 6/20 与 DB jsonb @> 匹配；date filter B-002 datetime contract 200 422 双闭环，但 published_at 20/20 NULL 致结果 0 项（carryover #21）；走 walkthrough 写法 `"vector"` 现 422 拦截（Literal 校验生效）。详见 CORRECTIONS-LOG 2026-05-27 条目。
+
+☑ 通过 / 签字：orchestrator (真起栈 / 2790 PASS unit baseline 守住 / 6 项 inline 修)
 
 ---
 
@@ -596,7 +598,9 @@ data: {"type":"done","sources":[...]}
 - `/search/chat` 同步路径：`sources` 数组非空、answer 与 sources 内容一致
 - `/search/chat/stream`：B-001 修复后 stream 末尾事件包含 `sources` 且 answer 体现上下文
 
-☐ 通过 / 签字：__________
+**走查实跑（2026-05-27）**：sync `/search/chat` 端到端通（probe "Reply with OK" → answer=OK / 2.4s；RAG-trigger query 触发 5 步 agent flow，DB 真内容入 answer），但 `sources` 数组为 0（修正 #22 carryover：_extract_sources 与 stream done.metadata.results 解析路径不一致）+ LLM agent 把 search step output 直 dict.repr 当 answer 输出（修正 #23 carryover）。SSE `/search/chat/stream` **B-001 闭环验证 PASS**：probe path → SSE token stream + done event；RAG-trigger query → 多步 agent flow（search → get_content_detail × 2 → done.metadata.results 含完整 sources + 2 篇全文 summary）。B-001 已闭环（stream 路径 RAG-aware），原走查"已知卡点"标注过时。详见 CORRECTIONS-LOG 2026-05-27 条目。
+
+☑ 通过 / 签字：orchestrator (stream B-001 闭环验证 / sync sources + answer 整形立 carryover 不阻塞)
 
 ---
 
