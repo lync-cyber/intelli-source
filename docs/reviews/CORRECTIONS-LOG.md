@@ -484,3 +484,27 @@ deps: []
   - SCWS 1.2.3 源码下载依赖 xunsearch.com 可用性 — 如失联 docker build 会 fail，是潜在风险点（参 B-032 research note §5 R-2）
 - 关联: B-032 PR #65 复合镜像；docs/BACKLOG-intellisource-v1.md#b-035；deploy-spec §3 CI/CD 流水线 B-013/B-014/B-015 同类强制门禁要求
 
+### 2026-05-27 | orchestrator | B-031 阶段 5 步骤 12 真起栈走查 (闭环)
+
+- 触发信号: B-035 PR push 后，用户决定立即推进 B-031 阶段 5 步骤 12（worker+beat 起栈 & Celery 自检），过程中触发 2 项设计/配置缺口
+- 修正 #27 — worker/beat 继承 Dockerfile HEALTHCHECK 跑 curl localhost:8000:
+  - 根因: [docker/Dockerfile](../../docker/Dockerfile) 定义 `HEALTHCHECK CMD curl -fsS http://localhost:8000/health || exit 1` 是 API 容器的合法值，但 docker-compose worker / beat 服务 override 了 `CMD`（跑 celery），未 override `HEALTHCHECK` → 健康检查 perpetually fail（worker `FailingStreak=339`、beat 同样跑 curl 但容器内无 HTTP server）。第一次尝试改用 `celery -A intellisource.scheduler.boot inspect ping --timeout 5 2>&1 | grep -q pong` 仍超 10s timeout — 根因 `grep -q` 命中即退出，pipe 中断 → Python Celery SIGPIPE cleanup + `--timeout 5` 累加超 10s。
+  - 修复: [docker/docker-compose.yml](../../docker/docker-compose.yml) worker `healthcheck.test` 改为 `["CMD", "celery", "-A", "intellisource.scheduler.boot", "status"]`（exit 0 = workers online；无 pipe 干净退出），timeout 10s→15s；beat `healthcheck.disable: true`（beat 进程无可外暴 endpoint，靠 worker 与 broker 间接验证）
+- 修正 #28 — beat 进程不接 worker_process_init 信号致 schedule 永空:
+  - 根因: [src/intellisource/scheduler/boot.py](../../src/intellisource/scheduler/boot.py) `_bootstrap_beat_schedule` 仅在 `worker_process_init` 信号 handler 里调用；beat 进程跑 `celery beat`，不发 worker 信号，且 docker-compose beat 命令用 `-A intellisource.scheduler.celery_app` 而非 `.boot` → `celery_app.conf.beat_schedule` 始终空，beat idle 无周期任务（即使 DB 有 2 行 `schedule_interval` 1800s/3600s 的 source）。`celery inspect scheduled` 显示 worker ETA 队列空（误判 OK，实则 beat 根本不发任务）
+  - 修复:
+    - [src/intellisource/scheduler/boot.py](../../src/intellisource/scheduler/boot.py) 新增 `beat_init_handler(**_)`：`init_worker_session_factory() → _bootstrap_beat_schedule(factory)`；module-level `if not getattr(beat_init, "_intellisource_connected", False): beat_init.connect(beat_init_handler)` 幂等连接守卫，模式同 `worker_process_init` 那段；INFO log 输出 entry count
+    - [docker/docker-compose.yml](../../docker/docker-compose.yml) beat command 改为 `-A intellisource.scheduler.boot beat`，让 celery CLI 在启动时 import boot 触发 module-level connect
+    - 新增 [tests/unit/scheduler/test_beat_init_handler.py](../../tests/unit/scheduler/test_beat_init_handler.py) 5 tests / 3 test class GREEN — 验证 signal 已注册 + handler 调用 init_worker_session_factory + 传 factory 给 _bootstrap_beat_schedule + 异常透传 + 幂等守卫不重复 register
+- 验证:
+  - 5 services up：api+db+redis healthy，worker healthy（celery status），beat running（healthcheck disable，靠日志验证）
+  - beat 日志：`INFO/MainProcess] beat_init signal received — bootstrapping schedule from DB` + `beat schedule bootstrap complete — 2 entries loaded`
+  - worker `inspect registered` = `[run_pipeline]`；`inspect active_queues` = 5 队列（priority.{high,normal,low} + trigger.{scheduled,manual}）
+  - 2797 PASS unit (+5 测试 vs 2792 baseline)；mypy --strict + ruff + lint-imports 8/8 clean
+- 偏差类型: design-gap（worker 信号 vs beat 信号路径设计未覆盖 beat 进程）+ config-drift（compose healthcheck 未隔离 worker/beat 与 API 的差异）
+- 影响:
+  - 解锁 B-031 阶段 5 步骤 13-14（订阅+推送闭环 / webhook 入站）
+  - 修正 #27 暴露的"override CMD 但忘 override HEALTHCHECK"模式在 deploy-spec 审查清单未覆盖；建议立 B-036 carryover 增加"compose service override CMD 时审查 HEALTHCHECK 兼容性"
+  - 修正 #28 暴露 beat 路径的 unit/integration 测试覆盖率为 0；B-031 walkthrough 前未发现的原因是单测全部直接调 `_bootstrap_beat_schedule` 而非通过 signal 链路
+- 关联: B-031 walkthrough §阶段 5 步骤 12；boot.py / docker-compose.yml / tests/unit/scheduler/test_beat_init_handler.py
+

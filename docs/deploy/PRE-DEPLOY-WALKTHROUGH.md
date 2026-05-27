@@ -636,7 +636,7 @@ docker compose -f docker/docker-compose.yml exec worker \
 
 **Pass 标准**：worker `registered` 列表非空，beat 至少有一条 schedule，三优先级队列就绪。
 
-☐ 通过 / 签字：__________
+☑ 通过 / 签字：lync-cyber 2026-05-27 — worker healthy（celery status 健康检查），`registered=[run_pipeline]`，5 队列就绪（priority.{high,normal,low} + trigger.{scheduled,manual}）；beat 日志 `beat schedule bootstrap complete — 2 entries loaded`（GitHub Trending 3600s / Hacker News 1800s）。**修正**：发现 2 项设计缺口，inline 修复 — NO-GO #27 worker/beat 继承 Dockerfile HEALTHCHECK 跑 curl http://localhost:8000/health（Celery 容器无 HTTP 端口），worker 改 `celery status`、beat 用 `healthcheck: disable: true`；NO-GO #28 beat 进程不接 `worker_process_init` 信号导致 `_bootstrap_beat_schedule` 永不运行，加 `beat_init` 信号 handler + beat 服务命令切到 `-A intellisource.scheduler.boot`。2797 PASS unit (+5 测试)；详见 [CORRECTIONS-LOG B-031 #27-28](../reviews/CORRECTIONS-LOG.md)。
 
 ---
 

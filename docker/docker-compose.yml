@@ -101,6 +101,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "celery", "-A", "intellisource.scheduler.boot", "status"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
     restart: unless-stopped
 
   beat:
@@ -110,7 +116,7 @@ services:
     command:
       - celery
       - "-A"
-      - "intellisource.scheduler.celery_app"
+      - "intellisource.scheduler.boot"
       - beat
       - "--loglevel=info"
     env_file:
@@ -125,6 +131,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      disable: true
     restart: unless-stopped
 
   prometheus:
