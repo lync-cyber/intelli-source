@@ -189,6 +189,29 @@ deps: []
   - 失败案例：B-031 暴露 7 项部署破口，其中 5 项（Dockerfile 路径 / README / 依赖声明 / shebang / uvicorn）在 "本地真起栈" 5 分钟内必被发现
 - **验证**：下次 deploy-spec 审查时模板自动 prompt 这条；framework-review skill 检查 deploy-spec 报告含 "本地最小栈验证证据" 段
 
+### B-046 collector + HTMLParser 填 `processed_contents.published_at`
+- **优先级**：P3
+- **关联**：B-031 阶段 4 步骤 10c carryover 修正 #21；CORRECTIONS-LOG 2026-05-27 条目
+- **现状**：`SELECT COUNT(*) FROM processed_contents WHERE published_at IS NULL` = 20/20（B-039 重跑后所有行该列 NULL）；date filter SQL contract 已闭环（B-002 datetime 类型转换 + 422 拦截非法值），但用户视角 0 结果 → /search date_from/date_to 功能不可见
+- **修复方向**：
+  - collector 层（HN RSS / 通用 RSS）从 feed entry 解析 `pubDate` / `dc:date` → raw_contents.published_at
+  - HTMLParser processor 透传 raw_contents.published_at → ctx.published_at
+  - `_process_execute` `repo.create(published_at=ctx.get("published_at"))`
+  - 缺数据时 fallback 用 raw_contents.created_at 而非保持 NULL
+- **验证**：重跑 manual-collect 后 `published_at IS NOT NULL` ≥ 18/20；步骤 10c date filter 真路径返回非 0 items
+
+### B-047 sync `/search/chat` sources 提取 + LLM answer 整形
+- **优先级**：P3
+- **关联**：B-031 阶段 4 步骤 11a carryover 修正 #22 + #23；CORRECTIONS-LOG 2026-05-27 条目
+- **现状**：
+  - **修正 #22**：sync `/search/chat` `_extract_sources(flex_result)` 返回 count=0，而 stream `/search/chat/stream` `done.metadata.results` 含完整 search items + get_content_detail 全文。两条路径对 flex_result.results 的解析逻辑不一致 — sync `_extract_sources` 在 `flex_result["results"]` 上 walk `step.get("tool") != "search"` 未命中（实际结构可能是嵌套或字段命名漂移）。
+  - **修正 #23**：sync chat 当 search 命中 ≥1 行时，`extract_answer` 把 search step output 直接 dict.repr() 当 final answer 返回（如 `{'id': 'd90d9026-...', 'title': 'Eagle 3.1...', 'body_text': '...', 'summary': '...'}`），未走 LLM 整形成自然语言回答。
+- **修复方向**：
+  - 调试 `flexible.py` 的 `tool_results` 结构与 `_persist` 后的 `flex_result["results"]` shape，确认 _extract_sources 的 walk 路径正确
+  - 重写 sync chat path 的 prompt 工程：search step 后强制再调一次 LLM 用 system="基于检索结果回答，引用 sources" + user_message 整形 answer
+  - 或：复用 stream 路径的 done.metadata.results 提取逻辑作为 sync sources 的事实来源
+- **验证**：curl `/search/chat` RAG-trigger query → response.sources count ≥ 1 + answer 是自然语言（非 raw dict repr）
+
 ---
 
 ## PR #54 后续验证

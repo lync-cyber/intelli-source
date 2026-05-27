@@ -40,7 +40,7 @@ _CLUSTER_SIMILARITY_SQL: str = (
 _KEYWORD_SQL_TMPL: str = (
     f"SELECT {_SELECT_COLUMNS}, "
     "ts_rank(to_tsvector('simple', body_text), "
-    "to_tsquery('simple', :query)) AS score "
+    "websearch_to_tsquery('simple', :query)) AS score "
     "FROM processed_contents {where} "
     "ORDER BY score DESC LIMIT :top_k"
 )
@@ -49,7 +49,7 @@ _HYBRID_SQL_TMPL: str = (
     f"SELECT {_SELECT_COLUMNS}, "
     "(0.5 * (1 - (embedding <=> :query_vector)) + "
     "0.5 * ts_rank(to_tsvector('simple', body_text), "
-    "to_tsquery('simple', :query))) AS score "
+    "websearch_to_tsquery('simple', :query))) AS score "
     "FROM processed_contents {where} "
     "ORDER BY score DESC LIMIT :top_k"
 )
@@ -110,14 +110,24 @@ def _rows_to_results(rows: Sequence[Any]) -> list[SearchResult]:
         content_id = getattr(row, "content_id", None)
         if content_id is None:
             content_id = row[0]
+        # SELECT list is `id, title, body_text, tags, source_name, published_at`
+        # plus score from the per-mode CTE — id maps to content_id when the
+        # column isn't aliased. Coerce strings so unit-test MagicMock rows
+        # (which return MagicMock-typed attrs) don't propagate non-str values.
         tags = _coerce_tags(getattr(row, "tags", None))
         published_at = _coerce_datetime(getattr(row, "published_at", None))
+        title_attr = getattr(row, "title", "")
+        body_attr = getattr(row, "body_text", "")
+        source_attr = getattr(row, "source_name", "")
         out.append(
             SearchResult(
                 content_id=content_id,
                 score=float(row[1]) if not hasattr(row, "score") else float(row.score),
                 tags=tags,
                 published_at=published_at,
+                title=title_attr if isinstance(title_attr, str) else "",
+                body_text=body_attr if isinstance(body_attr, str) else "",
+                source_name=source_attr if isinstance(source_attr, str) else "",
             )
         )
     return out
@@ -157,12 +167,20 @@ class SearchResult:
     HybridSearchEngine uses them to post-filter results when callers pass
     ``tags`` / ``date_from`` / ``date_to`` without invoking a full SQL
     rebuild.
+
+    ``title`` / ``body_text`` / ``source_name`` carry the same SELECT-list
+    columns through to ``HybridSearchEngine._build_enriched_result`` so
+    the API response surfaces non-empty title/snippet/source_name rather
+    than the previously dropped empty defaults.
     """
 
     content_id: uuid.UUID
     score: float
     tags: list[str] | None = None
     published_at: datetime | None = None
+    title: str = ""
+    body_text: str = ""
+    source_name: str = ""
 
 
 # ---------------------------------------------------------------------------

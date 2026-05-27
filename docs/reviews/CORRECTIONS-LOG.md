@@ -372,3 +372,66 @@ deps: []
   - 步骤 9 ☐→☑ 补签完成；阶段 4 步骤 10/11 vector 路径仅待 OPENAI_API_KEY 即可真验证
 - 关联: src/intellisource/agent/tools/__init__.py (大幅瘦身) + tools/registry.py (新) + tools/executes/{collect,process,distribute,search_and_content,llm}.py (覆盖) + tools/executes/__init__.py (清空) + tests/unit/agent/test_tools_fanout_and_dto.py (monkeypatch 修)；BACKLOG B-039 标 done；walkthrough 步骤 9 ☑ 真起栈签字
 
+### 2026-05-27 | orchestrator | B-031 阶段 4 步骤 10/11 真起栈走查 (闭环)
+- 触发信号: B-031 走查阶段 4 步骤 10/11（M-007 检索/RAG）首次真起栈触发 6 项部署破口（#17~#20、#25、#26 inline 修；#21~#23 carryover；并连带验证 B-001 SSE RAG-aware stream / B-002 datetime 类型转换 / B-044 LLMSummarizer / B-045 EmbeddingProcessor 无 key fallback 设计）
+- 问题:
+  - **#17 SearchRequest.search_mode 默认 None**: [api/routers/search.py:43](../../src/intellisource/api/routers/search.py) `search_mode: str | None = None`，但 [search/hybrid.py:107](../../src/intellisource/search/hybrid.py) engine `if mode not in _VALID_MODES: raise ValueError`。客户端不传 mode 时 `None` 传到 engine 直接 500。
+  - **#18 router 返回类型契约不一致**: [api/routers/search.py:55](../../src/intellisource/api/routers/search.py) `async def search(...) -> dict[str, Any]:`，但 [search/hybrid.py:147](../../src/intellisource/search/hybrid.py) `return SearchResponse(...)` 是 dataclass。FastAPI 按类型注解触发 ResponseValidationError 500。
+  - **#19 SearchResult dataclass 缺关键字段**: [storage/vector.py:151](../../src/intellisource/storage/vector.py) `SearchResult` 只含 `content_id/score/tags/published_at`，但 SQL `SELECT id, title, body_text, tags, source_name, published_at` 拉了 6 列。`_rows_to_results` 丢弃 title/body_text/source_name；下游 [search/hybrid.py:_build_enriched_result](../../src/intellisource/search/hybrid.py) `_extract_attr(row, "title")` 默认 `""` → API 响应所有 title/snippet/source_name 全空。
+  - **#20 SearchRequest.limit 默认 None**: 同 #17 同模式，`limit: int | None = None` → engine `min(None, 50)` → TypeError 500。
+  - **#21 carryover P3 published_at 上游 NULL**: `SELECT COUNT(*) FROM processed_contents WHERE published_at IS NULL` = 20/20。collector / HTMLParser 没填该列 → date filter 任何范围结果 0，B-002 datetime contract 闭环但用户不可见。
+  - **#22 carryover P3 _extract_sources 返 0**: sync `/search/chat` 路径 `_extract_sources(flex_result)` count=0，但 stream `/search/chat/stream` `done.metadata.results` 含完整 search items + get_content_detail full content。两条路径对 flex_result.results 解析逻辑不一致。
+  - **#23 carryover P3 LLM agent answer raw dump**: sync chat 当 search 命中 ≥1 行时，`extract_answer` 把 search step output 整条 dict.repr() 当 final answer 返回（如 `{'id': 'd90d9026-...', 'title': 'Eagle 3.1...', 'body_text': '...', 'summary': '...'}`），未走 LLM 整形成自然语言。
+  - **#25 to_tsquery 句子语法错误**: [storage/vector.py:43/52](../../src/intellisource/storage/vector.py) `to_tsquery('simple', :query)` 接受单 lexeme + & | ! 语法，传 "AI news today" / "artificial intelligence news 2025" 直接 `PostgresSyntaxError: syntax error in tsquery`。影响所有自然语言查询（agent search tool 100% 失败）。
+  - **#26 stream_complete fallback gpt-4o-mini**: [llm/gateway/_stream.py:53](../../src/intellisource/llm/gateway/_stream.py) `if resolved_model is None: resolved_model = "gpt-4o-mini"` 硬编码 OpenAI 兜底。caller 不传 model + task_type 时直接走 OpenAI provider → `OPENAI_API_KEY` 缺失 401 → stream 中断。
+- 修复:
+  - **#17 inline 修**: `search_mode: Literal["keyword", "semantic", "hybrid"] = "hybrid"`。Pydantic 422（非 500）拦截无效值，未传时默认 hybrid（engine 同款默认，无 query_vector 时 fallback keyword）。
+  - **#18 inline 修**: `async def search(...) -> SearchResponse:` + `from intellisource.search.hybrid import SearchResponse`。FastAPI 原生支持 dataclass 序列化。
+  - **#19 inline 修**: `SearchResult` 扩 `title/body_text/source_name: str = ""` 三个字段；`_rows_to_results` 从 row 读 `getattr(row, "title", "")` 等填充并做 `isinstance(.., str)` 兜底（防 MagicMock 注入）。`_build_enriched_result` 自然能拿到非空值。
+  - **#20 inline 修**: `limit: int = 10`（与 engine 默认对齐）。
+  - **#25 inline 修**: `to_tsquery` → `websearch_to_tsquery`（PG 11+ 标准函数；支持自然语言 + 引号短语 + OR）。两处 SQL 模板（_KEYWORD_SQL_TMPL + _HYBRID_SQL_TMPL）同步替换。
+  - **#26 inline 修**: 删 `gpt-4o-mini` 硬编码兜底，简化为 `models[task_type]["model"] if task_type in models else default_model.model`。stream 现走 DeepSeek 默认路径。
+  - **#21/#22/#23 立 carryover**（不 inline）：published_at 填充涉及 collector + HTMLParser 改造范围大；_extract_sources 与 LLM answer 整形需重写 sync chat 路径的 result 解析与 prompt 工程，不属于步骤 10/11 走查范围。
+- 验证:
+  - **步骤 10a keyword**: POST /api/v1/search `{"query":"URL","limit":3}` → 200 / items=3 / `score=0.0760` 真 ts_rank
+  - **步骤 10b tag filter**: `{"query":"URL","tags":["ai"],"limit":10}` → items=6，DB `tags @> '["ai"]'::jsonb` count=6 验证；doc-drift（walkthrough 写 "tech" 实际枚举 ai/web/opensource/language/cloud/security/data）并入 B-034
+  - **步骤 10c date filter**: 非法日期 → 422（B-002 datetime 契约 ✓）；合法日期 items=0 因 published_at NULL（数据问题 #21）
+  - **步骤 10d 三档 search_mode**: keyword/semantic/hybrid 三档 200 + items=3 + score=0.0760 一致（semantic/hybrid 无 query_vector graceful fallback keyword）；走 walkthrough 文档 drift "vector" → 422 验证 Literal 校验生效
+  - **步骤 11a sync chat**: probe "Reply with OK" → answer="OK" / 2.4s / steps=1；RAG-trigger query 触发 5 步 agent flow，DB 真内容（B-044 summary "Eagle 3.1 is a collaborative release..."）入 answer
+  - **步骤 11b SSE stream**: probe → SSE token stream "stream" / " test" / " OK" + done event；RAG-trigger query 多步 agent flow：search → get_content_detail × 2 → done.metadata.results 含完整 5 items + 2 篇全文 summary（"Outsourcing plus LocalAI..." 等 B-039 真路径数据），B-001 闭环验证 RAG-aware stream
+  - **单测全量**: 2790 PASS / 5 deselected / 0 NEW FAIL 保住 CLAUDE.md baseline；ruff + mypy --strict 4 改动文件全 clean
+- 偏差类型: feature-gap × 4（#17/#18/#19/#20 设计阶段类型契约遗漏）+ functionality-bug × 2（#25 PG FTS 函数误用 + #26 OpenAI 默认硬编码）
+- 影响:
+  - `/api/v1/search` 端点从全 500 不可用 → 200 keyword/semantic/hybrid 三档可调，items 真填 title/snippet
+  - `/api/v1/search/chat/stream` 从 step 2 401 中断 → 多步 RAG agent flow 端到端通（done.metadata.results 含 sources）
+  - 多词 / 自然语言 query 不再 SQL 错误（websearch_to_tsquery 解析 "AI news today" 等通用句式）
+  - B-001 SSE RAG-aware stream / B-002 datetime / B-044 LLMSummarizer / B-045 graceful embed fallback 四项连带验证
+- 关联: src/intellisource/api/routers/search.py + src/intellisource/storage/vector.py + src/intellisource/search/hybrid.py + src/intellisource/llm/gateway/_stream.py；docs/deploy/PRE-DEPLOY-WALKTHROUGH.md 步骤 10/11 签字；立 carryover B-046（published_at 上游填充）+ B-047（chat sync sources 提取 + answer 整形）；BACKLOG B-031 阶段 4 步骤 10/11 ☑
+
+### 2026-05-27 | orchestrator | PR #64 CI Integration Tests 回归修复 + 流程改进
+- 触发信号: PR #64 推送后 CI Integration Tests 失败 10 项 + 1 error。对照 main baseline（commit 0f7005e）8 项失败，分析得 **net +3 NEW regression + 1 baseline failure shape change + 1 baseline failure fixed**：
+  - **NEW × 3** (我引入): `tests/integration/test_pg_vector_search.py::{test_search_returns_http_200, test_search_returns_items_field, test_search_returns_items_ordered_by_cosine_similarity}` — `_fake_search_engine` mock 返 `{"items": [{"id": ..., "title": ...}]}` dict shape，但 PR #64 修正 #18 把 router 返回类型 `dict[str, Any]` → `SearchResponse`，FastAPI 现严格按 `EnrichedSearchResult.content_id` 字段验证 → `'content_id' Field required, input: {'id': ...}` 500
+  - **Shape change**: `test_s8r_search_pg::test_post_search_returns_200_with_items` baseline `TypeError: '<' not supported between instances of 'int' and 'NoneType'`（PR #64 修正 #20 `limit: int = 10` 解锁）→ 当前 `TypeError: 'coroutine' object is not iterable`（_fake_get_session 内开 engine + 异步 yield 与 FastAPI lifespan 不兼容；与 baseline cross-loop 同族 pre-existing infrastructure bug，非我引入）
+  - **Fixed**: `test_pg_vector_search::test_search_http_real_engine_keyword_mode` baseline `int < NoneType` 因 #20 修复消失
+- 问题:
+  - 3 个 pg_vector_search mock fixture 用了 legacy dict shape，与生产 `SearchResponse(items=[EnrichedSearchResult(content_id=...)])` 契约不一致
+  - 测试断言 `items[0]["id"]` 也用旧 key
+  - **流程缺口**: `make check` 只跑 unit 不跑 integration；PR #64 修了 6 项部署破口 + 单测 2790 PASS 但 mock-vs-prod contract drift CI 才发现
+- 修复:
+  - **mock 修正**: `tests/integration/test_pg_vector_search.py` 3 个 `_fake_search_engine` 工厂返 `SearchResponse(items=[EnrichedSearchResult(content_id=..., title=..., snippet=..., score=..., source_name=..., published_at=...)], total=..., query_time_ms=...)` 真 dataclass 实例（与生产链路一致），同步 import `from intellisource.search.hybrid import EnrichedSearchResult, SearchResponse`
+  - **断言修正**: `test_search_returns_items_ordered_by_cosine_similarity` `items[0]["id"]` → `items[0]["content_id"]`
+  - **流程加固**:
+    - `Makefile` 加 `test-unit` / `test-integration` / `check-all` / `contract-check` 4 个 target；`check` 现含 `test-unit`；`check-all = check + test-integration`
+    - 新增 `scripts/contract_check.py`：基于 `git diff vs origin/main` 检查 4 类契约敏感路径（`api/routers/` / `search/` / `storage/` / `llm/gateway/` / `agent/tools/`）→ 命中即推荐跑 `make test-integration`
+    - **CLAUDE.md Learnings Registry 加 EXP-CONTRACT-DRIFT**：契约文件修改必须 `make test-integration` push 前跑通，单测全绿不代表 integration 不回归
+- 验证:
+  - 本地 PG 真起栈跑修复后 3 测试：`DATABASE_URL=postgresql+asyncpg://intellisource:... uv run pytest tests/integration/test_pg_vector_search.py -k "test_search_returns_http_200 or test_search_returns_items_field or test_search_returns_items_ordered"` → 3 passed / 6 deselected
+  - `make contract-check` smoke test：正确识别 `api/routers/search.py` + `storage/vector.py` + `llm/gateway/_stream.py` 3 个 contract-sensitive 文件 → 推荐 `make test-integration`
+  - 待 CI 验证：integration 失败数应从 10+1 → 7 或更少（不引入 net regression）
+- 偏差类型: contract-mock-drift（mock 滞后于生产契约）+ process-gap（CI 才发现的 mock vs prod 不一致没有 push 前检查）
+- 影响:
+  - 解除 3 个 PR #64 引入的 integration 回归
+  - 后续契约文件修改 push 前 `make contract-check` 提示 → `make test-integration` 守门
+  - 长期：integration mock fixtures 应优先用真 dataclass 实例（而非 dict + duck-typing）以与生产契约共享类型
+- 关联: tests/integration/test_pg_vector_search.py + Makefile + scripts/contract_check.py（新）+ CLAUDE.md Learnings Registry；PR #64 commit 接续 c8b69f4
+

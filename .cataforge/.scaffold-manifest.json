@@ -2,6 +2,7 @@
   "manifest_version": 1,
   "package_version": "0.4.1",
   "files": {
+    "PROJECT-STATE.md": "ea98d4a91f0900234f163d1a3373fd9ff1874453da6ec6a028be2efaa1333500",
     "agents/architect/AGENT.md": "6a0759fb7b6bf5f14d6f50da5e886538f83efc434d72af9cbd2ca3d1ce730668",
     "agents/debugger/AGENT.md": "0f4a6733be13e542ef49e42b0a856287a1e7f77a99b5103413c9b77501ed1db5",
     "agents/devops/AGENT.md": "f8d1e2ea0142589e26fbd501a8e761051cb4c105d00af0f8c6f4406e2105a340",

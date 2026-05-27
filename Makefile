@@ -1,7 +1,8 @@
 COMPOSE := docker compose -f docker/docker-compose.yml
 
 .PHONY: up down migrate logs ps clean rollback \
-        arch deps deadcode deps-graph check lint-fix help
+        arch deps deadcode deps-graph check check-all lint-fix help \
+        test-unit test-integration contract-check
 
 # ---------------------------------------------------------------------------
 # Docker dev stack
@@ -34,12 +35,17 @@ rollback:
 # ---------------------------------------------------------------------------
 help:
 	@echo "Architecture / quality:"
-	@echo "  arch        Run import-linter (architecture contracts)"
-	@echo "  deps        Run deptry (dependency hygiene)"
-	@echo "  deadcode    Run vulture (dead code)"
-	@echo "  deps-graph  Generate dependency SVG via pydeps (needs graphviz 'dot')"
-	@echo "  check       arch + deps + deadcode + ruff + mypy + pytest"
-	@echo "  lint-fix    ruff format + ruff check --fix"
+	@echo "  arch              Run import-linter (architecture contracts)"
+	@echo "  deps              Run deptry (dependency hygiene)"
+	@echo "  deadcode          Run vulture (dead code)"
+	@echo "  deps-graph        Generate dependency SVG via pydeps (needs graphviz 'dot')"
+	@echo "  check             arch + deps + deadcode + ruff + mypy + unit tests"
+	@echo "  check-all         check + integration tests (needs 'make up' first)"
+	@echo "  contract-check    Suggest which test categories to run based on diff vs main"
+	@echo "  lint-fix          ruff format + ruff check --fix"
+	@echo "Tests:"
+	@echo "  test-unit         Run unit tests only (no PG/Redis required)"
+	@echo "  test-integration  Run integration tests (requires 'make up' first)"
 	@echo "Docker:"
 	@echo "  up / down / migrate / logs / ps / clean / rollback"
 
@@ -57,11 +63,36 @@ deps-graph:
 		--max-bacon=2 --cluster --noshow \
 		-o docs/arch/deps-graph.svg
 
-check: arch deps deadcode
+check: arch deps deadcode test-unit
 	uv run ruff format --check .
 	uv run ruff check .
 	uv run mypy --strict src/
-	uv run pytest -q --tb=short -m "not slow"
+
+# check-all extends `check` with integration tests. Run `make up` first so the
+# PG / Redis containers are healthy; the integration suite uses real PG via the
+# pg_container fixture and will fail without a running stack.
+check-all: check test-integration
+
+test-unit:
+	uv run pytest tests/unit -q --tb=short -m "not slow"
+
+test-integration:
+	@if ! docker compose -f docker/docker-compose.yml ps --status=running --services 2>/dev/null | grep -q '^db$$'; then \
+		echo "ERROR: db container not running. Run 'make up' first." >&2; \
+		exit 1; \
+	fi
+	DATABASE_URL="postgresql+asyncpg://intellisource:intellisource@localhost:5432/intellisource" \
+		uv run pytest tests/integration -q --tb=short
+
+# contract-check looks at staged + unstaged diff vs main and prints which test
+# categories should be run. Triggers on changes to files that historically
+# break integration tests when modified without local PG verification:
+#   - src/intellisource/api/routers/   (response_model / signature changes)
+#   - src/intellisource/search/        (SearchResponse / EnrichedSearchResult schema)
+#   - src/intellisource/storage/       (dataclass fields / SQL column lists)
+#   - src/intellisource/llm/gateway/   (model resolution / streaming paths)
+contract-check:
+	@uv run python scripts/contract_check.py
 
 lint-fix:
 	uv run ruff format .

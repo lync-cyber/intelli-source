@@ -21,6 +21,7 @@ from sqlalchemy import cast, select, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from intellisource.search.hybrid import EnrichedSearchResult, SearchResponse
 from intellisource.storage.models import (
     ContentCluster,
     ProcessedContent,
@@ -135,26 +136,29 @@ class TestVectorSearch:
         await pg_session.flush()
 
         # Patch the embedding/vector part of HybridSearchEngine so the test does
-        # not require a real sentence-embedding model at inference time.
+        # not require a real sentence-embedding model at inference time. The
+        # mock returns a real SearchResponse instance so FastAPI's strict
+        # response_model validation (router signature `-> SearchResponse`) sees
+        # the same shape as the production engine's return value.
         def _fake_search_engine(session: Any) -> Any:
             from unittest.mock import AsyncMock, MagicMock
 
             engine = MagicMock()
             engine.search = AsyncMock(
-                return_value={
-                    "items": [
-                        {
-                            "id": str(uuid.uuid4()),
-                            "title": "AI article",
-                            "snippet": "Body text for AI article",
-                            "score": 1.0,
-                            "source_name": "test-source",
-                            "published_at": None,
-                        }
+                return_value=SearchResponse(
+                    items=[
+                        EnrichedSearchResult(
+                            content_id=uuid.uuid4(),
+                            title="AI article",
+                            snippet="Body text for AI article",
+                            score=1.0,
+                            source_name="test-source",
+                            published_at=None,
+                        )
                     ],
-                    "total": 1,
-                    "query_time_ms": 5,
-                }
+                    total=1,
+                    query_time_ms=5,
+                )
             )
             return engine
 
@@ -207,34 +211,36 @@ class TestVectorSearch:
         await pg_session.flush()
 
         # Monkeypatch HybridSearchEngine to return predictable items ordered by
-        # cosine similarity (most similar first).
+        # cosine similarity (most similar first). The mock returns a real
+        # SearchResponse instance to satisfy FastAPI's strict response_model
+        # validation on the router signature.
         def _fake_search_engine(session: Any) -> Any:
             from unittest.mock import AsyncMock, MagicMock
 
             engine = MagicMock()
             engine.search = AsyncMock(
-                return_value={
-                    "items": [
-                        {
-                            "id": str(pc1.id),
-                            "title": "Very similar article",
-                            "snippet": "Body text for Very similar article",
-                            "score": 1.0,
-                            "source_name": "test-source",
-                            "published_at": None,
-                        },
-                        {
-                            "id": str(pc2.id),
-                            "title": "Somewhat similar article",
-                            "snippet": "Body text for Somewhat similar article",
-                            "score": 0.9,
-                            "source_name": "test-source",
-                            "published_at": None,
-                        },
+                return_value=SearchResponse(
+                    items=[
+                        EnrichedSearchResult(
+                            content_id=pc1.id,
+                            title="Very similar article",
+                            snippet="Body text for Very similar article",
+                            score=1.0,
+                            source_name="test-source",
+                            published_at=None,
+                        ),
+                        EnrichedSearchResult(
+                            content_id=pc2.id,
+                            title="Somewhat similar article",
+                            snippet="Body text for Somewhat similar article",
+                            score=0.9,
+                            source_name="test-source",
+                            published_at=None,
+                        ),
                     ],
-                    "total": 2,
-                    "query_time_ms": 5,
-                }
+                    total=2,
+                    query_time_ms=5,
+                )
             )
             return engine
 
@@ -306,36 +312,36 @@ class TestVectorSearch:
 
             engine = MagicMock()
             engine.search = AsyncMock(
-                return_value={
-                    "items": [
-                        {
-                            "id": str(pc1.id),
-                            "title": "Most similar",
-                            "snippet": "Body text for Most similar",
-                            "score": scores[str(pc1.id)],
-                            "source_name": "test-source",
-                            "published_at": None,
-                        },
-                        {
-                            "id": str(pc2.id),
-                            "title": "Somewhat similar",
-                            "snippet": "Body text for Somewhat similar",
-                            "score": scores[str(pc2.id)],
-                            "source_name": "test-source",
-                            "published_at": None,
-                        },
-                        {
-                            "id": str(pc3.id),
-                            "title": "Orthogonal",
-                            "snippet": "Body text for Orthogonal",
-                            "score": scores[str(pc3.id)],
-                            "source_name": "test-source",
-                            "published_at": None,
-                        },
+                return_value=SearchResponse(
+                    items=[
+                        EnrichedSearchResult(
+                            content_id=pc1.id,
+                            title="Most similar",
+                            snippet="Body text for Most similar",
+                            score=scores[str(pc1.id)],
+                            source_name="test-source",
+                            published_at=None,
+                        ),
+                        EnrichedSearchResult(
+                            content_id=pc2.id,
+                            title="Somewhat similar",
+                            snippet="Body text for Somewhat similar",
+                            score=scores[str(pc2.id)],
+                            source_name="test-source",
+                            published_at=None,
+                        ),
+                        EnrichedSearchResult(
+                            content_id=pc3.id,
+                            title="Orthogonal",
+                            snippet="Body text for Orthogonal",
+                            score=scores[str(pc3.id)],
+                            source_name="test-source",
+                            published_at=None,
+                        ),
                     ],
-                    "total": 3,
-                    "query_time_ms": 5,
-                }
+                    total=3,
+                    query_time_ms=5,
+                )
             )
             return engine
 
@@ -370,10 +376,14 @@ class TestVectorSearch:
                 f"Full scores: {item_scores}"
             )
 
-        # Most-similar item (pc1) must be first.
-        assert items[0]["id"] == str(pc1.id), (
-            f"Expected most-similar item (id={pc1.id}) to be first, "
-            f"but first item id was {items[0]['id']!r}"
+        # Most-similar item (pc1) must be first. The response payload uses the
+        # `content_id` field (per EnrichedSearchResult dataclass) — older
+        # versions of this test used `id` because the mock returned a raw dict
+        # with an `id` key, which was incompatible with the production engine
+        # contract once the router started returning SearchResponse.
+        assert items[0]["content_id"] == str(pc1.id), (
+            f"Expected most-similar item (content_id={pc1.id}) to be first, "
+            f"but first item content_id was {items[0]['content_id']!r}"
         )
 
     @pytest.mark.asyncio
