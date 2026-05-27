@@ -38,7 +38,7 @@ jobs:
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v4
@@ -54,13 +54,129 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      - name: Pre-pull pgvector image (testcontainers warm-up)
-        run: docker pull pgvector/pgvector:pg16
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # B-032: testcontainers fixture now expects the composite pgvector+zhparser
+      # image. Build it explicitly here so the integration suite gets a fail-fast
+      # signal on Dockerfile issues rather than tripping conftest's lazy build.
+      - name: Build composite pgvector+zhparser DB image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/db.Dockerfile
+          tags: intellisource/db:pg16-pgvector-zhparser
+          load: true
+          cache-from: type=gha,scope=db-image
+          cache-to: type=gha,scope=db-image,mode=max
 
       - name: Run integration tests
         env:
           IS_FORCE_DOCKER_TESTS: "1"
+          IS_TEST_DB_IMAGE: "intellisource/db:pg16-pgvector-zhparser"
         run: uv run pytest tests/integration/ -v --tb=short --timeout=300 --timeout-method=thread
+
+  docker-compose-smoke:
+    name: Docker Compose Smoke (db+redis+migrate+api)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # B-035 + B-032: real docker compose stack startup with the composite DB
+      # image. Validates that zhparser ships in pg_extension, the zhparser
+      # TEXT SEARCH CONFIGURATION exists, alembic migrations run cleanly, and
+      # the API answers /health. Any prior B-031 walkthrough NO-GO that
+      # affects local-stack readiness will fail this job.
+
+      - name: Create .env from example (placeholder distribution channels)
+        run: |
+          cp docker/.env.example docker/.env
+          # B-033 carryover: composition.build_distributor_facade hard-fails
+          # when channel credentials are blank. Use placeholder strings to
+          # let the api boot for the smoke window; webhook flows are not
+          # exercised here. IS_WEWORK_AGENT_ID + IS_SMTP_PORT MUST stay numeric
+          # because distributor.from_env() parses them via int().
+          sed -i 's|^IS_WECHAT_APP_ID=.*|IS_WECHAT_APP_ID=ci-smoke-placeholder|' docker/.env
+          sed -i 's|^IS_WECHAT_APP_SECRET=.*|IS_WECHAT_APP_SECRET=ci-smoke-placeholder|' docker/.env
+          sed -i 's|^IS_WECHAT_WEBHOOK_TOKEN=.*|IS_WECHAT_WEBHOOK_TOKEN=ci-smoke-placeholder|' docker/.env
+          sed -i 's|^IS_WEWORK_CORP_ID=.*|IS_WEWORK_CORP_ID=ci-smoke-placeholder|' docker/.env
+          sed -i 's|^IS_WEWORK_CORP_SECRET=.*|IS_WEWORK_CORP_SECRET=ci-smoke-placeholder|' docker/.env
+          sed -i 's|^IS_WEWORK_AGENT_ID=.*|IS_WEWORK_AGENT_ID=0|' docker/.env
+          sed -i 's|^IS_WEWORK_WEBHOOK_TOKEN=.*|IS_WEWORK_WEBHOOK_TOKEN=ci-smoke-placeholder|' docker/.env
+          sed -i 's|^IS_SMTP_HOST=.*|IS_SMTP_HOST=smtp.example.com|' docker/.env
+          sed -i 's|^IS_SMTP_USER=.*|IS_SMTP_USER=ci-smoke-placeholder|' docker/.env
+          sed -i 's|^IS_SMTP_PASSWORD=.*|IS_SMTP_PASSWORD=ci-smoke-placeholder|' docker/.env
+
+      - name: Build composite DB image (cached)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/db.Dockerfile
+          tags: intellisource/db:pg16-pgvector-zhparser
+          load: true
+          cache-from: type=gha,scope=db-image
+          cache-to: type=gha,scope=db-image,mode=max
+
+      - name: Start core stack (db + redis + migrate + api)
+        # docker-compose.yml wires `api.depends_on.migrate.condition: service_completed_successfully`
+        # and healthcheck on db/redis, so `up --wait` blocks until migrate exits 0
+        # and api healthcheck passes. Failing fast on either is the gate.
+        run: |
+          docker compose -f docker/docker-compose.yml up -d --wait db redis migrate api
+        timeout-minutes: 10
+
+      - name: Show /health response
+        run: |
+          curl -fsS http://localhost:8000/health
+          echo
+
+      - name: Validate zhparser extension is loaded
+        run: |
+          docker compose -f docker/docker-compose.yml exec -T db \
+            psql -U intellisource -d intellisource -c \
+            "SELECT extname FROM pg_extension WHERE extname='zhparser'" \
+            | tee /tmp/extname.txt
+          grep -q zhparser /tmp/extname.txt
+
+      - name: Validate zhparser TEXT SEARCH CONFIGURATION
+        run: |
+          docker compose -f docker/docker-compose.yml exec -T db \
+            psql -U intellisource -d intellisource -c \
+            "SELECT cfgname FROM pg_ts_config WHERE cfgname='zhparser'" \
+            | tee /tmp/cfgname.txt
+          grep -q zhparser /tmp/cfgname.txt
+
+      - name: Validate zhparser tokenizes Chinese text
+        run: |
+          docker compose -f docker/docker-compose.yml exec -T db \
+            psql -U intellisource -d intellisource -c \
+            "SELECT to_tsvector('zhparser', '北京天安门搜索引擎')" \
+            | tee /tmp/tsvector.txt
+          # A working zhparser produces multiple lexemes; the 'simple' fallback
+          # would treat the whole string as one token. Assert at least one
+          # token-with-position survives, then sanity-check the token count.
+          test "$(grep -oE "'[^']+':[0-9]" /tmp/tsvector.txt | wc -l)" -ge 2
+
+      - name: Dump compose state on failure
+        if: failure()
+        run: |
+          echo "--- docker compose ps ---"
+          docker compose -f docker/docker-compose.yml ps
+          echo "--- db logs ---"
+          docker compose -f docker/docker-compose.yml logs db --tail=200
+          echo "--- migrate logs ---"
+          docker compose -f docker/docker-compose.yml logs migrate --tail=200
+          echo "--- api logs ---"
+          docker compose -f docker/docker-compose.yml logs api --tail=200
+
+      - name: Teardown
+        if: always()
+        run: docker compose -f docker/docker-compose.yml down -v
 
   lint:
     name: Lint & Format

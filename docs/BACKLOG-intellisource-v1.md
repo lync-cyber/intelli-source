@@ -83,15 +83,7 @@ deps: []
 
 > 来源：B-031 PRE-DEPLOY-WALKTHROUGH 阶段 0 步骤 1+2 触发 7 项 NO-GO，部分 inline 修复（修正 #1~#6 已落地），部分需要架构/文档层面跟进。完整修正记录见 [CORRECTIONS-LOG 2026-05-26 阶段 0 步骤 1/2](reviews/CORRECTIONS-LOG.md)。
 
-### B-032 制作 pgvector + zhparser 复合 DB 镜像
-- **优先级**：P1
-- **关联**：CORRECTIONS-LOG 修正 #5；deploy-spec §2 R-005 "zhparser DB 镜像要求"
-- **现状**：当前 docker-compose 用裸 `pgvector/pgvector:pg16`，不含 zhparser。migration 001 的 `CREATE EXTENSION IF NOT EXISTS zhparser` 已包入 `DO ... EXCEPTION` 块优雅降级，FTS 退到 `to_tsvector('simple', ...)`。代码层面（storage/vector.py）**目前从未引用 zhparser**，但 deploy-spec 把 zhparser 作为中文分词目标。
-- **修复方向**：
-  - 选 A：新建 `docker/db.Dockerfile` 基于 `pgvector/pgvector:pg16` + 编译安装 SCWS + zhparser；docker-compose `db` 服务改为 `build: { context: .., dockerfile: docker/db.Dockerfile }`
-  - 选 B：寻找现成 pgvector+zhparser 公开镜像（社区 fork）
-  - 修完后把 migration 001 的 `EXCEPTION` 包裹去掉，让 zhparser 重新成为硬约束；同步把 storage/vector.py FTS configuration 从 `simple` 切到 `zhparser`
-- **验证**：步骤 1 `SELECT extname FROM pg_extension` 输出含 `zhparser`；步骤 10 中文 query 走分词路径
+> B-032 已闭环 (本次会话, path A1) — research skill 调研确认公开域不存在 pgvector + zhparser 复合镜像（[docs/research/b032-pgvector-zhparser-image-options.md](research/b032-pgvector-zhparser-image-options.md)）；选 A1 (pgvector 基底 + 加 zhparser 层) 实施。新增 [docker/db.Dockerfile](../docker/db.Dockerfile)（SCWS 1.2.3 源码编译 + amutu/zhparser master 编译，参考 abcfy2/docker_zhparser）；[docker/docker-compose.yml](../docker/docker-compose.yml) db 服务 image→build；[alembic/versions/001_initial_schema.py](../alembic/versions/001_initial_schema.py) 移除 DO/EXCEPTION 包裹 + 新增 CREATE TEXT SEARCH CONFIGURATION zhparser + ALTER ADD MAPPING；[storage/vector.py](../src/intellisource/storage/vector.py) `'simple'` → `'zhparser'` 4 处；[tests/integration/conftest.py](../tests/integration/conftest.py) 删 zhparser monkeypatch + 改用 `intellisource/db:pg16-pgvector-zhparser` + lazy `docker build` 兜底；[tests/unit/storage/test_migration.py](../tests/unit/storage/test_migration.py) +2 守卫测试（防 EXCEPTION 包裹回归 / 验证 TS CONFIG 创建）。2792 PASS unit 不退化 / mypy --strict + ruff + lint-imports 8/8 clean / docker compose config 解析通过。**真起栈验证待 user**：首次 `make up` 会 build 镜像（1-2 min）后跑 `SELECT extname FROM pg_extension WHERE extname='zhparser'` 应返 1 行；中文 query `/search` 走分词路径。
 
 ### B-033 composition 对未配置渠道容忍
 - **优先级**：P2
@@ -116,16 +108,7 @@ deps: []
   - 步骤 7 trace_id 子项加注 "依赖 B-040 闭环后生效；当前可跳过此项，专项验证留给步骤 17 F-23 回归"
   - 步骤 8 修正 "`/llm/stats` 不带 API key 也能查" → "所有 /api/v1/* 端点均需 X-API-Key（webhooks/health/metrics/openapi/docs/redoc 除外）"
 
-### B-035 CI 强制跑 docker integration
-- **优先级**：P1
-- **关联**：B-013（已有任务，本任务是其升级）；CORRECTIONS-LOG 全部 7 项 NO-GO 的根因之一
-- **现状**：本地无 Docker → 47 docker integration tests deselect；CI 当前路径也不真跑（B-013 carryover）。**所有 NO-GO 都因 docker compose 真起栈从未在 CI 跑通而隐藏**
-- **修复方向**：
-  - GitHub Actions workflow 加 `services: { docker: { ... } }` 或用 `setup-docker` action
-  - 加 `IS_FORCE_DOCKER_TESTS=1` env 变量，让 conftest 不再 deselect docker 测试
-  - 加专门的 "docker compose smoke" job：真跑 `docker compose up -d db redis migrate api` + curl /health
-  - fail 时阻塞 merge
-- **验证**：CI 输出 `162 collected, 0 deselected, 47+ docker PASS`；smoke job 显示 api 健康
+> B-035 已闭环 (本次会话) — `.github/workflows/ci.yml` 改造：(1) `integration-tests` job 用 `docker/setup-buildx-action@v3` + `docker/build-push-action@v5` 预 build `intellisource/db:pg16-pgvector-zhparser`（cache type=gha,scope=db-image 跨 job/run 复用）→ 设 `IS_FORCE_DOCKER_TESTS=1` + `IS_TEST_DB_IMAGE=intellisource/db:pg16-pgvector-zhparser` 让 conftest 不 deselect docker 测试且用 composite image；(2) 新增 `docker-compose-smoke` job — 复用 cached image，`cp .env.example .env` + sed 填 channel 占位（兼 B-033 hard-fail），`docker compose up -d --wait db redis migrate api` 借 compose 自身 healthcheck + service_completed_successfully 等待，三个 SQL 探针验证 zhparser 真路径活：`SELECT extname FROM pg_extension WHERE extname='zhparser'` / `SELECT cfgname FROM pg_ts_config WHERE cfgname='zhparser'` / `to_tsvector('zhparser', '北京天安门搜索引擎')` 返多 lexeme（防 'simple' 回退）；(3) failure 时 dump db/migrate/api logs；(4) `if: always()` 跑 down -v 清理。预期 CI 首次 1-2 min build 镜像，二次 cache hit secs；smoke job 与 integration-tests job 并行跑独立 stack 互不干扰。**待 PR push 后 GitHub Actions 真跑验证**。
 
 ### B-038 framework-feedback: 提议框架默认采用 CLAUDE.md 单一事实来源
 - **优先级**：P3（项目本地已落地，feedback 是为防止 upgrade 漂移）
@@ -211,6 +194,27 @@ deps: []
   - 重写 sync chat path 的 prompt 工程：search step 后强制再调一次 LLM 用 system="基于检索结果回答，引用 sources" + user_message 整形 answer
   - 或：复用 stream 路径的 done.metadata.results 提取逻辑作为 sync sources 的事实来源
 - **验证**：curl `/search/chat` RAG-trigger query → response.sources count ≥ 1 + answer 是自然语言（非 raw dict repr）
+
+### B-048 Integration Tests 基线失败清单（pre-existing，非 B-032/B-035 引入）
+- **优先级**：P2
+- **关联**：B-035 PR #65 让 CI 真跑 integration tests 后，基线 7 failed + 1 error 暴露；main 上 PR #64 merge commit (run 78023542934) 与 PR #65 (run 78028138475) 完全一致
+- **现状**：integration suite 共 163 项，156 PASS / 7 FAIL / 1 ERROR，已在 main 上持续红
+- **失败清单**：
+  - **F-01** `test_pipeline_collect_process_distribute_e2e.py::test_collect_process_distribute_persists_push_record` — FK violation `raw_contents.collect_task_id` 不在 `collect_tasks`（fixture 顺序 / 数据缺失）
+  - **F-02** `test_raw_content_persist_on_pipeline_done.py::TestRunPipelinePersistsProcessedStatus::test_run_pipeline_marks_raw_content_as_processed` — asyncpg `cannot perform operation: another operation is in progress`（跨 loop / 并发，与 B-037 同型问题）
+  - **F-03** `test_s8r_search_pg.py::TestSearchApiWithRealPg::test_post_search_returns_200_with_items` — `TypeError: 'coroutine' object is not iterable`（async generator fixture 注入路径不对）
+  - **F-04** `test_s8r_search_pg.py::TestSearchApiWithRealPg::test_post_search_chat_returns_200_with_answer` — DeepSeek 401 (CI 无 LLM API key)
+  - **F-05** `test_sprint7_integration.py::TestLLMStatsEndpoint::test_llm_stats_with_records_returns_aggregated_fields` — `assert 0 == 2`（缺 llm_call_logs fixture 数据）
+  - **F-06** `test_sprint7_integration.py::TestClustersEndpoint::test_clusters_limit_controls_page_size` — `assert False is True`（缺 cluster fixture 数据）
+  - **F-07** `test_sprint7_integration.py::TestClustersEndpoint::test_clusters_per_item_fields_match_api016` — `assert 0 >= 1` / `len([])`（同上）
+  - **E-01** `test_system_health_real.py::TestSystemLLMStatsRealRoute::test_system_llm_stats_reads_real_llm_call_log_rows` — `SQLiteTypeCompiler can't render JSONB`（fixture 用 sqlite 引擎但 model 含 JSONB 列）
+- **修复方向**：
+  - F-04: `@pytest.mark.skipif(not os.environ.get("DEEPSEEK_API_KEY") and not os.environ.get("OPENAI_API_KEY"))`（CI 没 key 时跳过）
+  - E-01: 把 `test_system_llm_stats_*` 从 sqlite-based fixture 切到 pg_session（model 用 JSONB，sqlite 无对应类型）
+  - F-05/F-06/F-07: 添加 `llm_call_logs` / `content_clusters` fixture 数据注入（用 `pg_session` 写测试数据）
+  - F-01: collect_tasks fixture insertion 顺序修正
+  - F-02/F-03: async fixture 模式重构（参 B-037 lazy redis 经验，可能需要 per-test loop scope）
+- **验证**：CI Integration Tests job 0 failed 0 error，163 PASS
 
 ---
 

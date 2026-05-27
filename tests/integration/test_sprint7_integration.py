@@ -351,12 +351,31 @@ class TestAgentRunnerCompaction:
 # ===========================================================================
 
 
-def _make_pg_db_manager(pg_url: str) -> Any:
+def _make_pg_db_manager(pg_url: str, pg_session: AsyncSession | None = None) -> Any:
     """Return a DatabaseManager-shaped object backed by a PostgreSQL engine.
 
-    Uses the pg_container asyncpg URL to create a fresh engine + session_factory
-    for each request, mirroring the FastAPI lifespan pattern.
+    When ``pg_session`` is provided, the manager yields *that* session per
+    request so the API path sees the test fixture's writes inside the same
+    SAVEPOINT — necessary because pg_session uses a rolled-back outer
+    transaction and a fresh session would observe no uncommitted data.
+
+    When ``pg_session`` is None, falls back to building a fresh engine and
+    session_factory keyed off the pg_container URL — used by tests that
+    insert data through other means (e.g. raw SQL via separate engine) and
+    just need a DatabaseManager-shaped facade.
     """
+    if pg_session is not None:
+
+        class _PgSharedDB:
+            @asynccontextmanager
+            async def get_session(self) -> AsyncIterator[AsyncSession]:
+                yield pg_session
+
+            async def close(self) -> None:  # pragma: no cover - no-op
+                return None
+
+        return _PgSharedDB()
+
     engine = create_async_engine(pg_url, echo=False)
     session_factory = async_sessionmaker(
         bind=engine, class_=AsyncSession, expire_on_commit=False
@@ -456,7 +475,11 @@ class TestLLMStatsEndpoint:
         )
         await pg_session.flush()
 
-        mock_db = _make_pg_db_manager(pg_container)
+        # Reuse pg_session inside the API path: the test wrote rows inside a
+        # SAVEPOINT that has not been committed, so a fresh engine would see
+        # nothing. _make_pg_db_manager with pg_session yields the same session
+        # to api routers via get_session().
+        mock_db = _make_pg_db_manager(pg_container, pg_session=pg_session)
 
         with patch("intellisource.main.DatabaseManager", return_value=mock_db):
             app = create_app()
@@ -585,7 +608,7 @@ class TestClustersEndpoint:
             )
         await pg_session.flush()
 
-        mock_db = _make_pg_db_manager(pg_container)
+        mock_db = _make_pg_db_manager(pg_container, pg_session=pg_session)
 
         with patch("intellisource.main.DatabaseManager", return_value=mock_db):
             app = create_app()
@@ -646,7 +669,7 @@ class TestClustersEndpoint:
         )
         await pg_session.flush()
 
-        mock_db = _make_pg_db_manager(pg_container)
+        mock_db = _make_pg_db_manager(pg_container, pg_session=pg_session)
 
         with patch("intellisource.main.DatabaseManager", return_value=mock_db):
             app = create_app()

@@ -94,37 +94,70 @@ def pytest_collection_modifyitems(
 
 
 # ---------------------------------------------------------------------------
-# AC-2a: pg_container — session-scoped pgvector container
+# AC-2a: pg_container — session-scoped composite pgvector+zhparser container
 # ---------------------------------------------------------------------------
 
+_TEST_DB_IMAGE: str = os.environ.get(
+    "IS_TEST_DB_IMAGE", "intellisource/db:pg16-pgvector-zhparser"
+)
 
-def _patch_alembic_for_zhparser(op_module: Any) -> Any:
-    """Monkeypatch alembic.op.execute to silently skip zhparser-related DDL."""
-    original_execute = op_module.execute
 
-    def _patched_execute(sql: Any, *args: Any, **kwargs: Any) -> Any:
-        sql_str = str(sql)
-        if "zhparser" in sql_str.lower():
-            return None
-        return original_execute(sql, *args, **kwargs)
+def _docker_image_exists(image: str) -> bool:
+    """Return True if *image* is present locally."""
+    try:
+        result = subprocess.run(
+            ["docker", "image", "inspect", image],
+            capture_output=True,
+            timeout=10,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
 
-    op_module.execute = _patched_execute
-    return original_execute
+
+def _build_test_db_image(image: str) -> None:
+    """Build the composite pgvector+zhparser image from docker/db.Dockerfile.
+
+    The integration suite always wants the zhparser-equipped image so the FTS
+    SQL paths exercised by storage/vector.py resolve `to_tsvector('zhparser', ...)`
+    rather than falling back to the built-in `simple` parser.
+    """
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    dockerfile = os.path.join(project_root, "docker", "db.Dockerfile")
+    if not os.path.exists(dockerfile):
+        raise RuntimeError(
+            f"docker/db.Dockerfile not found at {dockerfile}; cannot build {image}"
+        )
+    _logger.info("Building %s from %s (one-off, may take a minute)", image, dockerfile)
+    result = subprocess.run(
+        ["docker", "build", "-t", image, "-f", dockerfile, project_root],
+        capture_output=True,
+        timeout=600,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"docker build {image} failed (exit {result.returncode}); "
+            f"stderr tail: {result.stderr.decode(errors='replace')[-2000:]}"
+        )
 
 
 @pytest.fixture(scope="session")
 async def pg_container() -> AsyncIterator[str]:
-    """Yield an asyncpg-compatible URL for a pgvector/pgvector:pg16 container.
+    """Yield an asyncpg-compatible URL for the composite pgvector+zhparser container.
 
-    Runs alembic upgrade head once per session, with zhparser CREATE EXTENSION
-    patched out (not available in the pgvector image). Also creates pg_trgm
-    extension required for gin_trgm_ops indexes.
+    Uses `intellisource/db:pg16-pgvector-zhparser` (override with `IS_TEST_DB_IMAGE`).
+    The image is built lazily from docker/db.Dockerfile if it is missing locally,
+    so CI and dev machines share the same path without pre-pull rituals. Runs
+    `alembic upgrade head` once per session to create the schema, all extensions
+    (vector / pg_trgm / zhparser), and the `zhparser` text-search configuration.
     """
     from testcontainers.postgres import PostgresContainer
 
-    container = PostgresContainer("pgvector/pgvector:pg16", driver="asyncpg")
+    if not _docker_image_exists(_TEST_DB_IMAGE):
+        _build_test_db_image(_TEST_DB_IMAGE)
+
+    container = PostgresContainer(_TEST_DB_IMAGE, driver="asyncpg")
     container.start()
-    original_op_execute = None
     try:
         # Build asyncpg URL
         async_url: str = container.get_connection_url()
@@ -143,11 +176,6 @@ async def pg_container() -> AsyncIterator[str]:
         # MissingGreenlet while bridging asyncpg through sync engine_from_config.
         os.environ["DATABASE_URL"] = sync_url
 
-        # Patch alembic.op.execute to skip zhparser DDL
-        from alembic import op as alembic_op
-
-        original_op_execute = _patch_alembic_for_zhparser(alembic_op)
-
         # Run alembic upgrade head
         from alembic import command
         from alembic.config import Config
@@ -158,14 +186,6 @@ async def pg_container() -> AsyncIterator[str]:
 
         yield async_url
     finally:
-        # Restore alembic.op.execute if patched
-        if original_op_execute is not None:
-            try:
-                from alembic import op as alembic_op
-
-                alembic_op.execute = original_op_execute
-            except Exception:
-                pass
         container.stop()
 
 

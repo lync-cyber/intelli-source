@@ -268,6 +268,66 @@ class TestZhparserExtension:
             "CREATE EXTENSION zhparser is not in the upgrade() function"
         )
 
+    def test_zhparser_no_exception_wrapper(self) -> None:
+        """B-032: zhparser must be a hard requirement, not behind EXCEPTION fallback.
+
+        Prior to B-032 the migration wrapped CREATE EXTENSION zhparser in
+        ``DO $$ BEGIN ... EXCEPTION WHEN feature_not_supported THEN ...``
+        so the bare ``pgvector/pgvector:pg16`` image could still migrate.
+        Now that ``docker/db.Dockerfile`` ships zhparser the EXCEPTION
+        wrapper is removed; this regression guard fails the build if a
+        future revert reintroduces it.
+        """
+        source = _read_migration_source()
+        zh_zone = re.search(
+            r"CREATE\s+EXTENSION\s+IF\s+NOT\s+EXISTS\s+zhparser[^\n]{0,200}",
+            source,
+            re.IGNORECASE,
+        )
+        assert zh_zone, "CREATE EXTENSION zhparser not present in migration"
+        # The EXCEPTION clause used to live in the same DO-block as the
+        # CREATE EXTENSION zhparser statement; assert no such pattern remains.
+        bad = re.search(
+            r"DO\s*\$\$.*?CREATE\s+EXTENSION\s+IF\s+NOT\s+EXISTS\s+zhparser.*?"
+            r"EXCEPTION\s+WHEN\s+feature_not_supported",
+            source,
+            re.IGNORECASE | re.DOTALL,
+        )
+        assert not bad, (
+            "CREATE EXTENSION zhparser is still wrapped in DO/EXCEPTION; "
+            "B-032 expects the composite DB image to provide zhparser "
+            "unconditionally."
+        )
+
+    def test_creates_zhparser_text_search_configuration(self) -> None:
+        """B-032: migration must create a TEXT SEARCH CONFIGURATION named ``zhparser``.
+
+        storage/vector.py issues ``to_tsvector('zhparser', body_text)`` and
+        ``websearch_to_tsquery('zhparser', :q)``, which require a
+        configuration of that name. The configuration is built by mapping
+        the zhparser PARSER's token types (n/v/a/i/e/l/j) to the
+        ``simple`` dictionary.
+        """
+        source = _read_migration_source()
+        cfg = re.search(
+            r"CREATE\s+TEXT\s+SEARCH\s+CONFIGURATION\s+zhparser\s*\(\s*PARSER\s*=\s*zhparser\s*\)",
+            source,
+            re.IGNORECASE,
+        )
+        assert cfg, (
+            "Migration must create TEXT SEARCH CONFIGURATION zhparser "
+            "(PARSER = zhparser); storage/vector.py references it by name."
+        )
+        mapping = re.search(
+            r"ALTER\s+TEXT\s+SEARCH\s+CONFIGURATION\s+zhparser\s+ADD\s+MAPPING\s+FOR",
+            source,
+            re.IGNORECASE,
+        )
+        assert mapping, (
+            "Migration must ALTER TEXT SEARCH CONFIGURATION zhparser ADD MAPPING "
+            "FOR <token-types> WITH simple; otherwise to_tsvector returns empty."
+        )
+
 
 # ===========================================================================
 # AC-T046-5: LLMCallLog partitioned table is created correctly

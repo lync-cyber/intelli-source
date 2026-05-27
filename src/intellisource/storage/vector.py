@@ -39,8 +39,8 @@ _CLUSTER_SIMILARITY_SQL: str = (
 
 _KEYWORD_SQL_TMPL: str = (
     f"SELECT {_SELECT_COLUMNS}, "
-    "ts_rank(to_tsvector('simple', body_text), "
-    "websearch_to_tsquery('simple', :query)) AS score "
+    "ts_rank(to_tsvector('zhparser', body_text), "
+    "websearch_to_tsquery('zhparser', :query)) AS score "
     "FROM processed_contents {where} "
     "ORDER BY score DESC LIMIT :top_k"
 )
@@ -48,8 +48,8 @@ _KEYWORD_SQL_TMPL: str = (
 _HYBRID_SQL_TMPL: str = (
     f"SELECT {_SELECT_COLUMNS}, "
     "(0.5 * (1 - (embedding <=> :query_vector)) + "
-    "0.5 * ts_rank(to_tsvector('simple', body_text), "
-    "websearch_to_tsquery('simple', :query))) AS score "
+    "0.5 * ts_rank(to_tsvector('zhparser', body_text), "
+    "websearch_to_tsquery('zhparser', :query))) AS score "
     "FROM processed_contents {where} "
     "ORDER BY score DESC LIMIT :top_k"
 )

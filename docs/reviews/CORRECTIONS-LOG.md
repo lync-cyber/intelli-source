@@ -435,3 +435,52 @@ deps: []
   - 长期：integration mock fixtures 应优先用真 dataclass 实例（而非 dict + duck-typing）以与生产契约共享类型
 - 关联: tests/integration/test_pg_vector_search.py + Makefile + scripts/contract_check.py（新）+ CLAUDE.md Learnings Registry；PR #64 commit 接续 c8b69f4
 
+### 2026-05-27 | orchestrator | B-032 闭环
+
+- 触发信号: backlog P1 carryover 推进（用户选 "先清 P1 carryover（B-032 / B-035）"）
+- 问题/假设: `pgvector/pgvector:pg16` 裸基底镜像不含 zhparser，migration 001 用 `DO $$ ... EXCEPTION WHEN feature_not_supported` 包裹优雅降级使 FTS 永远走 `simple` parser；deploy-spec §2 R-005 把 zhparser 列为硬约束，与现状矛盾。中文 FTS 路径在 storage/vector.py 永远不真正分词。
+- 路径调研: research skill (web-search) 调研 选 A (自建 Dockerfile) vs 选 B (现成复合镜像)，结论 **公开域不存在 pgvector + zhparser 复合镜像**，B 不可行。详见 [docs/research/b032-pgvector-zhparser-image-options.md](../research/b032-pgvector-zhparser-image-options.md)。用户选项决策：A1 (基底=pgvector + 加 zhparser 层) + FTS 切换一次到位
+- 修复:
+  - 新增 [docker/db.Dockerfile](../../docker/db.Dockerfile) — `FROM pgvector/pgvector:pg16` 基底，layered apt install build-essential + postgresql-server-dev-16 → 编译 SCWS 1.2.3 (`./configure --prefix=/usr/local && make && make install`) → clone amutu/zhparser master 并 `SCWS_HOME=/usr/local make && make install` → 卸载 build tools + ldconfig；参考 [abcfy2/docker_zhparser Dockerfile.debian](https://github.com/abcfy2/docker_zhparser/blob/main/Dockerfile.debian)
+  - [docker/docker-compose.yml](../../docker/docker-compose.yml) `db` 服务 `image: pgvector/pgvector:pg16` → `build: { context: .., dockerfile: docker/db.Dockerfile }` + `image: intellisource/db:pg16-pgvector-zhparser`
+  - [alembic/versions/001_initial_schema.py](../../alembic/versions/001_initial_schema.py) 移除 `DO $$ BEGIN CREATE EXTENSION zhparser; EXCEPTION WHEN feature_not_supported ...` 包裹 → 直接 `CREATE EXTENSION IF NOT EXISTS zhparser`；新增 `CREATE TEXT SEARCH CONFIGURATION zhparser (PARSER = zhparser) + ALTER ... ADD MAPPING FOR n,v,a,i,e,l,j WITH simple`（用 `DO $$ ... IF NOT EXISTS (SELECT 1 FROM pg_ts_config WHERE cfgname='zhparser')` 守 idempotency，因 PG 无 `CREATE TS CONFIG IF NOT EXISTS` 原生语法）；downgrade 同步 `DROP TEXT SEARCH CONFIGURATION IF EXISTS zhparser`
+  - [src/intellisource/storage/vector.py](../../src/intellisource/storage/vector.py) `_KEYWORD_SQL_TMPL` + `_HYBRID_SQL_TMPL` `to_tsvector('simple', body_text)` + `websearch_to_tsquery('simple', :query)` 4 处 `'simple'` → `'zhparser'`
+  - [tests/integration/conftest.py](../../tests/integration/conftest.py) 移除 `_patch_alembic_for_zhparser` monkeypatch（已无必要）；container image 改为 `IS_TEST_DB_IMAGE` env var 默认 `intellisource/db:pg16-pgvector-zhparser`；新增 `_docker_image_exists` + `_build_test_db_image` 兜底，session fixture 启动前 lazy `docker build -t <image> -f docker/db.Dockerfile .` 一次（image 已存在则跳过）
+  - [tests/unit/storage/test_migration.py](../../tests/unit/storage/test_migration.py) 新增 `test_zhparser_no_exception_wrapper`（防 EXCEPTION 包裹回归）+ `test_creates_zhparser_text_search_configuration`（验证 CREATE TS CONFIG zhparser + ALTER ADD MAPPING）
+- 验证:
+  - **单测**: `uv run pytest tests/unit` → **2792 PASS** / 5 deselected（基线 2790 + 2 新增 B-032 守卫测试），零回归
+  - **质量门禁**: `mypy --strict storage/vector.py` clean / `ruff check + format` 4 文件 clean / `lint-imports --no-cache` **8/8 KEPT**
+  - **docker compose config**: 解析无报错
+  - **真起栈验证**: 留给 user `make up` (首次会 build 镜像 1-2 min) → `psql -c "SELECT extname FROM pg_extension WHERE extname='zhparser'"` 应返 1 行；`SELECT cfgname FROM pg_ts_config WHERE cfgname='zhparser'` 应返 1 行；中文 query `/search` 应走 zhparser 分词路径
+- 偏差类型: deployment-gap（部署破口闭合）
+- 影响:
+  - deploy-spec §2 R-005 zhparser 硬约束从"占位描述"提升为"代码落地"
+  - integration tests 在 CI 跑通后中文 FTS 路径不再 `simple` 兜底
+  - B-035 (CI 强制跑 docker integration) 现可基于此 image 推进
+- 关联: docs/research/b032-pgvector-zhparser-image-options.md + docs/BACKLOG-intellisource-v1.md#b-032
+
+### 2026-05-27 | orchestrator | B-035 闭环
+
+- 触发信号: B-032 闭环后顺势推进 P1 carryover（用户选 "先 commit + push B-032，再同并启动 B-035"）
+- 问题/假设: CI 跑 `tests/integration/` 时 47 项 docker 集成测试被 conftest 在缺 Docker 时 deselect；CI 当前 ubuntu-latest 虽有 docker daemon，但走 `IS_FORCE_DOCKER_TESTS=1` 后 fixture 拉的是 `pgvector/pgvector:pg16` 裸镜像 + monkeypatch 跳过 zhparser DDL，**实际 zhparser 路径在 CI 里从未跑通**。所有 B-031 阶段 0 NO-GO（Dockerfile/uv sync/asyncpg/uvicorn/shebang/distributor）若 CI 真跑 docker compose 都会立刻爆出。
+- 路径: 直接修 `.github/workflows/ci.yml`（task_kind=chore，纯 CI 配置）
+- 修复:
+  - [.github/workflows/ci.yml](../../.github/workflows/ci.yml) `integration-tests` job：删 `docker pull pgvector/pgvector:pg16` 预热；加 `docker/setup-buildx-action@v3` + `docker/build-push-action@v5` build `intellisource/db:pg16-pgvector-zhparser`（B-032 复合镜像），cache `type=gha,scope=db-image` 跨 job/run 复用；新增 env `IS_TEST_DB_IMAGE=intellisource/db:pg16-pgvector-zhparser` 让 conftest 用 composite image；`IS_FORCE_DOCKER_TESTS=1` 让 deselect 钩子失效。timeout 30→45 min 容纳冷 cache 镜像构建（首次 ~1-2 min；后续 cache hit secs）
+  - 新增 `docker-compose-smoke` job：
+    - `cp docker/.env.example docker/.env` + sed 把 wechat/wework/email 凭据填 `ci-smoke-placeholder` 兼 B-033 hard-fail（composition.build_distributor_facade 当前对空 credential 抛 ValueError）
+    - 复用 cached composite image（同一 `cache-from: type=gha,scope=db-image`）
+    - `docker compose up -d --wait db redis migrate api` 借 compose 自身 db healthcheck + redis healthcheck + `service_completed_successfully` (migrate) + api healthcheck 串联等待；timeout 10 min
+    - `curl -fsS http://localhost:8000/health` 验 api 活
+    - 3 个 SQL 探针验 zhparser 真路径：`SELECT extname FROM pg_extension WHERE extname='zhparser'` 应返 1 行；`SELECT cfgname FROM pg_ts_config WHERE cfgname='zhparser'` 应返 1 行；`SELECT to_tsvector('zhparser', '北京天安门搜索引擎')` 应返多 lexeme（grep `'[^']+':[0-9]` 命中 ≥2，防 'simple' parser 退化）
+    - `if: failure()` dump db/migrate/api logs，`if: always()` `docker compose down -v` 清理
+- 验证:
+  - `python -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml', encoding='utf-8'))"` → CI YAML valid，jobs=[unit-tests, integration-tests, docker-compose-smoke, lint, arch-graph]
+  - **真路径验证待 GitHub Actions 真跑**：PR push 后 docker-compose-smoke + integration-tests 两 job 全绿
+- 偏差类型: process-gap（CI 长期缺真起栈门禁，让 walkthrough 暴露的破口本可在 CI 阶段早发现）
+- 影响:
+  - 后续 PR 改动若破坏 docker compose 起栈或 zhparser 路径，CI 立即 fail block merge
+  - integration-tests job 真跑 47 项 docker 集成测试，zhparser FTS 路径在 CI 真验证
+  - B-031 walkthrough 7 项 NO-GO 同类问题在 CI 阶段即可拦截
+  - SCWS 1.2.3 源码下载依赖 xunsearch.com 可用性 — 如失联 docker build 会 fail，是潜在风险点（参 B-032 research note §5 R-2）
+- 关联: B-032 PR #65 复合镜像；docs/BACKLOG-intellisource-v1.md#b-035；deploy-spec §3 CI/CD 流水线 B-013/B-014/B-015 同类强制门禁要求
+

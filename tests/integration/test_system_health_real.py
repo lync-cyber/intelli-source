@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import Text, event
+from sqlalchemy import JSON, Text, event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from intellisource.storage.models import Base, LLMCallLog
@@ -206,8 +206,18 @@ async def sqlite_session() -> AsyncIterator[AsyncSession]:
     _remove_pg_only_indexes(Base)
     for table in Base.metadata.tables.values():
         for col in table.columns:
-            if type(col.type).__name__ == "Vector":
+            type_name = type(col.type).__name__
+            if type_name == "Vector":
                 col.type = Text()
+            elif type_name == "JSONB":
+                # sqlite has no JSONB; coerce to portable JSON so
+                # Base.metadata.create_all does not trip SQLiteTypeCompiler.
+                col.type = JSON()
+            elif type_name == "ARRAY":
+                # sqlite has no native ARRAY (postgresql.dialects ARRAY type).
+                # JSON serialises [] / ["tag"] cleanly enough for the route's
+                # read-side aggregation that this fixture exercises.
+                col.type = JSON()
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
