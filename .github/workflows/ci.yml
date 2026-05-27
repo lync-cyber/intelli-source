@@ -99,13 +99,14 @@ jobs:
           # B-033 carryover: composition.build_distributor_facade hard-fails
           # when channel credentials are blank. Use placeholder strings to
           # let the api boot for the smoke window; webhook flows are not
-          # exercised here.
+          # exercised here. IS_WEWORK_AGENT_ID + IS_SMTP_PORT MUST stay numeric
+          # because distributor.from_env() parses them via int().
           sed -i 's|^IS_WECHAT_APP_ID=.*|IS_WECHAT_APP_ID=ci-smoke-placeholder|' docker/.env
           sed -i 's|^IS_WECHAT_APP_SECRET=.*|IS_WECHAT_APP_SECRET=ci-smoke-placeholder|' docker/.env
           sed -i 's|^IS_WECHAT_WEBHOOK_TOKEN=.*|IS_WECHAT_WEBHOOK_TOKEN=ci-smoke-placeholder|' docker/.env
           sed -i 's|^IS_WEWORK_CORP_ID=.*|IS_WEWORK_CORP_ID=ci-smoke-placeholder|' docker/.env
           sed -i 's|^IS_WEWORK_CORP_SECRET=.*|IS_WEWORK_CORP_SECRET=ci-smoke-placeholder|' docker/.env
-          sed -i 's|^IS_WEWORK_AGENT_ID=.*|IS_WEWORK_AGENT_ID=ci-smoke-placeholder|' docker/.env
+          sed -i 's|^IS_WEWORK_AGENT_ID=.*|IS_WEWORK_AGENT_ID=0|' docker/.env
           sed -i 's|^IS_WEWORK_WEBHOOK_TOKEN=.*|IS_WEWORK_WEBHOOK_TOKEN=ci-smoke-placeholder|' docker/.env
           sed -i 's|^IS_SMTP_HOST=.*|IS_SMTP_HOST=smtp.example.com|' docker/.env
           sed -i 's|^IS_SMTP_USER=.*|IS_SMTP_USER=ci-smoke-placeholder|' docker/.env
