@@ -108,16 +108,7 @@ deps: []
   - 步骤 7 trace_id 子项加注 "依赖 B-040 闭环后生效；当前可跳过此项，专项验证留给步骤 17 F-23 回归"
   - 步骤 8 修正 "`/llm/stats` 不带 API key 也能查" → "所有 /api/v1/* 端点均需 X-API-Key（webhooks/health/metrics/openapi/docs/redoc 除外）"
 
-### B-035 CI 强制跑 docker integration
-- **优先级**：P1
-- **关联**：B-013（已有任务，本任务是其升级）；CORRECTIONS-LOG 全部 7 项 NO-GO 的根因之一
-- **现状**：本地无 Docker → 47 docker integration tests deselect；CI 当前路径也不真跑（B-013 carryover）。**所有 NO-GO 都因 docker compose 真起栈从未在 CI 跑通而隐藏**
-- **修复方向**：
-  - GitHub Actions workflow 加 `services: { docker: { ... } }` 或用 `setup-docker` action
-  - 加 `IS_FORCE_DOCKER_TESTS=1` env 变量，让 conftest 不再 deselect docker 测试
-  - 加专门的 "docker compose smoke" job：真跑 `docker compose up -d db redis migrate api` + curl /health
-  - fail 时阻塞 merge
-- **验证**：CI 输出 `162 collected, 0 deselected, 47+ docker PASS`；smoke job 显示 api 健康
+> B-035 已闭环 (本次会话) — `.github/workflows/ci.yml` 改造：(1) `integration-tests` job 用 `docker/setup-buildx-action@v3` + `docker/build-push-action@v5` 预 build `intellisource/db:pg16-pgvector-zhparser`（cache type=gha,scope=db-image 跨 job/run 复用）→ 设 `IS_FORCE_DOCKER_TESTS=1` + `IS_TEST_DB_IMAGE=intellisource/db:pg16-pgvector-zhparser` 让 conftest 不 deselect docker 测试且用 composite image；(2) 新增 `docker-compose-smoke` job — 复用 cached image，`cp .env.example .env` + sed 填 channel 占位（兼 B-033 hard-fail），`docker compose up -d --wait db redis migrate api` 借 compose 自身 healthcheck + service_completed_successfully 等待，三个 SQL 探针验证 zhparser 真路径活：`SELECT extname FROM pg_extension WHERE extname='zhparser'` / `SELECT cfgname FROM pg_ts_config WHERE cfgname='zhparser'` / `to_tsvector('zhparser', '北京天安门搜索引擎')` 返多 lexeme（防 'simple' 回退）；(3) failure 时 dump db/migrate/api logs；(4) `if: always()` 跑 down -v 清理。预期 CI 首次 1-2 min build 镜像，二次 cache hit secs；smoke job 与 integration-tests job 并行跑独立 stack 互不干扰。**待 PR push 后 GitHub Actions 真跑验证**。
 
 ### B-038 framework-feedback: 提议框架默认采用 CLAUDE.md 单一事实来源
 - **优先级**：P3（项目本地已落地，feedback 是为防止 upgrade 漂移）

@@ -459,3 +459,28 @@ deps: []
   - B-035 (CI 强制跑 docker integration) 现可基于此 image 推进
 - 关联: docs/research/b032-pgvector-zhparser-image-options.md + docs/BACKLOG-intellisource-v1.md#b-032
 
+### 2026-05-27 | orchestrator | B-035 闭环
+
+- 触发信号: B-032 闭环后顺势推进 P1 carryover（用户选 "先 commit + push B-032，再同并启动 B-035"）
+- 问题/假设: CI 跑 `tests/integration/` 时 47 项 docker 集成测试被 conftest 在缺 Docker 时 deselect；CI 当前 ubuntu-latest 虽有 docker daemon，但走 `IS_FORCE_DOCKER_TESTS=1` 后 fixture 拉的是 `pgvector/pgvector:pg16` 裸镜像 + monkeypatch 跳过 zhparser DDL，**实际 zhparser 路径在 CI 里从未跑通**。所有 B-031 阶段 0 NO-GO（Dockerfile/uv sync/asyncpg/uvicorn/shebang/distributor）若 CI 真跑 docker compose 都会立刻爆出。
+- 路径: 直接修 `.github/workflows/ci.yml`（task_kind=chore，纯 CI 配置）
+- 修复:
+  - [.github/workflows/ci.yml](../../.github/workflows/ci.yml) `integration-tests` job：删 `docker pull pgvector/pgvector:pg16` 预热；加 `docker/setup-buildx-action@v3` + `docker/build-push-action@v5` build `intellisource/db:pg16-pgvector-zhparser`（B-032 复合镜像），cache `type=gha,scope=db-image` 跨 job/run 复用；新增 env `IS_TEST_DB_IMAGE=intellisource/db:pg16-pgvector-zhparser` 让 conftest 用 composite image；`IS_FORCE_DOCKER_TESTS=1` 让 deselect 钩子失效。timeout 30→45 min 容纳冷 cache 镜像构建（首次 ~1-2 min；后续 cache hit secs）
+  - 新增 `docker-compose-smoke` job：
+    - `cp docker/.env.example docker/.env` + sed 把 wechat/wework/email 凭据填 `ci-smoke-placeholder` 兼 B-033 hard-fail（composition.build_distributor_facade 当前对空 credential 抛 ValueError）
+    - 复用 cached composite image（同一 `cache-from: type=gha,scope=db-image`）
+    - `docker compose up -d --wait db redis migrate api` 借 compose 自身 db healthcheck + redis healthcheck + `service_completed_successfully` (migrate) + api healthcheck 串联等待；timeout 10 min
+    - `curl -fsS http://localhost:8000/health` 验 api 活
+    - 3 个 SQL 探针验 zhparser 真路径：`SELECT extname FROM pg_extension WHERE extname='zhparser'` 应返 1 行；`SELECT cfgname FROM pg_ts_config WHERE cfgname='zhparser'` 应返 1 行；`SELECT to_tsvector('zhparser', '北京天安门搜索引擎')` 应返多 lexeme（grep `'[^']+':[0-9]` 命中 ≥2，防 'simple' parser 退化）
+    - `if: failure()` dump db/migrate/api logs，`if: always()` `docker compose down -v` 清理
+- 验证:
+  - `python -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml', encoding='utf-8'))"` → CI YAML valid，jobs=[unit-tests, integration-tests, docker-compose-smoke, lint, arch-graph]
+  - **真路径验证待 GitHub Actions 真跑**：PR push 后 docker-compose-smoke + integration-tests 两 job 全绿
+- 偏差类型: process-gap（CI 长期缺真起栈门禁，让 walkthrough 暴露的破口本可在 CI 阶段早发现）
+- 影响:
+  - 后续 PR 改动若破坏 docker compose 起栈或 zhparser 路径，CI 立即 fail block merge
+  - integration-tests job 真跑 47 项 docker 集成测试，zhparser FTS 路径在 CI 真验证
+  - B-031 walkthrough 7 项 NO-GO 同类问题在 CI 阶段即可拦截
+  - SCWS 1.2.3 源码下载依赖 xunsearch.com 可用性 — 如失联 docker build 会 fail，是潜在风险点（参 B-032 research note §5 R-2）
+- 关联: B-032 PR #65 复合镜像；docs/BACKLOG-intellisource-v1.md#b-035；deploy-spec §3 CI/CD 流水线 B-013/B-014/B-015 同类强制门禁要求
+
