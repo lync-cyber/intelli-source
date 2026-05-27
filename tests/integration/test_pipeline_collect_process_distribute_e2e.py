@@ -169,5 +169,9 @@ async def test_collect_process_distribute_persists_push_record(
     records = list((await pg_session.scalars(stmt)).all())
     assert len(records) == 1
     assert records[0].status == "sent"
-    assert records[0].recipient_id is not None
-    assert "@" not in (records[0].recipient_id or ""), "recipient must be masked"
+    masked = records[0].recipient_id or ""
+    assert masked, "recipient_id must be persisted"
+    # pii.mask_email keeps the domain (e.g. "s***@example.com"), so the @ stays
+    # present by design — assert the local part was masked instead.
+    assert "***" in masked, f"recipient must be masked with '***', got {masked!r}"
+    assert masked != "subscriber@example.com", "recipient_id must be masked, not raw"

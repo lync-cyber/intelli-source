@@ -213,6 +213,11 @@ async def sqlite_session() -> AsyncIterator[AsyncSession]:
                 # sqlite has no JSONB; coerce to portable JSON so
                 # Base.metadata.create_all does not trip SQLiteTypeCompiler.
                 col.type = JSON()
+            elif type_name == "ARRAY":
+                # sqlite has no native ARRAY (postgresql.dialects ARRAY type).
+                # JSON serialises [] / ["tag"] cleanly enough for the route's
+                # read-side aggregation that this fixture exercises.
+                col.type = JSON()
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
