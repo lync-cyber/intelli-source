@@ -44,7 +44,12 @@ class EmailDistributor(BaseDistributor):
 
     @classmethod
     def from_env(cls) -> EmailDistributor:
-        """Create instance from IS_SMTP_* environment variables."""
+        """Create instance from IS_SMTP_* environment variables.
+
+        Honors IS_SMTP_USE_TLS (default "true"). Accepts "true"/"1"/"yes"
+        as truthy; any other value disables implicit TLS so the channel
+        can talk to plain SMTP servers like mailhog/mailpit on 1025.
+        """
         host = os.environ.get("IS_SMTP_HOST")
         user = os.environ.get("IS_SMTP_USER")
         password = os.environ.get("IS_SMTP_PASSWORD")
@@ -54,11 +59,14 @@ class EmailDistributor(BaseDistributor):
             )
         port_str = os.environ.get("IS_SMTP_PORT")
         port = int(port_str) if port_str else DEFAULT_SMTP_PORT
+        use_tls_str = os.environ.get("IS_SMTP_USE_TLS", "true").strip().lower()
+        use_tls = use_tls_str in {"true", "1", "yes"}
         return cls(
             smtp_host=host,
             smtp_port=port,
             smtp_user=user,
             smtp_password=password,
+            use_tls=use_tls,
         )
 
     def format_html(self, content: Any) -> str:

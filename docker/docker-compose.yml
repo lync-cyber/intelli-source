@@ -135,6 +135,15 @@ services:
       disable: true
     restart: unless-stopped
 
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    profiles:
+      - walkthrough
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    restart: unless-stopped
+
   prometheus:
     image: prom/prometheus:v2.55.1
     profiles:

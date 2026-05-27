@@ -508,3 +508,26 @@ deps: []
   - 修正 #28 暴露 beat 路径的 unit/integration 测试覆盖率为 0；B-031 walkthrough 前未发现的原因是单测全部直接调 `_bootstrap_beat_schedule` 而非通过 signal 链路
 - 关联: B-031 walkthrough §阶段 5 步骤 12；boot.py / docker-compose.yml / tests/unit/scheduler/test_beat_init_handler.py
 
+
+### 2026-05-27 | orchestrator | B-031 阶段 5 步骤 13-14 真起栈走查 (闭环)
+
+- 触发信号: B-031 阶段 5 步骤 12 闭环后，用户决定立即推进步骤 13（订阅+推送闭环）+ 步骤 14（webhook 入站），过程中触发 1 项 SMTP 配置缺口 inline 修
+- 修正 #29 — EmailDistributor 硬编码 use_tls=True 无法适配 mailhog/maildev plain SMTP 与 Gmail 587 STARTTLS 路径:
+  - 根因: [src/intellisource/distributor/channels/email.py](../../src/intellisource/distributor/channels/email.py) `EmailDistributor.from_env` 直接 `return cls(smtp_host=..., smtp_port=..., smtp_user=..., smtp_password=...)` — 不读 TLS 偏好，构造器默认 `use_tls=True`（implicit TLS，需 465 端口）。本地 walkthrough 用 mailhog 1025 是 plain SMTP，TLS 协商失败；Gmail 587 是 STARTTLS（不是 implicit TLS）。`aiosmtplib.send` 当 `use_tls=True` + 端口 587 时 TLS 协商失败被 `attempt_fn` 吞为 (False, error)，但 DistributorFacade `try: await channel.distribute(); sent+=1` 看 `channel.distribute()` 返 `{"status":"failed",...}` 不抛 → facade 误判 sent=1 写 push_records（payload 实际未送达）。
+  - 修复:
+    - [src/intellisource/distributor/channels/email.py](../../src/intellisource/distributor/channels/email.py) `from_env`: 加 `os.environ.get("IS_SMTP_USE_TLS", "true").strip().lower()` 读取，`use_tls = use_tls_str in {"true", "1", "yes"}` 默认 `true` 向后兼容；`false`/`0`/`no` 关 implicit TLS，aiosmtplib 默认 `start_tls=None` auto-detect 走 STARTTLS 路径
+    - [docker/.env.example](../../docker/.env.example) + [docker/.env](../../docker/.env) 新增 `IS_SMTP_USE_TLS` 字段（example 默认 `true`，walkthrough 现场切 `false` 配 mailhog/Gmail 587）
+    - [docker/docker-compose.yml](../../docker/docker-compose.yml) 新增 `mailhog` 服务（profile=`walkthrough`，`mailhog/mailhog:v1.0.1` 镜像，端口 1025 SMTP + 8025 Web UI）
+- 验证:
+  - distributor 单测 339/339 PASS（含 test_email.py 21 tests）+ mypy --strict + ruff clean，2797 PASS unit 基线保持
+  - 步骤 13 mailhog 路径：sub `688f3a1e-...` match=[ai] → facade.distribute call1 sent=1 (mailhog UI total=1 "Launch HN: Minicor (YC P26) – Windows desktop automations at scale" To: alice@example.com) / call2 dedup skipped=1 / push_records status=sent recipient_id=`a***@example.com` PII mask
+  - 步骤 13 Gmail 真实邮箱路径：sub `5def1ce3-...` to_addr=`lhcnihaoa@qq.com` → smtp.gmail.com:587 STARTTLS auto-detect → 用户确认 QQ 邮箱收到 + push_records recipient_id=`l***@qq.com` PII mask + call2 dedup skipped=1 + call3 content tags=[web] vs sub.match_rules=[ai] → matched=0 matcher 正确
+  - 步骤 14 WeChat webhook（真实公众号 token 32 字符注入 IS_WECHAT_WEBHOOK_TOKEN）：GET 正确 signature `342aca7c637dea6b6f32fe5ef079c6e8e5b227d7` → 200 + body 原样回显 `hello-wechat-walkthrough` / GET 错误 signature → 403 + `forbidden` / POST `<MsgType>text</MsgType><Content>ping</Content>` → 200 + `<xml><Content><![CDATA[success]]></Content></xml>` 同步 ack 符合微信公众号协议
+  - 步骤 14 WeWork 标 N/A（未提供 corp_id+secret+aes_key，同套 signature 算法 + WeComCrypto AES 加密层在 [src/intellisource/api/webhook_crypto.py](../../src/intellisource/api/webhook_crypto.py) 单测 261/261 PASS 已覆盖）
+- 偏差类型: config-gap（SMTP 仅暴露 host/port/user/password 不暴露 TLS 偏好，walkthrough 与 prod 不同 SMTP 后端无法切换）+ silent-failure（channel.distribute 异常吞为 status="failed" 不抛，facade 误判 sent — 这条留给 P3 改进，本次未修因影响 mock dedup 测试契约）
+- 影响:
+  - 解锁 B-031 阶段 6-7 步骤 15-20（Prometheus profile / AdaptiveScheduler / trace_id 跨进程 / DB-LLM-Redis 失败注入）
+  - **doc drift 并入 B-034 P3 walkthrough 订正** — 4 项: (a) channel_config 示例用 `"to"` 应为 `"to_addr"`; (b) 验证 SQL 查 `message_preview` 列不存在，PII 落 `recipient_id`; (c) `POST /pipelines/push-optimize/run` 入口 push-optimize.yaml `steps: []` 不触发推送（实际推送链路在 worker manual-collect/scheduled-collect 的 `tool: distribute` step）; (d) auth header 用 `Authorization: Bearer` 应为 `X-API-Key`
+  - **silent-failure carryover**: channel.distribute 返 `{"status":"failed",...}` 不抛 → facade sent 计数误差；建议立 B-048 P3 让 channel 失败抛 ChannelSendError 让 facade try/except 捕获正确 record skipped
+- 关联: B-031 walkthrough §阶段 5 步骤 13-14；email.py from_env + docker-compose.yml mailhog 服务 + docker/.env IS_SMTP_USE_TLS；B-034 doc drift carryover；B-048 silent-failure carryover
+
