@@ -123,12 +123,15 @@ async def test_collect_process_distribute_persists_push_record(
         distributor=facade,
     )
 
+    # task_id is intentionally omitted: raw_contents.collect_task_id is a FK to
+    # collect_tasks(id) and we do not create a CollectTask row in this test, so
+    # passing a random UUID would violate the FK. Omitting it lets repo.create_raw
+    # store NULL for collect_task_id (the column is nullable).
     with patch.object(registry, "get", return_value=mock_collector):
         collect_result = await _collect_execute(
             source_id=str(source.id),
             source_type="rss",
             tool_deps=deps,
-            task_id=str(uuid.uuid4()),
         )
 
     assert collect_result["status"] == "ok"

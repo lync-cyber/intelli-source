@@ -9,7 +9,9 @@ Inserts a record into processed_contents and verifies:
 
 from __future__ import annotations
 
+import os
 import uuid
+from typing import Any
 
 import pytest
 
@@ -17,6 +19,15 @@ import pytest
 # The conftest.py pytest_collection_modifyitems hook skips pg_container
 # dependents automatically, but we also add the marker for clarity.
 pytestmark = pytest.mark.requires_docker
+
+# Tests that actually invoke an LLM upstream skip when no provider key is
+# configured (CI without secrets). The skipif decorator targets only the
+# /search/chat path; pure DB tests below continue to run.
+_HAS_LLM_KEY = bool(
+    os.environ.get("OPENAI_API_KEY")
+    or os.environ.get("DEEPSEEK_API_KEY")
+    or os.environ.get("ANTHROPIC_API_KEY")
+)
 
 
 class TestSearchApiWithRealPg:
@@ -97,42 +108,47 @@ class TestSearchApiWithRealPg:
         mock_redis.hgetall = AsyncMock(return_value={})
         mock_redis.hset = AsyncMock(return_value=None)
 
-        async def _fake_get_session():  # type: ignore[return]
-            from sqlalchemy.ext.asyncio import create_async_engine as _engine
+        # patch(module.symbol) does not affect Depends() because the route
+        # captures the function reference at import time, not on every call.
+        # Use app.dependency_overrides[get_db_session] = _fake_get_session
+        # — the FastAPI-supported override mechanism — which the route
+        # actually consults per-request.
+        from intellisource.api.deps import get_db_session
 
-            eng = _engine(pg_container, echo=False)
+        eng = create_async_engine(pg_container, echo=False)
+
+        async def _fake_get_session() -> Any:  # noqa: ANN401
             async with AsyncSession(bind=eng, expire_on_commit=False) as session:
                 yield session
+
+        try:
+            with (
+                patch("intellisource.main.DatabaseManager", return_value=mock_db),
+                patch(
+                    "intellisource.main.aioredis.from_url",
+                    new_callable=AsyncMock,
+                    return_value=mock_redis,
+                ),
+            ):
+                from httpx import ASGITransport, AsyncClient
+
+                from intellisource.main import create_app
+
+                app = create_app()
+                app.dependency_overrides[get_db_session] = _fake_get_session
+                lifespan = app.router.lifespan_context
+
+                async with lifespan(app):
+                    transport = ASGITransport(app=app)
+                    async with AsyncClient(
+                        transport=transport, base_url="http://test"
+                    ) as ac:
+                        resp = await ac.post(
+                            "/api/v1/search",
+                            json={"query": "test", "search_mode": "keyword"},
+                        )
+        finally:
             await eng.dispose()
-
-        with (
-            patch("intellisource.main.DatabaseManager", return_value=mock_db),
-            patch(
-                "intellisource.main.aioredis.from_url",
-                new_callable=AsyncMock,
-                return_value=mock_redis,
-            ),
-            patch(
-                "intellisource.api.routers.search.get_db_session",
-                _fake_get_session,
-            ),
-        ):
-            from httpx import ASGITransport, AsyncClient
-
-            from intellisource.main import create_app
-
-            app = create_app()
-            lifespan = app.router.lifespan_context
-
-            async with lifespan(app):
-                transport = ASGITransport(app=app)
-                async with AsyncClient(
-                    transport=transport, base_url="http://test"
-                ) as ac:
-                    resp = await ac.post(
-                        "/api/v1/search",
-                        json={"query": "test", "search_mode": "keyword"},
-                    )
 
         assert resp.status_code == 200, (
             f"Expected HTTP 200, got {resp.status_code}: {resp.text}"
@@ -141,6 +157,13 @@ class TestSearchApiWithRealPg:
         assert "items" in body, f"Response missing 'items' key: {body}"
 
     @pytest.mark.asyncio
+    @pytest.mark.skipif(
+        not _HAS_LLM_KEY,
+        reason=(
+            "No LLM provider key (OPENAI_API_KEY/DEEPSEEK_API_KEY/"
+            "ANTHROPIC_API_KEY); /search/chat would hit upstream 401"
+        ),
+    )
     async def test_post_search_chat_returns_200_with_answer(
         self,
         pg_container: str,
@@ -148,7 +171,9 @@ class TestSearchApiWithRealPg:
         """POST /api/v1/search/chat → HTTP 200, response contains 'answer' key."""
         from unittest.mock import AsyncMock, MagicMock, patch
 
-        from sqlalchemy.ext.asyncio import AsyncSession
+        from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+
+        from intellisource.api.deps import get_db_session
 
         mock_db = MagicMock()
         mock_db.close = AsyncMock()
@@ -156,42 +181,40 @@ class TestSearchApiWithRealPg:
         mock_redis.hgetall = AsyncMock(return_value={})
         mock_redis.hset = AsyncMock(return_value=None)
 
-        async def _fake_get_session():  # type: ignore[return]
-            from sqlalchemy.ext.asyncio import create_async_engine as _engine
+        eng = create_async_engine(pg_container, echo=False)
 
-            eng = _engine(pg_container, echo=False)
+        async def _fake_get_session() -> Any:  # noqa: ANN401
             async with AsyncSession(bind=eng, expire_on_commit=False) as session:
                 yield session
+
+        try:
+            with (
+                patch("intellisource.main.DatabaseManager", return_value=mock_db),
+                patch(
+                    "intellisource.main.aioredis.from_url",
+                    new_callable=AsyncMock,
+                    return_value=mock_redis,
+                ),
+            ):
+                from httpx import ASGITransport, AsyncClient
+
+                from intellisource.main import create_app
+
+                app = create_app()
+                app.dependency_overrides[get_db_session] = _fake_get_session
+                lifespan = app.router.lifespan_context
+
+                async with lifespan(app):
+                    transport = ASGITransport(app=app)
+                    async with AsyncClient(
+                        transport=transport, base_url="http://test"
+                    ) as ac:
+                        resp = await ac.post(
+                            "/api/v1/search/chat",
+                            json={"message": "What is test?"},
+                        )
+        finally:
             await eng.dispose()
-
-        with (
-            patch("intellisource.main.DatabaseManager", return_value=mock_db),
-            patch(
-                "intellisource.main.aioredis.from_url",
-                new_callable=AsyncMock,
-                return_value=mock_redis,
-            ),
-            patch(
-                "intellisource.api.routers.search.get_db_session",
-                _fake_get_session,
-            ),
-        ):
-            from httpx import ASGITransport, AsyncClient
-
-            from intellisource.main import create_app
-
-            app = create_app()
-            lifespan = app.router.lifespan_context
-
-            async with lifespan(app):
-                transport = ASGITransport(app=app)
-                async with AsyncClient(
-                    transport=transport, base_url="http://test"
-                ) as ac:
-                    resp = await ac.post(
-                        "/api/v1/search/chat",
-                        json={"message": "What is test?"},
-                    )
 
         assert resp.status_code == 200, (
             f"Expected HTTP 200, got {resp.status_code}: {resp.text}"

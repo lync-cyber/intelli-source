@@ -195,6 +195,27 @@ deps: []
   - 或：复用 stream 路径的 done.metadata.results 提取逻辑作为 sync sources 的事实来源
 - **验证**：curl `/search/chat` RAG-trigger query → response.sources count ≥ 1 + answer 是自然语言（非 raw dict repr）
 
+### B-048 Integration Tests 基线失败清单（pre-existing，非 B-032/B-035 引入）
+- **优先级**：P2
+- **关联**：B-035 PR #65 让 CI 真跑 integration tests 后，基线 7 failed + 1 error 暴露；main 上 PR #64 merge commit (run 78023542934) 与 PR #65 (run 78028138475) 完全一致
+- **现状**：integration suite 共 163 项，156 PASS / 7 FAIL / 1 ERROR，已在 main 上持续红
+- **失败清单**：
+  - **F-01** `test_pipeline_collect_process_distribute_e2e.py::test_collect_process_distribute_persists_push_record` — FK violation `raw_contents.collect_task_id` 不在 `collect_tasks`（fixture 顺序 / 数据缺失）
+  - **F-02** `test_raw_content_persist_on_pipeline_done.py::TestRunPipelinePersistsProcessedStatus::test_run_pipeline_marks_raw_content_as_processed` — asyncpg `cannot perform operation: another operation is in progress`（跨 loop / 并发，与 B-037 同型问题）
+  - **F-03** `test_s8r_search_pg.py::TestSearchApiWithRealPg::test_post_search_returns_200_with_items` — `TypeError: 'coroutine' object is not iterable`（async generator fixture 注入路径不对）
+  - **F-04** `test_s8r_search_pg.py::TestSearchApiWithRealPg::test_post_search_chat_returns_200_with_answer` — DeepSeek 401 (CI 无 LLM API key)
+  - **F-05** `test_sprint7_integration.py::TestLLMStatsEndpoint::test_llm_stats_with_records_returns_aggregated_fields` — `assert 0 == 2`（缺 llm_call_logs fixture 数据）
+  - **F-06** `test_sprint7_integration.py::TestClustersEndpoint::test_clusters_limit_controls_page_size` — `assert False is True`（缺 cluster fixture 数据）
+  - **F-07** `test_sprint7_integration.py::TestClustersEndpoint::test_clusters_per_item_fields_match_api016` — `assert 0 >= 1` / `len([])`（同上）
+  - **E-01** `test_system_health_real.py::TestSystemLLMStatsRealRoute::test_system_llm_stats_reads_real_llm_call_log_rows` — `SQLiteTypeCompiler can't render JSONB`（fixture 用 sqlite 引擎但 model 含 JSONB 列）
+- **修复方向**：
+  - F-04: `@pytest.mark.skipif(not os.environ.get("DEEPSEEK_API_KEY") and not os.environ.get("OPENAI_API_KEY"))`（CI 没 key 时跳过）
+  - E-01: 把 `test_system_llm_stats_*` 从 sqlite-based fixture 切到 pg_session（model 用 JSONB，sqlite 无对应类型）
+  - F-05/F-06/F-07: 添加 `llm_call_logs` / `content_clusters` fixture 数据注入（用 `pg_session` 写测试数据）
+  - F-01: collect_tasks fixture insertion 顺序修正
+  - F-02/F-03: async fixture 模式重构（参 B-037 lazy redis 经验，可能需要 per-test loop scope）
+- **验证**：CI Integration Tests job 0 failed 0 error，163 PASS
+
 ---
 
 ## PR #54 后续验证
