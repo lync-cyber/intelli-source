@@ -82,6 +82,7 @@ class TestConfigHotReload:
     ) -> None:
         """T-099 AC-6: ConfigVersionManager.record_version is invoked."""
         from intellisource.config.loader import ConfigVersionManager
+        from intellisource.config.models import SourceConfig
 
         yaml_file = _make_yaml(tmp_path)
 
@@ -93,7 +94,9 @@ class TestConfigHotReload:
         mock_db = MagicMock()
         mock_db.get_session = MagicMock(return_value=mock_session)
 
-        version_manager = ConfigVersionManager()
+        version_manager = ConfigVersionManager(
+            table_name="config_versions", config_cls=SourceConfig
+        )
 
         with (
             patch.object(main_mod, "_db_manager", mock_db),

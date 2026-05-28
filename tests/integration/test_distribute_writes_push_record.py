@@ -82,15 +82,22 @@ def _make_mock_session_factory(
     mock_sub.frequency = "realtime"
     mock_sub.quiet_hours = None
 
-    mock_scalars_result = MagicMock()
-    mock_scalars_result.all = MagicMock(return_value=[mock_sub])
+    # B-057: facade._load_content_and_subscriptions calls session.scalars
+    # twice — first for ProcessedContent (.one_or_none()), then for
+    # Subscriptions (.all()). Each call needs its own scalars result.
+    mock_content_scalars = MagicMock()
+    mock_content_scalars.one_or_none = MagicMock(return_value=mock_content)
+
+    mock_sub_scalars = MagicMock()
+    mock_sub_scalars.all = MagicMock(return_value=[mock_sub])
 
     mock_execute_result = MagicMock()
     mock_execute_result.scalar_one_or_none = MagicMock(return_value=None)
 
     mock_session = MagicMock()
-    mock_session.get = AsyncMock(return_value=mock_content)
-    mock_session.scalars = AsyncMock(return_value=mock_scalars_result)
+    mock_session.scalars = AsyncMock(
+        side_effect=[mock_content_scalars, mock_sub_scalars]
+    )
     mock_session.execute = AsyncMock(return_value=mock_execute_result)
     mock_session.commit = AsyncMock()
     mock_session.flush = AsyncMock()
