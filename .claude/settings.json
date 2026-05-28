@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "env": {
-    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "50"
+    "ENABLE_LSP_TOOL": "1"
   },
   "permissions": {
     "allow": [
@@ -111,9 +111,6 @@
         ]
       }
     ]
-  },
-  "env": {
-    "ENABLE_LSP_TOOL": "1"
   },
   "enabledPlugins": {
     "typescript-lsp@claude-plugins-official": true
