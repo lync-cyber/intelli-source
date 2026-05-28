@@ -28,17 +28,20 @@ clean:
 rollback:
 	$(COMPOSE) run --rm api python -m alembic downgrade -1
 
-# First-time setup: copy env template + create sources directory
+# First-time setup: copy env template + create sources / subscriptions dirs
 bootstrap:
 	@[ -f docker/.env ] || (cp docker/.env.example docker/.env && echo "Created docker/.env — edit IS_API_KEY and LLM keys before starting")
-	@mkdir -p config/sources
+	@mkdir -p config/sources config/subscriptions
 	@[ -f config/sources/sources.yaml ] || (cp config/sources.example.yaml config/sources/sources.yaml && echo "Created config/sources/sources.yaml — edit to add your RSS sources")
+	@[ -f config/subscriptions/subscriptions.yaml ] || (cp config/subscriptions.example.yaml config/subscriptions/subscriptions.yaml && echo "Created config/subscriptions/subscriptions.yaml — edit to add your push subscriptions")
 	@echo ""
 	@echo "Next steps:"
 	@echo "  1. Edit docker/.env  (set IS_API_KEY + LLM provider key)"
 	@echo "  2. Edit config/sources/sources.yaml  (add your RSS / API sources)"
-	@echo "  3. make up"
-	@echo "  4. uv run intellisource doctor  (verify configuration)"
+	@echo "  3. Edit config/subscriptions/subscriptions.yaml  (configure push channels)"
+	@echo "  4. make up"
+	@echo "  5. uv run intellisource doctor  (verify configuration)"
+	@echo "  6. curl -X POST -H \"X-API-Key: \$$IS_API_KEY\" http://localhost:8000/api/v1/subscriptions/reload"
 
 # ---------------------------------------------------------------------------
 # Architecture & quality gates

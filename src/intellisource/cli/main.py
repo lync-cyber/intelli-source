@@ -14,10 +14,12 @@ app = typer.Typer()
 source_app = typer.Typer()
 task_app = typer.Typer()
 pipeline_app = typer.Typer()
+subscriptions_app = typer.Typer()
 
 app.add_typer(source_app, name="source")
 app.add_typer(task_app, name="task")
 app.add_typer(pipeline_app, name="pipeline")
+app.add_typer(subscriptions_app, name="subscriptions")
 
 
 # ---------------------------------------------------------------------------
@@ -503,3 +505,148 @@ def init(
     typer.echo("\nNext steps:")
     typer.echo("  make up")
     typer.echo("  uv run intellisource doctor --check-api")
+
+
+# ---------------------------------------------------------------------------
+# subscriptions sub-app (B-055 — HTTP shell over /api/v1/subscriptions/*)
+# ---------------------------------------------------------------------------
+
+
+def _post_json(path: str, payload: dict[str, Any]) -> httpx.Response:
+    return httpx.post(f"{_base_url()}{path}", json=payload, headers=_get_headers())
+
+
+def _channel_config_prompt(channel: str) -> dict[str, Any]:
+    """Interactive prompt for channel_config keyed off channel type."""
+    if channel == "wework":
+        user_id = typer.prompt(
+            "  channel_config.user_id (企业微信 user_id, | for many, '@all' broadcast)",
+            default="@all",
+        )
+        msg_type = typer.prompt(
+            "  channel_config.msg_type (text / markdown / news)", default="text"
+        )
+        return {"user_id": user_id, "msg_type": msg_type}
+    if channel == "email":
+        to_addr = typer.prompt("  channel_config.to_addr (recipient email)")
+        return {"to_addr": to_addr}
+    return {}  # wechat 公众号 has no per-subscription target
+
+
+@subscriptions_app.command("list")
+def subscriptions_list(
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    """List all subscriptions."""
+    url = f"{_base_url()}/api/v1/subscriptions"
+    resp = httpx.get(url, headers=_get_headers())
+    _emit(resp.json(), json_output=json_output)
+
+
+@subscriptions_app.command("add")
+def subscriptions_add(
+    name: str = typer.Option(None, "--name", help="Subscription name"),
+    channel: str = typer.Option(None, "--channel", help="wework / wechat / email"),
+    tags: str = typer.Option(
+        "", "--tags", help="Comma-separated match_rules.tags (e.g. 'ai,security')"
+    ),
+    frequency: str = typer.Option("realtime", "--frequency", help="realtime/daily/..."),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    """Interactively create a subscription. Falls back to prompts for missing flags."""
+    if not name:
+        name = typer.prompt("Subscription name")
+    if not channel:
+        channel = typer.prompt("Channel (wework / wechat / email)", default="wework")
+    if channel not in {"wework", "wechat", "email"}:
+        typer.echo(f"Error: channel must be wework/wechat/email, got {channel!r}")
+        raise typer.Exit(code=2)
+
+    channel_config = _channel_config_prompt(channel)
+    tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+    if not tag_list:
+        prompt_tags = typer.prompt(
+            "match_rules.tags (comma-separated, blank for none)", default=""
+        )
+        tag_list = [t.strip() for t in prompt_tags.split(",") if t.strip()]
+
+    payload: dict[str, Any] = {
+        "name": name,
+        "channel": channel,
+        "channel_config": channel_config,
+        "match_rules": {"tags": tag_list} if tag_list else {},
+        "frequency": frequency,
+    }
+    resp = _post_json("/api/v1/subscriptions", payload)
+    if resp.status_code >= 400:
+        try:
+            detail = resp.json().get("detail", "")
+        except Exception:
+            detail = resp.text
+        typer.echo(f"Error ({resp.status_code}): {detail}")
+        raise typer.Exit(code=1)
+    _emit(resp.json(), json_output=json_output)
+
+
+@subscriptions_app.command("patch")
+def subscriptions_patch(
+    sub_id: str = typer.Argument(..., help="Subscription id (uuid)"),
+    name: str | None = typer.Option(None, "--name"),
+    frequency: str | None = typer.Option(None, "--frequency"),
+    status: str | None = typer.Option(None, "--status", help="active / paused"),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    """Partial-update a subscription by id."""
+    body: dict[str, Any] = {}
+    if name is not None:
+        body["name"] = name
+    if frequency is not None:
+        body["frequency"] = frequency
+    if status is not None:
+        body["status"] = status
+    if not body:
+        typer.echo(
+            "Nothing to patch — pass at least one of --name/--frequency/--status"
+        )
+        raise typer.Exit(code=2)
+    url = f"{_base_url()}/api/v1/subscriptions/{sub_id}"
+    resp = httpx.patch(url, json=body, headers=_get_headers())
+    if resp.status_code >= 400:
+        typer.echo(f"Error ({resp.status_code}): {resp.text}")
+        raise typer.Exit(code=1)
+    _emit(resp.json(), json_output=json_output)
+
+
+@subscriptions_app.command("rm")
+def subscriptions_rm(
+    sub_id: str = typer.Argument(..., help="Subscription id (uuid)"),
+) -> None:
+    """Soft-delete (paused) a subscription by id."""
+    url = f"{_base_url()}/api/v1/subscriptions/{sub_id}"
+    resp = httpx.delete(url, headers=_get_headers())
+    if resp.status_code == 404:
+        typer.echo("Not found")
+        raise typer.Exit(code=1)
+    typer.echo("Paused.")
+
+
+@subscriptions_app.command("reload")
+def subscriptions_reload(
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    """Reload all subscriptions from yaml (records a new version snapshot)."""
+    resp = _post_json("/api/v1/subscriptions/reload", {})
+    _emit(resp.json(), json_output=json_output)
+
+
+@subscriptions_app.command("rollback")
+def subscriptions_rollback(
+    version: str = typer.Argument(..., help="Version label to rollback to (e.g. '1')"),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    """Rollback subscriptions to a previously recorded version snapshot."""
+    resp = _post_json(f"/api/v1/subscriptions/config/rollback/{version}", {})
+    if resp.status_code == 404:
+        typer.echo(f"Version {version!r} not found")
+        raise typer.Exit(code=1)
+    _emit(resp.json(), json_output=json_output)

@@ -1,7 +1,11 @@
 {
   "manifest_version": 1,
-  "package_version": "0.4.1",
+  "package_version": "0.5.0",
   "files": {
+    ".deploy-manifest.json": "0634d2bae07dfef2a29c6681b1e4b63d9571dd22e501f3269e3384bb76ae7f82",
+    ".deploy-state": "456e8fc2c39d491de3fb2c0e1cad450ffa99ac0976acc9313f432b908fc0bb98",
+    ".instruction-hashes.json": "9249c6d4bdf0fda771ab7413f52acba66ae6fcb22c4ededbb476817652a2e6b1",
+    ".scaffold-manifest.json": "0e53cad1c568391318fa4ac08a9093e1c65c3629be4340cb62752a283318a431",
     "PROJECT-STATE.md": "ea98d4a91f0900234f163d1a3373fd9ff1874453da6ec6a028be2efaa1333500",
     "agents/architect/AGENT.md": "6a0759fb7b6bf5f14d6f50da5e886538f83efc434d72af9cbd2ca3d1ce730668",
     "agents/debugger/AGENT.md": "0f4a6733be13e542ef49e42b0a856287a1e7f77a99b5103413c9b77501ed1db5",
@@ -27,6 +31,7 @@
     "platforms/codex/overrides/dispatch-prompt.md": "9b9b9227301a91e5113ce8903e6e436e0118b8f711b1b6f5eaf3e659dcaccdad",
     "platforms/codex/profile.yaml": "7b5de6df467c3a471e1882248da1eac9e097d68dedd246ffc7880e8e05c35ab1",
     "platforms/cursor/overrides/dispatch-prompt.md": "b8a4ccb4eb955f6fd7471940415b0dfd78f63465bad3a6bf86204b71b2d07682",
+    "platforms/cursor/overrides/rules/correction-record.md": "9d09049474184b86fee423d99ee2f98132e6aefd8e05b9b46c9bf2cc66fb3cc3",
     "platforms/cursor/profile.yaml": "1e5bf08acfc47e0a7c17db6557b033bbc0770f9b1799464bb07d7de5670c10c8",
     "platforms/opencode/profile.yaml": "76be85d228927a0f5ef2e7d6a4d65aa6542551ff78c592dce31f5ef3b8837546",
     "rules/COMMON-RULES.md": "392809322fe7caf439937b77b074d1d5948876aa1e928df7ba95b9f2a0b261af",
@@ -46,6 +51,7 @@
     "skills/code-review/SKILL.md": "1ea6cc01de6d0c05bbfb273933de8d12101f2c1cbdad152b611c589d7a01d910",
     "skills/debug/SKILL.md": "e5144d0c3bd690184b0da216f2e0743bc89da4e8b90f18f84791dd3e61d3c6ae",
     "skills/deploy-config/SKILL.md": "787e731cbcb033075c41a683b38e64e91ebb06290a9c546298b29adec723cd6a",
+    "skills/doc-consistency/SKILL.md": "f14c8dfb1c85e8cde8f20cd2a41bc28dcd2db26c0cc4aa89077d3bf0301d56ba",
     "skills/doc-gen/SKILL.md": "886cc058b5b0801a3f0915838e390b3247ddfe1fdb2e0395d73e8835f22023af",
     "skills/doc-gen/templates/_registry.yaml": "64413578b8242d7e1203e439fa17c6ac1c9df7f9141a7353b7661d998c297270",
     "skills/doc-gen/templates/lite/arch-lite.md": "71c782f697e30b97728730113d927ffdbe3319a8134e60e2493dd4e4ec5b7e73",

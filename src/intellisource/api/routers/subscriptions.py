@@ -1,4 +1,4 @@
-"""Subscription CRUD API router."""
+"""Subscription API router — HTTP shell over SubscriptionService."""
 
 from __future__ import annotations
 
@@ -11,28 +11,31 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session
-from intellisource.storage.repositories.subscription import SubscriptionRepository
+from intellisource.config.subscription_loader import SubscriptionConfigLoader
+from intellisource.config.subscription_models import SubscriptionConfig
+from intellisource.config.subscription_validator import SubscriptionValidationError
+from intellisource.subscription.service import SubscriptionService
 
 router = APIRouter(tags=["subscriptions"])
 
 
 # ---------------------------------------------------------------------------
-# Request models
+# Request models — Layer 1 alignment: API uses SubscriptionConfig directly
+# for create; patch uses an all-Optional variant for partial updates.
 # ---------------------------------------------------------------------------
 
 
-class SubscriptionCreateRequest(BaseModel):
-    name: str
-    channel: str
-    channel_config: dict[str, Any] | None = None
-    match_rules: dict[str, Any] | None = None
+class SubscriptionPatchRequest(BaseModel):
+    """Partial-update body: every field optional; mirrors SubscriptionConfig."""
 
-
-class SubscriptionUpdateRequest(BaseModel):
     name: str | None = None
     channel: str | None = None
     channel_config: dict[str, Any] | None = None
     match_rules: dict[str, Any] | None = None
+    frequency: str | None = None
+    quiet_hours: dict[str, Any] | None = None
+    timezone: str | None = None
+    discipline_tags: list[str] | None = None
     status: str | None = None
 
 
@@ -41,8 +44,8 @@ class SubscriptionUpdateRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _serialize_subscription(obj: Any) -> dict[str, Any]:
-    """Convert a Subscription ORM object to a JSON-serializable dict."""
+def _serialize(obj: Any) -> dict[str, Any]:
+    """ORM → JSON-friendly dict."""
     return {
         "id": str(obj.id),
         "name": obj.name,
@@ -51,14 +54,23 @@ def _serialize_subscription(obj: Any) -> dict[str, Any]:
         "channel_config": obj.channel_config,
         "match_rules": obj.match_rules,
         "frequency": obj.frequency,
+        "quiet_hours": obj.quiet_hours,
+        "timezone": obj.timezone,
+        "discipline_tags": list(obj.discipline_tags),
         "status": obj.status,
         "created_at": obj.created_at,
         "updated_at": obj.updated_at,
     }
 
 
+def _get_service(
+    session: AsyncSession = Depends(get_db_session),
+) -> SubscriptionService:
+    return SubscriptionService(session)
+
+
 # ---------------------------------------------------------------------------
-# Endpoints
+# CRUD endpoints
 # ---------------------------------------------------------------------------
 
 
@@ -66,14 +78,12 @@ def _serialize_subscription(obj: Any) -> dict[str, Any]:
 async def list_subscriptions(
     limit: int = 20,
     cursor: str | None = None,
-    session: AsyncSession = Depends(get_db_session),
+    service: SubscriptionService = Depends(_get_service),
 ) -> dict[str, Any]:
     limit = min(limit, 100)
-    repo = SubscriptionRepository(session)
-    result = await repo.list(limit=limit, cursor=cursor)
-    items = [_serialize_subscription(s) for s in result["items"]]
+    result = await service.list_paginated(limit=limit, cursor=cursor)
     return {
-        "items": items,
+        "items": [_serialize(s) for s in result["items"]],
         "next_cursor": result["next_cursor"],
         "has_more": result["has_more"],
     }
@@ -81,40 +91,73 @@ async def list_subscriptions(
 
 @router.post("/subscriptions", status_code=status.HTTP_201_CREATED)
 async def create_subscription(
-    body: SubscriptionCreateRequest,
-    session: AsyncSession = Depends(get_db_session),
-) -> dict[str, Any]:
-    repo = SubscriptionRepository(session)
-    created = await repo.create(
-        name=body.name,
-        channel=body.channel,
-        channel_config=body.channel_config or {},
-        match_rules=body.match_rules or {},
-    )
-    return _serialize_subscription(created)
+    body: SubscriptionConfig,
+    service: SubscriptionService = Depends(_get_service),
+) -> Any:
+    try:
+        created = await service.create(body)
+    except SubscriptionValidationError as exc:
+        return JSONResponse(status_code=422, content={"detail": str(exc)})
+    return _serialize(created)
 
 
 @router.patch("/subscriptions/{id}")
 async def update_subscription(
     id: uuid.UUID,
-    body: SubscriptionUpdateRequest,
-    session: AsyncSession = Depends(get_db_session),
+    body: SubscriptionPatchRequest,
+    service: SubscriptionService = Depends(_get_service),
 ) -> Any:
-    repo = SubscriptionRepository(session)
     fields = body.model_dump(exclude_unset=True)
-    updated = await repo.update(id, **fields)
+    updated = await service.patch(id, fields)
     if updated is None:
         return JSONResponse(status_code=404, content={"detail": "not found"})
-    return _serialize_subscription(updated)
+    return _serialize(updated)
 
 
 @router.delete("/subscriptions/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_subscription(
     id: uuid.UUID,
-    session: AsyncSession = Depends(get_db_session),
+    service: SubscriptionService = Depends(_get_service),
 ) -> Response:
-    repo = SubscriptionRepository(session)
-    deleted = await repo.delete(id)
+    deleted = await service.delete(id)
     if not deleted:
         return JSONResponse(status_code=404, content={"detail": "not found"})
     return Response(status_code=204)
+
+
+# ---------------------------------------------------------------------------
+# Bulk / versioning endpoints (yaml-driven flow)
+# ---------------------------------------------------------------------------
+
+
+@router.post("/subscriptions/reload")
+async def reload_subscriptions(
+    service: SubscriptionService = Depends(_get_service),
+) -> dict[str, Any]:
+    """Load yaml from disk → service.bulk_sync_with_version → record snapshot."""
+    loader = SubscriptionConfigLoader()
+    try:
+        configs = loader.load_subscription_configs()
+    except Exception as exc:
+        return {"loaded_count": 0, "errors": [{"file": "(scan)", "error": str(exc)}]}
+
+    try:
+        result = await service.bulk_sync_with_version(configs)
+    except Exception as exc:
+        return {
+            "loaded_count": 0,
+            "errors": [{"file": "(sync)", "error": str(exc)}],
+        }
+    return result
+
+
+@router.post("/subscriptions/config/rollback/{version}")
+async def rollback_subscription_config(
+    version: str,
+    service: SubscriptionService = Depends(_get_service),
+) -> dict[str, Any]:
+    """Restore subscriptions from snapshot identified by `version` label."""
+    try:
+        return await service.rollback_to_version(version)
+    except ValueError as exc:
+        return JSONResponse(status_code=404, content={"detail": str(exc)})  # type: ignore[return-value]

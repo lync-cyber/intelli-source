@@ -4,15 +4,16 @@ Covers:
   AC-061:     API supports source creation/query/update/delete operations
   AC-065:     FastAPI auto-generates OpenAPI documentation
   AC-T040-1:  GET /api/v1/sources supports pagination and filtering (type/tag/status)
-  AC-T040-2:  POST /api/v1/sources creates source, correctly handles 409 conflicts
+  AC-T040-2:  POST /api/v1/sources creates source (idempotent upsert by name)
   AC-T040-3:  PATCH /api/v1/sources/{id} supports partial updates
-  AC-T040-4:  DELETE /api/v1/sources/{id} deletes source
-  AC-T040-5:  POST /api/v1/sources/reload reloads configuration (whitelist validation)
+  AC-T040-4:  DELETE /api/v1/sources/{id} deletes source (soft, status='paused')
+  AC-T040-5:  POST /api/v1/sources/reload reloads configuration from disk
 """
 
 from __future__ import annotations
 
 import uuid
+from collections.abc import AsyncIterator
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -20,15 +21,8 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-# The router module does not exist yet -- import may fail during RED phase.
-# We capture the error so individual tests fail with a clear message rather
-# than the entire module being uncollectable.
-try:
-    from intellisource.api.routers.sources import router  # type: ignore[import-untyped]
-except ImportError:
-    router = None  # type: ignore[assignment]
-
-_ROUTER_MISSING = router is None
+from intellisource.api.deps import get_db_session
+from intellisource.api.routers.sources import _get_service, router
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -36,27 +30,6 @@ _ROUTER_MISSING = router is None
 
 SOURCE_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 SOURCE_ID_2 = uuid.UUID("00000000-0000-0000-0000-000000000002")
-
-
-def _make_source_dict(
-    *,
-    id: uuid.UUID = SOURCE_ID,
-    name: str = "test-source",
-    type: str = "rss",
-    url: str = "https://example.com/feed",
-    tags: list[str] | None = None,
-    status: str = "active",
-) -> dict[str, Any]:
-    """Return a plain dict representing a serialised Source."""
-    return {
-        "id": str(id),
-        "name": name,
-        "type": type,
-        "url": url,
-        "tags": tags or [],
-        "status": status,
-        "created_at": "2025-01-01T00:00:00+00:00",
-    }
 
 
 def _make_source_obj(
@@ -95,20 +68,41 @@ def _make_source_obj(
 
 
 @pytest.fixture()
-def app() -> FastAPI:
-    """Create a minimal FastAPI app with the sources router mounted."""
-    if _ROUTER_MISSING:
-        pytest.fail(
-            "intellisource.api.routers.sources not implemented: cannot import 'router'"
-        )
-    application = FastAPI()
-    application.include_router(router, prefix="/api/v1")
-    return application
+def mock_service() -> MagicMock:
+    svc = MagicMock()
+    svc.list_paginated = AsyncMock(
+        return_value={"items": [], "next_cursor": None, "has_more": False}
+    )
+    svc.create = AsyncMock(return_value=_make_source_obj())
+    svc.patch = AsyncMock(return_value=_make_source_obj())
+    svc.delete = AsyncMock(return_value=True)
+    svc.bulk_sync_with_version = AsyncMock(
+        return_value={"loaded_count": 0, "version": "1", "errors": []}
+    )
+    svc.rollback_to_version = AsyncMock(
+        return_value={"rolled_back_to": "1", "config_count": 0, "source_names": []}
+    )
+    return svc
+
+
+@pytest.fixture()
+def app(mock_service: MagicMock) -> FastAPI:
+    _app = FastAPI()
+    _app.include_router(router, prefix="/api/v1")
+
+    async def _override_session() -> AsyncIterator[Any]:
+        yield AsyncMock()
+
+    def _override_service() -> MagicMock:
+        return mock_service
+
+    _app.dependency_overrides[get_db_session] = _override_session
+    _app.dependency_overrides[_get_service] = _override_service
+    return _app
 
 
 @pytest.fixture()
 async def client(app: FastAPI) -> AsyncClient:  # type: ignore[misc]
-    """Yield an httpx AsyncClient bound to the test app."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac  # type: ignore[misc]
@@ -124,21 +118,18 @@ class TestSourceListEndpoint:
 
     @pytest.mark.asyncio
     async def test_list_sources_returns_paginated_result(
-        self, client: AsyncClient
+        self, client: AsyncClient, mock_service: MagicMock
     ) -> None:
         """Default GET returns items list with pagination metadata."""
-        mock_repo = AsyncMock()
-        mock_repo.list.return_value = {
-            "items": [_make_source_obj()],
-            "next_cursor": None,
-            "has_more": False,
-        }
+        mock_service.list_paginated = AsyncMock(
+            return_value={
+                "items": [_make_source_obj()],
+                "next_cursor": None,
+                "has_more": False,
+            }
+        )
 
-        with patch(
-            "intellisource.api.routers.sources.SourceRepository",
-            return_value=mock_repo,
-        ):
-            resp = await client.get("/api/v1/sources")
+        resp = await client.get("/api/v1/sources")
 
         assert resp.status_code == 200
         body = resp.json()
@@ -146,215 +137,142 @@ class TestSourceListEndpoint:
         assert "next_cursor" in body
         assert "has_more" in body
         assert isinstance(body["items"], list)
+        assert len(body["items"]) == 1
+        assert body["items"][0]["name"] == "test-source"
 
     @pytest.mark.asyncio
-    async def test_list_sources_filter_by_type(self, client: AsyncClient) -> None:
-        """Filtering by type=rss passes the parameter to the repository."""
-        mock_repo = AsyncMock()
-        mock_repo.list.return_value = {
-            "items": [],
-            "next_cursor": None,
-            "has_more": False,
-        }
-
-        with patch(
-            "intellisource.api.routers.sources.SourceRepository",
-            return_value=mock_repo,
-        ):
-            resp = await client.get("/api/v1/sources", params={"type": "rss"})
+    async def test_list_sources_filter_by_type(
+        self, client: AsyncClient, mock_service: MagicMock
+    ) -> None:
+        """Filtering by type=rss forwards the parameter to the service."""
+        resp = await client.get("/api/v1/sources", params={"type": "rss"})
 
         assert resp.status_code == 200
-        mock_repo.list.assert_called_once()
-        call_kwargs = mock_repo.list.call_args
-        # The 'type' filter must have been forwarded
-        assert call_kwargs.kwargs.get("type") == "rss" or (
-            call_kwargs.args and "rss" in str(call_kwargs)
-        )
+        mock_service.list_paginated.assert_called_once()
+        assert mock_service.list_paginated.call_args.kwargs.get("type") == "rss"
 
     @pytest.mark.asyncio
-    async def test_list_sources_filter_by_tag(self, client: AsyncClient) -> None:
-        """Filtering by tag passes the parameter to the repository."""
-        mock_repo = AsyncMock()
-        mock_repo.list.return_value = {
-            "items": [],
-            "next_cursor": None,
-            "has_more": False,
-        }
-
-        with patch(
-            "intellisource.api.routers.sources.SourceRepository",
-            return_value=mock_repo,
-        ):
-            resp = await client.get("/api/v1/sources", params={"tag": "news"})
+    async def test_list_sources_filter_by_tag(
+        self, client: AsyncClient, mock_service: MagicMock
+    ) -> None:
+        """Filtering by tag forwards the parameter to the service."""
+        resp = await client.get("/api/v1/sources", params={"tag": "news"})
 
         assert resp.status_code == 200
-        call_kwargs = mock_repo.list.call_args
-        assert call_kwargs.kwargs.get("tag") == "news" or ("news" in str(call_kwargs))
+        assert mock_service.list_paginated.call_args.kwargs.get("tag") == "news"
 
     @pytest.mark.asyncio
-    async def test_list_sources_filter_by_status(self, client: AsyncClient) -> None:
-        """Filtering by status passes the parameter to the repository."""
-        mock_repo = AsyncMock()
-        mock_repo.list.return_value = {
-            "items": [],
-            "next_cursor": None,
-            "has_more": False,
-        }
-
-        with patch(
-            "intellisource.api.routers.sources.SourceRepository",
-            return_value=mock_repo,
-        ):
-            resp = await client.get("/api/v1/sources", params={"status": "paused"})
+    async def test_list_sources_filter_by_status(
+        self, client: AsyncClient, mock_service: MagicMock
+    ) -> None:
+        """Filtering by status forwards the parameter to the service."""
+        resp = await client.get("/api/v1/sources", params={"status": "paused"})
 
         assert resp.status_code == 200
-        call_kwargs = mock_repo.list.call_args
-        assert call_kwargs.kwargs.get("status") == "paused" or (
-            "paused" in str(call_kwargs)
-        )
+        assert mock_service.list_paginated.call_args.kwargs.get("status") == "paused"
 
     @pytest.mark.asyncio
     async def test_list_sources_pagination_cursor_and_limit(
-        self, client: AsyncClient
+        self, client: AsyncClient, mock_service: MagicMock
     ) -> None:
-        """Cursor and limit params are forwarded to the repository."""
-        mock_repo = AsyncMock()
-        mock_repo.list.return_value = {
-            "items": [_make_source_obj(id=SOURCE_ID_2)],
-            "next_cursor": str(SOURCE_ID_2),
-            "has_more": True,
-        }
+        """Cursor and limit params are forwarded to the service."""
+        mock_service.list_paginated = AsyncMock(
+            return_value={
+                "items": [_make_source_obj(id=SOURCE_ID_2)],
+                "next_cursor": str(SOURCE_ID_2),
+                "has_more": True,
+            }
+        )
 
-        with patch(
-            "intellisource.api.routers.sources.SourceRepository",
-            return_value=mock_repo,
-        ):
-            resp = await client.get(
-                "/api/v1/sources",
-                params={"cursor": str(SOURCE_ID), "limit": 10},
-            )
+        resp = await client.get(
+            "/api/v1/sources",
+            params={"cursor": str(SOURCE_ID), "limit": 10},
+        )
 
         assert resp.status_code == 200
         body = resp.json()
         assert body["has_more"] is True
         assert body["next_cursor"] is not None
+        call_kwargs = mock_service.list_paginated.call_args.kwargs
+        assert call_kwargs.get("cursor") == str(SOURCE_ID)
+        assert call_kwargs.get("limit") == 10
 
     @pytest.mark.asyncio
-    async def test_list_sources_limit_capped_at_100(self, client: AsyncClient) -> None:
-        """Limit values above 100 should be capped or rejected."""
-        mock_repo = AsyncMock()
-        mock_repo.list.return_value = {
-            "items": [],
-            "next_cursor": None,
-            "has_more": False,
-        }
+    async def test_list_sources_limit_capped_at_100(
+        self, client: AsyncClient, mock_service: MagicMock
+    ) -> None:
+        """Limit values above 100 are capped before reaching the service."""
+        resp = await client.get("/api/v1/sources", params={"limit": 200})
 
-        with patch(
-            "intellisource.api.routers.sources.SourceRepository",
-            return_value=mock_repo,
-        ):
-            resp = await client.get("/api/v1/sources", params={"limit": 200})
-
-        # Either the router caps limit to 100 (200->OK) or rejects (422).
-        # In either case the repo must not receive limit > 100.
-        if resp.status_code == 200:
-            call_kwargs = mock_repo.list.call_args
-            actual_limit = call_kwargs.kwargs.get(
-                "limit", call_kwargs.args[0] if call_kwargs.args else None
-            )
-            assert actual_limit is not None and actual_limit <= 100
+        assert resp.status_code == 200
+        assert mock_service.list_paginated.call_args.kwargs.get("limit") == 100
 
 
 # ===========================================================================
-# AC-T040-2: POST /api/v1/sources — creation and 409 conflict
+# AC-T040-2: POST /api/v1/sources — idempotent upsert by name
 # ===========================================================================
 
 
 class TestSourceCreateEndpoint:
-    """AC-T040-2: POST /api/v1/sources creates source, handles 409."""
+    """AC-T040-2: POST /api/v1/sources upserts a source by name."""
 
     @pytest.mark.asyncio
-    async def test_create_source_success(self, client: AsyncClient) -> None:
-        """Successful creation returns 201 with id, name, type, status, created_at."""
-        mock_repo = AsyncMock()
-        created = _make_source_obj()
-        mock_repo.create.return_value = created
+    async def test_create_source_success(
+        self, client: AsyncClient, mock_service: MagicMock
+    ) -> None:
+        """Successful upsert returns 201 with id, name, type, status, created_at."""
+        mock_service.create = AsyncMock(return_value=_make_source_obj())
 
-        with patch(
-            "intellisource.api.routers.sources.SourceRepository",
-            return_value=mock_repo,
-        ):
-            resp = await client.post(
-                "/api/v1/sources",
-                json={
-                    "name": "test-source",
-                    "type": "rss",
-                    "url": "https://example.com/feed",
-                },
-            )
+        resp = await client.post(
+            "/api/v1/sources",
+            json={
+                "name": "test-source",
+                "type": "rss",
+                "url": "https://example.com/feed",
+            },
+        )
 
         assert resp.status_code == 201
         body = resp.json()
         assert "id" in body
         assert body["name"] == "test-source"
         assert body["type"] == "rss"
-        assert "status" in body
+        assert body["status"] == "active"
         assert "created_at" in body
 
     @pytest.mark.asyncio
     async def test_create_source_with_optional_fields(
-        self, client: AsyncClient
+        self, client: AsyncClient, mock_service: MagicMock
     ) -> None:
-        """Creation with tags, schedule, proxy, rate_limit, metadata succeeds."""
-        mock_repo = AsyncMock()
-        created = _make_source_obj(tags=["news", "tech"])
-        mock_repo.create.return_value = created
-
-        with patch(
-            "intellisource.api.routers.sources.SourceRepository",
-            return_value=mock_repo,
-        ):
-            resp = await client.post(
-                "/api/v1/sources",
-                json={
-                    "name": "test-source",
-                    "type": "rss",
-                    "url": "https://example.com/feed",
-                    "tags": ["news", "tech"],
-                    "schedule": {"interval": 1800, "adaptive": False},
-                    "proxy": "http://proxy:8080",
-                    "rate_limit": {"qps": 2.0, "concurrency": 5},
-                    "metadata": {"key": "value"},
-                },
-            )
-
-        assert resp.status_code == 201
-
-    @pytest.mark.asyncio
-    async def test_create_source_conflict_409(self, client: AsyncClient) -> None:
-        """Duplicate name returns 409."""
-        mock_repo = AsyncMock()
-        # Simulate IntegrityError for duplicate name
-        from sqlalchemy.exc import IntegrityError
-
-        mock_repo.create.side_effect = IntegrityError(
-            "duplicate", params=None, orig=Exception("unique constraint")
+        """Creation with all SourceConfig fields succeeds (flat schema)."""
+        mock_service.create = AsyncMock(
+            return_value=_make_source_obj(tags=["news", "tech"])
         )
 
-        with patch(
-            "intellisource.api.routers.sources.SourceRepository",
-            return_value=mock_repo,
-        ):
-            resp = await client.post(
-                "/api/v1/sources",
-                json={
-                    "name": "existing-source",
-                    "type": "rss",
-                    "url": "https://example.com/feed",
-                },
-            )
+        resp = await client.post(
+            "/api/v1/sources",
+            json={
+                "name": "test-source",
+                "type": "rss",
+                "url": "https://example.com/feed",
+                "tags": ["news", "tech"],
+                "schedule_interval": 1800,
+                "schedule_adaptive": False,
+                "proxy": "http://proxy:8080",
+                "rate_limit_qps": 2.0,
+                "rate_limit_concurrency": 5,
+                "metadata": {"key": "value"},
+            },
+        )
 
-        assert resp.status_code == 409
+        assert resp.status_code == 201
+        # Service must have received a parsed SourceConfig with those fields.
+        passed_cfg = mock_service.create.call_args.args[0]
+        assert passed_cfg.schedule_interval == 1800
+        assert passed_cfg.schedule_adaptive is False
+        assert passed_cfg.rate_limit_qps == 2.0
+        assert passed_cfg.rate_limit_concurrency == 5
+        assert passed_cfg.metadata == {"key": "value"}
 
     @pytest.mark.asyncio
     async def test_create_source_missing_required_field_422(
@@ -381,66 +299,62 @@ class TestSourceUpdateEndpoint:
     """AC-T040-3: PATCH /api/v1/sources/{id} supports partial updates."""
 
     @pytest.mark.asyncio
-    async def test_partial_update_success(self, client: AsyncClient) -> None:
+    async def test_partial_update_success(
+        self, client: AsyncClient, mock_service: MagicMock
+    ) -> None:
         """Partial update with only name returns 200 with updated source."""
-        mock_repo = AsyncMock()
-        updated = _make_source_obj(name="updated-name")
-        mock_repo.update.return_value = updated
+        mock_service.patch = AsyncMock(
+            return_value=_make_source_obj(name="updated-name")
+        )
 
-        with patch(
-            "intellisource.api.routers.sources.SourceRepository",
-            return_value=mock_repo,
-        ):
-            resp = await client.patch(
-                f"/api/v1/sources/{SOURCE_ID}",
-                json={"name": "updated-name"},
-            )
+        resp = await client.patch(
+            f"/api/v1/sources/{SOURCE_ID}",
+            json={"name": "updated-name"},
+        )
 
         assert resp.status_code == 200
         body = resp.json()
         assert body["name"] == "updated-name"
+        call_kwargs = mock_service.patch.call_args
+        assert call_kwargs.args[1] == {"name": "updated-name"}
 
     @pytest.mark.asyncio
-    async def test_partial_update_multiple_fields(self, client: AsyncClient) -> None:
+    async def test_partial_update_multiple_fields(
+        self, client: AsyncClient, mock_service: MagicMock
+    ) -> None:
         """Updating multiple fields at once (tags, status, url)."""
-        mock_repo = AsyncMock()
-        updated = _make_source_obj(
-            tags=["updated"], status="paused", url="https://new.example.com"
-        )
-        mock_repo.update.return_value = updated
-
-        with patch(
-            "intellisource.api.routers.sources.SourceRepository",
-            return_value=mock_repo,
-        ):
-            resp = await client.patch(
-                f"/api/v1/sources/{SOURCE_ID}",
-                json={
-                    "tags": ["updated"],
-                    "status": "paused",
-                    "url": "https://new.example.com",
-                },
+        mock_service.patch = AsyncMock(
+            return_value=_make_source_obj(
+                tags=["updated"], status="paused", url="https://new.example.com"
             )
+        )
+
+        resp = await client.patch(
+            f"/api/v1/sources/{SOURCE_ID}",
+            json={
+                "tags": ["updated"],
+                "status": "paused",
+                "url": "https://new.example.com",
+            },
+        )
 
         assert resp.status_code == 200
         body = resp.json()
         assert body["status"] == "paused"
+        assert body["tags"] == ["updated"]
 
     @pytest.mark.asyncio
-    async def test_update_not_found_404(self, client: AsyncClient) -> None:
+    async def test_update_not_found_404(
+        self, client: AsyncClient, mock_service: MagicMock
+    ) -> None:
         """Updating a non-existent source returns 404."""
-        mock_repo = AsyncMock()
-        mock_repo.update.return_value = None
+        mock_service.patch = AsyncMock(return_value=None)
 
         nonexistent_id = uuid.UUID("ffffffff-ffff-ffff-ffff-ffffffffffff")
-        with patch(
-            "intellisource.api.routers.sources.SourceRepository",
-            return_value=mock_repo,
-        ):
-            resp = await client.patch(
-                f"/api/v1/sources/{nonexistent_id}",
-                json={"name": "nope"},
-            )
+        resp = await client.patch(
+            f"/api/v1/sources/{nonexistent_id}",
+            json={"name": "nope"},
+        )
 
         assert resp.status_code == 404
 
@@ -451,35 +365,29 @@ class TestSourceUpdateEndpoint:
 
 
 class TestSourceDeleteEndpoint:
-    """AC-T040-4: DELETE /api/v1/sources/{id} deletes source."""
+    """AC-T040-4: DELETE /api/v1/sources/{id} soft-deletes a source."""
 
     @pytest.mark.asyncio
-    async def test_delete_success_204(self, client: AsyncClient) -> None:
+    async def test_delete_success_204(
+        self, client: AsyncClient, mock_service: MagicMock
+    ) -> None:
         """Deleting an existing source returns 204 No Content."""
-        mock_repo = AsyncMock()
-        mock_repo.delete.return_value = True
+        mock_service.delete = AsyncMock(return_value=True)
 
-        with patch(
-            "intellisource.api.routers.sources.SourceRepository",
-            return_value=mock_repo,
-        ):
-            resp = await client.delete(f"/api/v1/sources/{SOURCE_ID}")
+        resp = await client.delete(f"/api/v1/sources/{SOURCE_ID}")
 
         assert resp.status_code == 204
-        assert resp.content == b""  # No body on 204
+        assert resp.content == b""
 
     @pytest.mark.asyncio
-    async def test_delete_not_found_404(self, client: AsyncClient) -> None:
+    async def test_delete_not_found_404(
+        self, client: AsyncClient, mock_service: MagicMock
+    ) -> None:
         """Deleting a non-existent source returns 404."""
-        mock_repo = AsyncMock()
-        mock_repo.delete.return_value = False
+        mock_service.delete = AsyncMock(return_value=False)
 
         nonexistent_id = uuid.UUID("ffffffff-ffff-ffff-ffff-ffffffffffff")
-        with patch(
-            "intellisource.api.routers.sources.SourceRepository",
-            return_value=mock_repo,
-        ):
-            resp = await client.delete(f"/api/v1/sources/{nonexistent_id}")
+        resp = await client.delete(f"/api/v1/sources/{nonexistent_id}")
 
         assert resp.status_code == 404
 
@@ -490,74 +398,76 @@ class TestSourceDeleteEndpoint:
 
 
 class TestSourceReloadEndpoint:
-    """AC-T040-5: POST /api/v1/sources/reload reloads configuration."""
+    """AC-T040-5: POST /api/v1/sources/reload reloads configuration from disk."""
 
     @pytest.mark.asyncio
-    async def test_reload_success(self, client: AsyncClient) -> None:
-        """Successful reload returns 200 with loaded_count and errors list."""
+    async def test_reload_success(
+        self, client: AsyncClient, mock_service: MagicMock
+    ) -> None:
+        """Successful reload returns 200 with loaded_count and version."""
+        mock_loader = MagicMock()
+        mock_loader.load_source_configs = MagicMock(return_value=["c1", "c2", "c3"])
+        mock_service.bulk_sync_with_version = AsyncMock(
+            return_value={"loaded_count": 3, "version": "1", "errors": []}
+        )
+
         with patch(
-            "intellisource.api.routers.sources.reload_source_configs",
-            new_callable=AsyncMock,
-            return_value={"loaded_count": 3, "errors": []},
+            "intellisource.api.routers.sources.ConfigLoader",
+            return_value=mock_loader,
         ):
-            resp = await client.post(
-                "/api/v1/sources/reload",
-                json={},
-            )
+            resp = await client.post("/api/v1/sources/reload")
 
         assert resp.status_code == 200
         body = resp.json()
-        assert "loaded_count" in body
         assert body["loaded_count"] == 3
-        assert "errors" in body
-        assert isinstance(body["errors"], list)
+        assert body["version"] == "1"
+        assert body["errors"] == []
+        mock_service.bulk_sync_with_version.assert_awaited_once()
+
+
+# ===========================================================================
+# POST /api/v1/sources/config/rollback/{version}
+# ===========================================================================
+
+
+class TestSourceRollbackEndpoint:
+    """rollback endpoint forwards to service.rollback_to_version."""
 
     @pytest.mark.asyncio
-    async def test_reload_with_config_name(self, client: AsyncClient) -> None:
-        """Reload with specific config_name filters to that config."""
-        with patch(
-            "intellisource.api.routers.sources.reload_source_configs",
-            new_callable=AsyncMock,
-            return_value={"loaded_count": 1, "errors": []},
-        ):
-            resp = await client.post(
-                "/api/v1/sources/reload",
-                json={"config_name": "my_config.yaml"},
-            )
+    async def test_rollback_returns_service_summary(
+        self, client: AsyncClient, mock_service: MagicMock
+    ) -> None:
+        """Successful rollback returns 200 with service summary dict."""
+        mock_service.rollback_to_version = AsyncMock(
+            return_value={
+                "rolled_back_to": "2",
+                "config_count": 1,
+                "source_names": ["src-a"],
+            }
+        )
+
+        resp = await client.post("/api/v1/sources/config/rollback/2")
 
         assert resp.status_code == 200
         body = resp.json()
-        assert body["loaded_count"] == 1
+        assert body["rolled_back_to"] == "2"
+        assert body["config_count"] == 1
+        assert body["source_names"] == ["src-a"]
+        mock_service.rollback_to_version.assert_awaited_once_with("2")
 
     @pytest.mark.asyncio
-    async def test_reload_whitelist_validation_400(self, client: AsyncClient) -> None:
-        """Config name not in whitelist returns 400."""
-        with patch(
-            "intellisource.api.routers.sources.reload_source_configs",
-            new_callable=AsyncMock,
-            side_effect=ValueError("filename not in whitelist"),
-        ):
-            resp = await client.post(
-                "/api/v1/sources/reload",
-                json={"config_name": "../../../etc/passwd"},
-            )
+    async def test_rollback_unknown_version_404(
+        self, client: AsyncClient, mock_service: MagicMock
+    ) -> None:
+        """ValueError from service (unknown version) becomes 404."""
+        mock_service.rollback_to_version = AsyncMock(
+            side_effect=ValueError("version 99 not found")
+        )
 
-        assert resp.status_code == 400
+        resp = await client.post("/api/v1/sources/config/rollback/99")
 
-    @pytest.mark.asyncio
-    async def test_reload_config_format_error_400(self, client: AsyncClient) -> None:
-        """Invalid config format returns 400."""
-        with patch(
-            "intellisource.api.routers.sources.reload_source_configs",
-            new_callable=AsyncMock,
-            side_effect=ValueError("invalid config format"),
-        ):
-            resp = await client.post(
-                "/api/v1/sources/reload",
-                json={"config_name": "bad_config.yaml"},
-            )
-
-        assert resp.status_code == 400
+        assert resp.status_code == 404
+        assert "not found" in resp.json()["detail"]
 
 
 # ===========================================================================
@@ -576,7 +486,6 @@ class TestOpenApiDocs:
         assert resp.status_code == 200
         body = resp.json()
         assert "paths" in body
-        # Verify our source endpoints are documented
         assert "/api/v1/sources" in body["paths"]
 
     @pytest.mark.asyncio
@@ -589,10 +498,8 @@ class TestOpenApiDocs:
         assert resp.status_code == 200
         body = resp.json()
         sources_path = body["paths"].get("/api/v1/sources", {})
-        assert "get" in sources_path, "GET /api/v1/sources not documented"
-        assert "post" in sources_path, "POST /api/v1/sources not documented"
-
-        # Check source/{id} operations
-        source_id_path = body["paths"].get("/api/v1/sources/{id}", {})
-        assert "patch" in source_id_path, "PATCH /api/v1/sources/{id} not documented"
-        assert "delete" in source_id_path, "DELETE /api/v1/sources/{id} not documented"
+        assert "get" in sources_path
+        assert "post" in sources_path
+        item_path = body["paths"].get("/api/v1/sources/{id}", {})
+        assert "patch" in item_path
+        assert "delete" in item_path

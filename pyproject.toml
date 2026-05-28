@@ -86,6 +86,78 @@ mypy_path = "src"
 ignore_missing_imports = true
 plugins = ["pydantic.mypy"]
 
+# ---------------------------------------------------------------------------
+# Pyright / Pylance (IDE / LSP only — mypy --strict is the CI source-of-truth
+# for type errors; ruff F401/F841 owns unused-detection in CI). This config
+# tunes Pyright down to a complementary role and suppresses the false-positive
+# patterns observed on this codebase:
+#   * Agent tool registry execute functions registered dynamically by name
+#     (`_*_execute` look "unused" but are dispatched via name lookup).
+#   * `**kwargs: Any` on tool execute functions — required to absorb arbitrary
+#     LLM-emitted fields without crashing dispatch.
+#   * SQLAlchemy event.listen / dialect compiler callbacks must accept
+#     framework-defined params (`connection_record`, `type_`) by signature.
+#   * pytest fixtures consumed for DI side-effect (`mock_session`,
+#     `mock_subscription`) where Pyright cannot follow fixture resolution.
+#   * MagicMock-driven test code with intentionally dynamic attribute access.
+# ---------------------------------------------------------------------------
+[tool.pyright]
+include = ["src", "tests"]
+exclude = [
+    "**/__pycache__",
+    ".cataforge",
+    ".claude/hooks",
+    ".claude/scripts",
+    ".claude/skills",
+    ".venv",
+    "build",
+    "dist",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".pytest_cache",
+]
+pythonVersion = "3.11"
+pythonPlatform = "All"
+typeCheckingMode = "basic"
+
+# Defer to ruff (CI) for unused-symbol detection — Pyright cannot see
+# registry-registered or fixture-injected uses, producing high FP rate.
+reportUnusedImport = "none"
+reportUnusedClass = "none"
+reportUnusedFunction = "none"
+reportUnusedVariable = "none"
+
+# Defer to mypy --strict (CI) for inferred-type-unknown warnings; these
+# overlap with mypy's own missing-annotation reporting and add noise.
+reportMissingImports = "none"
+reportMissingTypeStubs = "none"
+reportMissingParameterType = "none"
+reportUnknownArgumentType = "none"
+reportUnknownVariableType = "none"
+reportUnknownMemberType = "none"
+reportUnknownParameterType = "none"
+reportMissingTypeArgument = "none"
+
+# KEEP these — they catch real bugs that mypy / ruff do not:
+#   * reportUnusedExpression caught a B-058 RED test bug where
+#     `mock.assert_awaited_once(), ("msg")` was silently parsed as a tuple,
+#     letting the assertion failure be swallowed.
+#   * reportUnusedCoroutine catches dangling awaitables (a common asyncio bug).
+reportUnusedExpression = "warning"
+reportUnusedCoroutine = "warning"
+
+# tests/ uses MagicMock with dynamic attributes + private internals
+# legitimately; relaxing per-directory rather than globally so src/ keeps
+# stricter analysis.
+[[tool.pyright.executionEnvironments]]
+root = "tests"
+reportAttributeAccessIssue = "none"
+reportArgumentType = "none"
+reportCallIssue = "none"
+reportGeneralTypeIssues = "none"
+reportOptionalMemberAccess = "none"
+reportPrivateUsage = "none"
+
 [tool.vulture]
 # Dead code detection.
 # Run: uv run vulture

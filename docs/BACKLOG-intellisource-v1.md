@@ -9,7 +9,7 @@ deps: []
 # IntelliSource v1 Backlog
 
 > 维护：本文件梳理 PR #53 / #54 audit 闭环之后的剩余工作。完成项请直接删除条目，新增项按优先级插入。
-> 最后更新：2026-05-26 (B-039 + B-042 + B-044 + B-045 闭环；步骤 9 真起栈 PASS 补签；阶段 4 vector 路径待 OPENAI_API_KEY)
+> 最后更新：2026-05-28 (B-058 follow-up ✅ 闭环 — router-service 完全收敛 + ReloadRequest.config_name 死字段拆除；unit baseline 2879→2862 PASS 净 -17 来自删除 mock-driven 假象测试；mypy strict + ruff + lint-imports 8/8 clean)
 
 ## 优先级语义
 
@@ -47,6 +47,33 @@ deps: []
 
 > B-003 / B-004 / B-005 / B-006 已闭环（详见 [docs/reviews/code/CODE-REVIEW-backlog-p1-r1.md](reviews/code/CODE-REVIEW-backlog-p1-r1.md)，含 R-001 修订）
 
+> B-058 follow-up 已闭环 (本次会话) — router-service 完全收敛对齐 subscription 模板 + ReloadRequest.config_name 死字段彻底拆除。[`sources.py`](../src/intellisource/api/routers/sources.py) 5 端点全部走 `Depends(_get_service)`，body 类型直接为 `SourceConfig` / `SourcePatchRequest`，无嵌套 DTO + helper 转换层；POST 语义变为 idempotent upsert by name（删除 409 IntegrityError 处理）。SourceConfigService 扩展：`list_paginated` 接受 `type/status/tag` 过滤，`patch` 内部处理 `metadata → metadata_` ORM 列名映射。删除 3 个 mock-driven 假象测试文件（`test_sources_reload.py` / `test_sources_reload_writes_version.py` / `test_sources_rollback_restores_db.py` 共 17 测试，全部被 [`tests/unit/source/test_service.py`](../tests/unit/source/test_service.py) 用 real SQLite 在 service 层完整覆盖）。`test_sources.py` 改为 `dependency_overrides[_get_service]` 模式 + 删 4 个假象测试（`test_create_source_conflict_409` + 3 个 `test_reload_*config_name*`）+ 新增 2 个 rollback router smoke 测试。`test_deps_integration.py::test_sources_router_uses_deps_get_db_session` 改为 `inspect.signature(_get_service)` 间接 dep chain 验证（参 subscription 同名测试模板）。Unit 2879→2862 PASS 净 -17。mypy strict + ruff + lint-imports 8/8 clean。`on_config_change` (main.py lifespan) 路径未触碰 — 保留 sync record_version 路径不动符合"only what task requires"原则。
+
+> B-058 已闭环 (前次会话, TDD standard mode RED→GREEN) — `SourceConfigService` 抽象（[src/intellisource/source/service.py](../src/intellisource/source/service.py) + 包 init）参 [`subscription/service.py`](../src/intellisource/subscription/service.py) 形态：`list_paginated / create / patch / delete`（软删 status=paused）+ `bulk_sync_with_version`（**additive** bulk_upsert 不软删 API-created sources）+ `rollback_to_version`（**full sync** bulk_sync_from_configs 精确匹配 snapshot）+ `build_source_version_manager()` factory（table_name=config_versions / config_cls=SourceConfig）。`SourceRepository.bulk_sync_from_configs` update 分支补 `existing.status='active'`（rollback 重激活语义）。**B-058a 漂移**修复 → reload 写 version snapshot；**B-058b real bug** 修复 → rollback 真写回 DB。
+
+### B-058 sources reload/rollback 版本对齐 + rollback real bug 修复 ✅
+- **优先级**：P1（含 real bug，rollback 端点不实际写 DB）
+- **关联**：B-054+B-055 闭环遗留 / [src/intellisource/api/routers/sources.py:212-249](../src/intellisource/api/routers/sources.py) / [src/intellisource/subscription/service.py:101-149](../src/intellisource/subscription/service.py) / [src/intellisource/main.py:81-115](../src/intellisource/main.py)
+- **现状（两个问题，b 是 real bug）**：
+  - **B-058a 漂移**：[`/sources/reload`](../src/intellisource/api/routers/sources.py:212) → `reload_source_configs` 只跑 `bulk_upsert`，**不调 `record_version`**；与 file-watcher `on_config_change`（[main.py:113](../src/intellisource/main.py)）路径行为不一致（同一业务动作两条代码路径）；与 subscription 侧 `bulk_sync_with_version` 不对齐
+  - **B-058b real bug**：[`/sources/rollback/{version}`](../src/intellisource/api/routers/sources.py:224) 调 `rollback_by_label` 拿到 snapshot 后**直接 return，没 `bulk_upsert` 把数据写回 DB**；端点名为 rollback 实际只是 "preview snapshot"。subscription 侧 [`rollback_to_version`](../src/intellisource/subscription/service.py:132) 已正确实现（rollback_by_label + bulk_sync_from_configs）
+  - **影响**：rollback 端点被使用时 DB 状态不变，可能造成生产事故（用户以为已回退实际未生效）
+- **修复方向**：
+  - 参 [subscription/service.py](../src/intellisource/subscription/service.py) 抽 `SourceConfigService` 集中 validator + repository + version 调度：
+    - `bulk_sync_with_version(configs, author)` — validate → bulk_upsert → record_version_async（B-058a）
+    - `rollback_to_version(version_label)` — rollback_by_label → bulk_upsert（B-058b）
+    - `list_paginated / create / patch / delete` — 单条 CRUD 不写版本（与 subscription 对齐，hot edits）
+  - router 退化为薄 HTTP 转发；`reload_source_configs` 函数下沉到 service
+  - `on_config_change` path 改走 service（消除两条代码路径分叉）
+  - 兼容：保留 `record_version` 同步 wrapper（main.py lifespan 早期 import 时点的 sync 路径依赖）；或 lifespan 改走 async
+- **测试**：
+  - `tests/unit/api/test_sources_reload_writes_version.py` — reload 后 `config_versions` 表 +1 行
+  - `tests/unit/api/test_sources_rollback_restores_db.py` — rollback 后 sources 行真按 snapshot 恢复（不是只返 JSON）
+  - `tests/unit/source/test_service.py` 仿 [tests/unit/subscription/test_service.py](../tests/unit/subscription/test_service.py)
+  - 现有 reload/rollback 测试适配新 service factory（deps_integration 模仿 B-054+B-055 fixture）
+- **验证**：单测全绿 + 真起栈走查（B-031 步骤 5+ 信源 CRUD 章节可补 rollback 验证子步）
+- **依赖**：B-054+B-055 ✅（SubscriptionService 模板已就绪可直接借鉴）
+
 ---
 
 ## P2 — 架构 / 功能完整性
@@ -58,6 +85,28 @@ deps: []
 > B-008 已闭环 — `truncate_summary` 接入 LLM summarizer（`summarizer.structured` 模板 + `gateway.complete` + `response_format: json_object`），产出 `{title, summary, timeline, key_points}` 结构化摘要；LLM 失败 / 返回非法 JSON / 缺字段 → 回退字符串截断；PRD AC-023 [ASSUMPTION] 已移除、标 `[x]`；2834 PASS (+7 测试) 不退化
 >
 > B-010 已闭环 — `docs/deploy-spec/deploy-spec-intellisource-v1.md` (755 行 + changelog) 产出并通过 r1+r2 双轮审查；4 模板必填段全覆盖；dev/staging/prod 三环境矩阵；zhparser DB 镜像要求 + 11 项指标家族 (B-014) + promtool check rules (B-015) + SBOM + trivy/grype 门禁 + git checkout+rebuild 回滚方案 + run_pipeline 唯一注册任务 smoke + queue.priority.* 实际队列名 + webhook token 轮换。reviewer r1 needs_revision (2 HIGH + 4 MEDIUM + 3 LOW)；devops r2 修订全部闭环；orchestrator inline r2 audit approved。详见 [docs/reviews/doc/REVIEW-deploy-spec-intellisource-v1-r2.md](reviews/doc/REVIEW-deploy-spec-intellisource-v1-r2.md)
+
+> B-057 已闭环 (本次会话, light TDD inline) — [matcher.py](../src/intellisource/distributor/matcher.py) `_matches` 加 `source_names` 强约束维度：rules 设置后必须命中 content 的 source name 否则整条订阅丢弃；命中也视为正向 match 信号（允许 source_names 单独成立无需 keywords/tags）。新增静态 helper [`_resolve_source_name`](../src/intellisource/distributor/matcher.py) 双路径：先读 `content.source_name` 直列、空则 fallback `content.raw_content.source.name` ORM relation chain。[facade.py](../src/intellisource/distributor/facade.py) `_load_content_and_subscriptions` 改用 `session.get(..., options=[selectinload(ProcessedContent.raw_content).selectinload(RawContent.source)])` eager-load source 关系链，避免 matcher 跨 session lazy-load 触发 greenlet 错误；保留 `session.get` 调用形态（不切到 `session.scalars` 以兼容现有 facade mock 测试）。[config/subscriptions.example.yaml](../config/subscriptions.example.yaml) 加 source_names 注释示例 + 说明字符串比对不耦合 yaml 加载顺序。**测试**：tests/unit/distributor/test_matcher_source_names.py 12 tests（5 alone + 3 conjunction + 3 legacy preserve + 1 orphan + 2 multiple + 1 chain resolve 实际 12）— 2926→2938 PASS。lint-imports 8/8 contracts KEPT。**架构注意已落地**：不引入 source_ids UUID 字段；matcher 注入路径走 eager-load。**真起栈验证待**：B-031 步骤 13 推送链路加"按 source_names 订阅"子步。
+
+### B-057 subscriptions ↔ sources 关联（match_rules.source_names）✅
+- **优先级**：P2（B-054+B-055 闭环时 P3 候选，按"按信源订阅是 IT 资讯产品基础能力"升级 P2）
+- **关联**：B-054+B-055 闭环遗留 / [src/intellisource/distributor/matcher.py:34-73](../src/intellisource/distributor/matcher.py) / [config/subscriptions.example.yaml](../config/subscriptions.example.yaml)
+- **现状**：subscription `match_rules` 仅按内容属性（`keywords` / `tags` / `discipline_tags` / `min_score`）过滤，**无 source-level 过滤**。用户想"仅订阅 HN RSS 内容"必须把 source 名作为关键词写 `keywords`，间接且易错（不命中 title 就丢，也无法对 source 元数据精确比对）
+- **B-054+B-055 时跳过的真实理由**：示例 yaml 一度考虑加 `source: <name>` 字段，但担心 subscriptions.yaml 与 sources.yaml **加载顺序耦合**。重新评估：把字段定为 `match_rules.source_names: list[str]` 后，**校验阶段不做引用检查**（接受任意字符串），仅 matcher 运行时按 `content.source.name` 字符串比对，orphan 引用（source 已删）= 无匹配，无需 cross-yaml 解析，耦合担忧消除
+- **修复方向**：
+  - `match_rules.source_names: list[str]`（可选字段，向后兼容）
+  - [`SubscriptionMatcher._matches`](../src/intellisource/distributor/matcher.py:34) 增加 `has_source_match` 分支：从 `content.source.name`（需 ORM relation 已 eager-load）或注入 source_id → name 映射读取
+  - 与现有 keywords/tags/discipline_tags 合取保持 disjunction 语义（任一匹配即 True；若 `source_names` 设置但不匹配则**整条订阅丢弃**，作为强约束维度——避免 source filter 与 tag filter 互相绕过）
+  - schema 兼容：仅新增字段，无破坏
+  - [config/subscriptions.example.yaml](../config/subscriptions.example.yaml) 加 `match_rules.source_names: ["HN RSS"]` 示例 + 注释说明字符串比对不做加载顺序耦合
+- **测试**：
+  - matcher unit tests +N 个：仅 source_names 匹配 / source_names + tags 合取 / orphan source_names = 无匹配 / source_names 设置但 content.source.name 不在列表 = 强拒绝
+  - SubscriptionValidator 兼容性：source_names 字段透传，不强约束 source 存在
+  - 真起栈：步骤 13 推送链路加"按 source_names 订阅"子步（指定 HN RSS 的 subscription 不应收到 GitHub Trending 的 content）
+- **架构注意**：
+  - **不引入** `source_ids: list[UUID]` 字段 — name-based 字符串足够支撑订阅语义，UUID 引用会与 yaml 配置形成强耦合（source 重建后 UUID 变 → 订阅失联）
+  - matcher 注入路径：facade.distribute 触发 matcher 前，从 content.source_id 加载 source.name（或预先 eager-load `joinedload(ProcessedContent.source)`）
+- **依赖**：无（match_rules 是 jsonb 已可承载任意 schema 扩展；matcher 路径独立）
 
 ---
 
@@ -193,17 +242,60 @@ deps: []
 
 > B-048 已闭环 — F-01~F-07 + E-01 在 commit 1b38f7b 一次性修复（F-01 FK 移除 task_id kwarg / F-02 暂标 xfail / F-03 patch→app.dependency_overrides / F-04 skipif no-key / F-05/F-06/F-07 `_make_pg_db_manager(pg_session=...)` API 切换 / E-01 sqlite fixture 加 JSONB+ARRAY→JSON coercion）+ commit 5efc6ba 后续（F-01 mask-email 断言 + E-01 ARRAY 列补 coercion）。剩余 F-02 cross-loop xfail 在本次会话闭环：test_run_pipeline_marks_raw_content_as_processed 从 pg_session SAVEPOINT-isolated fixture 切到独立 `async_sessionmaker + poolclass=NullPool`（与生产 worker B-037 路径同型）—— `_run_sync` 子线程 loop 每次 factory() 都拿到全新 asyncpg 连接，不再触发 "another operation in progress"。**CI 验证**：main 上 run 26505614731 (commit 7ef17bf) Integration Tests = 162 passed / 1 skipped / 1 xfailed in 74.41s；本次 xfail 转 pass 后预期 163 passed / 1 skipped / 0 xfailed（F-04 仍 skip 因 CI 无 LLM API key）
 
-### B-050 默认优先 wework 渠道（文档与默认值倾斜）
-- **优先级**：P3
-- **依赖**：B-033（composition channel 可选）
-- **关联**：[docs/research/b050-wechat-vs-wework-audit.md](research/b050-wechat-vs-wework-audit.md)
-- **现状**：代码层 wechat / wework 两条通路完全对等（distributor + cs_client + webhook 路由）；wework 在 9/12 产品维度（无 48h 客服窗口约束 / 支持 markdown / 用户身份可读 / 通讯录直接派发 / API 限流宽松）上比 wechat 更友好，仅"配置变量数量"和"AES 加密复杂度"上 wechat 略低门槛。当前无"默认渠道"概念，订阅 `channel` 字段决定路由；composition 一次性 wire 三个 channel（B-033 待 soft-disable）
-- **修复方向**：
-  - 文档：`docker/.env.example` Distribution channels 段把 wework 块前置 + 标 "推荐"；walkthrough §0.2 把 wechat 标 "可选 / 需备案"；PRD/ARCH M-007 推送模块说明 wework 主 / wechat 兼容
-  - 示例：`config/subscriptions.example.yaml`（如新增）默认 `channel: "wework"`；walkthrough 步骤 13 推送示例切到 wework
-  - 代码（依赖 B-033）：composition.build_distributor_facade 在仅 wework 配齐时 channels dict 不含 wechat 仍正常启动；facade.distribute 对 channel 未注册返 `ChannelDisabled` 而非吞 KeyError
-  - `IS_WECOM_*` 三变量补入 `docker/.env.example`（顺带 B-034 doc drift）
-- **验证**：新用户走 walkthrough §0.2 时只需配 wework 即可跑通推送链路；wechat 全空 lifespan 不崩
+> B-054 + B-055 已闭环 (本次会话, 三入口对齐重构 Layer 1+2 + CLI 薄壳) — subscriptions 配置三入口（yaml / API / CLI）行为对齐，单一 Pydantic schema + service layer 集中业务逻辑。
+>
+> **Phase 1 (yaml + reload MVP)**：
+> - `config/subscriptions.example.yaml`（3 渠道示例：wework / email / wechat + 注释"API changes will be overwritten on next reload"）
+> - `src/intellisource/config/subscription_models.py` 新增 `SubscriptionConfig` Pydantic model（name / channel Literal / channel_config / match_rules / frequency / quiet_hours / timezone / discipline_tags）
+> - `src/intellisource/config/subscription_validator.py` 新增 `SubscriptionValidator` 按 channel 分支校验：email 必填 to_addr、wework user_id+msg_type ∈ {text,markdown,news}、wechat any shape
+> - `src/intellisource/config/subscription_loader.py` 新增 `SubscriptionConfigLoader`（独立 `IS_SUBSCRIPTION_CONFIG_DIR` env，默认 `config/subscriptions`）
+> - `SubscriptionRepository` 加 `upsert(by-name)` + `bulk_sync_from_configs`（yaml 缺失即 status='paused' 软删，保留 push_records FK 历史）
+> - `docker/.env.example` 加 `IS_SUBSCRIPTION_CONFIG_DIR`；Makefile bootstrap 建 `config/subscriptions` 目录
+>
+> **Phase 2 (subscription_config_versions + rollback)**：
+> - alembic migration `d4e5f6a7b8c9_add_subscription_config_versions.py`（schema 对齐 `config_versions`）
+> - `ConfigVersionManager` 泛化（**删除向后兼容**）：`table_name` + `config_cls` 强制 kwarg，删除 `session_factory`，`record_version_async` / `rollback_by_label` `session` 必传；sources rollback router + composition.py wiring 同步升级新签名
+> - reload 端点成功后调 `record_version_async` 写 snapshot；新增 `POST /api/v1/subscriptions/config/rollback/{version}` 端点
+>
+> **Layer 1+2 三入口对齐重构**（用户决策：repair real bugs + 抽 service）：
+> - 删 `SubscriptionCreateRequest` / `SubscriptionUpdateRequest`；`POST /subscriptions` 直接接 `SubscriptionConfig`（修复 API 缺 `frequency` / `quiet_hours` / `timezone` / `discipline_tags` 字段的漂移）；`PATCH` 用 `SubscriptionPatchRequest`（全 Optional）
+> - 修真 bug：旧 API 不跑 `SubscriptionValidator` —— 同样输入"email 缺 to_addr"在 yaml reload 报错而 API 接受。现在统一在 service 层强制
+> - 新增 `src/intellisource/subscription/service.py` `SubscriptionService`：`list_paginated` / `create` / `patch` / `delete`（soft → status='paused'）/ `bulk_sync_with_version` / `rollback_to_version`；validator 在 create + bulk_sync 路径强制
+> - router 退化为薄 HTTP 转发层（仅参数解析 + 序列化 + 错误码映射），所有写入路径 → service
+>
+> **Phase 3 (B-055 CLI 薄壳)**：
+> - `intellisource subscriptions list / add / patch / rm / reload / rollback` 子命令
+> - `add` 交互式 prompt 按 channel 分支收集 `channel_config`（wework → user_id+msg_type / email → to_addr / wechat → 空）
+> - 全部 HTTP 自调本地 `/api/v1/subscriptions/*`（复用 `_get_headers` IS_API_KEY 注入），与 sources / pipeline / task CLI 一致
+>
+> **三入口对齐结果**（重复消除 + 一致性）：
+> - **Pydantic schema 单一来源**：`SubscriptionConfig` 唯一定义；API request body + yaml loader + CLI 构造 dict 共用
+> - **业务逻辑单一来源**：`SubscriptionService` 集中 validator+repository+version snapshot 调度；router / loader / CLI 仅作为 transport adapter
+> - **校验对齐**：API create / yaml reload / CLI add 三条路径全跑 `SubscriptionValidator` (修 bug)
+> - **版本快照触发点显式**：reload + rollback 经 service 写 `subscription_config_versions`；单条 create/patch/delete 不写（保持 history 表不暴涨，"snapshot = deploy 单位"语义清晰）
+> - **审计一致**：CLI HTTP 自调 → 经过 API middleware + metrics + log，与 curl / postman 等价；不绕过 DB 直连
+>
+> **测试**：74 新增 tests GREEN（19 validator + 7 loader + 8 repository sync + 9 router (reload+rollback+CRUD) + 13 CLI + 4 generic ConfigVersionManager + 12 service + 5 旧 SubscriptionCRUD 重写 + 1 deps_integration 适配）；**2903 PASS unit (+74)** 守住 baseline；mypy --strict + ruff + lint-imports 8/8 clean。
+>
+> **验收**：用户 `make bootstrap` → 编辑 `config/subscriptions/subscriptions.yaml` → `intellisource subscriptions reload` → `intellisource subscriptions list` 可见 → 改 yaml 删一条 → `intellisource subscriptions reload` → 列表中那条 status=paused → `intellisource subscriptions rollback 1` → 恢复 v1 状态。
+>
+> **未做项 / 后续可立项**：
+> - Layer 3 "单条 create/patch 也写版本快照" 不做（user-decided 推荐方案不包含；history 表暴涨成本高于价值）
+> - yaml `source: <name>` 关联解析（subscriptions 关联到 sources）— 当前 Phase 1 跳过避免 yaml 间加载顺序耦合，所有 yaml 订阅 source_id=NULL（按 tags 匹配全局）；如需可独立立 B-057
+> - sources rollback 端点 (api/routers/sources.py:230) 当前 `manager = ConfigVersionManager(table_name="config_versions", config_cls=SourceConfig)` new in handler — 与 subscriptions 同形态但 sources reload 路径未自动写版本，是 pre-existing 设计 gap（B-058 候选）
+
+> B-050 已闭环 (本次会话, 文档与默认值倾斜) — 依赖 B-033 channels soft-disable 已闭环，本次完成两处部署侧倾斜：
+>
+> - `docker/.env.example` Distribution channels 段：WeWork 块前置标 "recommended primary push channel"，WeChat 标 "optional, requires 公众号 备案 + 年审"，补全 `IS_WECOM_TOKEN` / `IS_WECOM_ENCODING_AES_KEY` / `IS_WECOM_CORP_ID` 三变量（顺带 B-034 doc drift §7）；段首注释明确未配置 channel 走 soft-disable warning 路径，不再 hard-fail
+> - `docs/deploy/PRE-DEPLOY-WALKTHROUGH.md §0.2` 新增 "Distribution channels（可选 — 未配置自动 soft-disable）" 子段：三渠道矩阵列举 WeWork (推荐主路径，无 48h 窗口/markdown/通讯录派发/限流宽松) / WeChat (需备案 + 48h 窗口约束) / Email (mailhog 本地)，附 WeCom AES 三变量；§0.2 IS_API_KEY 行补 `change-me-in-production` 启动会被 lifespan 阻断的说明（B-051 startup guard 提示）
+>
+> **未做项**：
+> - `cli init` 渠道选项顺序：B-051 已把 `WeWork (recommended)` 放第一位，`cli doctor` `_REQUIRED_CHANNEL_VARS` 也已 wework 在前，本次无需再改
+> - walkthrough 步骤 13 推送示例：当前 mailhog + Gmail + WeChat webhook 已全部签字闭环（2026-05-27），切换主示例会动既有签字结论，不动
+> - **PRD §F-006 / ARCH M-007 主路径标记**：当前 PRD "v1 优先支持微信公众号/企业微信" 平等列举，ARCH M-007 `WeChatDistributor` 标 AC-040 / `WeWorkDistributor` 标 AC-041 也平等。要改成"主路径 wework / 备选 wechat" 属 requirement 倾斜，需走 change-guard amendment 路径；若用户日后需要，可独立立 B-053 amendment 任务
+> - `config/subscriptions.example.yaml`：当前不存在，订阅创建走 API 不依赖 yaml，本次不新增
+>
+> **验证**：新用户首次 `make bootstrap` → 编辑 `.env` 时阅读到 WeWork 优先标注 + 仅需配 WeWork 三变量即可跑通推送（其他 channel 全空时 lifespan warning 但不阻塞），symmetry 与 `intellisource init` CLI 与 `_REQUIRED_CHANNEL_VARS` 一致。无业务代码改动 → 2829 PASS unit 不需重跑（baseline 守住）。
 
 > B-051 已闭环 (本次会话, D+C+A 长期完整路径) — 配置管理与首次接入 UX 三阶段全部落地。
 >

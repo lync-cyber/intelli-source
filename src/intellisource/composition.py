@@ -485,7 +485,12 @@ def _install_observability_state(
     app.state.health_checker = checker
 
     app.state.metrics_collector = metrics_collector_instance
-    app.state.config_version_manager = ConfigVersionManager()
+    from intellisource.config.models import SourceConfig
+
+    app.state.config_version_manager = ConfigVersionManager(
+        table_name="config_versions",
+        config_cls=SourceConfig,
+    )
 
 
 def _install_webhook_state(app: FastAPI, *, redis_client: Any) -> None:

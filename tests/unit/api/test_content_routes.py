@@ -147,6 +147,9 @@ def _make_subscription_obj(
     obj.channel_config = channel_config or {"openid": "test_openid"}
     obj.match_rules = match_rules or {"keywords": ["AI"]}
     obj.frequency = frequency
+    obj.quiet_hours = None
+    obj.timezone = "Asia/Shanghai"
+    obj.discipline_tags = []
     obj.status = status
     obj.created_at = "2025-06-01T00:00:00+00:00"
     obj.updated_at = None
@@ -467,23 +470,32 @@ class TestSearchEndpoint:
 
 
 class TestSubscriptionCRUD:
-    """AC-T042-4: Subscription rules CRUD."""
+    """AC-T042-4: Subscription rules CRUD — exercised through SubscriptionService."""
+
+    def _override_service(
+        self, subscriptions_app: FastAPI, mock_service: MagicMock
+    ) -> None:
+        from intellisource.api.routers.subscriptions import _get_service
+
+        subscriptions_app.dependency_overrides[_get_service] = lambda: mock_service
 
     @pytest.mark.asyncio
-    async def test_list_subscriptions(self, subscriptions_client: AsyncClient) -> None:
+    async def test_list_subscriptions(
+        self,
+        subscriptions_app: FastAPI,
+        subscriptions_client: AsyncClient,
+    ) -> None:
         """GET /api/v1/subscriptions returns paginated subscription list."""
-        mock_repo = AsyncMock()
-        mock_repo.list.return_value = {
-            "items": [_make_subscription_obj()],
-            "next_cursor": None,
-            "has_more": False,
-        }
-
-        with patch(
-            "intellisource.api.routers.subscriptions.SubscriptionRepository",
-            return_value=mock_repo,
-        ):
-            resp = await subscriptions_client.get("/api/v1/subscriptions")
+        mock_service = MagicMock()
+        mock_service.list_paginated = AsyncMock(
+            return_value={
+                "items": [_make_subscription_obj()],
+                "next_cursor": None,
+                "has_more": False,
+            }
+        )
+        self._override_service(subscriptions_app, mock_service)
+        resp = await subscriptions_client.get("/api/v1/subscriptions")
 
         assert resp.status_code == 200
         body = resp.json()
@@ -500,26 +512,23 @@ class TestSubscriptionCRUD:
 
     @pytest.mark.asyncio
     async def test_create_subscription_201(
-        self, subscriptions_client: AsyncClient
+        self,
+        subscriptions_app: FastAPI,
+        subscriptions_client: AsyncClient,
     ) -> None:
         """POST /api/v1/subscriptions creates a new subscription rule."""
-        mock_repo = AsyncMock()
-        created = _make_subscription_obj()
-        mock_repo.create.return_value = created
-
-        with patch(
-            "intellisource.api.routers.subscriptions.SubscriptionRepository",
-            return_value=mock_repo,
-        ):
-            resp = await subscriptions_client.post(
-                "/api/v1/subscriptions",
-                json={
-                    "name": "test-subscription",
-                    "channel": "wechat",
-                    "channel_config": {"openid": "test_openid"},
-                    "match_rules": {"keywords": ["AI"]},
-                },
-            )
+        mock_service = MagicMock()
+        mock_service.create = AsyncMock(return_value=_make_subscription_obj())
+        self._override_service(subscriptions_app, mock_service)
+        resp = await subscriptions_client.post(
+            "/api/v1/subscriptions",
+            json={
+                "name": "test-subscription",
+                "channel": "wechat",
+                "channel_config": {"openid": "test_openid"},
+                "match_rules": {"keywords": ["AI"]},
+            },
+        )
 
         assert resp.status_code == 201
         body = resp.json()
@@ -530,20 +539,21 @@ class TestSubscriptionCRUD:
         assert "created_at" in body
 
     @pytest.mark.asyncio
-    async def test_update_subscription(self, subscriptions_client: AsyncClient) -> None:
+    async def test_update_subscription(
+        self,
+        subscriptions_app: FastAPI,
+        subscriptions_client: AsyncClient,
+    ) -> None:
         """PATCH /api/v1/subscriptions/{id} partially updates subscription."""
-        mock_repo = AsyncMock()
-        updated = _make_subscription_obj(status="paused")
-        mock_repo.update.return_value = updated
-
-        with patch(
-            "intellisource.api.routers.subscriptions.SubscriptionRepository",
-            return_value=mock_repo,
-        ):
-            resp = await subscriptions_client.patch(
-                f"/api/v1/subscriptions/{SUB_ID}",
-                json={"status": "paused"},
-            )
+        mock_service = MagicMock()
+        mock_service.patch = AsyncMock(
+            return_value=_make_subscription_obj(status="paused")
+        )
+        self._override_service(subscriptions_app, mock_service)
+        resp = await subscriptions_client.patch(
+            f"/api/v1/subscriptions/{SUB_ID}",
+            json={"status": "paused"},
+        )
 
         assert resp.status_code == 200
         body = resp.json()
@@ -551,37 +561,33 @@ class TestSubscriptionCRUD:
 
     @pytest.mark.asyncio
     async def test_delete_subscription_204(
-        self, subscriptions_client: AsyncClient
+        self,
+        subscriptions_app: FastAPI,
+        subscriptions_client: AsyncClient,
     ) -> None:
         """DELETE /api/v1/subscriptions/{id} returns 204 on success."""
-        mock_repo = AsyncMock()
-        mock_repo.delete.return_value = True
-
-        with patch(
-            "intellisource.api.routers.subscriptions.SubscriptionRepository",
-            return_value=mock_repo,
-        ):
-            resp = await subscriptions_client.delete(f"/api/v1/subscriptions/{SUB_ID}")
+        mock_service = MagicMock()
+        mock_service.delete = AsyncMock(return_value=True)
+        self._override_service(subscriptions_app, mock_service)
+        resp = await subscriptions_client.delete(f"/api/v1/subscriptions/{SUB_ID}")
 
         assert resp.status_code == 204
         assert resp.content == b""
 
     @pytest.mark.asyncio
     async def test_delete_subscription_not_found_404(
-        self, subscriptions_client: AsyncClient
+        self,
+        subscriptions_app: FastAPI,
+        subscriptions_client: AsyncClient,
     ) -> None:
         """DELETE non-existent subscription returns 404."""
-        mock_repo = AsyncMock()
-        mock_repo.delete.return_value = False
-
+        mock_service = MagicMock()
+        mock_service.delete = AsyncMock(return_value=False)
+        self._override_service(subscriptions_app, mock_service)
         nonexistent_id = uuid.UUID("ffffffff-ffff-ffff-ffff-ffffffffffff")
-        with patch(
-            "intellisource.api.routers.subscriptions.SubscriptionRepository",
-            return_value=mock_repo,
-        ):
-            resp = await subscriptions_client.delete(
-                f"/api/v1/subscriptions/{nonexistent_id}"
-            )
+        resp = await subscriptions_client.delete(
+            f"/api/v1/subscriptions/{nonexistent_id}"
+        )
 
         assert resp.status_code == 404
 

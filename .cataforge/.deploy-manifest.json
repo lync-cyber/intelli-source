@@ -24,6 +24,7 @@
     ".claude/skills/code-review",
     ".claude/skills/debug",
     ".claude/skills/deploy-config",
+    ".claude/skills/doc-consistency",
     ".claude/skills/doc-gen",
     ".claude/skills/doc-nav",
     ".claude/skills/doc-review",
