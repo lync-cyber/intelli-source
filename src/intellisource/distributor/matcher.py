@@ -37,10 +37,21 @@ class SubscriptionMatcher:
         keywords: list[str] = rules.get("keywords", [])
         tags: list[str] = rules.get("tags", [])
         discipline_tags: list[str] = rules.get("discipline_tags", [])
+        source_names: list[str] = rules.get("source_names", [])
         min_score: float = rules.get("min_score", 0)
 
-        if not keywords and not tags and not discipline_tags:
+        if not keywords and not tags and not discipline_tags and not source_names:
             return False
+
+        # source_names is a strong-constraint dimension: when set, the content's
+        # source must be in the list, otherwise the subscription is dropped
+        # regardless of any other matchers.
+        has_source_match = False
+        if source_names:
+            content_source_name = self._resolve_source_name(content)
+            if content_source_name not in source_names:
+                return False
+            has_source_match = True
 
         text = getattr(content, "title", "") + " " + getattr(content, "body_text", "")
         text_lower = text.lower()
@@ -61,7 +72,12 @@ class SubscriptionMatcher:
             discipline_tags and (content_discipline_tags & set(discipline_tags))
         )
 
-        if not has_keyword_match and not has_tag_match and not has_discipline_tag_match:
+        if (
+            not has_keyword_match
+            and not has_tag_match
+            and not has_discipline_tag_match
+            and not has_source_match
+        ):
             return False
 
         # min_score filtering
@@ -71,6 +87,21 @@ class SubscriptionMatcher:
                 return False
 
         return True
+
+    @staticmethod
+    def _resolve_source_name(content: Any) -> str:
+        """Return the content's source name, preferring the direct column then
+        falling back to the eager-loaded raw_content.source.name relation."""
+        direct = getattr(content, "source_name", None) or ""
+        if direct:
+            return direct
+        raw_content = getattr(content, "raw_content", None)
+        if raw_content is None:
+            return ""
+        source = getattr(raw_content, "source", None)
+        if source is None:
+            return ""
+        return getattr(source, "name", "") or ""
 
     @staticmethod
     def _evaluate_keywords(

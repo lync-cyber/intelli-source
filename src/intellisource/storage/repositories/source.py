@@ -84,6 +84,7 @@ class SourceRepository(BaseRepository[Source]):
                 existing.type = config.type
                 existing.url = config.url
                 existing.tags = config.tags
+                existing.status = "active"
                 existing.schedule_interval = config.schedule_interval
                 existing.schedule_adaptive = config.schedule_adaptive
                 existing.proxy = config.proxy

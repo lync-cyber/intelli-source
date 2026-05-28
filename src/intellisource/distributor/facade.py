@@ -82,7 +82,6 @@ class DistributorFacade:
         *,
         content_id: str,
         subscription_id: str | None = None,
-        **kwargs: Any,
     ) -> dict[str, Any]:
         """Execute the 5-step distribution pipeline.
 
@@ -183,8 +182,21 @@ class DistributorFacade:
         content_id: str,
         subscription_id: str | None,
     ) -> tuple[Any, list[Any]]:
-        """Load ProcessedContent and resolve subscriptions in a single session."""
-        from intellisource.storage.models import ProcessedContent, Subscription
+        """Load ProcessedContent and resolve subscriptions in a single session.
+
+        ProcessedContent is loaded with ``raw_content.source`` eager-loaded so
+        SubscriptionMatcher can resolve ``content.raw_content.source.name`` for
+        ``match_rules.source_names`` (B-057) without triggering a lazy load
+        outside this session.
+        """
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+
+        from intellisource.storage.models import (
+            ProcessedContent,
+            RawContent,
+            Subscription,
+        )
 
         try:
             content_uuid = uuid.UUID(content_id)
@@ -192,23 +204,27 @@ class DistributorFacade:
             return None, []
 
         async with self._session_factory() as session:
-            # Step 1: load content
-            content = await session.get(ProcessedContent, content_uuid)
-
-            # Step 2: resolve subscriptions via SELECT (never session.get)
-            from sqlalchemy import select
+            content_stmt = (
+                select(ProcessedContent)
+                .where(ProcessedContent.id == content_uuid)
+                .options(
+                    selectinload(ProcessedContent.raw_content).selectinload(
+                        RawContent.source
+                    )
+                )
+            )
+            content = (await session.scalars(content_stmt)).one_or_none()
 
             if subscription_id is None:
-                stmt = select(Subscription).where(Subscription.status == "active")
+                sub_stmt = select(Subscription).where(Subscription.status == "active")
             else:
                 try:
                     sub_uuid = uuid.UUID(subscription_id)
                 except ValueError:
                     return None, []
-                stmt = select(Subscription).where(Subscription.id == sub_uuid)
+                sub_stmt = select(Subscription).where(Subscription.id == sub_uuid)
 
-            result = await session.scalars(stmt)
-            subscriptions: list[Any] = list(result.all())
+            subscriptions: list[Any] = list((await session.scalars(sub_stmt)).all())
 
         return content, subscriptions
 

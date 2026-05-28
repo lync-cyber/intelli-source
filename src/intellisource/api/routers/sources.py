@@ -103,10 +103,16 @@ async def reload_source_configs(
     *,
     config_name: str | None = None,
 ) -> dict[str, Any]:
-    """Load all source configs from disk, validate, and bulk-upsert to the database."""
+    """Load all source configs from disk, validate, bulk-upsert, and record version."""
+    from intellisource.config.models import SourceConfig
+
     loader = ConfigLoader()
     validator = ConfigValidator()
     repo = SourceRepository(session)
+    version_manager = ConfigVersionManager(
+        table_name="config_versions",
+        config_cls=SourceConfig,
+    )
 
     try:
         configs = loader.load_source_configs()
@@ -124,7 +130,15 @@ async def reload_source_configs(
     if validated:
         await repo.bulk_upsert(validated)
 
-    return {"loaded_count": len(validated), "errors": errors}
+    version_label: str = ""
+    try:
+        version_label = await version_manager.record_version_async(
+            validated, session=session, author=None
+        )
+    except Exception:
+        logger.warning("reload: version snapshot recording failed", exc_info=True)
+
+    return {"loaded_count": len(validated), "errors": errors, "version": version_label}
 
 
 # ---------------------------------------------------------------------------
@@ -242,6 +256,8 @@ async def rollback_source_config(
         )
     except ValueError as exc:
         return JSONResponse(status_code=404, content={"detail": str(exc)})  # type: ignore[return-value]
+    repo = SourceRepository(session)
+    await repo.bulk_sync_from_configs(list(configs))
     return {
         "rolled_back_to": version,
         "config_count": len(configs),

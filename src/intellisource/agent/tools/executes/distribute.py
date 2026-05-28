@@ -49,7 +49,6 @@ async def _distribute_execute(
         r = await tool_deps.distributor.distribute(
             content_id=cid,
             subscription_id=subscription_id,
-            **kwargs,
         )
         results.append(r)
 

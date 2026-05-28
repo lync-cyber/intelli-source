@@ -13,6 +13,9 @@ subscriptions:
       msg_type: "markdown"     # text / markdown / news
     match_rules:
       tags: ["ai"]
+      # source_names: ["HN RSS"]  # 可选：仅订阅指定信源（B-057）。字符串按 source 名比对，
+      #                            # 不做加载顺序耦合；source 不存在 = 无匹配，不报错。
+      #                            # 设置后变为强约束：source 不匹配即整条订阅丢弃。
     frequency: "realtime"
     timezone: "Asia/Shanghai"
 

@@ -9,7 +9,7 @@ deps: []
 # IntelliSource v1 Backlog
 
 > 维护：本文件梳理 PR #53 / #54 audit 闭环之后的剩余工作。完成项请直接删除条目，新增项按优先级插入。
-> 最后更新：2026-05-26 (B-039 + B-042 + B-044 + B-045 闭环；步骤 9 真起栈 PASS 补签；阶段 4 vector 路径待 OPENAI_API_KEY)
+> 最后更新：2026-05-28 (B-058 P1 ✅ + B-057 P2 ✅ 闭环 — sources reload/rollback 真 bug 修复 + matcher.source_names 强约束维度；2903→2938 PASS +35 / mypy strict + ruff + lint-imports 8/8 clean)
 
 ## 优先级语义
 
@@ -47,6 +47,31 @@ deps: []
 
 > B-003 / B-004 / B-005 / B-006 已闭环（详见 [docs/reviews/code/CODE-REVIEW-backlog-p1-r1.md](reviews/code/CODE-REVIEW-backlog-p1-r1.md)，含 R-001 修订）
 
+> B-058 已闭环 (本次会话, TDD standard mode RED→GREEN) — `SourceConfigService` 抽象（[src/intellisource/source/service.py](../src/intellisource/source/service.py) + 包 init）参 [`subscription/service.py`](../src/intellisource/subscription/service.py) 形态：`list_paginated / create / patch / delete`（软删 status=paused）+ `bulk_sync_with_version`（**additive** bulk_upsert 不软删 API-created sources）+ `rollback_to_version`（**full sync** bulk_sync_from_configs 精确匹配 snapshot）+ `build_source_version_manager()` factory（table_name=config_versions / config_cls=SourceConfig）。**router 修两端点 inline**：[`/sources/reload`](../src/intellisource/api/routers/sources.py:226) 追加 ConfigVersionManager + record_version_async + version 字段进响应（B-058a）；[`/sources/rollback/{version}`](../src/intellisource/api/routers/sources.py:238) 在 rollback_by_label 后追加 `SourceRepository(session).bulk_sync_from_configs(list(configs))` 真写回 DB（**B-058b real bug 修复**）。[`SourceRepository.bulk_sync_from_configs`](../src/intellisource/storage/repositories/source.py) update 分支补 `existing.status='active'`（rollback 重激活语义）。`on_config_change`（main.py lifespan 早期路径）保留 sync record_version 不动以避免 lifespan 重构，service 与 router 路径共享 record_version_async 表行为对齐。**测试**：tests/unit/source/{test_service.py + test_service_smoke.py + conftest.py}（22 tests）+ tests/unit/api/{test_sources_reload_writes_version.py + test_sources_rollback_restores_db.py}（4 tests）= 26 新（initial spec 23, +3 在 GREEN 加固）；2903→2926 PASS (+23 计) — 实际跑通 2926 含所有适配。**REFACTOR 跳过** — implementer self-report `coupling` 信号来自 service layer 5 跨模块 import（与 SubscriptionService 同形态固有耦合，非可消除信号）；router-service 完全收敛（让 sources router 也走 Depends(SourceConfigService) 真薄壳对齐 subscription router）需重写 4 router 测试 mock 模式，**超出 B-058 修 bug scope**，留为潜在 architectural follow-up。**潜在 follow-up**：(a) reload 端点 ReloadRequest.config_name 字段实际无生效（Pyright 警告 unused param），需决定保留 + 实施过滤 或 删字段；(b) router-service 完全收敛对齐 subscription router 模式。
+
+### B-058 sources reload/rollback 版本对齐 + rollback real bug 修复 ✅
+- **优先级**：P1（含 real bug，rollback 端点不实际写 DB）
+- **关联**：B-054+B-055 闭环遗留 / [src/intellisource/api/routers/sources.py:212-249](../src/intellisource/api/routers/sources.py) / [src/intellisource/subscription/service.py:101-149](../src/intellisource/subscription/service.py) / [src/intellisource/main.py:81-115](../src/intellisource/main.py)
+- **现状（两个问题，b 是 real bug）**：
+  - **B-058a 漂移**：[`/sources/reload`](../src/intellisource/api/routers/sources.py:212) → `reload_source_configs` 只跑 `bulk_upsert`，**不调 `record_version`**；与 file-watcher `on_config_change`（[main.py:113](../src/intellisource/main.py)）路径行为不一致（同一业务动作两条代码路径）；与 subscription 侧 `bulk_sync_with_version` 不对齐
+  - **B-058b real bug**：[`/sources/rollback/{version}`](../src/intellisource/api/routers/sources.py:224) 调 `rollback_by_label` 拿到 snapshot 后**直接 return，没 `bulk_upsert` 把数据写回 DB**；端点名为 rollback 实际只是 "preview snapshot"。subscription 侧 [`rollback_to_version`](../src/intellisource/subscription/service.py:132) 已正确实现（rollback_by_label + bulk_sync_from_configs）
+  - **影响**：rollback 端点被使用时 DB 状态不变，可能造成生产事故（用户以为已回退实际未生效）
+- **修复方向**：
+  - 参 [subscription/service.py](../src/intellisource/subscription/service.py) 抽 `SourceConfigService` 集中 validator + repository + version 调度：
+    - `bulk_sync_with_version(configs, author)` — validate → bulk_upsert → record_version_async（B-058a）
+    - `rollback_to_version(version_label)` — rollback_by_label → bulk_upsert（B-058b）
+    - `list_paginated / create / patch / delete` — 单条 CRUD 不写版本（与 subscription 对齐，hot edits）
+  - router 退化为薄 HTTP 转发；`reload_source_configs` 函数下沉到 service
+  - `on_config_change` path 改走 service（消除两条代码路径分叉）
+  - 兼容：保留 `record_version` 同步 wrapper（main.py lifespan 早期 import 时点的 sync 路径依赖）；或 lifespan 改走 async
+- **测试**：
+  - `tests/unit/api/test_sources_reload_writes_version.py` — reload 后 `config_versions` 表 +1 行
+  - `tests/unit/api/test_sources_rollback_restores_db.py` — rollback 后 sources 行真按 snapshot 恢复（不是只返 JSON）
+  - `tests/unit/source/test_service.py` 仿 [tests/unit/subscription/test_service.py](../tests/unit/subscription/test_service.py)
+  - 现有 reload/rollback 测试适配新 service factory（deps_integration 模仿 B-054+B-055 fixture）
+- **验证**：单测全绿 + 真起栈走查（B-031 步骤 5+ 信源 CRUD 章节可补 rollback 验证子步）
+- **依赖**：B-054+B-055 ✅（SubscriptionService 模板已就绪可直接借鉴）
+
 ---
 
 ## P2 — 架构 / 功能完整性
@@ -58,6 +83,28 @@ deps: []
 > B-008 已闭环 — `truncate_summary` 接入 LLM summarizer（`summarizer.structured` 模板 + `gateway.complete` + `response_format: json_object`），产出 `{title, summary, timeline, key_points}` 结构化摘要；LLM 失败 / 返回非法 JSON / 缺字段 → 回退字符串截断；PRD AC-023 [ASSUMPTION] 已移除、标 `[x]`；2834 PASS (+7 测试) 不退化
 >
 > B-010 已闭环 — `docs/deploy-spec/deploy-spec-intellisource-v1.md` (755 行 + changelog) 产出并通过 r1+r2 双轮审查；4 模板必填段全覆盖；dev/staging/prod 三环境矩阵；zhparser DB 镜像要求 + 11 项指标家族 (B-014) + promtool check rules (B-015) + SBOM + trivy/grype 门禁 + git checkout+rebuild 回滚方案 + run_pipeline 唯一注册任务 smoke + queue.priority.* 实际队列名 + webhook token 轮换。reviewer r1 needs_revision (2 HIGH + 4 MEDIUM + 3 LOW)；devops r2 修订全部闭环；orchestrator inline r2 audit approved。详见 [docs/reviews/doc/REVIEW-deploy-spec-intellisource-v1-r2.md](reviews/doc/REVIEW-deploy-spec-intellisource-v1-r2.md)
+
+> B-057 已闭环 (本次会话, light TDD inline) — [matcher.py](../src/intellisource/distributor/matcher.py) `_matches` 加 `source_names` 强约束维度：rules 设置后必须命中 content 的 source name 否则整条订阅丢弃；命中也视为正向 match 信号（允许 source_names 单独成立无需 keywords/tags）。新增静态 helper [`_resolve_source_name`](../src/intellisource/distributor/matcher.py) 双路径：先读 `content.source_name` 直列、空则 fallback `content.raw_content.source.name` ORM relation chain。[facade.py](../src/intellisource/distributor/facade.py) `_load_content_and_subscriptions` 改用 `session.get(..., options=[selectinload(ProcessedContent.raw_content).selectinload(RawContent.source)])` eager-load source 关系链，避免 matcher 跨 session lazy-load 触发 greenlet 错误；保留 `session.get` 调用形态（不切到 `session.scalars` 以兼容现有 facade mock 测试）。[config/subscriptions.example.yaml](../config/subscriptions.example.yaml) 加 source_names 注释示例 + 说明字符串比对不耦合 yaml 加载顺序。**测试**：tests/unit/distributor/test_matcher_source_names.py 12 tests（5 alone + 3 conjunction + 3 legacy preserve + 1 orphan + 2 multiple + 1 chain resolve 实际 12）— 2926→2938 PASS。lint-imports 8/8 contracts KEPT。**架构注意已落地**：不引入 source_ids UUID 字段；matcher 注入路径走 eager-load。**真起栈验证待**：B-031 步骤 13 推送链路加"按 source_names 订阅"子步。
+
+### B-057 subscriptions ↔ sources 关联（match_rules.source_names）✅
+- **优先级**：P2（B-054+B-055 闭环时 P3 候选，按"按信源订阅是 IT 资讯产品基础能力"升级 P2）
+- **关联**：B-054+B-055 闭环遗留 / [src/intellisource/distributor/matcher.py:34-73](../src/intellisource/distributor/matcher.py) / [config/subscriptions.example.yaml](../config/subscriptions.example.yaml)
+- **现状**：subscription `match_rules` 仅按内容属性（`keywords` / `tags` / `discipline_tags` / `min_score`）过滤，**无 source-level 过滤**。用户想"仅订阅 HN RSS 内容"必须把 source 名作为关键词写 `keywords`，间接且易错（不命中 title 就丢，也无法对 source 元数据精确比对）
+- **B-054+B-055 时跳过的真实理由**：示例 yaml 一度考虑加 `source: <name>` 字段，但担心 subscriptions.yaml 与 sources.yaml **加载顺序耦合**。重新评估：把字段定为 `match_rules.source_names: list[str]` 后，**校验阶段不做引用检查**（接受任意字符串），仅 matcher 运行时按 `content.source.name` 字符串比对，orphan 引用（source 已删）= 无匹配，无需 cross-yaml 解析，耦合担忧消除
+- **修复方向**：
+  - `match_rules.source_names: list[str]`（可选字段，向后兼容）
+  - [`SubscriptionMatcher._matches`](../src/intellisource/distributor/matcher.py:34) 增加 `has_source_match` 分支：从 `content.source.name`（需 ORM relation 已 eager-load）或注入 source_id → name 映射读取
+  - 与现有 keywords/tags/discipline_tags 合取保持 disjunction 语义（任一匹配即 True；若 `source_names` 设置但不匹配则**整条订阅丢弃**，作为强约束维度——避免 source filter 与 tag filter 互相绕过）
+  - schema 兼容：仅新增字段，无破坏
+  - [config/subscriptions.example.yaml](../config/subscriptions.example.yaml) 加 `match_rules.source_names: ["HN RSS"]` 示例 + 注释说明字符串比对不做加载顺序耦合
+- **测试**：
+  - matcher unit tests +N 个：仅 source_names 匹配 / source_names + tags 合取 / orphan source_names = 无匹配 / source_names 设置但 content.source.name 不在列表 = 强拒绝
+  - SubscriptionValidator 兼容性：source_names 字段透传，不强约束 source 存在
+  - 真起栈：步骤 13 推送链路加"按 source_names 订阅"子步（指定 HN RSS 的 subscription 不应收到 GitHub Trending 的 content）
+- **架构注意**：
+  - **不引入** `source_ids: list[UUID]` 字段 — name-based 字符串足够支撑订阅语义，UUID 引用会与 yaml 配置形成强耦合（source 重建后 UUID 变 → 订阅失联）
+  - matcher 注入路径：facade.distribute 触发 matcher 前，从 content.source_id 加载 source.name（或预先 eager-load `joinedload(ProcessedContent.source)`）
+- **依赖**：无（match_rules 是 jsonb 已可承载任意 schema 扩展；matcher 路径独立）
 
 ---
 

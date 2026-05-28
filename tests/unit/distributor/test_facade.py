@@ -270,12 +270,13 @@ class TestDistributeFiveSteps:
     def _make_mock_session_factory(
         self, mock_content: MagicMock, subscriptions: list[MagicMock]
     ) -> MagicMock:
-        """Build a mock session_factory with proper scalars().all() setup."""
+        """Build a mock session_factory with scalars().one_or_none() (content)
+        and scalars().all() (subscriptions) on the same result mock."""
         mock_scalars_result = MagicMock()
+        mock_scalars_result.one_or_none = MagicMock(return_value=mock_content)
         mock_scalars_result.all = MagicMock(return_value=subscriptions)
 
         mock_session = MagicMock()
-        mock_session.get = AsyncMock(return_value=mock_content)
         mock_session.scalars = AsyncMock(return_value=mock_scalars_result)
         mock_execute_result = MagicMock()
         mock_execute_result.scalar_one_or_none = MagicMock(return_value=None)
@@ -308,8 +309,6 @@ class TestDistributeFiveSteps:
         mock_channel = AsyncMock()
         mock_channel.distribute = AsyncMock(return_value={"status": "sent"})
 
-        # session_factory returns context manager yielding session with proper
-        # scalars().all() mock following the R-003 convention fix.
         mock_session_factory = self._make_mock_session_factory(
             mock_processed_content, []
         )
@@ -323,7 +322,11 @@ class TestDistributeFiveSteps:
 
         await facade.distribute(content_id=content_id, subscription_id=subscription_id)
 
-        mock_session.get.assert_called_once()
+        # Content load + subscription resolve both go through scalars()
+        assert mock_session.scalars.await_count >= 1
+        mock_matcher.match.assert_called_once()
+        passed_content = mock_matcher.match.call_args[0][0]
+        assert passed_content is mock_processed_content
 
     async def test_step2_matcher_match_called_after_content_load(
         self,
@@ -580,9 +583,9 @@ class TestDistributePIIMask:
         mock_channel.distribute = AsyncMock(return_value={"status": "sent"})
 
         mock_scalars_result = MagicMock()
+        mock_scalars_result.one_or_none = MagicMock(return_value=content)
         mock_scalars_result.all = MagicMock(return_value=[sub])
         mock_session = MagicMock()
-        mock_session.get = AsyncMock(return_value=content)
         mock_session.scalars = AsyncMock(return_value=mock_scalars_result)
         mock_execute_result = MagicMock()
         mock_execute_result.scalar_one_or_none = MagicMock(return_value=None)
@@ -635,10 +638,10 @@ class TestDistributeContentNotFound:
 
     def _empty_session_factory(self, returned_content: Any) -> MagicMock:
         mock_scalars_result = MagicMock()
+        mock_scalars_result.one_or_none = MagicMock(return_value=returned_content)
         mock_scalars_result.all = MagicMock(return_value=[])
 
         mock_session = MagicMock()
-        mock_session.get = AsyncMock(return_value=returned_content)
         mock_session.scalars = AsyncMock(return_value=mock_scalars_result)
         mock_execute_result = MagicMock()
         mock_execute_result.scalar_one_or_none = MagicMock(return_value=None)
