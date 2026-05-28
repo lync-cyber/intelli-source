@@ -1,15 +1,15 @@
 {
   "version": "1",
-  "generated_at": "2026-05-26T03:14:49.022253+00:00",
+  "generated_at": "2026-05-28T02:13:51.764738+00:00",
   "documents": {
     "backlog-intellisource-v1": {
       "file_path": "docs/BACKLOG-intellisource-v1.md",
       "doc_type": "backlog",
       "volume": "main",
       "status": "approved",
-      "total_lines": 239,
-      "est_tokens": 4584,
-      "content_hash": "9c0aaec3",
+      "total_lines": 430,
+      "est_tokens": 12106,
+      "content_hash": "c840645f",
       "sections": {}
     },
     "arch-intellisource-v1-api": {
@@ -801,9 +801,9 @@
       "doc_type": "deploy-spec",
       "volume": "main",
       "status": "draft",
-      "total_lines": 1009,
-      "est_tokens": 8538,
-      "content_hash": "a4780956",
+      "total_lines": 1021,
+      "est_tokens": 12409,
+      "content_hash": "8fc35a85",
       "sections": {
         "0": {
           "heading": "## 0. 前置条件",
@@ -859,7 +859,7 @@
       "dep_hashes": {
         "arch-intellisource-v1-modules": "29d390a9",
         "arch-intellisource-v1-api": "494f914e",
-        "backlog-intellisource-v1": "9c0aaec3"
+        "backlog-intellisource-v1": "c840645f"
       }
     },
     "dev-plan-intellisource-v1-s1": {
@@ -2027,7 +2027,7 @@
       "status": "approved",
       "total_lines": 171,
       "est_tokens": 3830,
-      "content_hash": "23c71aa8",
+      "content_hash": "9ca6d689",
       "sections": {}
     },
     "feedback-suggest-reflector-frontmatter-20260505": {
@@ -2037,7 +2037,7 @@
       "status": "approved",
       "total_lines": 28,
       "est_tokens": 448,
-      "content_hash": "f899b626",
+      "content_hash": "b8a8dc01",
       "sections": {}
     },
     "prd-intellisource-v1": {
@@ -2396,6 +2396,336 @@
         }
       }
     },
+    "b032-pgvector-zhparser-image-options": {
+      "file_path": "docs/research/b032-pgvector-zhparser-image-options.md",
+      "doc_type": "research",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 185,
+      "est_tokens": 2186,
+      "content_hash": "d61477a9",
+      "sections": {
+        "1": {
+          "heading": "## 1. 关键发现",
+          "level": 2,
+          "line_start": 14,
+          "line_end": 51,
+          "est_tokens": 576,
+          "deps": [],
+          "items": {
+            "1.1": {
+              "heading": "### 1.1 选 B (现成复合镜像) 不存在",
+              "line_start": 16,
+              "line_end": 28,
+              "est_tokens": 241,
+              "deps": []
+            },
+            "1.2": {
+              "heading": "### 1.2 选 A 自建可行性高",
+              "line_start": 29,
+              "line_end": 45,
+              "est_tokens": 240,
+              "deps": []
+            },
+            "1.3": {
+              "heading": "### 1.3 上游维护状态",
+              "line_start": 46,
+              "line_end": 51,
+              "est_tokens": 90,
+              "deps": []
+            }
+          }
+        },
+        "2": {
+          "heading": "## 2. 选项对比矩阵",
+          "level": 2,
+          "line_start": 52,
+          "line_end": 63,
+          "est_tokens": 177,
+          "deps": [],
+          "items": {}
+        },
+        "3": {
+          "heading": "## 3. 推荐 — 选 A1",
+          "level": 2,
+          "line_start": 64,
+          "line_end": 73,
+          "est_tokens": 120,
+          "deps": [],
+          "items": {}
+        },
+        "4": {
+          "heading": "## 4. 实施草案 (供 B-032 实施任务参考)",
+          "level": 2,
+          "line_start": 74,
+          "line_end": 159,
+          "est_tokens": 701,
+          "deps": [],
+          "items": {
+            "4.1": {
+              "heading": "### 4.1 新建 `docker/db.Dockerfile`",
+              "line_start": 76,
+              "line_end": 114,
+              "est_tokens": 339,
+              "deps": []
+            },
+            "4.2": {
+              "heading": "### 4.2 `docker-compose.yml` 改造",
+              "line_start": 115,
+              "line_end": 126,
+              "est_tokens": 65,
+              "deps": []
+            },
+            "4.3": {
+              "heading": "### 4.3 migration 001 去 EXCEPTION 包裹",
+              "line_start": 127,
+              "line_end": 141,
+              "est_tokens": 89,
+              "deps": []
+            },
+            "4.4": {
+              "heading": "### 4.4 `storage/vector.py` FTS 配置切换",
+              "line_start": 142,
+              "line_end": 151,
+              "est_tokens": 114,
+              "deps": []
+            },
+            "4.5": {
+              "heading": "### 4.5 验证清单",
+              "line_start": 152,
+              "line_end": 159,
+              "est_tokens": 82,
+              "deps": []
+            }
+          }
+        },
+        "5": {
+          "heading": "## 5. 风险与回滚",
+          "level": 2,
+          "line_start": 160,
+          "line_end": 171,
+          "est_tokens": 156,
+          "deps": [],
+          "items": {}
+        },
+        "6": {
+          "heading": "## 6. 决策记录",
+          "level": 2,
+          "line_start": 172,
+          "line_end": 178,
+          "est_tokens": 82,
+          "deps": [],
+          "items": {}
+        },
+        "7": {
+          "heading": "## 7. 来源",
+          "level": 2,
+          "line_start": 179,
+          "line_end": 185,
+          "est_tokens": 226,
+          "deps": [],
+          "items": {}
+        }
+      },
+      "deps": [
+        "b-032"
+      ]
+    },
+    "research-b050-wechat-vs-wework-audit": {
+      "file_path": "docs/research/b050-wechat-vs-wework-audit.md",
+      "doc_type": "research",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 93,
+      "est_tokens": 1698,
+      "content_hash": "85243ee9",
+      "sections": {
+        "1": {
+          "heading": "## 1. 代码层 — 两条通路对称度",
+          "level": 2,
+          "line_start": 14,
+          "line_end": 25,
+          "est_tokens": 457,
+          "deps": [],
+          "items": {}
+        },
+        "2": {
+          "heading": "## 2. 配置层 — env 变量映射",
+          "level": 2,
+          "line_start": 26,
+          "line_end": 36,
+          "est_tokens": 217,
+          "deps": [],
+          "items": {}
+        },
+        "3": {
+          "heading": "## 3. 默认渠道概念 — 当前不存在",
+          "level": 2,
+          "line_start": 37,
+          "line_end": 43,
+          "est_tokens": 91,
+          "deps": [],
+          "items": {}
+        },
+        "4": {
+          "heading": "## 4. 用户视角对比（产品维度）",
+          "level": 2,
+          "line_start": 44,
+          "line_end": 62,
+          "est_tokens": 349,
+          "deps": [],
+          "items": {}
+        },
+        "5": {
+          "heading": "## 5. \"默认优先 wework\" 的实施面",
+          "level": 2,
+          "line_start": 63,
+          "line_end": 83,
+          "est_tokens": 336,
+          "deps": [],
+          "items": {
+            "5.1": {
+              "heading": "### 5.1 文档层（无代码改动）",
+              "line_start": 67,
+              "line_end": 73,
+              "est_tokens": 146,
+              "deps": []
+            },
+            "5.2": {
+              "heading": "### 5.2 默认值调整",
+              "line_start": 74,
+              "line_end": 78,
+              "est_tokens": 68,
+              "deps": []
+            },
+            "5.3": {
+              "heading": "### 5.3 代码层（依赖 B-033 闭环）",
+              "line_start": 79,
+              "line_end": 83,
+              "est_tokens": 98,
+              "deps": []
+            }
+          }
+        },
+        "6": {
+          "heading": "## 6. 立项建议",
+          "level": 2,
+          "line_start": 84,
+          "line_end": 89,
+          "est_tokens": 51,
+          "deps": [],
+          "items": {}
+        },
+        "7": {
+          "heading": "## 7. 顺带发现的小问题",
+          "level": 2,
+          "line_start": 90,
+          "line_end": 93,
+          "est_tokens": 89,
+          "deps": [],
+          "items": {}
+        }
+      },
+      "deps": [
+        "backlog-intellisource-v1"
+      ],
+      "dep_hashes": {
+        "backlog-intellisource-v1": "c840645f"
+      }
+    },
+    "research-b051-config-bootstrap-ux": {
+      "file_path": "docs/research/b051-config-bootstrap-ux.md",
+      "doc_type": "research",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 174,
+      "est_tokens": 1921,
+      "content_hash": "8b1f3192",
+      "sections": {
+        "1": {
+          "heading": "## 1. 当前配置面盘点",
+          "level": 2,
+          "line_start": 14,
+          "line_end": 35,
+          "est_tokens": 462,
+          "deps": [],
+          "items": {}
+        },
+        "2": {
+          "heading": "## 2. 痛点分类",
+          "level": 2,
+          "line_start": 36,
+          "line_end": 61,
+          "est_tokens": 283,
+          "deps": [],
+          "items": {
+            "2.1": {
+              "heading": "### 2.1 信息散布",
+              "line_start": 38,
+              "line_end": 46,
+              "est_tokens": 122,
+              "deps": []
+            },
+            "2.2": {
+              "heading": "### 2.2 默认值不友好",
+              "line_start": 47,
+              "line_end": 55,
+              "est_tokens": 96,
+              "deps": []
+            },
+            "2.3": {
+              "heading": "### 2.3 上手交互缺失",
+              "line_start": 56,
+              "line_end": 61,
+              "est_tokens": 60,
+              "deps": []
+            }
+          }
+        },
+        "3": {
+          "heading": "## 3. 候选方案",
+          "level": 2,
+          "line_start": 62,
+          "line_end": 141,
+          "est_tokens": 785,
+          "deps": [],
+          "items": {}
+        },
+        "4": {
+          "heading": "## 4. 建议组合",
+          "level": 2,
+          "line_start": 142,
+          "line_end": 160,
+          "est_tokens": 151,
+          "deps": [],
+          "items": {}
+        },
+        "5": {
+          "heading": "## 5. 决策点",
+          "level": 2,
+          "line_start": 161,
+          "line_end": 169,
+          "est_tokens": 46,
+          "deps": [],
+          "items": {}
+        },
+        "6": {
+          "heading": "## 6. 顺带发现",
+          "level": 2,
+          "line_start": 170,
+          "line_end": 174,
+          "est_tokens": 100,
+          "deps": [],
+          "items": {}
+        }
+      },
+      "deps": [
+        "backlog-intellisource-v1"
+      ],
+      "dep_hashes": {
+        "backlog-intellisource-v1": "c840645f"
+      }
+    },
     "prompt-management-analysis": {
       "file_path": "docs/research/prompt-management-analysis.md",
       "doc_type": "research",
@@ -2549,9 +2879,9 @@
       "doc_type": "correction-log",
       "volume": "main",
       "status": "approved",
-      "total_lines": 116,
-      "est_tokens": 2790,
-      "content_hash": "851c2c86",
+      "total_lines": 540,
+      "est_tokens": 21830,
+      "content_hash": "408a4339",
       "sections": {}
     },
     "code-review-B-007-r1": {
@@ -2561,7 +2891,7 @@
       "status": "approved",
       "total_lines": 64,
       "est_tokens": 972,
-      "content_hash": "a945582b",
+      "content_hash": "6d463d9b",
       "sections": {},
       "deps": [
         "B-007"
@@ -2614,7 +2944,7 @@
       "status": "approved",
       "total_lines": 133,
       "est_tokens": 2055,
-      "content_hash": "1349fbde",
+      "content_hash": "13e26d65",
       "sections": {},
       "deps": [
         "T-058"
@@ -2627,7 +2957,7 @@
       "status": "approved",
       "total_lines": 78,
       "est_tokens": 1393,
-      "content_hash": "8112b31b",
+      "content_hash": "289bff7e",
       "sections": {},
       "deps": [
         "T-058"
@@ -2640,7 +2970,7 @@
       "status": "approved",
       "total_lines": 172,
       "est_tokens": 3583,
-      "content_hash": "6cea78ad",
+      "content_hash": "e1e751bb",
       "sections": {},
       "deps": [
         "T-059",
@@ -2654,7 +2984,7 @@
       "status": "approved",
       "total_lines": 127,
       "est_tokens": 2327,
-      "content_hash": "d2a98159",
+      "content_hash": "1eca9d7e",
       "sections": {},
       "deps": [
         "T-059",
@@ -2668,7 +2998,7 @@
       "status": "approved",
       "total_lines": 113,
       "est_tokens": 2056,
-      "content_hash": "8410c676",
+      "content_hash": "9ce5b36a",
       "sections": {},
       "deps": [
         "T-059",
@@ -2682,7 +3012,7 @@
       "status": "approved",
       "total_lines": 96,
       "est_tokens": 1812,
-      "content_hash": "3595ce6d",
+      "content_hash": "d7b82a07",
       "sections": {},
       "deps": [
         "T-060"
@@ -2695,7 +3025,7 @@
       "status": "approved",
       "total_lines": 96,
       "est_tokens": 1335,
-      "content_hash": "1d18c916",
+      "content_hash": "5de08253",
       "sections": {},
       "deps": [
         "T-060"
@@ -2708,7 +3038,7 @@
       "status": "approved",
       "total_lines": 135,
       "est_tokens": 1884,
-      "content_hash": "eb676196",
+      "content_hash": "917d3c80",
       "sections": {},
       "deps": [
         "T-060"
@@ -2721,7 +3051,7 @@
       "status": "approved",
       "total_lines": 64,
       "est_tokens": 1148,
-      "content_hash": "16687299",
+      "content_hash": "ab84cdef",
       "sections": {},
       "deps": [
         "T-062"
@@ -2734,7 +3064,7 @@
       "status": "approved",
       "total_lines": 48,
       "est_tokens": 562,
-      "content_hash": "fe3a38b4",
+      "content_hash": "00ef94f0",
       "sections": {},
       "deps": [
         "T-062"
@@ -2747,7 +3077,7 @@
       "status": "approved",
       "total_lines": 78,
       "est_tokens": 1707,
-      "content_hash": "de4c96b3",
+      "content_hash": "a56804bc",
       "sections": {},
       "deps": [
         "T-063"
@@ -2760,7 +3090,7 @@
       "status": "approved",
       "total_lines": 186,
       "est_tokens": 2515,
-      "content_hash": "4b53e62e",
+      "content_hash": "8d8beddb",
       "sections": {},
       "deps": [
         "T-072"
@@ -2773,7 +3103,7 @@
       "status": "approved",
       "total_lines": 114,
       "est_tokens": 1490,
-      "content_hash": "bcf837c4",
+      "content_hash": "b475f5fb",
       "sections": {},
       "deps": [
         "T-072"
@@ -2786,7 +3116,7 @@
       "status": "approved",
       "total_lines": 157,
       "est_tokens": 1643,
-      "content_hash": "db8951db",
+      "content_hash": "50e008cf",
       "sections": {},
       "deps": [
         "T-072"
@@ -2799,7 +3129,7 @@
       "status": "approved",
       "total_lines": 76,
       "est_tokens": 1533,
-      "content_hash": "ecbde6e3",
+      "content_hash": "af8c41bc",
       "sections": {},
       "deps": [
         "T-073"
@@ -2812,7 +3142,7 @@
       "status": "approved",
       "total_lines": 166,
       "est_tokens": 2261,
-      "content_hash": "4e954ba2",
+      "content_hash": "ce1fad0a",
       "sections": {},
       "deps": [
         "T-073"
@@ -2825,7 +3155,7 @@
       "status": "approved",
       "total_lines": 32,
       "est_tokens": 455,
-      "content_hash": "5082128b",
+      "content_hash": "5492450e",
       "sections": {},
       "deps": [
         "T-073"
@@ -2838,7 +3168,7 @@
       "status": "approved",
       "total_lines": 113,
       "est_tokens": 2253,
-      "content_hash": "bb37fbbd",
+      "content_hash": "d8fbea58",
       "sections": {},
       "deps": [
         "T-074"
@@ -2851,7 +3181,7 @@
       "status": "approved",
       "total_lines": 167,
       "est_tokens": 2670,
-      "content_hash": "010fd216",
+      "content_hash": "dd866e2d",
       "sections": {},
       "deps": [
         "T-074"
@@ -2864,7 +3194,7 @@
       "status": "approved",
       "total_lines": 98,
       "est_tokens": 1999,
-      "content_hash": "cfdf231d",
+      "content_hash": "76d2eeaa",
       "sections": {},
       "deps": [
         "T-075"
@@ -2877,7 +3207,7 @@
       "status": "approved",
       "total_lines": 80,
       "est_tokens": 1173,
-      "content_hash": "1789457f",
+      "content_hash": "32b6253a",
       "sections": {},
       "deps": [
         "T-075"
@@ -2890,7 +3220,7 @@
       "status": "approved",
       "total_lines": 163,
       "est_tokens": 2771,
-      "content_hash": "0e817fe7",
+      "content_hash": "6cecd16b",
       "sections": {},
       "deps": [
         "T-083"
@@ -2903,7 +3233,7 @@
       "status": "approved",
       "total_lines": 109,
       "est_tokens": 1450,
-      "content_hash": "f0106485",
+      "content_hash": "0e7d4c06",
       "sections": {},
       "deps": [
         "T-083"
@@ -2916,7 +3246,7 @@
       "status": "approved",
       "total_lines": 114,
       "est_tokens": 1134,
-      "content_hash": "f320bd6c",
+      "content_hash": "79e94fe1",
       "sections": {},
       "deps": [
         "T-083"
@@ -2929,7 +3259,7 @@
       "status": "approved",
       "total_lines": 159,
       "est_tokens": 2336,
-      "content_hash": "d051eee5",
+      "content_hash": "57e697ac",
       "sections": {},
       "deps": [
         "T-084"
@@ -2942,7 +3272,7 @@
       "status": "approved",
       "total_lines": 82,
       "est_tokens": 1702,
-      "content_hash": "c5b0ca1a",
+      "content_hash": "8801d1ef",
       "sections": {},
       "deps": [
         "T-084"
@@ -2955,7 +3285,7 @@
       "status": "approved",
       "total_lines": 83,
       "est_tokens": 1262,
-      "content_hash": "28fcb66f",
+      "content_hash": "1575efa5",
       "sections": {},
       "deps": [
         "T-084"
@@ -2968,7 +3298,7 @@
       "status": "approved",
       "total_lines": 79,
       "est_tokens": 1197,
-      "content_hash": "60f54c58",
+      "content_hash": "19466c9b",
       "sections": {},
       "deps": [
         "T-085"
@@ -2981,7 +3311,7 @@
       "status": "approved",
       "total_lines": 117,
       "est_tokens": 1251,
-      "content_hash": "24de64ca",
+      "content_hash": "fee062a6",
       "sections": {},
       "deps": [
         "T-085"
@@ -3020,7 +3350,7 @@
       "status": "draft",
       "total_lines": 110,
       "est_tokens": 1464,
-      "content_hash": "1ce3af4f",
+      "content_hash": "e4172daf",
       "sections": {},
       "deps": [
         "T-087"
@@ -3033,7 +3363,7 @@
       "status": "approved",
       "total_lines": 99,
       "est_tokens": 983,
-      "content_hash": "abbba5fb",
+      "content_hash": "93edf5e8",
       "sections": {},
       "deps": [
         "T-087"
@@ -3046,7 +3376,7 @@
       "status": "approved",
       "total_lines": 83,
       "est_tokens": 1633,
-      "content_hash": "e963ebb9",
+      "content_hash": "d435dd3c",
       "sections": {},
       "deps": [
         "T-088"
@@ -3059,7 +3389,7 @@
       "status": "approved",
       "total_lines": 82,
       "est_tokens": 1420,
-      "content_hash": "2e1dfe27",
+      "content_hash": "c7d4a184",
       "sections": {},
       "deps": [
         "T-088"
@@ -3072,7 +3402,7 @@
       "status": "approved",
       "total_lines": 157,
       "est_tokens": 2028,
-      "content_hash": "ea00c20e",
+      "content_hash": "af849374",
       "sections": {},
       "deps": [
         "T-088"
@@ -3085,7 +3415,7 @@
       "status": "draft",
       "total_lines": 120,
       "est_tokens": 1587,
-      "content_hash": "06574f6a",
+      "content_hash": "cffc6476",
       "sections": {},
       "deps": [
         "T-089"
@@ -3098,7 +3428,7 @@
       "status": "approved",
       "total_lines": 170,
       "est_tokens": 2140,
-      "content_hash": "d133ddc0",
+      "content_hash": "24f7c6ed",
       "sections": {},
       "deps": [
         "T-089"
@@ -3111,7 +3441,7 @@
       "status": "approved",
       "total_lines": 114,
       "est_tokens": 2183,
-      "content_hash": "a9c8e776",
+      "content_hash": "2339dcbe",
       "sections": {},
       "deps": [
         "T-090"
@@ -3124,7 +3454,7 @@
       "status": "approved",
       "total_lines": 95,
       "est_tokens": 1621,
-      "content_hash": "c4665b01",
+      "content_hash": "4ed0a996",
       "sections": {},
       "deps": [
         "T-090"
@@ -3137,7 +3467,7 @@
       "status": "approved",
       "total_lines": 129,
       "est_tokens": 2631,
-      "content_hash": "4565d270",
+      "content_hash": "28f696b0",
       "sections": {},
       "deps": [
         "T-091"
@@ -3150,7 +3480,7 @@
       "status": "approved",
       "total_lines": 86,
       "est_tokens": 1778,
-      "content_hash": "4b95283d",
+      "content_hash": "4ce67157",
       "sections": {},
       "deps": [
         "T-091"
@@ -3163,7 +3493,7 @@
       "status": "approved",
       "total_lines": 181,
       "est_tokens": 3673,
-      "content_hash": "efb30523",
+      "content_hash": "50730e6f",
       "sections": {},
       "deps": [
         "T-092"
@@ -3176,7 +3506,7 @@
       "status": "approved",
       "total_lines": 135,
       "est_tokens": 2423,
-      "content_hash": "fdbf53d8",
+      "content_hash": "407e2201",
       "sections": {},
       "deps": [
         "T-092"
@@ -3189,7 +3519,7 @@
       "status": "approved",
       "total_lines": 132,
       "est_tokens": 2441,
-      "content_hash": "54f8f173",
+      "content_hash": "d9803d9a",
       "sections": {},
       "deps": [
         "T-093"
@@ -3202,7 +3532,7 @@
       "status": "approved",
       "total_lines": 95,
       "est_tokens": 1238,
-      "content_hash": "e2950e90",
+      "content_hash": "503d7f9b",
       "sections": {},
       "deps": [
         "T-093"
@@ -3215,7 +3545,7 @@
       "status": "draft",
       "total_lines": 207,
       "est_tokens": 3793,
-      "content_hash": "30d4f28e",
+      "content_hash": "676cf362",
       "sections": {},
       "deps": [
         "T-095"
@@ -3228,7 +3558,7 @@
       "status": "approved",
       "total_lines": 106,
       "est_tokens": 2115,
-      "content_hash": "6aefc859",
+      "content_hash": "82968231",
       "sections": {},
       "deps": [
         "T-095"
@@ -3241,7 +3571,7 @@
       "status": "approved",
       "total_lines": 113,
       "est_tokens": 2571,
-      "content_hash": "fa988e4a",
+      "content_hash": "6da595a7",
       "sections": {},
       "deps": [
         "T-096"
@@ -3254,7 +3584,7 @@
       "status": "approved",
       "total_lines": 196,
       "est_tokens": 4209,
-      "content_hash": "7a2d755a",
+      "content_hash": "8edcab2b",
       "sections": {},
       "deps": [
         "T-097"
@@ -3267,7 +3597,7 @@
       "status": "approved",
       "total_lines": 106,
       "est_tokens": 1484,
-      "content_hash": "f23b1528",
+      "content_hash": "fe9955f1",
       "sections": {},
       "deps": [
         "T-097"
@@ -3280,7 +3610,7 @@
       "status": "approved",
       "total_lines": 260,
       "est_tokens": 5250,
-      "content_hash": "fb1cd8c6",
+      "content_hash": "697d3899",
       "sections": {},
       "deps": [
         "T-098"
@@ -3293,7 +3623,7 @@
       "status": "approved",
       "total_lines": 141,
       "est_tokens": 2825,
-      "content_hash": "29040874",
+      "content_hash": "4a922f7d",
       "sections": {},
       "deps": [
         "T-098"
@@ -3306,7 +3636,7 @@
       "status": "approved",
       "total_lines": 126,
       "est_tokens": 1628,
-      "content_hash": "414ca23c",
+      "content_hash": "8b791470",
       "sections": {},
       "deps": [
         "T-099"
@@ -3319,7 +3649,7 @@
       "status": "approved",
       "total_lines": 101,
       "est_tokens": 1426,
-      "content_hash": "6441449c",
+      "content_hash": "998bdaf5",
       "sections": {},
       "deps": [
         "T-099"
@@ -3332,7 +3662,7 @@
       "status": "approved",
       "total_lines": 159,
       "est_tokens": 2505,
-      "content_hash": "d5f4f2a8",
+      "content_hash": "213b485d",
       "sections": {},
       "deps": [
         "T-100"
@@ -3345,7 +3675,7 @@
       "status": "approved",
       "total_lines": 101,
       "est_tokens": 1548,
-      "content_hash": "f300da49",
+      "content_hash": "f8669f66",
       "sections": {},
       "deps": [
         "T-100"
@@ -3358,7 +3688,7 @@
       "status": "approved",
       "total_lines": 134,
       "est_tokens": 2585,
-      "content_hash": "e46b6232",
+      "content_hash": "8c81be4e",
       "sections": {},
       "deps": [
         "B-003",
@@ -3478,7 +3808,7 @@
       "status": "approved",
       "total_lines": 182,
       "est_tokens": 3223,
-      "content_hash": "be394ee2",
+      "content_hash": "2cafc023",
       "sections": {}
     },
     "code-scan-20260503-r2": {
@@ -3488,7 +3818,7 @@
       "status": "approved",
       "total_lines": 175,
       "est_tokens": 3425,
-      "content_hash": "867f3bdd",
+      "content_hash": "cd170c7a",
       "sections": {}
     },
     "code-scan-arch-20260524-r1": {
@@ -3498,7 +3828,7 @@
       "status": "draft",
       "total_lines": 306,
       "est_tokens": 3795,
-      "content_hash": "c0b3ec4a",
+      "content_hash": "b732278b",
       "sections": {
         "0": {
           "heading": "## 0. 工具汇总",
@@ -3579,7 +3909,7 @@
       ],
       "dep_hashes": {
         "arch-intellisource-v1-modules": "29d390a9",
-        "backlog-intellisource-v1": "9c0aaec3"
+        "backlog-intellisource-v1": "c840645f"
       }
     },
     "review-arch-intellisource-v1-r1": {
@@ -3637,7 +3967,7 @@
       "status": "approved",
       "total_lines": 169,
       "est_tokens": 2578,
-      "content_hash": "dbf3d11c",
+      "content_hash": "d5eae235",
       "sections": {},
       "deps": [
         "deploy-spec-intellisource-v1"
@@ -3653,7 +3983,7 @@
       "status": "approved",
       "total_lines": 65,
       "est_tokens": 930,
-      "content_hash": "34e26729",
+      "content_hash": "2da6507c",
       "sections": {},
       "deps": [
         "deploy-spec-intellisource-v1"
@@ -3829,7 +4159,7 @@
       "status": "approved",
       "total_lines": 168,
       "est_tokens": 2914,
-      "content_hash": "4a6435e2",
+      "content_hash": "71cdc8c8",
       "sections": {},
       "deps": [
         "dev-plan-intellisource-v1-s8r"
@@ -3845,7 +4175,7 @@
       "status": "approved",
       "total_lines": 89,
       "est_tokens": 1471,
-      "content_hash": "787754b2",
+      "content_hash": "c51774fb",
       "sections": {
         "1": {
           "heading": "## 1. r1 → r2 修订对照表",
@@ -3939,7 +4269,7 @@
       "status": "approved",
       "total_lines": 165,
       "est_tokens": 2468,
-      "content_hash": "e259cab6",
+      "content_hash": "923d63a6",
       "sections": {},
       "deps": [
         "test-report-intellisource-v1"
@@ -3955,7 +4285,7 @@
       "status": "approved",
       "total_lines": 204,
       "est_tokens": 2001,
-      "content_hash": "1a8d805f",
+      "content_hash": "94ab0746",
       "sections": {},
       "deps": [
         "test-report-intellisource-v1"
@@ -3971,7 +4301,7 @@
       "status": "draft",
       "total_lines": 183,
       "est_tokens": 3036,
-      "content_hash": "f0b8d1fa",
+      "content_hash": "067fb5c9",
       "sections": {},
       "deps": [
         "RETRO-intellisource-v1",
@@ -3985,7 +4315,7 @@
       "status": "draft",
       "total_lines": 171,
       "est_tokens": 3028,
-      "content_hash": "1f7c8f12",
+      "content_hash": "34a10710",
       "sections": {},
       "deps": [
         "RETRO-intellisource-v1"
@@ -3998,13 +4328,13 @@
       "status": "approved",
       "total_lines": 223,
       "est_tokens": 4110,
-      "content_hash": "e1f639c7",
+      "content_hash": "3dcefac3",
       "sections": {},
       "deps": [
         "sprint-review-s7-r1"
       ],
       "dep_hashes": {
-        "sprint-review-s7-r1": "ded2eff2"
+        "sprint-review-s7-r1": "c4f54fd8"
       }
     },
     "skill-improve-code-review-assembly-gap-scan": {
@@ -4014,13 +4344,13 @@
       "status": "draft",
       "total_lines": 134,
       "est_tokens": 1533,
-      "content_hash": "f494e650",
+      "content_hash": "48df1041",
       "sections": {},
       "deps": [
         "retro-intellisource-v1-sprint-9"
       ],
       "dep_hashes": {
-        "retro-intellisource-v1-sprint-9": "1f7c8f12"
+        "retro-intellisource-v1-sprint-9": "34a10710"
       }
     },
     "skill-improve-code-review": {
@@ -4030,13 +4360,13 @@
       "status": "approved",
       "total_lines": 107,
       "est_tokens": 1359,
-      "content_hash": "b6c5ac31",
+      "content_hash": "acae45c2",
       "sections": {},
       "deps": [
         "retro-intellisource-v1"
       ],
       "dep_hashes": {
-        "retro-intellisource-v1": "e1f639c7"
+        "retro-intellisource-v1": "3dcefac3"
       }
     },
     "skill-improve-framework-anti-truncation": {
@@ -4046,13 +4376,13 @@
       "status": "draft",
       "total_lines": 184,
       "est_tokens": 2399,
-      "content_hash": "5ea8c079",
+      "content_hash": "e28c7e22",
       "sections": {},
       "deps": [
         "retro-intellisource-v1-sprint-9"
       ],
       "dep_hashes": {
-        "retro-intellisource-v1-sprint-9": "1f7c8f12"
+        "retro-intellisource-v1-sprint-9": "34a10710"
       }
     },
     "skill-improve-implementer": {
@@ -4062,13 +4392,13 @@
       "status": "approved",
       "total_lines": 93,
       "est_tokens": 1245,
-      "content_hash": "ea6c2e80",
+      "content_hash": "ef01d57d",
       "sections": {},
       "deps": [
         "retro-intellisource-v1"
       ],
       "dep_hashes": {
-        "retro-intellisource-v1": "e1f639c7"
+        "retro-intellisource-v1": "3dcefac3"
       }
     },
     "skill-improve-orchestrator": {
@@ -4078,13 +4408,13 @@
       "status": "approved",
       "total_lines": 68,
       "est_tokens": 867,
-      "content_hash": "30a2665e",
+      "content_hash": "b118e084",
       "sections": {},
       "deps": [
         "retro-intellisource-v1"
       ],
       "dep_hashes": {
-        "retro-intellisource-v1": "e1f639c7"
+        "retro-intellisource-v1": "3dcefac3"
       }
     },
     "skill-improve-refactorer": {
@@ -4094,13 +4424,13 @@
       "status": "approved",
       "total_lines": 50,
       "est_tokens": 645,
-      "content_hash": "1b88553a",
+      "content_hash": "920a9306",
       "sections": {},
       "deps": [
         "retro-intellisource-v1"
       ],
       "dep_hashes": {
-        "retro-intellisource-v1": "e1f639c7"
+        "retro-intellisource-v1": "3dcefac3"
       }
     },
     "skill-improve-tdd-engine": {
@@ -4110,13 +4440,13 @@
       "status": "approved",
       "total_lines": 83,
       "est_tokens": 969,
-      "content_hash": "bc0f004e",
+      "content_hash": "8eeeb326",
       "sections": {},
       "deps": [
         "retro-intellisource-v1"
       ],
       "dep_hashes": {
-        "retro-intellisource-v1": "e1f639c7"
+        "retro-intellisource-v1": "3dcefac3"
       }
     },
     "skill-improve-tech-lead": {
@@ -4126,13 +4456,13 @@
       "status": "approved",
       "total_lines": 72,
       "est_tokens": 865,
-      "content_hash": "1a29fdc6",
+      "content_hash": "f6b287e3",
       "sections": {},
       "deps": [
         "retro-intellisource-v1"
       ],
       "dep_hashes": {
-        "retro-intellisource-v1": "e1f639c7"
+        "retro-intellisource-v1": "3dcefac3"
       }
     },
     "sprint-review-s1-r1": {
@@ -4252,7 +4582,7 @@
       "status": "approved",
       "total_lines": 149,
       "est_tokens": 2501,
-      "content_hash": "ded2eff2",
+      "content_hash": "c4f54fd8",
       "sections": {},
       "deps": [
         "dev-plan-intellisource-v1-s7"
@@ -4268,7 +4598,7 @@
       "status": "approved",
       "total_lines": 190,
       "est_tokens": 4291,
-      "content_hash": "d88be611",
+      "content_hash": "cef5fc66",
       "sections": {},
       "deps": [
         "dev-plan-intellisource-v1-s8"
@@ -4284,7 +4614,7 @@
       "status": "approved",
       "total_lines": 296,
       "est_tokens": 5756,
-      "content_hash": "b91095ed",
+      "content_hash": "e1a8ad75",
       "sections": {},
       "deps": [
         "dev-plan-intellisource-v1-s8r"

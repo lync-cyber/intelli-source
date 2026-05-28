@@ -85,16 +85,7 @@ deps: []
 
 > B-032 已闭环 (本次会话, path A1) — research skill 调研确认公开域不存在 pgvector + zhparser 复合镜像（[docs/research/b032-pgvector-zhparser-image-options.md](research/b032-pgvector-zhparser-image-options.md)）；选 A1 (pgvector 基底 + 加 zhparser 层) 实施。新增 [docker/db.Dockerfile](../docker/db.Dockerfile)（SCWS 1.2.3 源码编译 + amutu/zhparser master 编译，参考 abcfy2/docker_zhparser）；[docker/docker-compose.yml](../docker/docker-compose.yml) db 服务 image→build；[alembic/versions/001_initial_schema.py](../alembic/versions/001_initial_schema.py) 移除 DO/EXCEPTION 包裹 + 新增 CREATE TEXT SEARCH CONFIGURATION zhparser + ALTER ADD MAPPING；[storage/vector.py](../src/intellisource/storage/vector.py) `'simple'` → `'zhparser'` 4 处；[tests/integration/conftest.py](../tests/integration/conftest.py) 删 zhparser monkeypatch + 改用 `intellisource/db:pg16-pgvector-zhparser` + lazy `docker build` 兜底；[tests/unit/storage/test_migration.py](../tests/unit/storage/test_migration.py) +2 守卫测试（防 EXCEPTION 包裹回归 / 验证 TS CONFIG 创建）。2792 PASS unit 不退化 / mypy --strict + ruff + lint-imports 8/8 clean / docker compose config 解析通过。**真起栈验证待 user**：首次 `make up` 会 build 镜像（1-2 min）后跑 `SELECT extname FROM pg_extension WHERE extname='zhparser'` 应返 1 行；中文 query `/search` 走分词路径。
 
-### B-033 composition 对未配置渠道容忍
-- **优先级**：P2
-- **关联**：CORRECTIONS-LOG 修正 #7；walkthrough §0.2 与 composition.py:127 "hard-fail by design" 矛盾
-- **现状**：`build_distributor_facade()` 对 wechat/wework/email 任一缺失即 `raise ValueError`；与 walkthrough 允许 "分发渠道 key 暂可全部留空" + 步骤 14 标 N/A 直接冲突。当前 walkthrough 用 `disabled-walkthrough-placeholder` 占位绕过。
-- **修复方向**：
-  - 改 `*Distributor.from_env()` 返回 `None` 或抛 `ChannelDisabledError`（细分异常）当全部凭据缺失
-  - `build_distributor_facade()` 捕获并 `log.warning("channel X disabled: missing env Y")`，从 channels dict 中跳过
-  - `DistributorFacade.distribute()` 路由时若收到 `channel=wechat` 但 channels 不含 wechat，返回明确错误
-- **验证**：docker/.env 清空 wechat/wework/email 后 api lifespan 不再 fail；wechat push 调用返回 `ChannelUnavailable` 错误而非 KeyError
-- **回滚**：移除占位值；保留 hard-fail 也是合理设计选项（取决于"渠道是部署前提" vs "渠道是运行时能力"）
+> B-033 已闭环 (本次会话, B-051 Phase D 子集) — `build_distributor_facade()` 改为 soft-disable：每个渠道 `from_env()` 单独 try/except，`ValueError` 时 `_logger.warning("distribution channel X disabled: ...")` + 该渠道从 channels dict 中剔除；空 channels dict 时额外 warning "no distribution channels configured"。`DistributorFacade.distribute()` 原有路径已正确处理 `channel is None` 分支（增 skipped 计数），无需改动。docker/.env 清空所有渠道凭据后 api lifespan 不再 raise；orphan 占位 `disabled-walkthrough-placeholder` 可从 docker/.env 移除。**测试**：新增 [tests/unit/distributor/test_b033_soft_disable.py](../tests/unit/distributor/test_b033_soft_disable.py) 5 tests + 改造 [tests/unit/distributor/test_facade.py](../tests/unit/distributor/test_facade.py) 2 个 hard-fail 测试为 soft-disable 断言（验证 warning log + facade._channels 不含该渠道）。详见 [composition.py:120](../src/intellisource/composition.py)。
 
 ### B-034 PRE-DEPLOY-WALKTHROUGH 文档订正
 - **优先级**：P3
@@ -200,26 +191,38 @@ deps: []
   - 或：复用 stream 路径的 done.metadata.results 提取逻辑作为 sync sources 的事实来源
 - **验证**：curl `/search/chat` RAG-trigger query → response.sources count ≥ 1 + answer 是自然语言（非 raw dict repr）
 
-### B-048 Integration Tests 基线失败清单（pre-existing，非 B-032/B-035 引入）
-- **优先级**：P2
-- **关联**：B-035 PR #65 让 CI 真跑 integration tests 后，基线 7 failed + 1 error 暴露；main 上 PR #64 merge commit (run 78023542934) 与 PR #65 (run 78028138475) 完全一致
-- **现状**：integration suite 共 163 项，156 PASS / 7 FAIL / 1 ERROR，已在 main 上持续红
-- **失败清单**：
-  - **F-01** `test_pipeline_collect_process_distribute_e2e.py::test_collect_process_distribute_persists_push_record` — FK violation `raw_contents.collect_task_id` 不在 `collect_tasks`（fixture 顺序 / 数据缺失）
-  - **F-02** `test_raw_content_persist_on_pipeline_done.py::TestRunPipelinePersistsProcessedStatus::test_run_pipeline_marks_raw_content_as_processed` — asyncpg `cannot perform operation: another operation is in progress`（跨 loop / 并发，与 B-037 同型问题）
-  - **F-03** `test_s8r_search_pg.py::TestSearchApiWithRealPg::test_post_search_returns_200_with_items` — `TypeError: 'coroutine' object is not iterable`（async generator fixture 注入路径不对）
-  - **F-04** `test_s8r_search_pg.py::TestSearchApiWithRealPg::test_post_search_chat_returns_200_with_answer` — DeepSeek 401 (CI 无 LLM API key)
-  - **F-05** `test_sprint7_integration.py::TestLLMStatsEndpoint::test_llm_stats_with_records_returns_aggregated_fields` — `assert 0 == 2`（缺 llm_call_logs fixture 数据）
-  - **F-06** `test_sprint7_integration.py::TestClustersEndpoint::test_clusters_limit_controls_page_size` — `assert False is True`（缺 cluster fixture 数据）
-  - **F-07** `test_sprint7_integration.py::TestClustersEndpoint::test_clusters_per_item_fields_match_api016` — `assert 0 >= 1` / `len([])`（同上）
-  - **E-01** `test_system_health_real.py::TestSystemLLMStatsRealRoute::test_system_llm_stats_reads_real_llm_call_log_rows` — `SQLiteTypeCompiler can't render JSONB`（fixture 用 sqlite 引擎但 model 含 JSONB 列）
+> B-048 已闭环 — F-01~F-07 + E-01 在 commit 1b38f7b 一次性修复（F-01 FK 移除 task_id kwarg / F-02 暂标 xfail / F-03 patch→app.dependency_overrides / F-04 skipif no-key / F-05/F-06/F-07 `_make_pg_db_manager(pg_session=...)` API 切换 / E-01 sqlite fixture 加 JSONB+ARRAY→JSON coercion）+ commit 5efc6ba 后续（F-01 mask-email 断言 + E-01 ARRAY 列补 coercion）。剩余 F-02 cross-loop xfail 在本次会话闭环：test_run_pipeline_marks_raw_content_as_processed 从 pg_session SAVEPOINT-isolated fixture 切到独立 `async_sessionmaker + poolclass=NullPool`（与生产 worker B-037 路径同型）—— `_run_sync` 子线程 loop 每次 factory() 都拿到全新 asyncpg 连接，不再触发 "another operation in progress"。**CI 验证**：main 上 run 26505614731 (commit 7ef17bf) Integration Tests = 162 passed / 1 skipped / 1 xfailed in 74.41s；本次 xfail 转 pass 后预期 163 passed / 1 skipped / 0 xfailed（F-04 仍 skip 因 CI 无 LLM API key）
+
+### B-050 默认优先 wework 渠道（文档与默认值倾斜）
+- **优先级**：P3
+- **依赖**：B-033（composition channel 可选）
+- **关联**：[docs/research/b050-wechat-vs-wework-audit.md](research/b050-wechat-vs-wework-audit.md)
+- **现状**：代码层 wechat / wework 两条通路完全对等（distributor + cs_client + webhook 路由）；wework 在 9/12 产品维度（无 48h 客服窗口约束 / 支持 markdown / 用户身份可读 / 通讯录直接派发 / API 限流宽松）上比 wechat 更友好，仅"配置变量数量"和"AES 加密复杂度"上 wechat 略低门槛。当前无"默认渠道"概念，订阅 `channel` 字段决定路由；composition 一次性 wire 三个 channel（B-033 待 soft-disable）
 - **修复方向**：
-  - F-04: `@pytest.mark.skipif(not os.environ.get("DEEPSEEK_API_KEY") and not os.environ.get("OPENAI_API_KEY"))`（CI 没 key 时跳过）
-  - E-01: 把 `test_system_llm_stats_*` 从 sqlite-based fixture 切到 pg_session（model 用 JSONB，sqlite 无对应类型）
-  - F-05/F-06/F-07: 添加 `llm_call_logs` / `content_clusters` fixture 数据注入（用 `pg_session` 写测试数据）
-  - F-01: collect_tasks fixture insertion 顺序修正
-  - F-02/F-03: async fixture 模式重构（参 B-037 lazy redis 经验，可能需要 per-test loop scope）
-- **验证**：CI Integration Tests job 0 failed 0 error，163 PASS
+  - 文档：`docker/.env.example` Distribution channels 段把 wework 块前置 + 标 "推荐"；walkthrough §0.2 把 wechat 标 "可选 / 需备案"；PRD/ARCH M-007 推送模块说明 wework 主 / wechat 兼容
+  - 示例：`config/subscriptions.example.yaml`（如新增）默认 `channel: "wework"`；walkthrough 步骤 13 推送示例切到 wework
+  - 代码（依赖 B-033）：composition.build_distributor_facade 在仅 wework 配齐时 channels dict 不含 wechat 仍正常启动；facade.distribute 对 channel 未注册返 `ChannelDisabled` 而非吞 KeyError
+  - `IS_WECOM_*` 三变量补入 `docker/.env.example`（顺带 B-034 doc drift）
+- **验证**：新用户走 walkthrough §0.2 时只需配 wework 即可跑通推送链路；wechat 全空 lifespan 不崩
+
+> B-051 已闭环 (本次会话, D+C+A 长期完整路径) — 配置管理与首次接入 UX 三阶段全部落地。
+>
+> **Phase D（短期 — Makefile + soft-fail + startup guard）**：
+> - B-033 channels soft-disable 闭环（见上方 B-033 条目）
+> - `Makefile` 新增 `bootstrap` target：`cp docker/.env.example docker/.env` + `mkdir -p config/sources` + `cp config/sources.example.yaml config/sources/sources.yaml`，仅在文件不存在时执行；help 段加 `Setup:` 行
+> - `src/intellisource/main.py` `_lifespan()` 添加 IS_API_KEY 占位 guard：`api_key == "change-me-in-production"` 时 `raise RuntimeError` 阻断 API 启动 + 提示 `secrets.token_hex(32)` 生成命令
+> - 新增 `_collect_startup_warnings()`：扫 IS_API_KEY 空 / sources dir 缺失/空 / 无 LLM key / 三渠道凭据缺失，统一 `logger.warning("startup: ...")`，结果写 `app.state.missing_config`（供 /health 暴露）
+>
+> **Phase C（中期 — doctor + health missing_config）**：
+> - `src/intellisource/api/routers/system.py` `health_payload()` 输出加 `missing_config` 字段（条件渲染，无 warnings 时不写）
+> - `src/intellisource/cli/main.py` 新增 `doctor` 子命令：解析 `docker/.env` (`_load_dotenv_file`) 与 `os.environ` 合并 → `_doctor_env()` 输出 `✓`（必填 OK）/ `✗`（必填缺失）/ `○`（可选未配）三态；支持 `--check-api` 命中 `/health` 探活 + 透传 missing_config；`--strict` 任何 `✗` 退码 1
+>
+> **Phase A（长期 — init 交互式 CLI）**：
+> - `src/intellisource/cli/main.py` 新增 `init` 子命令：典型 `npm init` 风格 — Typer prompt 询问 API key（空则 `secrets.token_hex(32)` 自动生成）→ LLM provider 三选一（DeepSeek/OpenAI/Anthropic，推荐 DeepSeek）→ 渠道四选一（WeWork 推荐 / WeChat / Email / Skip）→ 是否加 HN RSS 起步信源；`_write_env_file()` 合并到现有 .env（保留无关行 + 覆写选中 key + 追加新 key）
+>
+> **测试**：21 新 tests GREEN（5 B-033 soft-disable + 16 B-051 startup guard / _collect_startup_warnings / _doctor_env / _load_dotenv_file），其中 lifespan placeholder raise 测试覆盖关键安全契约；2829 PASS unit 不退化（baseline 2808 +21）；mypy --strict + ruff + lint-imports 8/8 clean。**真起栈验证依赖**：用户 `make bootstrap` → 编辑 .env → `make up` → `uv run intellisource doctor --check-api` 验证 missing_config 透传 + /health 暴露。
+>
+> **carryover 立项**：B-050 wework 默认倾斜（依赖 B-033，本次已闭环，可启动）；docker/.env.example 暂未做 wework 块前置（留 B-050 实施时一并）。`config/llm_models.yaml` vs `.example.yaml` 双份的疑惑未处理（B-051 范围外，可独立小立项 B-052）。
 
 ### B-049 distributor channel 失败 silent-success — facade.distribute 误判 sent
 - **优先级**：P3

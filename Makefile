@@ -1,6 +1,6 @@
 COMPOSE := docker compose -f docker/docker-compose.yml
 
-.PHONY: up down migrate logs ps clean rollback \
+.PHONY: up down migrate logs ps clean rollback bootstrap \
         arch deps deadcode deps-graph check check-all lint-fix help \
         test-unit test-integration contract-check
 
@@ -28,6 +28,18 @@ clean:
 rollback:
 	$(COMPOSE) run --rm api python -m alembic downgrade -1
 
+# First-time setup: copy env template + create sources directory
+bootstrap:
+	@[ -f docker/.env ] || (cp docker/.env.example docker/.env && echo "Created docker/.env — edit IS_API_KEY and LLM keys before starting")
+	@mkdir -p config/sources
+	@[ -f config/sources/sources.yaml ] || (cp config/sources.example.yaml config/sources/sources.yaml && echo "Created config/sources/sources.yaml — edit to add your RSS sources")
+	@echo ""
+	@echo "Next steps:"
+	@echo "  1. Edit docker/.env  (set IS_API_KEY + LLM provider key)"
+	@echo "  2. Edit config/sources/sources.yaml  (add your RSS / API sources)"
+	@echo "  3. make up"
+	@echo "  4. uv run intellisource doctor  (verify configuration)"
+
 # ---------------------------------------------------------------------------
 # Architecture & quality gates
 # Run a single target:    make <target>
@@ -48,6 +60,8 @@ help:
 	@echo "  test-integration  Run integration tests (requires 'make up' first)"
 	@echo "Docker:"
 	@echo "  up / down / migrate / logs / ps / clean / rollback"
+	@echo "Setup:"
+	@echo "  bootstrap         First-time setup: copy .env + create sources dir"
 
 arch:
 	uv run lint-imports --no-cache

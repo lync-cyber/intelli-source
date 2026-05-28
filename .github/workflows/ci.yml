@@ -93,24 +93,15 @@ jobs:
       # the API answers /health. Any prior B-031 walkthrough NO-GO that
       # affects local-stack readiness will fail this job.
 
-      - name: Create .env from example (placeholder distribution channels)
+      - name: Create .env from example (replace IS_API_KEY placeholder)
         run: |
           cp docker/.env.example docker/.env
-          # B-033 carryover: composition.build_distributor_facade hard-fails
-          # when channel credentials are blank. Use placeholder strings to
-          # let the api boot for the smoke window; webhook flows are not
-          # exercised here. IS_WEWORK_AGENT_ID + IS_SMTP_PORT MUST stay numeric
-          # because distributor.from_env() parses them via int().
-          sed -i 's|^IS_WECHAT_APP_ID=.*|IS_WECHAT_APP_ID=ci-smoke-placeholder|' docker/.env
-          sed -i 's|^IS_WECHAT_APP_SECRET=.*|IS_WECHAT_APP_SECRET=ci-smoke-placeholder|' docker/.env
-          sed -i 's|^IS_WECHAT_WEBHOOK_TOKEN=.*|IS_WECHAT_WEBHOOK_TOKEN=ci-smoke-placeholder|' docker/.env
-          sed -i 's|^IS_WEWORK_CORP_ID=.*|IS_WEWORK_CORP_ID=ci-smoke-placeholder|' docker/.env
-          sed -i 's|^IS_WEWORK_CORP_SECRET=.*|IS_WEWORK_CORP_SECRET=ci-smoke-placeholder|' docker/.env
-          sed -i 's|^IS_WEWORK_AGENT_ID=.*|IS_WEWORK_AGENT_ID=0|' docker/.env
-          sed -i 's|^IS_WEWORK_WEBHOOK_TOKEN=.*|IS_WEWORK_WEBHOOK_TOKEN=ci-smoke-placeholder|' docker/.env
-          sed -i 's|^IS_SMTP_HOST=.*|IS_SMTP_HOST=smtp.example.com|' docker/.env
-          sed -i 's|^IS_SMTP_USER=.*|IS_SMTP_USER=ci-smoke-placeholder|' docker/.env
-          sed -i 's|^IS_SMTP_PASSWORD=.*|IS_SMTP_PASSWORD=ci-smoke-placeholder|' docker/.env
+          # B-051: main._lifespan refuses to start when IS_API_KEY is the
+          # default 'change-me-in-production' placeholder. Inject a stable CI
+          # test token so the smoke window can boot.  Distribution channels
+          # stay blank — B-033 soft-disables missing-cred channels with a
+          # warning log instead of crashing lifespan.
+          sed -i 's|^IS_API_KEY=.*|IS_API_KEY=ci-smoke-test-token|' docker/.env
 
       - name: Build composite DB image (cached)
         uses: docker/build-push-action@v5

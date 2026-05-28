@@ -14,6 +14,36 @@ from typing import TextIO
 import structlog
 
 
+class TraceIdFormatter(logging.Formatter):
+    """Formatter that prepends ``trace_id=<id>`` to non-JSON log lines.
+
+    Reads the trace_id from
+    :func:`intellisource.observability.trace_context.current_trace_id` at
+    format time. Structlog-rendered lines that already serialize to JSON
+    pass through unchanged so the JSON Lines consumer contract stays intact
+    (the JSON object already carries ``trace_id`` via ``merge_contextvars``).
+    """
+
+    _BASE_FORMAT = (
+        "[%(asctime)s] %(levelname)s %(name)s trace_id=%(trace_id)s %(message)s"
+    )
+
+    def __init__(self) -> None:
+        super().__init__(fmt=self._BASE_FORMAT)
+
+    def format(self, record: logging.LogRecord) -> str:
+        from intellisource.observability.trace_context import (  # noqa: PLC0415
+            current_trace_id,
+        )
+
+        record.trace_id = current_trace_id() or "-"
+        message = record.getMessage()
+        stripped = message.strip()
+        if stripped.startswith("{") and stripped.endswith("}"):
+            return message
+        return super().format(record)
+
+
 def setup_logging(stream: TextIO | None = None) -> None:
     """Initialize structlog with JSON Lines output.
 
@@ -26,14 +56,13 @@ def setup_logging(stream: TextIO | None = None) -> None:
     log_level_name = os.environ.get("IS_LOG_LEVEL", "INFO").upper()
     log_level = getattr(logging, log_level_name, logging.INFO)
 
-    # Configure stdlib logging to use the desired stream and level
     root_logger = logging.getLogger()
     root_logger.setLevel(log_level)
-    # Remove existing handlers to avoid duplicates on repeated calls
     root_logger.handlers.clear()
 
     handler = logging.StreamHandler(stream)
     handler.setLevel(log_level)
+    handler.setFormatter(TraceIdFormatter())
     root_logger.addHandler(handler)
 
     structlog.configure(

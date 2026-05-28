@@ -99,6 +99,9 @@ async def health_payload(request: Request) -> dict[str, Any]:
     timestamp = payload.get("timestamp")
     if timestamp is not None and hasattr(timestamp, "isoformat"):
         payload["timestamp"] = timestamp.isoformat()
+    missing = getattr(request.app.state, "missing_config", None)
+    if missing:
+        payload["missing_config"] = missing
     return payload
 
 

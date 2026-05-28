@@ -31,6 +31,7 @@ Public surface:
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable
@@ -65,6 +66,8 @@ if TYPE_CHECKING:
 
     from intellisource.storage.database import DatabaseManager
 
+
+_logger = logging.getLogger(__name__)
 
 SOURCE_TYPE_TO_PIPELINE: dict[str, str] = {
     "rss": "scheduled-collect",
@@ -122,26 +125,49 @@ def build_distributor_facade(
     redis_client: Any,
     llm_gateway: LLMGateway | None = None,
 ) -> DistributorFacade:
-    """Build a DistributorFacade with all three distribution channels.
+    """Build a DistributorFacade; channels with missing env vars are soft-disabled.
 
-    Reads channel credentials from environment variables.  Missing required
-    variables cause a ValueError at startup (hard-fail by design). When an
-    ``llm_gateway`` is supplied the facade can optimize push copy before send
-    (F-010, gated by ``IS_PUSH_OPTIMIZE_ENABLED``).
+    Each channel's ``from_env()`` is called independently.  When required
+    credentials are absent a ``ValueError`` is caught, a WARNING is logged,
+    and the channel is omitted from the facade rather than crashing startup.
+    Subscriptions targeting a disabled channel are counted as *skipped* by
+    ``DistributorFacade.distribute()``.
+
+    When an ``llm_gateway`` is supplied the facade can optimize push copy
+    before send (F-010, gated by ``IS_PUSH_OPTIMIZE_ENABLED``).
     """
     http_client = _build_http_client()
-    wechat = WeChatDistributor.from_env(redis=redis_client, http_client=http_client)
-    wework = WeWorkDistributor.from_env(redis=redis_client, http_client=http_client)
-    email = EmailDistributor.from_env()
-    matcher = SubscriptionMatcher()
-    channels: dict[str, Any] = {
-        "wechat": wechat,
-        "wework": wework,
-        "email": email,
-    }
+    channels: dict[str, Any] = {}
+
+    builders: list[tuple[str, Callable[[], Any]]] = [
+        (
+            "wechat",
+            lambda: WeChatDistributor.from_env(
+                redis=redis_client, http_client=http_client
+            ),
+        ),
+        (
+            "wework",
+            lambda: WeWorkDistributor.from_env(
+                redis=redis_client, http_client=http_client
+            ),
+        ),
+        ("email", EmailDistributor.from_env),
+    ]
+    for name, build_fn in builders:
+        try:
+            channels[name] = build_fn()
+        except ValueError as exc:
+            _logger.warning("distribution channel %r disabled: %s", name, exc)
+
+    if not channels:
+        _logger.warning(
+            "no distribution channels configured — all push attempts will be skipped"
+        )
+
     return DistributorFacade(
         session_factory=session_factory,
-        matcher=matcher,
+        matcher=SubscriptionMatcher(),
         channels=channels,
         llm_gateway=llm_gateway,
     )

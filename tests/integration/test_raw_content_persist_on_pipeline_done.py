@@ -182,79 +182,108 @@ class TestRunPipelinePersistsProcessedStatus:
     """AC-8: CeleryTasks.run_pipeline updates RawContent.status in the DB."""
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(
-        reason=(
-            "B-048: CeleryTasks.run_pipeline is sync — internally uses "
-            "_run_sync(asyncio.run, ...) which spins a ThreadPoolExecutor + "
-            "new event loop. pg_session is bound to the pytest-asyncio outer "
-            "loop, so the inner thread hits 'cannot perform operation: another "
-            "operation is in progress'. Real worker uses worker_session_factory "
-            "+ NullPool (B-037 path); pytest fixture lacks that wiring."
-        ),
-        strict=False,
-    )
     async def test_run_pipeline_marks_raw_content_as_processed(
-        self, pg_session: AsyncSession
+        self, pg_container: str, pg_truncate: None
     ) -> None:
         """AC-8: After run_pipeline('content-process', {'content_id': <uuid>}),
-        RawContent.status == 'processed' and processed_at is non-None in the DB."""
+        RawContent.status == 'processed' and processed_at is non-None in the DB.
+
+        Uses a real ``async_sessionmaker`` with ``NullPool`` instead of the
+        ``pg_session`` SAVEPOINT-isolated fixture: ``CeleryTasks.run_pipeline``
+        is sync — it calls ``_run_sync`` which submits ``asyncio.run(coro)``
+        to a ``ThreadPoolExecutor`` spawning a fresh event loop. Sessions bound
+        to the pytest-asyncio outer loop would hit "another operation in
+        progress" on asyncpg. NullPool ensures every ``factory()`` checkout
+        opens a fresh asyncpg connection bound to whichever loop is running —
+        the production worker path (B-037) uses the same pattern.
+        """
+        from sqlalchemy.ext.asyncio import (  # noqa: PLC0415
+            async_sessionmaker,
+            create_async_engine,
+        )
+        from sqlalchemy.pool import NullPool  # noqa: PLC0415
+
         from intellisource.scheduler.boot import (  # noqa: PLC0415
             _RawContentResultRepo,
         )
         from intellisource.scheduler.tasks import CeleryTasks  # noqa: PLC0415
 
-        source = await _make_source(pg_session)
-        raw = await _make_raw_content(
-            pg_session, source, body_html="<p>Pipeline test</p>"
-        )
-        content_id = str(raw.id)
+        engine = create_async_engine(pg_container, poolclass=NullPool)
+        try:
+            factory = async_sessionmaker(
+                bind=engine, class_=AsyncSession, expire_on_commit=False
+            )
 
-        session_factory = _sessionmaker_from_session(pg_session)
+            source_id = uuid.uuid4()
+            raw_id = uuid.uuid4()
+            source_row = Source(
+                id=source_id,
+                name=f"test-source-{uuid.uuid4().hex[:8]}",
+                type="rss",
+                url="https://example.com/feed",
+                tags=[],
+                status="active",
+                schedule_interval=3600,
+                schedule_adaptive=False,
+            )
+            raw_row = RawContent(
+                id=raw_id,
+                source_id=source_id,
+                title="Test",
+                body_html="<p>Pipeline test</p>",
+                source_url=f"https://example.com/{uuid.uuid4().hex}",
+                fingerprint=uuid.uuid4().hex,
+                raw_metadata={},
+            )
+            async with factory() as setup:
+                setup.add(source_row)
+                setup.add(raw_row)
+                await setup.commit()
 
-        # Real content repo backed by pg_session
-        content_repo = _RawContentResultRepo(session_factory=session_factory)
+            content_id = str(raw_id)
+            content_repo = _RawContentResultRepo(session_factory=factory)
 
-        # Mock AgentRunner.execute — returns a result dict with content_id
-        mock_runner = MagicMock()
-        mock_runner.execute = AsyncMock(
-            return_value={
-                "status": "ok",
-                "content_id": content_id,
-                "body_text": "Pipeline test",
-            }
-        )
+            mock_runner = MagicMock()
+            mock_runner.execute = AsyncMock(
+                return_value={
+                    "status": "ok",
+                    "content_id": content_id,
+                    "body_text": "Pipeline test",
+                }
+            )
 
-        # Real PipelineLoader backed by the real content-process.yaml
-        mock_pipeline_loader = MagicMock()
-        loaded_cfg = MagicMock()
-        loaded_cfg.mode = "strict"
-        loaded_cfg.steps = []
-        mock_pipeline_loader.load.return_value = loaded_cfg
+            mock_pipeline_loader = MagicMock()
+            loaded_cfg = MagicMock()
+            loaded_cfg.mode = "strict"
+            loaded_cfg.steps = []
+            mock_pipeline_loader.load.return_value = loaded_cfg
 
-        tasks = CeleryTasks(
-            agent_runner=mock_runner,
-            pipeline_config=mock_pipeline_loader,
-            session_factory=None,  # TaskChain persistence skipped
-            idempotency_guard=None,
-            fingerprint_checker=None,
-            content_repository=content_repo,
-        )
+            tasks = CeleryTasks(
+                agent_runner=mock_runner,
+                pipeline_config=mock_pipeline_loader,
+                session_factory=None,
+                idempotency_guard=None,
+                fingerprint_checker=None,
+                content_repository=content_repo,
+            )
 
-        tasks.run_pipeline(
-            "content-process",
-            {"content_id": content_id, "task_id": "test-t096"},
-        )
+            tasks.run_pipeline(
+                "content-process",
+                {"content_id": content_id, "task_id": "test-t096"},
+            )
 
-        # Verify DB state
-        await pg_session.refresh(raw)
-
-        assert raw.status == "processed", (  # type: ignore[attr-defined]
-            f"AC-8: RawContent.status must be 'processed' after run_pipeline, "
-            f"got {raw.status!r}"  # type: ignore[attr-defined]
-        )
-        assert raw.processed_at is not None, (  # type: ignore[attr-defined]
-            "AC-8: RawContent.processed_at must be set after run_pipeline"
-        )
+            async with factory() as verify:
+                refreshed = await verify.get(RawContent, raw_id)
+                assert refreshed is not None
+                assert refreshed.status == "processed", (
+                    f"AC-8: RawContent.status must be 'processed' after run_pipeline, "
+                    f"got {refreshed.status!r}"
+                )
+                assert refreshed.processed_at is not None, (
+                    "AC-8: RawContent.processed_at must be set after run_pipeline"
+                )
+        finally:
+            await engine.dispose()
 
 
 # ---------------------------------------------------------------------------

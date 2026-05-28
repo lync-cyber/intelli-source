@@ -531,3 +531,10 @@ deps: []
   - **silent-failure carryover**: channel.distribute 返 `{"status":"failed",...}` 不抛 → facade sent 计数误差；建议立 B-048 P3 让 channel 失败抛 ChannelSendError 让 facade try/except 捕获正确 record skipped
 - 关联: B-031 walkthrough §阶段 5 步骤 13-14；email.py from_env + docker-compose.yml mailhog 服务 + docker/.env IS_SMTP_USE_TLS；B-034 doc drift carryover；B-048 silent-failure carryover
 
+
+### 2026-05-28 | orchestrator | unknown
+- 触发信号: option-override
+- 问题/假设: 下一步推进哪条线？
+- 基线/推荐: C 先关 B-040 (Recommended)
+- 实际/选择: 先关B-040；核实当前默认是否使用微信公众号分发消息，是否支持微信企业号分发消息, 应优先支持微信企业号，因为相比微信公众号在消息分发和终端微信用户交互上更友好；然后研究如何优化配置管理和引导，简化用户初始配置时的上手难度。
+- 偏差类型: preference
