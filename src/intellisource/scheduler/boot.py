@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.pool import NullPool
 
 from intellisource.composition import build_worker_composition
+from intellisource.observability.logging import setup_logging
 
 # Import signals module for its side-effect: registering task_prerun /
 # task_postrun / task_failure handlers (F-22 metrics + F-23 trace_id).
@@ -211,6 +212,7 @@ def worker_init_handler(**_: Any) -> None:
     global _celery_tasks
     if _celery_tasks is not None:
         return
+    setup_logging()
     factory = init_worker_session_factory()
     redis_client = _build_redis_client()
     composition = build_worker_composition(
@@ -313,6 +315,7 @@ def beat_init_handler(**_: Any) -> None:
     the full composition graph — Beat only needs the session_factory to
     read Source rows.
     """
+    setup_logging()
     logger.info("beat_init signal received — bootstrapping schedule from DB")
     factory = init_worker_session_factory()
     _bootstrap_beat_schedule(factory)

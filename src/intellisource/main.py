@@ -34,6 +34,7 @@ from intellisource.api.routers import (
 from intellisource.composition import build_api_composition
 from intellisource.config.loader import ConfigLoader, ConfigWatcher
 from intellisource.config.validator import ConfigValidator
+from intellisource.observability.logging import setup_logging
 from intellisource.storage.database import DatabaseManager
 from intellisource.storage.repositories.source import SourceRepository
 
@@ -125,6 +126,7 @@ _SOURCE_CONFIG_DIR: str = os.environ.get("IS_SOURCE_CONFIG_DIR", "config/sources
 async def _lifespan(app: FastAPI) -> AsyncIterator[dict[str, Any]]:
     """Manage application startup and shutdown."""
     global _db_manager, _config_version_manager
+    setup_logging()
     db = DatabaseManager()
     _db_manager = db
     app.state.db = db

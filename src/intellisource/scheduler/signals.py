@@ -11,6 +11,7 @@ import logging
 import time
 from typing import Any
 
+import structlog
 from celery.signals import task_failure, task_postrun, task_prerun
 
 from intellisource.observability.metrics import MetricsCollector
@@ -65,6 +66,10 @@ def _on_task_prerun(sender: Any = None, task_id: str = "", **_: Any) -> None:
         headers = {}
     incoming = str(headers.get(TRACE_HEADER_KEY) or "")
     token = set_trace_id(incoming)
+    try:
+        structlog.contextvars.bind_contextvars(trace_id=incoming or "-")
+    except Exception:  # noqa: BLE001 — defensive: never raise out of a signal
+        pass
     setattr(task.request, _TRACE_TOKEN_ATTR, token)
     setattr(task.request, _START_TIME_ATTR, time.monotonic())
 
@@ -89,6 +94,11 @@ def _on_task_postrun(
             mc.observe_histogram(_METRIC_TASK_DURATION, time.monotonic() - start)
     except Exception:  # noqa: BLE001 — signal handlers must never raise
         logger.exception("failed to record celery task metrics")
+
+    try:
+        structlog.contextvars.unbind_contextvars("trace_id")
+    except Exception:  # noqa: BLE001 — never raise out of a signal
+        pass
 
     token = getattr(task.request, _TRACE_TOKEN_ATTR, None)
     if token is not None:

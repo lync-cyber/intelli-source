@@ -221,6 +221,33 @@ deps: []
   - F-02/F-03: async fixture 模式重构（参 B-037 lazy redis 经验，可能需要 per-test loop scope）
 - **验证**：CI Integration Tests job 0 failed 0 error，163 PASS
 
+### B-050 默认优先 wework 渠道（文档与默认值倾斜）
+- **优先级**：P3
+- **依赖**：B-033（composition channel 可选）
+- **关联**：[docs/research/b050-wechat-vs-wework-audit.md](research/b050-wechat-vs-wework-audit.md)
+- **现状**：代码层 wechat / wework 两条通路完全对等（distributor + cs_client + webhook 路由）；wework 在 9/12 产品维度（无 48h 客服窗口约束 / 支持 markdown / 用户身份可读 / 通讯录直接派发 / API 限流宽松）上比 wechat 更友好，仅"配置变量数量"和"AES 加密复杂度"上 wechat 略低门槛。当前无"默认渠道"概念，订阅 `channel` 字段决定路由；composition 一次性 wire 三个 channel（B-033 待 soft-disable）
+- **修复方向**：
+  - 文档：`docker/.env.example` Distribution channels 段把 wework 块前置 + 标 "推荐"；walkthrough §0.2 把 wechat 标 "可选 / 需备案"；PRD/ARCH M-007 推送模块说明 wework 主 / wechat 兼容
+  - 示例：`config/subscriptions.example.yaml`（如新增）默认 `channel: "wework"`；walkthrough 步骤 13 推送示例切到 wework
+  - 代码（依赖 B-033）：composition.build_distributor_facade 在仅 wework 配齐时 channels dict 不含 wechat 仍正常启动；facade.distribute 对 channel 未注册返 `ChannelDisabled` 而非吞 KeyError
+  - `IS_WECOM_*` 三变量补入 `docker/.env.example`（顺带 B-034 doc drift）
+- **验证**：新用户走 walkthrough §0.2 时只需配 wework 即可跑通推送链路；wechat 全空 lifespan 不崩
+
+### B-051 配置管理与首次接入引导优化
+- **优先级**：P2
+- **关联**：[docs/research/b051-config-bootstrap-ux.md](research/b051-config-bootstrap-ux.md)；与 B-033 / B-050 协同
+- **现状**：首次跑通最小栈需要 4 个手工步骤（cp .env / 填 5+ 必填项 / mkdir sources / cp sources example）；必填提示散在 `.env.example` 注释 + walkthrough §0.2 + composition.py 错误信息；`IS_API_KEY=change-me-in-production` 占位被实际使用时无校验；`/health` 端点不暴露配置缺失列表；无 doctor 命令统一自检
+- **修复方向（分层）**：
+  - 短期（D+B 组合，最小成本）：B-033 channels soft-disable + 统一 startup warnings 列表 + `IS_API_KEY` 占位启动校验拒绝 + Makefile `bootstrap` 目标减少首次步骤
+  - 中期（C）：`uv run intellisource doctor` 命令扫描 .env 必填 / 默认占位 / 目录缺失 / 服务连通性；可 `--strict` 退非 0 给 docker entrypoint 用；`/health` 端点暴露 missing-config 列表
+  - 长期（A）：`uv run intellisource init` 交互式 CLI 引导（推荐渠道列表 / corp 凭据 / LLM provider / 首个 RSS 信源）；引导默认 wework 优先（与 B-050 协同）
+- **决策点（待 B-051 立项时选定）**：
+  - 仅 D（短期最小）
+  - D + C（短中期，无 CLI 重交互）
+  - **D + C + A（长期完整，推荐）**
+  - B + C + A（跳过 soft-fail，CLI 主路径）
+- **顺带发现**：`config/llm_models.yaml` 与 `config/llm_models.example.yaml` 双份，新用户不清楚用哪份；`docker compose --profile observability/walkthrough` 已是事实上的按需启动，可作为 selecting feature 的基础
+
 ### B-049 distributor channel 失败 silent-success — facade.distribute 误判 sent
 - **优先级**：P3
 - **关联**：B-031 阶段 5 步骤 13 carryover；CORRECTIONS-LOG 修正 #29 silent-failure 说明

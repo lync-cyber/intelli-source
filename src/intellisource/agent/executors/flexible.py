@@ -214,7 +214,7 @@ class FlexibleLoop:
                         "pending_confirmation",
                         extra={
                             "tool": tc_name,
-                            "args": tc_args,
+                            "tool_args": tc_args,
                             "tool_call_id": tc_id,
                         },
                     )
@@ -512,7 +512,7 @@ class FlexibleLoop:
                         "pending_confirmation",
                         extra={
                             "tool": tc_name,
-                            "args": tc_args,
+                            "tool_args": tc_args,
                             "tool_call_id": tc_id,
                         },
                     )
