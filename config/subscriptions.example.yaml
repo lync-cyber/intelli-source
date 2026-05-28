@@ -1,0 +1,35 @@
+# IntelliSource 订阅配置示例
+# 此文件是订阅配置的 source-of-truth。
+# 通过 API / CLI 对订阅的改动会在下次 POST /subscriptions/reload 时被覆盖。
+# 从 yaml 中移除的订阅会被软删（status=paused），不会丢失推送历史。
+#
+# 支持 ${ENV_VAR} 环境变量占位符（与 sources.yaml 一致）。
+
+subscriptions:
+  - name: "AI 早报 - WeWork"
+    channel: "wework"
+    channel_config:
+      user_id: "@all"          # 企业微信成员 user_id，多个用 | 分隔；@all 推全员
+      msg_type: "markdown"     # text / markdown / news
+    match_rules:
+      tags: ["ai"]
+    frequency: "realtime"
+    timezone: "Asia/Shanghai"
+
+  - name: "Tech Digest - Email"
+    channel: "email"
+    channel_config:
+      to_addr: "${IS_DIGEST_EMAIL_TO}"   # 从环境变量读取避免硬编码
+    match_rules:
+      tags: ["tech"]
+    frequency: "daily"
+    quiet_hours:
+      start: "22:00"
+      end: "08:00"
+
+  - name: "Security Alerts - WeChat"
+    channel: "wechat"
+    channel_config: {}          # 公众号 v1 无 per-subscription 目标字段
+    match_rules:
+      tags: ["security"]
+    frequency: "realtime"

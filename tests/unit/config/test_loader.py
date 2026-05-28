@@ -382,7 +382,9 @@ class TestConfigVersionManager:
         """record_version() increments the version number."""
         from intellisource.config.loader import ConfigVersionManager
 
-        mgr = ConfigVersionManager()
+        mgr = ConfigVersionManager(
+            table_name="config_versions", config_cls=SourceConfig
+        )
 
         configs_v1 = [SourceConfig(**VALID_SOURCE_A)]
         mgr.record_version(configs_v1)
@@ -398,7 +400,9 @@ class TestConfigVersionManager:
         """rollback(version) returns the config snapshot at that version."""
         from intellisource.config.loader import ConfigVersionManager
 
-        mgr = ConfigVersionManager()
+        mgr = ConfigVersionManager(
+            table_name="config_versions", config_cls=SourceConfig
+        )
 
         configs_v1 = [SourceConfig(**VALID_SOURCE_A)]
         mgr.record_version(configs_v1)
@@ -412,13 +416,15 @@ class TestConfigVersionManager:
 
         assert isinstance(restored, list)
         assert len(restored) == 1
-        assert restored[0].name == "arxiv-cs"
+        assert restored[0].name == "arxiv-cs"  # type: ignore[attr-defined]
 
     def test_rollback_restores_current_version(self) -> None:
         """After rollback, current_version reflects the rolled-back version."""
         from intellisource.config.loader import ConfigVersionManager
 
-        mgr = ConfigVersionManager()
+        mgr = ConfigVersionManager(
+            table_name="config_versions", config_cls=SourceConfig
+        )
 
         mgr.record_version([SourceConfig(**VALID_SOURCE_A)])
         v1 = mgr.current_version
@@ -434,7 +440,9 @@ class TestConfigVersionManager:
         """current_version is accessible as a property and returns an int."""
         from intellisource.config.loader import ConfigVersionManager
 
-        mgr = ConfigVersionManager()
+        mgr = ConfigVersionManager(
+            table_name="config_versions", config_cls=SourceConfig
+        )
         configs = [SourceConfig(**VALID_SOURCE_A)]
         mgr.record_version(configs)
 

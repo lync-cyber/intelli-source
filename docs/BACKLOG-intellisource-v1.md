@@ -193,6 +193,48 @@ deps: []
 
 > B-048 已闭环 — F-01~F-07 + E-01 在 commit 1b38f7b 一次性修复（F-01 FK 移除 task_id kwarg / F-02 暂标 xfail / F-03 patch→app.dependency_overrides / F-04 skipif no-key / F-05/F-06/F-07 `_make_pg_db_manager(pg_session=...)` API 切换 / E-01 sqlite fixture 加 JSONB+ARRAY→JSON coercion）+ commit 5efc6ba 后续（F-01 mask-email 断言 + E-01 ARRAY 列补 coercion）。剩余 F-02 cross-loop xfail 在本次会话闭环：test_run_pipeline_marks_raw_content_as_processed 从 pg_session SAVEPOINT-isolated fixture 切到独立 `async_sessionmaker + poolclass=NullPool`（与生产 worker B-037 路径同型）—— `_run_sync` 子线程 loop 每次 factory() 都拿到全新 asyncpg 连接，不再触发 "another operation in progress"。**CI 验证**：main 上 run 26505614731 (commit 7ef17bf) Integration Tests = 162 passed / 1 skipped / 1 xfailed in 74.41s；本次 xfail 转 pass 后预期 163 passed / 1 skipped / 0 xfailed（F-04 仍 skip 因 CI 无 LLM API key）
 
+> B-054 + B-055 已闭环 (本次会话, 三入口对齐重构 Layer 1+2 + CLI 薄壳) — subscriptions 配置三入口（yaml / API / CLI）行为对齐，单一 Pydantic schema + service layer 集中业务逻辑。
+>
+> **Phase 1 (yaml + reload MVP)**：
+> - `config/subscriptions.example.yaml`（3 渠道示例：wework / email / wechat + 注释"API changes will be overwritten on next reload"）
+> - `src/intellisource/config/subscription_models.py` 新增 `SubscriptionConfig` Pydantic model（name / channel Literal / channel_config / match_rules / frequency / quiet_hours / timezone / discipline_tags）
+> - `src/intellisource/config/subscription_validator.py` 新增 `SubscriptionValidator` 按 channel 分支校验：email 必填 to_addr、wework user_id+msg_type ∈ {text,markdown,news}、wechat any shape
+> - `src/intellisource/config/subscription_loader.py` 新增 `SubscriptionConfigLoader`（独立 `IS_SUBSCRIPTION_CONFIG_DIR` env，默认 `config/subscriptions`）
+> - `SubscriptionRepository` 加 `upsert(by-name)` + `bulk_sync_from_configs`（yaml 缺失即 status='paused' 软删，保留 push_records FK 历史）
+> - `docker/.env.example` 加 `IS_SUBSCRIPTION_CONFIG_DIR`；Makefile bootstrap 建 `config/subscriptions` 目录
+>
+> **Phase 2 (subscription_config_versions + rollback)**：
+> - alembic migration `d4e5f6a7b8c9_add_subscription_config_versions.py`（schema 对齐 `config_versions`）
+> - `ConfigVersionManager` 泛化（**删除向后兼容**）：`table_name` + `config_cls` 强制 kwarg，删除 `session_factory`，`record_version_async` / `rollback_by_label` `session` 必传；sources rollback router + composition.py wiring 同步升级新签名
+> - reload 端点成功后调 `record_version_async` 写 snapshot；新增 `POST /api/v1/subscriptions/config/rollback/{version}` 端点
+>
+> **Layer 1+2 三入口对齐重构**（用户决策：repair real bugs + 抽 service）：
+> - 删 `SubscriptionCreateRequest` / `SubscriptionUpdateRequest`；`POST /subscriptions` 直接接 `SubscriptionConfig`（修复 API 缺 `frequency` / `quiet_hours` / `timezone` / `discipline_tags` 字段的漂移）；`PATCH` 用 `SubscriptionPatchRequest`（全 Optional）
+> - 修真 bug：旧 API 不跑 `SubscriptionValidator` —— 同样输入"email 缺 to_addr"在 yaml reload 报错而 API 接受。现在统一在 service 层强制
+> - 新增 `src/intellisource/subscription/service.py` `SubscriptionService`：`list_paginated` / `create` / `patch` / `delete`（soft → status='paused'）/ `bulk_sync_with_version` / `rollback_to_version`；validator 在 create + bulk_sync 路径强制
+> - router 退化为薄 HTTP 转发层（仅参数解析 + 序列化 + 错误码映射），所有写入路径 → service
+>
+> **Phase 3 (B-055 CLI 薄壳)**：
+> - `intellisource subscriptions list / add / patch / rm / reload / rollback` 子命令
+> - `add` 交互式 prompt 按 channel 分支收集 `channel_config`（wework → user_id+msg_type / email → to_addr / wechat → 空）
+> - 全部 HTTP 自调本地 `/api/v1/subscriptions/*`（复用 `_get_headers` IS_API_KEY 注入），与 sources / pipeline / task CLI 一致
+>
+> **三入口对齐结果**（重复消除 + 一致性）：
+> - **Pydantic schema 单一来源**：`SubscriptionConfig` 唯一定义；API request body + yaml loader + CLI 构造 dict 共用
+> - **业务逻辑单一来源**：`SubscriptionService` 集中 validator+repository+version snapshot 调度；router / loader / CLI 仅作为 transport adapter
+> - **校验对齐**：API create / yaml reload / CLI add 三条路径全跑 `SubscriptionValidator` (修 bug)
+> - **版本快照触发点显式**：reload + rollback 经 service 写 `subscription_config_versions`；单条 create/patch/delete 不写（保持 history 表不暴涨，"snapshot = deploy 单位"语义清晰）
+> - **审计一致**：CLI HTTP 自调 → 经过 API middleware + metrics + log，与 curl / postman 等价；不绕过 DB 直连
+>
+> **测试**：74 新增 tests GREEN（19 validator + 7 loader + 8 repository sync + 9 router (reload+rollback+CRUD) + 13 CLI + 4 generic ConfigVersionManager + 12 service + 5 旧 SubscriptionCRUD 重写 + 1 deps_integration 适配）；**2903 PASS unit (+74)** 守住 baseline；mypy --strict + ruff + lint-imports 8/8 clean。
+>
+> **验收**：用户 `make bootstrap` → 编辑 `config/subscriptions/subscriptions.yaml` → `intellisource subscriptions reload` → `intellisource subscriptions list` 可见 → 改 yaml 删一条 → `intellisource subscriptions reload` → 列表中那条 status=paused → `intellisource subscriptions rollback 1` → 恢复 v1 状态。
+>
+> **未做项 / 后续可立项**：
+> - Layer 3 "单条 create/patch 也写版本快照" 不做（user-decided 推荐方案不包含；history 表暴涨成本高于价值）
+> - yaml `source: <name>` 关联解析（subscriptions 关联到 sources）— 当前 Phase 1 跳过避免 yaml 间加载顺序耦合，所有 yaml 订阅 source_id=NULL（按 tags 匹配全局）；如需可独立立 B-057
+> - sources rollback 端点 (api/routers/sources.py:230) 当前 `manager = ConfigVersionManager(table_name="config_versions", config_cls=SourceConfig)` new in handler — 与 subscriptions 同形态但 sources reload 路径未自动写版本，是 pre-existing 设计 gap（B-058 候选）
+
 > B-050 已闭环 (本次会话, 文档与默认值倾斜) — 依赖 B-033 channels soft-disable 已闭环，本次完成两处部署侧倾斜：
 >
 > - `docker/.env.example` Distribution channels 段：WeWork 块前置标 "recommended primary push channel"，WeChat 标 "optional, requires 公众号 备案 + 年审"，补全 `IS_WECOM_TOKEN` / `IS_WECOM_ENCODING_AES_KEY` / `IS_WECOM_CORP_ID` 三变量（顺带 B-034 doc drift §7）；段首注释明确未配置 channel 走 soft-disable warning 路径，不再 hard-fail

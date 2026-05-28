@@ -227,9 +227,19 @@ async def rollback_source_config(
     session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     """Rollback source configuration to a previously recorded version."""
-    manager = ConfigVersionManager()
+    from typing import cast
+
+    from intellisource.config.models import SourceConfig
+
+    manager = ConfigVersionManager(
+        table_name="config_versions",
+        config_cls=SourceConfig,
+    )
     try:
-        configs = await manager.rollback_by_label(version)
+        configs = cast(
+            list[SourceConfig],
+            await manager.rollback_by_label(version, session=session),
+        )
     except ValueError as exc:
         return JSONResponse(status_code=404, content={"detail": str(exc)})  # type: ignore[return-value]
     return {
