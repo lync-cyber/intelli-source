@@ -121,12 +121,91 @@ async def on_config_change(path: str) -> None:
 
 _SOURCE_CONFIG_DIR: str = os.environ.get("IS_SOURCE_CONFIG_DIR", "config/sources")
 
+_API_KEY_PLACEHOLDER = "change-me-in-production"
+
+
+def _collect_startup_warnings() -> list[str]:
+    """Scan environment and filesystem for missing or misconfigured items.
+
+    Returns human-readable warning strings.  The IS_API_KEY placeholder check
+    is intentionally NOT included here — that check raises at startup instead.
+    """
+    warnings: list[str] = []
+
+    api_key = os.environ.get("IS_API_KEY", "")
+    if not api_key:
+        warnings.append(
+            "IS_API_KEY not set — all /api/v1/* requests skip auth (dev only)"
+        )
+
+    src_dir = os.environ.get("IS_SOURCE_CONFIG_DIR", "config/sources")
+    if not os.path.isdir(src_dir):
+        warnings.append(
+            f"sources directory {src_dir!r} missing — no sources will be loaded"
+            " (run: mkdir -p config/sources && cp config/sources.example.yaml"
+            " config/sources/sources.yaml)"
+        )
+    else:
+        yamls = [
+            f
+            for f in os.listdir(src_dir)
+            if f.endswith((".yaml", ".yml"))
+            and os.path.isfile(os.path.join(src_dir, f))
+        ]
+        if not yamls:
+            warnings.append(
+                f"sources directory {src_dir!r} contains no YAML files"
+                " — no sources will be loaded"
+            )
+
+    llm_keys = [
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "DEEPSEEK_API_KEY",
+        "AZURE_API_KEY",
+    ]
+    if not any(os.environ.get(k) for k in llm_keys):
+        warnings.append(
+            "no LLM provider key set (OPENAI_API_KEY / ANTHROPIC_API_KEY /"
+            " DEEPSEEK_API_KEY) — LLM pipeline steps will fail"
+        )
+
+    for channel, env_vars in [
+        ("wechat", ["IS_WECHAT_APP_ID", "IS_WECHAT_APP_SECRET"]),
+        (
+            "wework",
+            ["IS_WEWORK_CORP_ID", "IS_WEWORK_CORP_SECRET", "IS_WEWORK_AGENT_ID"],
+        ),
+        ("email", ["IS_SMTP_HOST", "IS_SMTP_USER", "IS_SMTP_PASSWORD"]),
+    ]:
+        missing = [v for v in env_vars if not os.environ.get(v)]
+        if missing:
+            warnings.append(
+                f"channel {channel!r} disabled: {', '.join(missing)} not set"
+            )
+
+    return warnings
+
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[dict[str, Any]]:
     """Manage application startup and shutdown."""
     global _db_manager, _config_version_manager
     setup_logging()
+
+    api_key = os.environ.get("IS_API_KEY", "")
+    if api_key == _API_KEY_PLACEHOLDER:
+        raise RuntimeError(
+            "IS_API_KEY is set to the default placeholder"
+            f" {_API_KEY_PLACEHOLDER!r} — set a real secret before starting."
+            ' Hint: python -c "import secrets; print(secrets.token_hex(32))"'
+        )
+
+    startup_warnings = _collect_startup_warnings()
+    for w in startup_warnings:
+        logger.warning("startup: %s", w)
+    app.state.missing_config = startup_warnings
+
     db = DatabaseManager()
     _db_manager = db
     app.state.db = db

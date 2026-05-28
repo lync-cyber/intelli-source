@@ -94,16 +94,17 @@ class TestDistributorFacadeClassShape:
 
 
 class TestBuildDistributorFacadeEnvGuard:
-    """AC-4: build_distributor_facade reads IS_WECHAT_APP_ID (and peers) from env;
-    missing required vars raise ValueError at startup (hard-fail, not silent)."""
+    """AC-4: build_distributor_facade reads channel credentials from env;
+    missing required vars log a WARNING and soft-disable that channel."""
 
-    def test_missing_wechat_app_id_raises_value_error(
-        self, monkeypatch: pytest.MonkeyPatch
+    def test_missing_wechat_creds_disables_wechat_channel(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """ValueError raised when IS_WECHAT_APP_ID is absent."""
+        """wechat channel absent from facade when IS_WECHAT_APP_ID is missing."""
+        import logging
+
         monkeypatch.delenv("IS_WECHAT_APP_ID", raising=False)
         monkeypatch.delenv("IS_WECHAT_APP_SECRET", raising=False)
-        # provide enough smtp + wework env so only wechat is missing
         monkeypatch.setenv("IS_SMTP_HOST", "smtp.example.com")
         monkeypatch.setenv("IS_SMTP_USER", "user@example.com")
         monkeypatch.setenv("IS_SMTP_PASSWORD", "hunter2")
@@ -113,16 +114,23 @@ class TestBuildDistributorFacadeEnvGuard:
 
         from intellisource.composition import build_distributor_facade
 
-        with pytest.raises(ValueError, match="WECHAT_APP_ID"):
-            build_distributor_facade(
+        with caplog.at_level(logging.WARNING):
+            facade = build_distributor_facade(
                 session_factory=MagicMock(),
                 redis_client=MagicMock(),
             )
 
-    def test_missing_smtp_host_raises_value_error(
-        self, monkeypatch: pytest.MonkeyPatch
+        assert "wechat" not in facade._channels
+        assert any(
+            "wechat" in r.message and "disabled" in r.message for r in caplog.records
+        )
+
+    def test_missing_smtp_creds_disables_email_channel(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """ValueError raised when SMTP env vars are absent."""
+        """email channel absent from facade when SMTP env vars are missing."""
+        import logging
+
         monkeypatch.delenv("IS_SMTP_HOST", raising=False)
         monkeypatch.delenv("IS_SMTP_USER", raising=False)
         monkeypatch.delenv("IS_SMTP_PASSWORD", raising=False)
@@ -134,11 +142,16 @@ class TestBuildDistributorFacadeEnvGuard:
 
         from intellisource.composition import build_distributor_facade
 
-        with pytest.raises(ValueError):
-            build_distributor_facade(
+        with caplog.at_level(logging.WARNING):
+            facade = build_distributor_facade(
                 session_factory=MagicMock(),
                 redis_client=MagicMock(),
             )
+
+        assert "email" not in facade._channels
+        assert any(
+            "email" in r.message and "disabled" in r.message for r in caplog.records
+        )
 
     def test_all_env_present_returns_non_none_facade(
         self, monkeypatch: pytest.MonkeyPatch

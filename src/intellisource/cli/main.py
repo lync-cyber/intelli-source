@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import pathlib
 from typing import Any
 
 import httpx
@@ -230,3 +231,275 @@ def search(
     payload = {"query": query}
     resp = httpx.post(url, json=payload, headers=_get_headers())
     _emit(resp.json(), json_output=json_output)
+
+
+# ---------------------------------------------------------------------------
+# doctor command (Phase C — config self-check)
+# ---------------------------------------------------------------------------
+
+_API_KEY_PLACEHOLDER = "change-me-in-production"
+
+_REQUIRED_CHANNEL_VARS: list[tuple[str, list[str]]] = [
+    ("wework", ["IS_WEWORK_CORP_ID", "IS_WEWORK_CORP_SECRET", "IS_WEWORK_AGENT_ID"]),
+    ("wechat", ["IS_WECHAT_APP_ID", "IS_WECHAT_APP_SECRET"]),
+    ("email", ["IS_SMTP_HOST", "IS_SMTP_USER", "IS_SMTP_PASSWORD"]),
+]
+
+_LLM_KEYS = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY", "AZURE_API_KEY"]
+
+
+def _load_dotenv_file(path: str) -> dict[str, str]:
+    """Parse a .env file into a dict; skip comments and blank lines."""
+    result: dict[str, str] = {}
+    p = pathlib.Path(path)
+    if not p.exists():
+        return result
+    for raw in p.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" in line:
+            key, _, val = line.partition("=")
+            result[key.strip()] = val.strip()
+    return result
+
+
+def _doctor_env(env: dict[str, str]) -> list[tuple[str, bool, str]]:
+    """Return list of (label, ok, message) for each check."""
+    items: list[tuple[str, bool, str]] = []
+
+    api_key = env.get("IS_API_KEY", "")
+    if api_key == _API_KEY_PLACEHOLDER:
+        items.append(("IS_API_KEY", False, "default placeholder — change before use"))
+    elif not api_key:
+        items.append(("IS_API_KEY", False, "not set"))
+    else:
+        items.append(("IS_API_KEY", True, "set"))
+
+    for var in ["IS_DATABASE_URL", "IS_REDIS_URL", "IS_CELERY_BROKER_URL"]:
+        val = env.get(var, "")
+        items.append((var, bool(val), "set" if val else "not set"))
+
+    llm_key = next((k for k in _LLM_KEYS if env.get(k)), None)
+    if llm_key:
+        items.append(("LLM key", True, f"{llm_key} set"))
+    else:
+        items.append(("LLM key", False, f"none of {', '.join(_LLM_KEYS)} set"))
+
+    src_dir = env.get("IS_SOURCE_CONFIG_DIR", "config/sources")
+    if not pathlib.Path(src_dir).is_dir():
+        items.append((f"sources dir ({src_dir})", False, "directory missing"))
+    else:
+        yamls = [
+            f
+            for f in pathlib.Path(src_dir).iterdir()
+            if f.suffix in (".yaml", ".yml") and f.is_file()
+        ]
+        if yamls:
+            items.append(
+                (f"sources dir ({src_dir})", True, f"{len(yamls)} YAML file(s)")
+            )
+        else:
+            items.append((f"sources dir ({src_dir})", False, "no YAML files found"))
+
+    for channel, vars_ in _REQUIRED_CHANNEL_VARS:
+        missing = [v for v in vars_ if not env.get(v)]
+        if missing:
+            items.append(
+                (
+                    f"channel {channel}",
+                    None,  # type: ignore[arg-type]
+                    f"optional — {', '.join(missing)} not set",
+                )
+            )
+        else:
+            items.append((f"channel {channel}", True, "configured"))
+
+    return items
+
+
+@app.command("doctor")
+def doctor(
+    env_file: str = typer.Option(
+        "docker/.env", "--env-file", help=".env file to inspect"
+    ),
+    check_api: bool = typer.Option(
+        False, "--check-api", help="Try to reach the running API"
+    ),
+    strict: bool = typer.Option(
+        False, "--strict", help="Exit 1 if any required item missing"
+    ),
+) -> None:
+    """Check configuration and report missing or misconfigured items."""
+    env = {**_load_dotenv_file(env_file), **os.environ}
+
+    items = _doctor_env(env)
+    errors = 0
+    for label, ok, msg in items:
+        if ok is True:
+            typer.echo(f"  ✓  {label:<35} {msg}")
+        elif ok is False:
+            typer.echo(f"  ✗  {label:<35} {msg}", err=False)
+            errors += 1
+        else:
+            typer.echo(f"  ○  {label:<35} {msg}")
+
+    if check_api:
+        try:
+            resp = httpx.get(f"{_base_url()}/health", timeout=3)
+            status = resp.json().get("status", "unknown")
+            typer.echo(f"  ✓  API /health                        {status}")
+            missing = resp.json().get("missing_config", [])
+            for w in missing:
+                typer.echo(f"  ○  API warning                        {w}")
+        except Exception as exc:
+            typer.echo(f"  ✗  API /health                        unreachable ({exc})")
+            errors += 1
+
+    if errors:
+        typer.echo(f"\n{errors} required item(s) need attention.")
+        if strict:
+            raise typer.Exit(code=1)
+    else:
+        typer.echo("\nAll required items OK.")
+
+
+# ---------------------------------------------------------------------------
+# init command (Phase A — interactive first-time setup)
+# ---------------------------------------------------------------------------
+
+_DEFAULT_HN_SOURCE = """\
+- name: Hacker News
+  type: rss
+  url: https://news.ycombinator.com/rss
+  schedule_interval: 1800
+  tags: [tech, news]
+"""
+
+_PROVIDER_ENV: dict[str, str] = {
+    "deepseek": "DEEPSEEK_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+}
+
+
+def _write_env_file(path: pathlib.Path, updates: dict[str, str]) -> None:
+    """Merge ``updates`` into an existing .env file (or create from .env.example)."""
+    example = pathlib.Path("docker/.env.example")
+    if path.exists():
+        lines = path.read_text(encoding="utf-8").splitlines()
+    elif example.exists():
+        lines = example.read_text(encoding="utf-8").splitlines()
+    else:
+        lines = []
+
+    written: set[str] = set()
+    out: list[str] = []
+    for raw in lines:
+        key = raw.split("=", 1)[0].strip()
+        if key in updates:
+            out.append(f"{key}={updates[key]}")
+            written.add(key)
+        else:
+            out.append(raw)
+
+    for key, val in updates.items():
+        if key not in written:
+            out.append(f"{key}={val}")
+
+    path.write_text("\n".join(out) + "\n", encoding="utf-8")
+
+
+@app.command("init")
+def init(
+    env_file: str = typer.Option(
+        "docker/.env", "--env-file", help="Path to write .env"
+    ),
+    sources_file: str = typer.Option(
+        "config/sources/sources.yaml",
+        "--sources-file",
+        help="Path to write sources YAML",
+    ),
+) -> None:
+    """Interactive first-time setup: generate .env and a starter sources file."""
+    typer.echo("Welcome to IntelliSource setup.\n")
+
+    env_path = pathlib.Path(env_file)
+    sources_path = pathlib.Path(sources_file)
+
+    # --- API key ---
+    api_key = typer.prompt(
+        "API key for IntelliSource (leave blank to auto-generate)",
+        default="",
+    )
+    if not api_key:
+        import secrets
+
+        api_key = secrets.token_hex(32)
+        typer.echo(f"Generated: {api_key}")
+
+    # --- LLM provider ---
+    typer.echo("\nLLM provider:")
+    typer.echo("  1. DeepSeek  (recommended — low cost)")
+    typer.echo("  2. OpenAI")
+    typer.echo("  3. Anthropic")
+    provider_choice = typer.prompt("Choose (1/2/3)", default="1")
+    provider_map = {"1": "deepseek", "2": "openai", "3": "anthropic"}
+    provider = provider_map.get(provider_choice, "deepseek")
+    llm_key_var = _PROVIDER_ENV[provider]
+    llm_key_val = typer.prompt(f"{llm_key_var}")
+
+    # --- Distribution channel ---
+    typer.echo("\nDistribution channel (optional — can add later):")
+    typer.echo("  1. WeWork / 企业微信  (recommended)")
+    typer.echo("  2. WeChat Official Account")
+    typer.echo("  3. Email SMTP")
+    typer.echo("  4. Skip for now")
+    ch_choice = typer.prompt("Choose (1/2/3/4)", default="4")
+
+    channel_updates: dict[str, str] = {}
+    if ch_choice == "1":
+        channel_updates["IS_WEWORK_CORP_ID"] = typer.prompt("IS_WEWORK_CORP_ID")
+        channel_updates["IS_WEWORK_CORP_SECRET"] = typer.prompt("IS_WEWORK_CORP_SECRET")
+        channel_updates["IS_WEWORK_AGENT_ID"] = typer.prompt("IS_WEWORK_AGENT_ID")
+        channel_updates["IS_WEWORK_WEBHOOK_TOKEN"] = typer.prompt(
+            "IS_WEWORK_WEBHOOK_TOKEN (for incoming webhook verification)", default=""
+        )
+    elif ch_choice == "2":
+        channel_updates["IS_WECHAT_APP_ID"] = typer.prompt("IS_WECHAT_APP_ID")
+        channel_updates["IS_WECHAT_APP_SECRET"] = typer.prompt("IS_WECHAT_APP_SECRET")
+        channel_updates["IS_WECHAT_WEBHOOK_TOKEN"] = typer.prompt(
+            "IS_WECHAT_WEBHOOK_TOKEN", default=""
+        )
+    elif ch_choice == "3":
+        channel_updates["IS_SMTP_HOST"] = typer.prompt("IS_SMTP_HOST")
+        channel_updates["IS_SMTP_USER"] = typer.prompt("IS_SMTP_USER")
+        channel_updates["IS_SMTP_PASSWORD"] = typer.prompt(
+            "IS_SMTP_PASSWORD", hide_input=True
+        )
+        channel_updates["IS_SMTP_PORT"] = typer.prompt("IS_SMTP_PORT", default="587")
+        channel_updates["IS_SMTP_USE_TLS"] = typer.prompt(
+            "IS_SMTP_USE_TLS (true/false)", default="true"
+        )
+
+    # --- Starter RSS source ---
+    add_hn = typer.confirm("\nAdd Hacker News RSS as a starter source?", default=True)
+
+    # --- Write files ---
+    env_path.parent.mkdir(parents=True, exist_ok=True)
+    updates: dict[str, str] = {"IS_API_KEY": api_key, llm_key_var: llm_key_val}
+    updates.update(channel_updates)
+    _write_env_file(env_path, updates)
+    typer.echo(f"\n✓ Written {env_path}")
+
+    if add_hn:
+        sources_path.parent.mkdir(parents=True, exist_ok=True)
+        if not sources_path.exists():
+            sources_path.write_text(_DEFAULT_HN_SOURCE, encoding="utf-8")
+            typer.echo(f"✓ Written {sources_path}")
+        else:
+            typer.echo(f"  {sources_path} already exists — skipped")
+
+    typer.echo("\nNext steps:")
+    typer.echo("  make up")
+    typer.echo("  uv run intellisource doctor --check-api")

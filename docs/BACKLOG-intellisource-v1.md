@@ -85,16 +85,7 @@ deps: []
 
 > B-032 已闭环 (本次会话, path A1) — research skill 调研确认公开域不存在 pgvector + zhparser 复合镜像（[docs/research/b032-pgvector-zhparser-image-options.md](research/b032-pgvector-zhparser-image-options.md)）；选 A1 (pgvector 基底 + 加 zhparser 层) 实施。新增 [docker/db.Dockerfile](../docker/db.Dockerfile)（SCWS 1.2.3 源码编译 + amutu/zhparser master 编译，参考 abcfy2/docker_zhparser）；[docker/docker-compose.yml](../docker/docker-compose.yml) db 服务 image→build；[alembic/versions/001_initial_schema.py](../alembic/versions/001_initial_schema.py) 移除 DO/EXCEPTION 包裹 + 新增 CREATE TEXT SEARCH CONFIGURATION zhparser + ALTER ADD MAPPING；[storage/vector.py](../src/intellisource/storage/vector.py) `'simple'` → `'zhparser'` 4 处；[tests/integration/conftest.py](../tests/integration/conftest.py) 删 zhparser monkeypatch + 改用 `intellisource/db:pg16-pgvector-zhparser` + lazy `docker build` 兜底；[tests/unit/storage/test_migration.py](../tests/unit/storage/test_migration.py) +2 守卫测试（防 EXCEPTION 包裹回归 / 验证 TS CONFIG 创建）。2792 PASS unit 不退化 / mypy --strict + ruff + lint-imports 8/8 clean / docker compose config 解析通过。**真起栈验证待 user**：首次 `make up` 会 build 镜像（1-2 min）后跑 `SELECT extname FROM pg_extension WHERE extname='zhparser'` 应返 1 行；中文 query `/search` 走分词路径。
 
-### B-033 composition 对未配置渠道容忍
-- **优先级**：P2
-- **关联**：CORRECTIONS-LOG 修正 #7；walkthrough §0.2 与 composition.py:127 "hard-fail by design" 矛盾
-- **现状**：`build_distributor_facade()` 对 wechat/wework/email 任一缺失即 `raise ValueError`；与 walkthrough 允许 "分发渠道 key 暂可全部留空" + 步骤 14 标 N/A 直接冲突。当前 walkthrough 用 `disabled-walkthrough-placeholder` 占位绕过。
-- **修复方向**：
-  - 改 `*Distributor.from_env()` 返回 `None` 或抛 `ChannelDisabledError`（细分异常）当全部凭据缺失
-  - `build_distributor_facade()` 捕获并 `log.warning("channel X disabled: missing env Y")`，从 channels dict 中跳过
-  - `DistributorFacade.distribute()` 路由时若收到 `channel=wechat` 但 channels 不含 wechat，返回明确错误
-- **验证**：docker/.env 清空 wechat/wework/email 后 api lifespan 不再 fail；wechat push 调用返回 `ChannelUnavailable` 错误而非 KeyError
-- **回滚**：移除占位值；保留 hard-fail 也是合理设计选项（取决于"渠道是部署前提" vs "渠道是运行时能力"）
+> B-033 已闭环 (本次会话, B-051 Phase D 子集) — `build_distributor_facade()` 改为 soft-disable：每个渠道 `from_env()` 单独 try/except，`ValueError` 时 `_logger.warning("distribution channel X disabled: ...")` + 该渠道从 channels dict 中剔除；空 channels dict 时额外 warning "no distribution channels configured"。`DistributorFacade.distribute()` 原有路径已正确处理 `channel is None` 分支（增 skipped 计数），无需改动。docker/.env 清空所有渠道凭据后 api lifespan 不再 raise；orphan 占位 `disabled-walkthrough-placeholder` 可从 docker/.env 移除。**测试**：新增 [tests/unit/distributor/test_b033_soft_disable.py](../tests/unit/distributor/test_b033_soft_disable.py) 5 tests + 改造 [tests/unit/distributor/test_facade.py](../tests/unit/distributor/test_facade.py) 2 个 hard-fail 测试为 soft-disable 断言（验证 warning log + facade._channels 不含该渠道）。详见 [composition.py:120](../src/intellisource/composition.py)。
 
 ### B-034 PRE-DEPLOY-WALKTHROUGH 文档订正
 - **优先级**：P3
@@ -214,20 +205,24 @@ deps: []
   - `IS_WECOM_*` 三变量补入 `docker/.env.example`（顺带 B-034 doc drift）
 - **验证**：新用户走 walkthrough §0.2 时只需配 wework 即可跑通推送链路；wechat 全空 lifespan 不崩
 
-### B-051 配置管理与首次接入引导优化
-- **优先级**：P2
-- **关联**：[docs/research/b051-config-bootstrap-ux.md](research/b051-config-bootstrap-ux.md)；与 B-033 / B-050 协同
-- **现状**：首次跑通最小栈需要 4 个手工步骤（cp .env / 填 5+ 必填项 / mkdir sources / cp sources example）；必填提示散在 `.env.example` 注释 + walkthrough §0.2 + composition.py 错误信息；`IS_API_KEY=change-me-in-production` 占位被实际使用时无校验；`/health` 端点不暴露配置缺失列表；无 doctor 命令统一自检
-- **修复方向（分层）**：
-  - 短期（D+B 组合，最小成本）：B-033 channels soft-disable + 统一 startup warnings 列表 + `IS_API_KEY` 占位启动校验拒绝 + Makefile `bootstrap` 目标减少首次步骤
-  - 中期（C）：`uv run intellisource doctor` 命令扫描 .env 必填 / 默认占位 / 目录缺失 / 服务连通性；可 `--strict` 退非 0 给 docker entrypoint 用；`/health` 端点暴露 missing-config 列表
-  - 长期（A）：`uv run intellisource init` 交互式 CLI 引导（推荐渠道列表 / corp 凭据 / LLM provider / 首个 RSS 信源）；引导默认 wework 优先（与 B-050 协同）
-- **决策点（待 B-051 立项时选定）**：
-  - 仅 D（短期最小）
-  - D + C（短中期，无 CLI 重交互）
-  - **D + C + A（长期完整，推荐）**
-  - B + C + A（跳过 soft-fail，CLI 主路径）
-- **顺带发现**：`config/llm_models.yaml` 与 `config/llm_models.example.yaml` 双份，新用户不清楚用哪份；`docker compose --profile observability/walkthrough` 已是事实上的按需启动，可作为 selecting feature 的基础
+> B-051 已闭环 (本次会话, D+C+A 长期完整路径) — 配置管理与首次接入 UX 三阶段全部落地。
+>
+> **Phase D（短期 — Makefile + soft-fail + startup guard）**：
+> - B-033 channels soft-disable 闭环（见上方 B-033 条目）
+> - `Makefile` 新增 `bootstrap` target：`cp docker/.env.example docker/.env` + `mkdir -p config/sources` + `cp config/sources.example.yaml config/sources/sources.yaml`，仅在文件不存在时执行；help 段加 `Setup:` 行
+> - `src/intellisource/main.py` `_lifespan()` 添加 IS_API_KEY 占位 guard：`api_key == "change-me-in-production"` 时 `raise RuntimeError` 阻断 API 启动 + 提示 `secrets.token_hex(32)` 生成命令
+> - 新增 `_collect_startup_warnings()`：扫 IS_API_KEY 空 / sources dir 缺失/空 / 无 LLM key / 三渠道凭据缺失，统一 `logger.warning("startup: ...")`，结果写 `app.state.missing_config`（供 /health 暴露）
+>
+> **Phase C（中期 — doctor + health missing_config）**：
+> - `src/intellisource/api/routers/system.py` `health_payload()` 输出加 `missing_config` 字段（条件渲染，无 warnings 时不写）
+> - `src/intellisource/cli/main.py` 新增 `doctor` 子命令：解析 `docker/.env` (`_load_dotenv_file`) 与 `os.environ` 合并 → `_doctor_env()` 输出 `✓`（必填 OK）/ `✗`（必填缺失）/ `○`（可选未配）三态；支持 `--check-api` 命中 `/health` 探活 + 透传 missing_config；`--strict` 任何 `✗` 退码 1
+>
+> **Phase A（长期 — init 交互式 CLI）**：
+> - `src/intellisource/cli/main.py` 新增 `init` 子命令：典型 `npm init` 风格 — Typer prompt 询问 API key（空则 `secrets.token_hex(32)` 自动生成）→ LLM provider 三选一（DeepSeek/OpenAI/Anthropic，推荐 DeepSeek）→ 渠道四选一（WeWork 推荐 / WeChat / Email / Skip）→ 是否加 HN RSS 起步信源；`_write_env_file()` 合并到现有 .env（保留无关行 + 覆写选中 key + 追加新 key）
+>
+> **测试**：21 新 tests GREEN（5 B-033 soft-disable + 16 B-051 startup guard / _collect_startup_warnings / _doctor_env / _load_dotenv_file），其中 lifespan placeholder raise 测试覆盖关键安全契约；2829 PASS unit 不退化（baseline 2808 +21）；mypy --strict + ruff + lint-imports 8/8 clean。**真起栈验证依赖**：用户 `make bootstrap` → 编辑 .env → `make up` → `uv run intellisource doctor --check-api` 验证 missing_config 透传 + /health 暴露。
+>
+> **carryover 立项**：B-050 wework 默认倾斜（依赖 B-033，本次已闭环，可启动）；docker/.env.example 暂未做 wework 块前置（留 B-050 实施时一并）。`config/llm_models.yaml` vs `.example.yaml` 双份的疑惑未处理（B-051 范围外，可独立小立项 B-052）。
 
 ### B-049 distributor channel 失败 silent-success — facade.distribute 误判 sent
 - **优先级**：P3
