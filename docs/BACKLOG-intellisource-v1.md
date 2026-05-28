@@ -193,17 +193,18 @@ deps: []
 
 > B-048 已闭环 — F-01~F-07 + E-01 在 commit 1b38f7b 一次性修复（F-01 FK 移除 task_id kwarg / F-02 暂标 xfail / F-03 patch→app.dependency_overrides / F-04 skipif no-key / F-05/F-06/F-07 `_make_pg_db_manager(pg_session=...)` API 切换 / E-01 sqlite fixture 加 JSONB+ARRAY→JSON coercion）+ commit 5efc6ba 后续（F-01 mask-email 断言 + E-01 ARRAY 列补 coercion）。剩余 F-02 cross-loop xfail 在本次会话闭环：test_run_pipeline_marks_raw_content_as_processed 从 pg_session SAVEPOINT-isolated fixture 切到独立 `async_sessionmaker + poolclass=NullPool`（与生产 worker B-037 路径同型）—— `_run_sync` 子线程 loop 每次 factory() 都拿到全新 asyncpg 连接，不再触发 "another operation in progress"。**CI 验证**：main 上 run 26505614731 (commit 7ef17bf) Integration Tests = 162 passed / 1 skipped / 1 xfailed in 74.41s；本次 xfail 转 pass 后预期 163 passed / 1 skipped / 0 xfailed（F-04 仍 skip 因 CI 无 LLM API key）
 
-### B-050 默认优先 wework 渠道（文档与默认值倾斜）
-- **优先级**：P3
-- **依赖**：B-033（composition channel 可选）
-- **关联**：[docs/research/b050-wechat-vs-wework-audit.md](research/b050-wechat-vs-wework-audit.md)
-- **现状**：代码层 wechat / wework 两条通路完全对等（distributor + cs_client + webhook 路由）；wework 在 9/12 产品维度（无 48h 客服窗口约束 / 支持 markdown / 用户身份可读 / 通讯录直接派发 / API 限流宽松）上比 wechat 更友好，仅"配置变量数量"和"AES 加密复杂度"上 wechat 略低门槛。当前无"默认渠道"概念，订阅 `channel` 字段决定路由；composition 一次性 wire 三个 channel（B-033 待 soft-disable）
-- **修复方向**：
-  - 文档：`docker/.env.example` Distribution channels 段把 wework 块前置 + 标 "推荐"；walkthrough §0.2 把 wechat 标 "可选 / 需备案"；PRD/ARCH M-007 推送模块说明 wework 主 / wechat 兼容
-  - 示例：`config/subscriptions.example.yaml`（如新增）默认 `channel: "wework"`；walkthrough 步骤 13 推送示例切到 wework
-  - 代码（依赖 B-033）：composition.build_distributor_facade 在仅 wework 配齐时 channels dict 不含 wechat 仍正常启动；facade.distribute 对 channel 未注册返 `ChannelDisabled` 而非吞 KeyError
-  - `IS_WECOM_*` 三变量补入 `docker/.env.example`（顺带 B-034 doc drift）
-- **验证**：新用户走 walkthrough §0.2 时只需配 wework 即可跑通推送链路；wechat 全空 lifespan 不崩
+> B-050 已闭环 (本次会话, 文档与默认值倾斜) — 依赖 B-033 channels soft-disable 已闭环，本次完成两处部署侧倾斜：
+>
+> - `docker/.env.example` Distribution channels 段：WeWork 块前置标 "recommended primary push channel"，WeChat 标 "optional, requires 公众号 备案 + 年审"，补全 `IS_WECOM_TOKEN` / `IS_WECOM_ENCODING_AES_KEY` / `IS_WECOM_CORP_ID` 三变量（顺带 B-034 doc drift §7）；段首注释明确未配置 channel 走 soft-disable warning 路径，不再 hard-fail
+> - `docs/deploy/PRE-DEPLOY-WALKTHROUGH.md §0.2` 新增 "Distribution channels（可选 — 未配置自动 soft-disable）" 子段：三渠道矩阵列举 WeWork (推荐主路径，无 48h 窗口/markdown/通讯录派发/限流宽松) / WeChat (需备案 + 48h 窗口约束) / Email (mailhog 本地)，附 WeCom AES 三变量；§0.2 IS_API_KEY 行补 `change-me-in-production` 启动会被 lifespan 阻断的说明（B-051 startup guard 提示）
+>
+> **未做项**：
+> - `cli init` 渠道选项顺序：B-051 已把 `WeWork (recommended)` 放第一位，`cli doctor` `_REQUIRED_CHANNEL_VARS` 也已 wework 在前，本次无需再改
+> - walkthrough 步骤 13 推送示例：当前 mailhog + Gmail + WeChat webhook 已全部签字闭环（2026-05-27），切换主示例会动既有签字结论，不动
+> - **PRD §F-006 / ARCH M-007 主路径标记**：当前 PRD "v1 优先支持微信公众号/企业微信" 平等列举，ARCH M-007 `WeChatDistributor` 标 AC-040 / `WeWorkDistributor` 标 AC-041 也平等。要改成"主路径 wework / 备选 wechat" 属 requirement 倾斜，需走 change-guard amendment 路径；若用户日后需要，可独立立 B-053 amendment 任务
+> - `config/subscriptions.example.yaml`：当前不存在，订阅创建走 API 不依赖 yaml，本次不新增
+>
+> **验证**：新用户首次 `make bootstrap` → 编辑 `.env` 时阅读到 WeWork 优先标注 + 仅需配 WeWork 三变量即可跑通推送（其他 channel 全空时 lifespan warning 但不阻塞），symmetry 与 `intellisource init` CLI 与 `_REQUIRED_CHANNEL_VARS` 一致。无业务代码改动 → 2829 PASS unit 不需重跑（baseline 守住）。
 
 > B-051 已闭环 (本次会话, D+C+A 长期完整路径) — 配置管理与首次接入 UX 三阶段全部落地。
 >
