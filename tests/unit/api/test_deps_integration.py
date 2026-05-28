@@ -169,14 +169,25 @@ class TestRoutersUseDepsGetDbSession:
     """All 6 routers must wire Depends(get_db_session) from api.deps."""
 
     def test_sources_router_uses_deps_get_db_session(self) -> None:
-        """AC-T072-3: sources router uses intellisource.api.deps.get_db_session."""
-        from intellisource.api.deps import get_db_session
-        from intellisource.api.routers.sources import router
+        """AC-T072-3: sources resolves db session via api.deps.get_db_session.
 
-        dep_callables = _collect_depends_callables(router)
-        assert get_db_session in dep_callables, (
-            "sources router must reference api.deps.get_db_session via Depends; "
-            f"found callables: {dep_callables}"
+        Endpoints depend on `_get_service` rather than `get_db_session`
+        directly; the service factory takes `session: Depends(get_db_session)`,
+        so the transitive dep chain still goes through `api.deps.get_db_session`.
+        """
+        import inspect
+
+        from intellisource.api.deps import get_db_session
+        from intellisource.api.routers.sources import _get_service
+
+        sig = inspect.signature(_get_service)
+        defaults = [p.default for p in sig.parameters.values()]
+        depends_callables = [
+            getattr(d, "dependency", None) for d in defaults if d is not None
+        ]
+        assert get_db_session in depends_callables, (
+            "_get_service must declare Depends(get_db_session) so the "
+            "sources router resolves db session through api.deps"
         )
 
     def test_contents_router_uses_deps_get_db_session(self) -> None:

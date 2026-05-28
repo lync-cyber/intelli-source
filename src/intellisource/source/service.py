@@ -61,10 +61,18 @@ class SourceConfigService:
     # ------------------------------------------------------------------
 
     async def list_paginated(
-        self, limit: int = 20, cursor: str | None = None
+        self,
+        limit: int = 20,
+        cursor: str | None = None,
+        *,
+        type: str | None = None,
+        status: str | None = None,
+        tag: str | None = None,
     ) -> dict[str, Any]:
-        """Paginated list of sources (forwards to repository)."""
-        return await self._repo.list(limit=limit, cursor=cursor)
+        """Paginated list of sources with optional filters."""
+        return await self._repo.list(
+            limit=limit, cursor=cursor, type=type, status=status, tag=tag
+        )
 
     # ------------------------------------------------------------------
     # Single-record CRUD (API / CLI hot edits — no version snapshot)
@@ -78,7 +86,13 @@ class SourceConfigService:
     async def patch(
         self, source_id: uuid.UUID, fields: dict[str, Any]
     ) -> Source | None:
-        """Partial update by id. `fields` is exclude_unset dict from API/CLI body."""
+        """Partial update by id. `fields` is exclude_unset dict from API/CLI body.
+
+        Maps the public `metadata` key to the ORM column name `metadata_`
+        (SQLAlchemy reserves `metadata` on declarative_base).
+        """
+        if "metadata" in fields:
+            fields = {**fields, "metadata_": fields.pop("metadata")}
         return await self._repo.update(source_id, **fields)
 
     async def delete(self, source_id: uuid.UUID) -> bool:
