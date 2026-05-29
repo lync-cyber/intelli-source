@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -12,8 +11,9 @@ from intellisource.config.loader import ConfigPathError, _detect_format
 from intellisource.config.subscription_models import SubscriptionConfig
 from intellisource.config.subscription_validator import SubscriptionValidator
 from intellisource.core.settings import get_settings
+from intellisource.observability.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SubscriptionConfigLoader:

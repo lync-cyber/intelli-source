@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 from typing import Any
 
@@ -10,8 +9,9 @@ from pydantic import ValidationError as PydanticValidationError
 
 from intellisource.core.errors import ErrorCategory, IntelliSourceError, LLMError
 from intellisource.core.settings import get_settings
+from intellisource.observability.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _DEFAULT_CONFIG_PATH = str(
     Path(__file__).resolve().parents[4] / "config" / "llm_models.yaml"

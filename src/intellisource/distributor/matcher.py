@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import logging
 import uuid
 from typing import Any
 
@@ -11,8 +10,9 @@ import regex as regex_lib
 
 from intellisource.distributor.keyword_parser import parse_keyword_token
 from intellisource.distributor.scorer import ContentScorer
+from intellisource.observability.logging import get_logger
 
-_logger = logging.getLogger(__name__)
+_logger = get_logger(__name__)
 
 
 class SubscriptionMatcher:

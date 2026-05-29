@@ -10,11 +10,11 @@ Covers:
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 
 import pytest
 import yaml
+from structlog.testing import capture_logs
 
 from intellisource.llm.model_config import (
     ModelRoutingConfig,
@@ -158,16 +158,14 @@ class TestModelRoutingConfig:
         assert result["model"] == "gpt-4o-mini"
         assert result["provider"] == "openai"
 
-    def test_get_model_unknown_task_logs_warning(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_get_model_unknown_task_logs_warning(self) -> None:
         """get_model() logs WARNING when task_type has no matching config."""
         routing = ModelRoutingConfig(SAMPLE_CONFIG_DICT)
 
-        with caplog.at_level(logging.WARNING):
+        with capture_logs() as logs:
             routing.get_model("unknown_task_type")
 
-        assert any("unknown_task_type" in record.message for record in caplog.records)
+        assert any("unknown_task_type" in e["event"] for e in logs)
 
     def test_get_model_returns_task_specific_params(self) -> None:
         """get_model() returns temperature/max_tokens from task config."""

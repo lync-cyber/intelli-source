@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-import logging
 from datetime import datetime
 from typing import Any
 
 import httpx
 
 from intellisource.collector.base import BaseCollector, RawContent, compute_fingerprint
+from intellisource.observability.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _resolve_path(data: object, path: str) -> object | None:

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import dataclasses
-import logging
 from typing import Any
 
 from fastapi import (
@@ -15,9 +14,10 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session
+from intellisource.observability.logging import get_logger
 from intellisource.storage.repositories.llm_call_log import LLMCallLogRepository
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["system"])
 

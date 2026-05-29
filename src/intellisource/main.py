@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -35,11 +34,11 @@ from intellisource.composition import build_api_composition
 from intellisource.config.loader import ConfigLoader, ConfigWatcher
 from intellisource.config.validator import ConfigValidator
 from intellisource.core.settings import get_settings
-from intellisource.observability.logging import setup_logging
+from intellisource.observability.logging import get_logger, setup_logging
 from intellisource.storage.database import DatabaseManager
 from intellisource.storage.repositories.source import SourceRepository
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
 # Module-level singletons (populated by init_* functions)
@@ -119,8 +118,6 @@ async def on_config_change(path: str) -> None:
 # ---------------------------------------------------------------------------
 # Lifespan
 # ---------------------------------------------------------------------------
-
-_SOURCE_CONFIG_DIR: str = get_settings().source_config_dir or "config/sources"
 
 _API_KEY_PLACEHOLDER = "change-me-in-production"
 
@@ -210,7 +207,8 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[dict[str, Any]]:
     db = DatabaseManager()
     _db_manager = db
     app.state.db = db
-    watcher = ConfigWatcher(config_dir=_SOURCE_CONFIG_DIR, callback=on_config_change)
+    source_config_dir = get_settings().source_config_dir or "config/sources"
+    watcher = ConfigWatcher(config_dir=source_config_dir, callback=on_config_change)
     app.state.config_watcher = watcher
     watcher_task = asyncio.create_task(watcher.start())
     app.state.config_watcher_task = watcher_task

@@ -6,7 +6,6 @@ that are independent of the FastAPI application lifecycle.
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 from celery.signals import beat_init, worker_process_init, worker_process_shutdown
@@ -21,7 +20,7 @@ from sqlalchemy.pool import NullPool
 
 from intellisource.composition import build_worker_composition
 from intellisource.core.settings import get_settings
-from intellisource.observability.logging import setup_logging
+from intellisource.observability.logging import get_logger, setup_logging
 
 # Import signals module for its side-effect: registering task_prerun /
 # task_postrun / task_failure handlers (F-22 metrics + F-23 trace_id).
@@ -46,7 +45,7 @@ from intellisource.storage.models import (  # noqa: E402 — defer until celery_
     RawContent,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _celery_tasks: CeleryTasks | None = None
 _worker_engine: AsyncEngine | None = None
@@ -241,7 +240,6 @@ def _bootstrap_beat_schedule(factory: async_sessionmaker[AsyncSession]) -> None:
     as Beat producers (e.g. CI test workers) to skip the DB walk entirely.
     """
     import asyncio  # noqa: PLC0415
-    import logging  # noqa: PLC0415
 
     from intellisource.scheduler.beat_sync import (  # noqa: PLC0415
         populate_scheduler_from_sources,
@@ -251,7 +249,7 @@ def _bootstrap_beat_schedule(factory: async_sessionmaker[AsyncSession]) -> None:
         SchedulerManager,
     )
 
-    logger = logging.getLogger(__name__)
+    logger = get_logger(__name__)
 
     if get_settings().beat_disabled == "1":
         logger.info("IS_BEAT_DISABLED=1 — skipping Beat schedule sync")
@@ -335,9 +333,7 @@ def worker_shutdown_handler(**_: Any) -> None:
         try:
             asyncio.run(_worker_engine.dispose())
         except RuntimeError as exc:
-            import logging  # noqa: PLC0415
-
-            logging.getLogger(__name__).warning("engine.dispose skipped: %s", exc)
+            get_logger(__name__).warning("engine.dispose skipped: %s", exc)
         finally:
             _worker_engine = None
     _celery_tasks = None

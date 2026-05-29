@@ -5,7 +5,7 @@ from __future__ import annotations
 from celery import Celery
 from kombu import Queue
 
-from intellisource.core.settings import get_settings
+from intellisource.core.settings import Settings
 from intellisource.scheduler.queues import PRIORITY_QUEUES, TRIGGER_TYPE_QUEUES
 
 
@@ -21,7 +21,10 @@ def _resolve_url(*values: str | None, default: str) -> str:
 # Module-level singleton
 # ---------------------------------------------------------------------------
 
-_settings = get_settings()
+# Read once at import for the Celery() broker/backend wiring. Use a direct
+# Settings() instance rather than the cached get_settings() so importing this
+# module never populates the process-wide cache (which tests reset per case).
+_settings = Settings()
 
 celery_app = Celery(
     "intellisource",

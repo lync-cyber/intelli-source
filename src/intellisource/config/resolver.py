@@ -10,14 +10,15 @@ Merge strategy: dict keys merged recursively; list values replaced wholesale.
 
 from __future__ import annotations
 
-import logging
 import os
 from pathlib import Path
 from typing import Any, Callable
 
 import yaml
 
-logger = logging.getLogger(__name__)
+from intellisource.observability.logging import get_logger
+
+logger = get_logger(__name__)
 
 # Recognized top-level config keys.  Env vars that (after prefix stripping) do
 # not begin with one of these keys are silently skipped to prevent accidental

@@ -31,7 +31,6 @@ Public surface:
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -59,6 +58,7 @@ from intellisource.distributor.matcher import SubscriptionMatcher
 from intellisource.llm.circuit_breaker import CircuitBreaker
 from intellisource.llm.gateway import LLMGateway
 from intellisource.llm.priority_queue import PriorityQueue
+from intellisource.observability.logging import get_logger
 from intellisource.search.hybrid import HybridSearchEngine
 
 if TYPE_CHECKING:
@@ -67,7 +67,7 @@ if TYPE_CHECKING:
     from intellisource.storage.database import DatabaseManager
 
 
-_logger = logging.getLogger(__name__)
+_logger = get_logger(__name__)
 
 SOURCE_TYPE_TO_PIPELINE: dict[str, str] = {
     "rss": "scheduled-collect",
@@ -510,7 +510,6 @@ def _install_webhook_state(app: FastAPI, *, redis_client: Any) -> None:
     - `IS_WEWORK_CORP_ID` + `IS_WEWORK_CORP_SECRET` + `IS_WEWORK_AGENT_ID`
       follow the same partial-set hard-fail / fully-unset skip rule.
     """
-    import logging
 
     from intellisource.distributor.wechat_cs_client import (
         WeChatCustomerServiceClient,
@@ -519,7 +518,7 @@ def _install_webhook_state(app: FastAPI, *, redis_client: Any) -> None:
         WeWorkCustomerServiceClient,
     )
 
-    logger = logging.getLogger(__name__)
+    logger = get_logger(__name__)
 
     settings = get_settings()
     wechat_token = settings.wechat_webhook_token

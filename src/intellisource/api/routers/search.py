@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import time
 import uuid
 from datetime import datetime
@@ -23,9 +22,10 @@ from intellisource.api.schemas.search import (
     ChatSearchResponse,
     ChatSource,
 )
+from intellisource.observability.logging import get_logger
 from intellisource.search.hybrid import HybridSearchEngine, SearchResponse
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["search"])
 

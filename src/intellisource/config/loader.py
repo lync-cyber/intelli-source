@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import uuid
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -17,8 +16,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from intellisource.config.models import SourceConfig
 from intellisource.config.validator import ConfigValidator
 from intellisource.core.settings import get_settings
+from intellisource.observability.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ConfigPathError(ValueError):

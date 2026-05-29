@@ -6,13 +6,14 @@ quiet hours enforcement, and content aggregation for batch delivery.
 
 from __future__ import annotations
 
-import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Protocol
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-_logger = logging.getLogger(__name__)
+from intellisource.observability.logging import get_logger
+
+_logger = get_logger(__name__)
 
 FREQUENCY_OPTIONS: set[str] = {
     "realtime",

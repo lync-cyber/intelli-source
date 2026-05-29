@@ -10,15 +10,15 @@ instead of crashing the content-process pipeline).
 
 from __future__ import annotations
 
-import logging
 import time
 from typing import Any
 
 import litellm
 
 from intellisource.llm.cost_tracker import LLMCallRecord
+from intellisource.observability.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class _EmbedMixin:

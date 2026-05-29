@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import uuid
 from collections.abc import Sequence
 from typing import Any
@@ -10,10 +9,11 @@ from typing import Any
 from sqlalchemy import select
 
 from intellisource.config.models import SourceConfig
+from intellisource.observability.logging import get_logger
 from intellisource.storage.models import Source
 from intellisource.storage.repositories.base import TEXT_TYPE, BaseRepository
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SourceRepository(BaseRepository[Source]):

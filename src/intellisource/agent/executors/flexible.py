@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import time
 import uuid
 from datetime import datetime, timezone
@@ -11,8 +10,9 @@ from typing import Any, AsyncGenerator, Callable, Coroutine
 
 from intellisource.agent.tools import PermissionLevel, ToolDefinition
 from intellisource.core.errors import ErrorCategory, IntelliSourceError
+from intellisource.observability.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Fallback set for callers that register tools without the
 # `ToolDefinition.mutates_external_state` flag.

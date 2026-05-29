@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
@@ -17,13 +16,14 @@ from intellisource.llm.circuit_breaker import CircuitOpenError
 from intellisource.llm.cost_tracker import LLMCallRecord
 from intellisource.llm.gateway._routing import _classify_error
 from intellisource.llm.gateway._types import LLMResult
+from intellisource.observability.logging import get_logger
 
 if TYPE_CHECKING:
     from intellisource.llm.circuit_breaker import CircuitBreaker
     from intellisource.llm.cost_tracker import CostTracker
     from intellisource.llm.fallback import FallbackManager
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class _RetryMixin:

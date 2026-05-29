@@ -10,8 +10,6 @@ This module re-exports them for backward compatibility.
 
 from __future__ import annotations
 
-import logging
-
 from intellisource.llm.compaction import (
     _DEFAULT_CONTEXT_TOKEN_BUDGET as _DEFAULT_CONTEXT_TOKEN_BUDGET,
 )
@@ -39,8 +37,9 @@ from intellisource.llm.compaction import (
 from intellisource.llm.compaction import (
     needs_compaction as needs_compaction,
 )
+from intellisource.observability.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _PROTECTED_TOOL_COUNT = 3
 

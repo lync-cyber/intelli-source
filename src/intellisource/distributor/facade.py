@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-import logging
 import uuid
 from typing import TYPE_CHECKING, Any
 
 from intellisource.core.settings import get_settings
 from intellisource.distributor.pii import mask_email, mask_phone
+from intellisource.observability.logging import get_logger
 
 if TYPE_CHECKING:
     from intellisource.distributor.base import BaseDistributor
     from intellisource.distributor.matcher import SubscriptionMatcher
 
-_logger = logging.getLogger(__name__)
+_logger = get_logger(__name__)
 
 # B-005: distributor-layer labeled counter name.
 _METRIC_PUSHES_TOTAL: str = "pushes_total"

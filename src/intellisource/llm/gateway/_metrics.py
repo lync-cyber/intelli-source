@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import logging
+from intellisource.observability.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _METRIC_LLM_CALLS_TOTAL = "llm_calls_total"
 _METRIC_LLM_FAILURES_TOTAL = "llm_call_failures_total"

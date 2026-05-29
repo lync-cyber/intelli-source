@@ -413,10 +413,9 @@ class TestLLMExtractorFallbackChain:
     @pytest.mark.asyncio
     async def test_extractor_no_fallback_returns_none_structured_data(
         self,
-        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """When schema validation fails and no fallback, structured_data is None."""
-        import logging
+        from structlog.testing import capture_logs
 
         from intellisource.llm.gateway import (  # type: ignore[import]
             LLMResult,
@@ -447,9 +446,7 @@ class TestLLMExtractorFallbackChain:
             fallback_manager=None,
         )
 
-        with caplog.at_level(
-            logging.WARNING, logger="intellisource.llm.processors.extractor"
-        ):
+        with capture_logs() as logs:
             result = await extractor.extract(body_text="some text")
 
         assert isinstance(result, dict), "extract() must return a dict"
@@ -457,9 +454,7 @@ class TestLLMExtractorFallbackChain:
         assert result["structured_data"] is None, (
             "structured_data must be None when schema validation fails and no fallback"
         )
-        warning_messages = [
-            r.message for r in caplog.records if r.levelno == logging.WARNING
-        ]
+        warning_messages = [e["event"] for e in logs if e.get("log_level") == "warning"]
         assert any(
             "schema validation failed" in str(m) or "no fallback" in str(m)
             for m in warning_messages

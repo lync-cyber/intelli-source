@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from intellisource.observability.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 async def _llm_complete_execute(

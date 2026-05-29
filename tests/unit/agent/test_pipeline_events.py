@@ -14,11 +14,8 @@ Covers:
 from __future__ import annotations
 
 import json
-import logging
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
-
-import pytest
 
 from intellisource.agent.events import PipelineEventLogger
 from intellisource.agent.pipeline import PipelineConfig
@@ -218,20 +215,20 @@ class TestLLMCallDetailFields:
 
 
 class TestWriteFailureTolerance:
-    async def test_write_failure_logs_warning_and_returns(
-        self, caplog: pytest.LogCaptureFixture, tmp_path: Path
-    ) -> None:
+    async def test_write_failure_logs_warning_and_returns(self, tmp_path: Path) -> None:
+        from structlog.testing import capture_logs
+
         # Pass a path that points at an *existing* directory so opening
         # in append mode raises (a directory cannot be opened as a file).
         bad_path = tmp_path  # the tmp_path *directory* itself
         logger = PipelineEventLogger(bad_path)
 
-        with caplog.at_level(logging.WARNING, logger="intellisource.agent.events"):
+        with capture_logs() as logs:
             await logger.pipeline_start(
                 pipeline_name="p", task_chain_id="c1", mode="strict"
             )
 
-        assert any("write failed" in rec.message for rec in caplog.records)
+        assert any("write failed" in e["event"] for e in logs)
 
 
 # -------------------------------------------------------- Runner integration

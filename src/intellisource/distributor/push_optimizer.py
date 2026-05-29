@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import json
-import logging
 from types import SimpleNamespace
 from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
 
 from intellisource.core.text_tools import filter_sensitive, truncate_for_push
+from intellisource.observability.logging import get_logger
 
-_logger = logging.getLogger(__name__)
+_logger = get_logger(__name__)
 
 _MAX_TITLE_LEN = 80
 _MAX_SUMMARY_LEN = 200

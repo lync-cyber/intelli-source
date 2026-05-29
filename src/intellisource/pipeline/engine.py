@@ -1,15 +1,15 @@
 """PipelineEngine: executes processors with middleware and streaming support."""
 
-import logging
 import time
 from collections.abc import AsyncIterator
 from typing import Sequence
 
+from intellisource.observability.logging import get_logger
 from intellisource.pipeline.base import BaseProcessor
 from intellisource.pipeline.context import PipelineContext
 from intellisource.pipeline.middleware import BaseMiddleware, MiddlewareChain
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class PipelineEngine:

@@ -5,7 +5,6 @@ Provides task_type -> model mapping from YAML config files.
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -19,8 +18,9 @@ from intellisource.config.llm_schema import (
     ModelProfileConfig,
     ModelTaskConfig,
 )
+from intellisource.observability.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 __all__ = [
     "DefaultModelConfig",

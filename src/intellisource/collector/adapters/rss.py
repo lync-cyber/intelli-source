@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import re
 from datetime import datetime
 from email.utils import parsedate_to_datetime
@@ -10,8 +9,9 @@ from email.utils import parsedate_to_datetime
 import feedparser
 
 from intellisource.collector.base import BaseCollector, RawContent, compute_fingerprint
+from intellisource.observability.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _strip_html(html: str) -> str:

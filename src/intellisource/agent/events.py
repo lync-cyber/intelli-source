@@ -9,12 +9,13 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
-logger = logging.getLogger(__name__)
+from intellisource.observability.logging import get_logger
+
+logger = get_logger(__name__)
 
 EventType = Literal[
     "pipeline_start",

@@ -537,10 +537,9 @@ class TestEnvVarOverwriteProtection:
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
-        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """IS_DEFAULT_MODEL_PROVIDER_API_KEY 不修改 default_model.provider。"""
-        import logging
+        from structlog.testing import capture_logs
 
         defaults_path = tmp_path / "defaults.yaml"
         write_yaml(defaults_path, DEFAULTS_CONFIG)
@@ -550,13 +549,13 @@ class TestEnvVarOverwriteProtection:
             defaults_path=str(defaults_path),
             project_path=str(tmp_path / "nonexistent.yaml"),
         )
-        with caplog.at_level(logging.WARNING, logger="intellisource.config.resolver"):
+        with capture_logs() as logs:
             result = resolver.resolve()
 
         # provider 字段不被覆盖
         assert result["default_model"]["provider"] == "openai"
         # 记录了 warning
-        assert any("skipped" in record.message.lower() for record in caplog.records)
+        assert any("skipped" in e["event"].lower() for e in logs)
 
     def test_unknown_is_prefix_env_var_is_ignored(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

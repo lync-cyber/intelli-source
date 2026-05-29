@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
+from intellisource.observability.logging import get_logger
 from intellisource.pipeline.base import BaseProcessor
 from intellisource.pipeline.context import PipelineContext
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ConditionEvaluator:

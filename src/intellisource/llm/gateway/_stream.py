@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import time
 from collections.abc import AsyncGenerator
 from typing import Any
@@ -11,8 +10,9 @@ from typing import Any
 from intellisource.llm.cost_tracker import LLMCallRecord
 from intellisource.llm.gateway._extra_body import build_extra_body
 from intellisource.llm.gateway._metrics import _record_llm_call
+from intellisource.observability.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class _StreamMixin:

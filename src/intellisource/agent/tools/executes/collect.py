@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import logging
 import uuid as _uuid
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from intellisource.observability.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 async def _collect_execute(

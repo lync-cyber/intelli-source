@@ -7,12 +7,12 @@ Cache key format: llm:cache:{call_type}:{prompt_version}:{content_fingerprint}
 from __future__ import annotations
 
 import json
-import logging
 from typing import Any, Callable, Coroutine
 
 from intellisource.llm.gateway import LLMResult
+from intellisource.observability.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class LLMCache:
