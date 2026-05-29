@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 from typing import Any
 
 from pydantic import ValidationError as PydanticValidationError
 
 from intellisource.core.errors import ErrorCategory, IntelliSourceError, LLMError
+from intellisource.core.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ def _load_routing_config() -> dict[str, Any]:
     """
     from intellisource.llm.model_config import load_model_config
 
-    config_path = os.environ.get("IS_LLM_CONFIG_PATH", _DEFAULT_CONFIG_PATH)
+    config_path = get_settings().llm_config_path or _DEFAULT_CONFIG_PATH
     path = Path(config_path)
     if not path.exists():
         logger.warning(

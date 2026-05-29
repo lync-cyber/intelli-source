@@ -6,11 +6,12 @@ such as database sessions and API key validation.
 
 from __future__ import annotations
 
-import os
 from typing import AsyncIterator
 
 from fastapi import Header, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from intellisource.core.settings import get_settings
 
 
 async def get_db_session(request: Request) -> AsyncIterator[AsyncSession]:
@@ -30,7 +31,7 @@ def require_api_key(
     Returns:
         The validated API key string.
     """
-    expected = os.environ.get("IS_API_KEY", "")
+    expected = get_settings().api_key
     if not expected:
         return x_api_key
     if x_api_key != expected:

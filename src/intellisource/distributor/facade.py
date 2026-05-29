@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import logging
-import os
 import uuid
 from typing import TYPE_CHECKING, Any
 
+from intellisource.core.settings import get_settings
 from intellisource.distributor.pii import mask_email, mask_phone
 
 if TYPE_CHECKING:
@@ -179,7 +179,7 @@ class DistributorFacade:
 
     async def _prepare_push_content(self, content: Any, subscription: Any) -> Any:
         """Optimize content for push when enabled; degrade to original on failure."""
-        if os.environ.get("IS_PUSH_OPTIMIZE_ENABLED") != "1":
+        if get_settings().push_optimize_enabled != "1":
             return content
         if self._llm_gateway is None:
             return content

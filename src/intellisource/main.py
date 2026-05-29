@@ -34,6 +34,7 @@ from intellisource.api.routers import (
 from intellisource.composition import build_api_composition
 from intellisource.config.loader import ConfigLoader, ConfigWatcher
 from intellisource.config.validator import ConfigValidator
+from intellisource.core.settings import get_settings
 from intellisource.observability.logging import setup_logging
 from intellisource.storage.database import DatabaseManager
 from intellisource.storage.repositories.source import SourceRepository
@@ -55,7 +56,7 @@ _redis_client: Any = None
 async def init_redis() -> None:
     """Initialise Redis connection via aioredis.from_url."""
     global _redis_client
-    redis_url = os.environ.get("IS_REDIS_URL", "redis://localhost:6379/0")
+    redis_url = get_settings().redis_url or "redis://localhost:6379/0"
     _redis_client = await aioredis.from_url(redis_url)
 
 
@@ -119,7 +120,7 @@ async def on_config_change(path: str) -> None:
 # Lifespan
 # ---------------------------------------------------------------------------
 
-_SOURCE_CONFIG_DIR: str = os.environ.get("IS_SOURCE_CONFIG_DIR", "config/sources")
+_SOURCE_CONFIG_DIR: str = get_settings().source_config_dir or "config/sources"
 
 _API_KEY_PLACEHOLDER = "change-me-in-production"
 
@@ -132,13 +133,13 @@ def _collect_startup_warnings() -> list[str]:
     """
     warnings: list[str] = []
 
-    api_key = os.environ.get("IS_API_KEY", "")
+    api_key = get_settings().api_key
     if not api_key:
         warnings.append(
             "IS_API_KEY not set — all /api/v1/* requests skip auth (dev only)"
         )
 
-    src_dir = os.environ.get("IS_SOURCE_CONFIG_DIR", "config/sources")
+    src_dir = get_settings().source_config_dir or "config/sources"
     if not os.path.isdir(src_dir):
         warnings.append(
             f"sources directory {src_dir!r} missing — no sources will be loaded"
@@ -193,7 +194,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[dict[str, Any]]:
     global _db_manager, _config_version_manager
     setup_logging()
 
-    api_key = os.environ.get("IS_API_KEY", "")
+    api_key = get_settings().api_key
     if api_key == _API_KEY_PLACEHOLDER:
         raise RuntimeError(
             "IS_API_KEY is set to the default placeholder"

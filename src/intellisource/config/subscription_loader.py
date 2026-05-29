@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -12,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from intellisource.config.loader import ConfigPathError, _detect_format
 from intellisource.config.subscription_models import SubscriptionConfig
 from intellisource.config.subscription_validator import SubscriptionValidator
+from intellisource.core.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ class SubscriptionConfigLoader:
 
     def __init__(self) -> None:
         self._validator = SubscriptionValidator()
-        config_dir_env = os.environ.get("IS_SUBSCRIPTION_CONFIG_DIR", "")
+        config_dir_env = get_settings().subscription_config_dir
         self._config_dir: Path | None = Path(config_dir_env) if config_dir_env else None
 
     def load_file(self, file_path: str) -> list[SubscriptionConfig]:

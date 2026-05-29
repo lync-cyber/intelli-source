@@ -2,7 +2,19 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import pytest
+
+from intellisource.core.settings import get_settings
+
+
+@pytest.fixture(autouse=True)
+def _reset_settings_cache() -> Iterator[None]:
+    """Drop the cached Settings so each test re-reads its monkeypatched env."""
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @pytest.fixture(autouse=True)

@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-import os
 from typing import TYPE_CHECKING, Any
 
+from intellisource.core.settings import get_settings
 from intellisource.distributor.base import BaseDistributor
 from intellisource.distributor.channels.constants import (
     MAX_RETRY,
@@ -57,8 +57,9 @@ class WeChatDistributor(BaseDistributor):
 
         Raises ValueError when IS_WECHAT_APP_ID or IS_WECHAT_APP_SECRET are absent.
         """
-        app_id = os.environ.get("IS_WECHAT_APP_ID")
-        app_secret = os.environ.get("IS_WECHAT_APP_SECRET")
+        settings = get_settings()
+        app_id = settings.wechat_app_id
+        app_secret = settings.wechat_app_secret
         if not app_id:
             raise ValueError(
                 "IS_WECHAT_APP_ID missing — required for WeChatDistributor"

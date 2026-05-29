@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import html
-import os
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import TYPE_CHECKING, Any
@@ -12,6 +11,7 @@ from urllib.parse import quote
 
 import aiosmtplib
 
+from intellisource.core.settings import get_settings
 from intellisource.distributor.base import BaseDistributor
 from intellisource.distributor.channels.constants import MAX_RETRY, RETRY_INTERVAL
 
@@ -49,16 +49,17 @@ class EmailDistributor(BaseDistributor):
         as truthy; any other value disables implicit TLS so the channel
         can talk to plain SMTP servers like mailhog/mailpit on 1025.
         """
-        host = os.environ.get("IS_SMTP_HOST")
-        user = os.environ.get("IS_SMTP_USER")
-        password = os.environ.get("IS_SMTP_PASSWORD")
+        settings = get_settings()
+        host = settings.smtp_host
+        user = settings.smtp_user
+        password = settings.smtp_password
         if not host or not user or not password:
             raise ValueError(
                 "IS_SMTP_HOST, IS_SMTP_USER, and IS_SMTP_PASSWORD are required"
             )
-        port_str = os.environ.get("IS_SMTP_PORT")
+        port_str = settings.smtp_port
         port = int(port_str) if port_str else DEFAULT_SMTP_PORT
-        use_tls_str = os.environ.get("IS_SMTP_USE_TLS", "true").strip().lower()
+        use_tls_str = settings.smtp_use_tls.strip().lower()
         use_tls = use_tls_str in {"true", "1", "yes"}
         return cls(
             smtp_host=host,

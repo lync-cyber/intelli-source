@@ -32,7 +32,6 @@ Public surface:
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -51,6 +50,7 @@ from intellisource.collector.rate_limiter import RateLimiter
 from intellisource.collector.registry import CollectorRegistry
 from intellisource.core.errors import ErrorCategory, IntelliSourceError
 from intellisource.core.pipeline_loader import PipelineLoader, build_pipeline_loader
+from intellisource.core.settings import get_settings
 from intellisource.distributor.channels.email import EmailDistributor
 from intellisource.distributor.channels.wechat import WeChatDistributor
 from intellisource.distributor.channels.wework import WeWorkDistributor
@@ -521,14 +521,15 @@ def _install_webhook_state(app: FastAPI, *, redis_client: Any) -> None:
 
     logger = logging.getLogger(__name__)
 
-    wechat_token = os.environ.get("IS_WECHAT_WEBHOOK_TOKEN", "")
-    wework_token = os.environ.get("IS_WEWORK_WEBHOOK_TOKEN", "")
+    settings = get_settings()
+    wechat_token = settings.wechat_webhook_token
+    wework_token = settings.wework_webhook_token
     app.state.wechat_webhook_token = wechat_token
     app.state.wework_webhook_token = wework_token
 
-    _wecom_token = os.environ.get("IS_WECOM_TOKEN", "")
-    _wecom_aes_key = os.environ.get("IS_WECOM_ENCODING_AES_KEY", "")
-    _wecom_corp_id = os.environ.get("IS_WECOM_CORP_ID", "")
+    _wecom_token = settings.wecom_token
+    _wecom_aes_key = settings.wecom_encoding_aes_key
+    _wecom_corp_id = settings.wecom_corp_id
     if _wecom_token and _wecom_aes_key and _wecom_corp_id:
         from intellisource.core.webhook_crypto import WeComCrypto
 
@@ -547,8 +548,8 @@ def _install_webhook_state(app: FastAPI, *, redis_client: Any) -> None:
 
     http_client = _maybe_build_http_client()
 
-    wechat_app_id_set = bool(os.environ.get("IS_WECHAT_APP_ID"))
-    wechat_secret_set = bool(os.environ.get("IS_WECHAT_APP_SECRET"))
+    wechat_app_id_set = bool(settings.wechat_app_id)
+    wechat_secret_set = bool(settings.wechat_app_secret)
     if wechat_app_id_set or wechat_secret_set:
         # Partial-set → from_env raises and we let it propagate (hard fail).
         app.state.wechat_cs_messenger = WeChatCustomerServiceClient.from_env(
@@ -558,9 +559,9 @@ def _install_webhook_state(app: FastAPI, *, redis_client: Any) -> None:
         app.state.wechat_cs_messenger = None
 
     wework_keys = (
-        bool(os.environ.get("IS_WEWORK_CORP_ID")),
-        bool(os.environ.get("IS_WEWORK_CORP_SECRET")),
-        bool(os.environ.get("IS_WEWORK_AGENT_ID")),
+        bool(settings.wework_corp_id),
+        bool(settings.wework_corp_secret),
+        bool(settings.wework_agent_id),
     )
     if any(wework_keys):
         # Partial-set → from_env raises and we let it propagate (hard fail).

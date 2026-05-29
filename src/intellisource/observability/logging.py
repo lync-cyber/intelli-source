@@ -7,11 +7,12 @@ Log level is configurable via IS_LOG_LEVEL environment variable (default: INFO).
 from __future__ import annotations
 
 import logging
-import os
 import sys
 from typing import TextIO
 
 import structlog
+
+from intellisource.core.settings import get_settings
 
 
 class TraceIdFormatter(logging.Formatter):
@@ -53,7 +54,7 @@ def setup_logging(stream: TextIO | None = None) -> None:
     if stream is None:
         stream = sys.stderr
 
-    log_level_name = os.environ.get("IS_LOG_LEVEL", "INFO").upper()
+    log_level_name = get_settings().log_level.upper()
     log_level = getattr(logging, log_level_name, logging.INFO)
 
     root_logger = logging.getLogger()

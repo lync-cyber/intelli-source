@@ -7,7 +7,6 @@ that are independent of the FastAPI application lifecycle.
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any
 
 from celery.signals import beat_init, worker_process_init, worker_process_shutdown
@@ -21,6 +20,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.pool import NullPool
 
 from intellisource.composition import build_worker_composition
+from intellisource.core.settings import get_settings
 from intellisource.observability.logging import setup_logging
 
 # Import signals module for its side-effect: registering task_prerun /
@@ -135,9 +135,8 @@ def init_worker_session_factory() -> async_sessionmaker[AsyncSession]:
     Does not import or access intellisource.main or app.state.db.
     """
     global _worker_engine
-    url = os.environ.get("DATABASE_URL") or os.environ.get(
-        "IS_DATABASE_URL"
-    )  # 12-factor §III Config
+    settings = get_settings()
+    url = settings.database_url or settings.is_database_url  # 12-factor §III Config
     if not url:
         raise ValueError("DATABASE_URL must be set for the worker process")
     _worker_engine = create_async_engine(url, poolclass=NullPool)
@@ -154,7 +153,7 @@ def _build_redis_client() -> Any:
     ``_run_sync(asyncio.run(coro))`` repeatedly never reuse a client whose
     connection pool was bound to an already-closed loop.
     """
-    redis_url = os.environ.get("IS_REDIS_URL")
+    redis_url = get_settings().redis_url
     if not redis_url:
         raise ValueError("IS_REDIS_URL must be set for the worker process")
     return LazyLoopRedis(redis_url)
@@ -254,7 +253,7 @@ def _bootstrap_beat_schedule(factory: async_sessionmaker[AsyncSession]) -> None:
 
     logger = logging.getLogger(__name__)
 
-    if os.environ.get("IS_BEAT_DISABLED") == "1":
+    if get_settings().beat_disabled == "1":
         logger.info("IS_BEAT_DISABLED=1 — skipping Beat schedule sync")
         return
 
@@ -300,7 +299,7 @@ def _bootstrap_beat_schedule(factory: async_sessionmaker[AsyncSession]) -> None:
                     "Total Beat schedule sync failures",
                 )
             mc.increment_counter("scheduler_beat_sync_failed_total")
-            if os.environ.get("IS_BEAT_SYNC_HARD_FAIL", "").lower() == "true":
+            if get_settings().beat_sync_hard_fail.lower() == "true":
                 raise
             return
     finally:

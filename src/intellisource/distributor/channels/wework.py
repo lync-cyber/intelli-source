@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-import os
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from intellisource.core.errors import DistributorError
+from intellisource.core.settings import get_settings
 from intellisource.distributor.base import BaseDistributor
 from intellisource.distributor.channels.constants import (
     MAX_RETRY,
@@ -51,9 +51,10 @@ class WeWorkDistributor(BaseDistributor):
         Raises ValueError when IS_WEWORK_CORP_ID, IS_WEWORK_CORP_SECRET, or
         IS_WEWORK_AGENT_ID are absent.
         """
-        corp_id = os.environ.get("IS_WEWORK_CORP_ID")
-        corp_secret = os.environ.get("IS_WEWORK_CORP_SECRET")
-        agent_id_str = os.environ.get("IS_WEWORK_AGENT_ID")
+        settings = get_settings()
+        corp_id = settings.wework_corp_id
+        corp_secret = settings.wework_corp_secret
+        agent_id_str = settings.wework_agent_id
         if not corp_id:
             raise ValueError(
                 "IS_WEWORK_CORP_ID missing — required for WeWorkDistributor"
