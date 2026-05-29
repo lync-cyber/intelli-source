@@ -372,3 +372,4 @@
 {"ts": "2026-05-29T08:02:51+00:00", "event": "session_start", "phase": "session", "detail": "IDE session started"}
 {"ts": "2026-05-29T08:51:42+00:00", "event": "session_start", "phase": "session", "detail": "IDE session started"}
 {"ts": "2026-05-29T09:10:43+00:00", "event": "state_change", "phase": "backlog-burndown", "detail": "B-040 + B-060 observability 闭环 (unit + 真起栈验证) + zhparser 搜索 500 修复 (新 migration e5f6a7b8c9d0) + pytest-xdist；本地分支 fix/observability-b040-b060 4 commits 未 push。真栈：trace_id 现于 api+worker / llm_call_logs 失败行 0->20 / search 500->200。回归 2948 unit + 163 integration pass。待用户裁定分支 push/PR + B-031 release gate go/no-go", "agent": "orchestrator"}
+{"ts": "2026-05-29T09:16:52+00:00", "event": "state_change", "phase": "backlog-burndown", "detail": "B-031 release gate approved + 物理闭环：PR #71 (B-040+B-060 observability + zhparser 搜索修复 + pytest-xdist) CI 全绿合入 main (merge 6c7beb7)。release 放行，无阻塞项。", "agent": "orchestrator"}
