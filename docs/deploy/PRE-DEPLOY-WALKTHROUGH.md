@@ -37,7 +37,7 @@ consumers: [devops, qa-engineer, developer]
 | `IS_REDIS_URL` | `redis://redis:6379/0` | 是 |
 | `IS_CELERY_BROKER_URL` | `redis://redis:6379/0` | 是 |
 | `IS_CELERY_RESULT_BACKEND` | `redis://redis:6379/1` | 是 |
-| `IS_API_KEY` | 强随机串（`secrets.token_hex(32)`）；占位 `change-me-in-production` 启动会被 lifespan 阻断 | 是（API key 中间件强制） |
+| `IS_API_KEY` | 强随机串（`secrets.token_hex(32)`）；占位 `change-me-in-production` 启动会被 lifespan 阻断 | 是（API key 中间件强制，对 `/openapi.json` + `/docs` + `/redoc` + 所有 `/api/v1/*` 业务端点全部生效；仅 health/metrics/webhooks 系列豁免） |
 | `LITELLM_*` / OpenAI/兼容密钥 | 见 `config/llm_models.example.yaml` | 阶段 3 必需 |
 | `IS_SOURCE_CONFIG_DIR` | `config/sources` | 可选，默认 `config/sources` |
 
@@ -47,10 +47,10 @@ consumers: [devops, qa-engineer, developer]
 |------|---------|---------|
 | **WeWork (企业微信)** — 推荐主路径 | `IS_WEWORK_CORP_ID` / `IS_WEWORK_CORP_SECRET` / `IS_WEWORK_AGENT_ID` (+ `IS_WEWORK_WEBHOOK_TOKEN` 可选回话) | 无 48h 客服窗口约束 / 支持 markdown / 通讯录直接派发 / API 限流宽松；企业 corp 注册即用，无须备案 |
 | WeChat 公众号 | `IS_WECHAT_APP_ID` / `IS_WECHAT_APP_SECRET` (+ `IS_WECHAT_WEBHOOK_TOKEN` 可选回话) | C 端公众号；**需公众号备案 + 年审**，客服推送受 48h 用户互动窗口约束 |
-| Email (SMTP) | `IS_SMTP_HOST` / `IS_SMTP_USER` / `IS_SMTP_PASSWORD` / `IS_SMTP_PORT` (+ `IS_SMTP_USE_TLS` 默认 true，本地 mailhog/mailpit 设 false) | 团队邮件 / 测试栈本地 mailhog |
+| Email (SMTP) | `IS_SMTP_HOST` / `IS_SMTP_USER` / `IS_SMTP_PASSWORD` / `IS_SMTP_PORT` (+ `IS_SMTP_USE_TLS` 默认 true，本地 mailhog/mailpit 设 false) | 团队邮件 / 测试栈本地 mailhog。本地用 mailhog 时设 `IS_SMTP_HOST=mailhog` / `IS_SMTP_PORT=1025` / `IS_SMTP_USE_TLS=false`，并启 walkthrough profile：`docker compose -f docker/docker-compose.yml --profile walkthrough up -d mailhog`（compose 已定义 mailhog 服务，profile=walkthrough，端口 1025） |
 | WeCom 加密回调（仅 wework AES 模式启用时） | `IS_WECOM_TOKEN` / `IS_WECOM_ENCODING_AES_KEY` / `IS_WECOM_CORP_ID` | wework webhook 走 AES-CBC 加密；与 `IS_WEWORK_CORP_ID` 同值另一份命名空间 |
 
-> 建议首次只配 WeWork（最低门槛 + 最丰富功能）；订阅创建时 `channel="wework"` 即可路由。WeChat 与 Email 都是兼容路径，可后续按需补齐。任一渠道凭据不齐时，composition 仅 `WARNING distribution channel X disabled: ...` 不抛错（B-033）。
+> 建议首次只配 WeWork（最低门槛 + 最丰富功能）；订阅创建时 `channel="wework"` 即可路由。WeChat 与 Email 都是兼容路径，可后续按需补齐。若 `docker/.env` 留空分发渠道凭据（wework/wechat/email），`build_distributor_facade()` 会 soft-disable 该渠道并打 warning 日志，不会 hard-fail lifespan；只有真正要走查推送链路（步骤 13）的渠道才需填真实/占位凭据。
 
 ### 0.3 信源配置文件
 
@@ -151,8 +151,8 @@ curl -fsS http://localhost:8000/health > /dev/null
 curl -fsS http://localhost:8000/api/v1/health > /dev/null
 curl -fsS http://localhost:8000/api/v1/system/health > /dev/null
 
-# OpenAPI 自描述
-curl -s http://localhost:8000/openapi.json | jq '.paths | keys | length'
+# OpenAPI 自描述（需 API key：/openapi.json、/docs、/redoc 不在 exempt 名单）
+curl -s -H "X-API-Key: $IS_API_KEY" http://localhost:8000/openapi.json | jq '.paths | keys | length'
 # 期望 > 25
 ```
 
@@ -168,7 +168,9 @@ curl -s -D - http://localhost:8000/health -o /dev/null | grep -i x-trace-id
 # 期望存在 X-Trace-Id 响应头
 ```
 
-**Pass 标准**：`/health.status == "healthy"`，三个 health 入口都 200，trace_id 头存在。
+**Pass 标准**：`/health.status in {"healthy","degraded"}`，三个 health 入口都 200，trace_id 头存在。
+
+> celery 组件健康依赖 worker（步骤 12 才起栈），此前 health 聚合为 `degraded`（all-healthy→healthy / all-unhealthy→unhealthy / 其余→degraded，见 `observability/health.py`）；worker 起栈后转 healthy。
 
 **失败排查**：`unhealthy` 时先看 `checks.db` / `checks.redis` 哪个失败；最常见是 `IS_DATABASE_URL` 主机名写成 `localhost` 而非容器名 `db`。
 
@@ -192,6 +194,7 @@ uv run intellisource source add \
 
 ```bash
 curl -sX POST http://localhost:8000/api/v1/sources \
+  -H "X-API-Key: $IS_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"name":"Hacker News","type":"rss","url":"https://hnrss.org/frontpage","tags":["tech","news"]}' \
   | jq .
@@ -222,13 +225,14 @@ docker compose -f docker/docker-compose.yml exec db \
   psql -U intellisource -d intellisource -c "SELECT id, name, type, status FROM sources;"
 
 # 列表 API 也能查到
-curl -s http://localhost:8000/api/v1/sources | jq '.items[].name'
+curl -s -H "X-API-Key: $IS_API_KEY" http://localhost:8000/api/v1/sources | jq '.items[].name'
 ```
 
 **触发 — 方式 C：批量 reload from disk**（M-001 `ConfigLoader` + `ConfigVersionManager`）
 
 ```bash
 curl -sX POST http://localhost:8000/api/v1/sources/reload \
+  -H "X-API-Key: $IS_API_KEY" \
   -H 'Content-Type: application/json' -d '{}' | jq .
 # 期望: {"loaded_count": N, "errors": []}
 ```
@@ -254,6 +258,7 @@ docker compose -f docker/docker-compose.yml up -d worker
 ```bash
 export SOURCE_ID="<step-3 返回的 uuid>"
 curl -sX POST http://localhost:8000/api/v1/tasks/collect \
+  -H "X-API-Key: $IS_API_KEY" \
   -H 'Content-Type: application/json' \
   -d "{\"source_ids\":[\"$SOURCE_ID\"],\"priority\":\"normal\"}" | jq .
 ```
@@ -277,7 +282,7 @@ curl -sX POST http://localhost:8000/api/v1/tasks/collect \
 ```bash
 # 1. 任务进入 worker、最终变为 success
 for i in 1 2 3 4 5 6; do
-  curl -s http://localhost:8000/api/v1/tasks/$TASK_ID | jq -r '.status'
+  curl -s -H "X-API-Key: $IS_API_KEY" http://localhost:8000/api/v1/tasks/$TASK_ID | jq -r '.status'
   sleep 2
 done
 # 期望: pending → running → success（取决于网络）
@@ -299,6 +304,7 @@ curl -s http://localhost:8000/api/v1/metrics | grep -E "^(collector_|task_)" | h
 ```bash
 # 用 high 优先级再发一次，应路由到不同队列
 curl -sX POST http://localhost:8000/api/v1/tasks/collect \
+  -H "X-API-Key: $IS_API_KEY" \
   -d "{\"source_ids\":[\"$SOURCE_ID\"],\"priority\":\"high\"}" \
   -H 'Content-Type: application/json' | jq -r '.task_chain_id'
 
@@ -322,16 +328,17 @@ docker compose -f docker/docker-compose.yml exec worker \
 
 ```bash
 # 列表 + 过滤
-curl -s "http://localhost:8000/api/v1/sources?type=rss&limit=5" | jq '.items | length'
+curl -s -H "X-API-Key: $IS_API_KEY" "http://localhost:8000/api/v1/sources?type=rss&limit=5" | jq '.items | length'
 
 # 更新
 curl -sX PATCH http://localhost:8000/api/v1/sources/$SOURCE_ID \
+  -H "X-API-Key: $IS_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"tags":["tech","news","verified"]}' | jq '.tags'
 # 期望: ["tech","news","verified"]
 
 # 删除（如不想清理可跳过）
-# curl -sX DELETE -o /dev/null -w "%{http_code}\n" http://localhost:8000/api/v1/sources/$SOURCE_ID
+# curl -sX DELETE -H "X-API-Key: $IS_API_KEY" -o /dev/null -w "%{http_code}\n" http://localhost:8000/api/v1/sources/$SOURCE_ID
 # 期望: 204
 ```
 
@@ -348,14 +355,14 @@ curl -sX PATCH http://localhost:8000/api/v1/sources/$SOURCE_ID \
 **触发**
 
 ```bash
-curl -s http://localhost:8000/api/v1/pipelines | jq .
+curl -s -H "X-API-Key: $IS_API_KEY" http://localhost:8000/api/v1/pipelines | jq .
 ```
 
 **期望响应**
 
 ```json
 [
-  {"name":"content-process","mode":"strict","max_steps":20,"tools_allowed":[...]},
+  {"name":"content-process","mode":"batch","max_steps":20,"tools_allowed":[...]},
   {"name":"instant-search",...},
   {"name":"manual-collect",...},
   {"name":"push-optimize",...},
@@ -365,10 +372,10 @@ curl -s http://localhost:8000/api/v1/pipelines | jq .
 
 ```bash
 # 详细
-curl -s http://localhost:8000/api/v1/pipelines/content-process | jq .
+curl -s -H "X-API-Key: $IS_API_KEY" http://localhost:8000/api/v1/pipelines/content-process | jq .
 ```
 
-**Pass 标准**：5 个 pipeline 全部加载、`mode/max_steps/tools_allowed` 字段齐全。
+**Pass 标准**：5 个 pipeline 全部加载、`mode/max_steps/tools_allowed` 字段齐全。`content-process` 的 `mode` 为 `batch`；`manual-collect` 详情的 steps 中 `params` 为 `{}`（空对象）。
 
 ☑ 通过 / 签字：2026-05-26 — `/api/v1/pipelines` 返回 5 项（content-process / instant-search / manual-collect / push-optimize / scheduled-collect），各项含完整 `name/mode/max_steps/tools_allowed`；`/api/v1/pipelines/content-process` + `/manual-collect` 详情返回完整 `steps[]/on_failure/tools_denied/system_prompt`。**Doc drift**：`content-process.mode` 实际 `batch`（walkthrough 文档写 `strict`），manual-collect.steps 实际无 `params:` override（已与 walkthrough 期望差异），并入 B-034 walkthrough doc 订正。
 
@@ -382,6 +389,7 @@ curl -s http://localhost:8000/api/v1/pipelines/content-process | jq .
 # manual-collect 是不依赖 LLM 的纯处理管道
 curl -sX POST http://localhost:8000/api/v1/pipelines/manual-collect/run \
   -H 'Content-Type: application/json' \
+  -H "X-API-Key: $IS_API_KEY" \
   -d "{\"params\":{\"source_id\":\"$SOURCE_ID\"}}" | jq .
 ```
 
@@ -418,13 +426,14 @@ docker compose -f docker/docker-compose.yml logs --tail=500 worker | grep -oE 't
 
 ```bash
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8000/api/v1/pipelines/..%2Fetc/run \
+  -H "X-API-Key: $IS_API_KEY" \
   -H 'Content-Type: application/json' -d '{}'
 # 期望: 404
 ```
 
 **Pass 标准**：processed_contents 落库、tags 非空、trace_id 跨日志一致、路径穿越被 404 拦截。
 
-☑ 通过 / 签字：2026-05-26 — manual-collect task `b293b231-…` succeeded 3.84s（collect → process → distribute）/ processed_contents 20 行 / **20/20 行 tags 非空**（如 "VPN" → `["security","web"]`、"YC W25 hiring ML, AI" → `["web"]`、"Linux/age-verification" → `["web","opensource"]`）/ 路径穿越 `/pipelines/..%2Fetc/run` → **404**。**修正 #15 inline**：manual-collect.yaml steps[0].params 删除 `source_type: manual`（registry 无 manual collector，让 executor 从 source_id 走 DB resolve 路径）。**修正 #16 inline**：content-process.yaml `KeywordTagger` 补 `params.keywords`（8 大类技术词库 — ai/security/web/cloud/opensource/startup/data/language），原配置 `keywords=()` 致 tagger 永远输出 `[]`。**Trace_id 跨日志一致 ⚠ 延后**：propagation mechanism 在 [signals.py](../../src/intellisource/scheduler/signals.py) 已验证（单测 F-23），但 stdlib `logging.getLogger(__name__)` 默认 StreamHandler 不渲染 contextvar，worker log 形如 `[ts: LEVEL/Pool] msg` 无 `trace_id=` 子串，grep 命中 0；专项验证留给 [步骤 17 F-23 回归](#步骤-17trace_id-跨-apiworkerbeat-串联-f-23-回归)。Carryover 立项 B-040 worker stdlib log → structlog formatter migration。
+☑ 通过 / 签字：2026-05-26 — manual-collect task `b293b231-…` succeeded 3.84s（collect → process → distribute）/ processed_contents 20 行 / **20/20 行 tags 非空**（如 "VPN" → `["security","web"]`、"YC W25 hiring ML, AI" → `["web"]`、"Linux/age-verification" → `["web","opensource"]`）/ 路径穿越 `/pipelines/..%2Fetc/run` → **404**。**修正 #15 inline**：manual-collect.yaml steps[0].params 删除 `source_type: manual`（registry 无 manual collector，让 executor 从 source_id 走 DB resolve 路径）。**修正 #16 inline**：content-process.yaml `KeywordTagger` 补 `params.keywords`（8 大类技术词库 — ai/security/web/cloud/opensource/startup/data/language），原配置 `keywords=()` 致 tagger 永远输出 `[]`。**Trace_id 跨日志一致**：trace_id 传播已生效；同一 trace_id 同时出现在 api inbound 与 worker task prerun 日志，详见步骤 17。
 
 ☐ 通过 / 签字：__________
 
@@ -453,8 +462,8 @@ curl -s -H "X-API-Key: $IS_API_KEY" http://localhost:8000/api/v1/llm/status | jq
 ```
 
 ```bash
-# 2. 用量统计（不带 API key 也能查；统计端点）
-curl -s "http://localhost:8000/api/v1/llm/stats?period=day" | jq .
+# 2. 用量统计（与所有 /api/v1/* 一样需 X-API-Key；仅 health/metrics/webhooks 豁免）
+curl -s -H "X-API-Key: $IS_API_KEY" "http://localhost:8000/api/v1/llm/stats?period=day" | jq .
 # 期望: 至少返回 {"period":"day","total_calls":0,...} 结构；未跑过 LLM 时计数为 0
 ```
 
@@ -473,6 +482,7 @@ curl -s "http://localhost:8000/api/v1/llm/stats?period=day" | jq .
 ```bash
 # content-process 走 LLM 增强（摘要/语义打标）
 curl -sX POST http://localhost:8000/api/v1/pipelines/content-process/run \
+  -H "X-API-Key: $IS_API_KEY" \
   -H 'Content-Type: application/json' \
   -d "{\"params\":{\"source_id\":\"$SOURCE_ID\"}}" | jq -r .task_id
 ```
@@ -493,6 +503,7 @@ docker compose -f docker/docker-compose.yml exec db \
 
 # 3. 再跑一次，验证 Redis 缓存命中（llm_call_logs 新行数应远少于第一次）
 curl -sX POST http://localhost:8000/api/v1/pipelines/content-process/run \
+  -H "X-API-Key: $IS_API_KEY" \
   -H 'Content-Type: application/json' \
   -d "{\"params\":{\"source_id\":\"$SOURCE_ID\"}}" | jq -r .task_id
 sleep 10
@@ -520,18 +531,21 @@ sleep 10
 ```bash
 # 基本关键词
 curl -sX POST http://localhost:8000/api/v1/search \
+  -H "X-API-Key: $IS_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"query":"hacker","limit":5}' | jq '.items | length, .items[0].title'
 # 期望: 命中数 > 0、首条 title 含查询词或语义相关
 
 # 带 tag 过滤
 curl -sX POST http://localhost:8000/api/v1/search \
+  -H "X-API-Key: $IS_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"query":"news","tags":["tech"]}' | jq '.items[].tags'
 # 期望: 每条结果 tags 数组包含 "tech"
 
 # 带 date 过滤 —— 触发 B-002 已知卡点
 curl -sX POST http://localhost:8000/api/v1/search \
+  -H "X-API-Key: $IS_API_KEY" \
   -H 'Content-Type: application/json' \
   -d "{\"query\":\"news\",\"date_from\":\"2026-01-01\",\"date_to\":\"2026-12-31\"}" | jq '.items | length'
 # 期望（修复后）: > 0，无 5xx
@@ -545,6 +559,7 @@ curl -sX POST http://localhost:8000/api/v1/search \
 for mode in keyword vector hybrid; do
   printf "%s: " "$mode"
   curl -sX POST http://localhost:8000/api/v1/search \
+    -H "X-API-Key: $IS_API_KEY" \
     -H 'Content-Type: application/json' \
     -d "{\"query\":\"test\",\"search_mode\":\"$mode\"}" | jq -r '.items | length'
 done
@@ -566,6 +581,7 @@ done
 
 ```bash
 curl -sX POST http://localhost:8000/api/v1/search/chat \
+  -H "X-API-Key: $IS_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"message":"最近有哪些技术新闻？","session_id":null}' | jq .
 ```
@@ -590,6 +606,7 @@ curl -sX POST http://localhost:8000/api/v1/search/chat \
 ```bash
 # -N 禁用缓冲，--no-buffer 兼容
 curl -N -sX POST http://localhost:8000/api/v1/search/chat/stream \
+  -H "X-API-Key: $IS_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"message":"总结今天的科技动态"}' | head -50
 ```
@@ -669,22 +686,33 @@ python -m http.server 9999  # 或自写简单 echo server
 # 或直接用 mock provider 让 facade.py 调用走 dedup → record_push 路径验证
 curl -sX POST http://localhost:8000/api/v1/subscriptions \
   -H 'Content-Type: application/json' \
+  -H "X-API-Key: $IS_API_KEY" \
   -d '{
     "name":"test-sub",
     "channel":"email",
-    "channel_config":{"to":"test@example.com","smtp_host":"mailhog","smtp_port":1025},
+    "channel_config":{"to_addr":"test@example.com","smtp_host":"mailhog","smtp_port":1025},
     "match_rules":{"tags":["tech"]}
   }' | jq -r .id
 ```
 
 记下 → `$SUB_ID`。
 
-**触发 — 通过 push-optimize pipeline 投递**
+**触发 — 走完整 collect→process→distribute 链路**
 
 ```bash
-curl -sX POST http://localhost:8000/api/v1/pipelines/push-optimize/run \
+# (a) 用 manual-collect pipeline 走完整 collect→process→distribute 链路（推荐）
+curl -sX POST http://localhost:8000/api/v1/pipelines/manual-collect/run \
   -H 'Content-Type: application/json' \
-  -d "{\"params\":{\"subscription_id\":\"$SUB_ID\"}}"
+  -H "X-API-Key: $IS_API_KEY" \
+  -d "{\"params\":{\"source_id\":\"$SOURCE_ID\"}}" | jq .
+
+# (b) 或在 worker 容器内直调 facade（适合调试单条投递）：
+#   facade 入口为 `WorkerComposition.distributor.distribute(content_id=..., subscription_id=...)`
+#   （keyword-only）。注意 build_worker_composition(*, session_factory, redis_client) 需先
+#   装配 session_factory + redis_client（见 src/intellisource/composition.py:354 与 worker
+#   boot 路径 src/intellisource/scheduler/boot.py），不是无参调用；调试时复用 worker 进程已
+#   装配好的 composition 比手搓更可靠。
+# 注：push-optimize.yaml 为 mode:flexible + steps:[] 的 LLM agent 入口，不自动触发分发
 ```
 
 **验证**
@@ -702,11 +730,12 @@ docker compose -f docker/docker-compose.yml exec db \
   "SELECT count(*), count(DISTINCT (subscription_id, content_id, channel)) FROM push_records;"
 # 期望: count == DISTINCT count
 
-# 3. PII 脱敏（distributor/pii.py）：消息体不应包含明文邮箱/手机号
+# 3. PII 脱敏（distributor/facade._record_push → _mask_recipient）：recipient_id 列应为 mask 后值
 docker compose -f docker/docker-compose.yml exec db \
   psql -U intellisource -d intellisource -c \
-  "SELECT message_preview FROM push_records WHERE message_preview ~ '[0-9]{11}|@.*\\.';"
-# 期望: 0 行（脱敏生效）
+  "SELECT id, channel, status, recipient_id FROM push_records ORDER BY created_at DESC LIMIT 5;"
+# 期望: recipient_id 为 mask 值（mask_email 保留 local part 首字符 + 完整域名，
+#       如 test@example.com → t***@example.com；wechat openid / wework user_id 等非传统 PII 原样存），status=sent
 ```
 
 **Pass 标准**：push_records 落库 status=sent、重复推送被去重、PII 完全脱敏。
@@ -768,22 +797,24 @@ curl -s http://localhost:9090/-/healthy
 curl -s "http://localhost:9090/api/v1/rules" | jq '.data.groups[].rules[].name' | head
 # 期望: 列出 alerts.yml 中的规则名
 
-# 关键指标在 4 个路径都暴露（F-22 已修）
-for path in /metrics /api/v1/metrics /api/v1/system/metrics; do
+# 关键指标路径（F-22 已修）
+# 注：根路径 /metrics 无路由挂载（实测 404），不在检查范围；Prometheus 只 scrape /api/v1/metrics（见 docker/prometheus/prometheus.yml metrics_path）
+for path in /api/v1/metrics /api/v1/system/metrics; do
   printf "%s: " "$path"
   curl -s "http://localhost:8000$path" | grep -c "^# HELP"
 done
-# 期望: 三个路径都 > 0 计数
+# 期望: 两个路径都 > 0 计数
 ```
 
 **关键指标巡检**
 
 ```bash
-curl -s http://localhost:8000/api/v1/metrics | grep -E "^(collector_|pipeline_|llm_|task_queue_|push_)" | head -30
-# 期望: 每个家族至少有 1 个 sample
+curl -s http://localhost:8000/api/v1/metrics | grep -E "^(http_requests_total|llm_calls_total|llm_call_failures_total|llm_call_latency_seconds|llm_circuit_open|pushes_total|celery_tasks_total|scheduler_beat_sync_failed_total|intellisource_health_status)" | head -30
+# 期望: 列出的指标家族至少各有 1 个 sample
+# 注：collector_/pipeline_/task_queue_ 家族在代码中不存在；push_ 实际名为 pushes_total
 ```
 
-**Pass 标准**：Prometheus healthy、alerts 加载非空、三个 metrics 路径都有 `# HELP` 行、5 大指标家族都有数据。
+**Pass 标准**：Prometheus healthy、alerts 加载非空、两个 metrics 路径（`/api/v1/metrics` / `/api/v1/system/metrics`）都有 `# HELP` 行、上述指标家族都有数据。
 
 ☐ 通过 / 签字：__________
 
@@ -823,6 +854,7 @@ watch -n 60 "docker compose -f docker/docker-compose.yml exec db \
 TRACE=$(curl -s -D - -o /dev/null \
   -X POST http://localhost:8000/api/v1/tasks/collect \
   -H 'Content-Type: application/json' \
+  -H "X-API-Key: $IS_API_KEY" \
   -d "{\"source_ids\":[\"$SOURCE_ID\"]}" | grep -i x-trace-id | awk '{print $2}' | tr -d '\r')
 echo "Trace: $TRACE"
 ```
@@ -837,7 +869,7 @@ for svc in api worker beat; do
 done
 ```
 
-**Pass 标准**：同一 trace_id 至少在 `api` 和 `worker` 容器日志各出现 ≥1 次（说明 Celery header 透传生效）。
+**Pass 标准**：trace_id 传播已生效：触发 `POST /api/v1/tasks/collect` 后，同一 trace_id 同时出现在 api inbound 与 worker task prerun 日志；响应头含 `x-trace-id`。验证手段：`docker compose logs api worker | grep <trace_id>` 应两侧命中。同一 trace_id 至少在 `api` 和 `worker` 容器日志各出现 ≥1 次（说明 Celery header 透传生效）。
 
 ☐ 通过 / 签字：__________
 
@@ -845,7 +877,7 @@ done
 
 ## 阶段 7 — 失败注入与降级
 
-### 步骤 18：DB 不可达时 health 正确报告 unhealthy
+### 步骤 18：DB 不可达时 health 正确报告 degraded
 
 **触发**
 
@@ -853,11 +885,11 @@ done
 docker compose -f docker/docker-compose.yml stop db
 sleep 3
 curl -s -w "\nHTTP=%{http_code}\n" http://localhost:8000/health | tail -3
-# 期望: status=unhealthy 且 HTTP=200（health 自身仍可达，但 checks.db 标 unhealthy）
+# 期望: status=degraded 且 HTTP=200（仅 db check 为 unhealthy、redis/celery 仍 up 的部分降级；聚合规则见 health.py：非全 unhealthy 即 degraded）
 
 # /health/ready（如已注册严格 readiness）应 5xx；本仓库 /health 不区分 live/ready
 # 业务端点（依赖 DB）应 5xx
-curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8000/api/v1/sources
+curl -s -H "X-API-Key: $IS_API_KEY" -o /dev/null -w "%{http_code}\n" http://localhost:8000/api/v1/sources
 # 期望: 5xx
 
 # 恢复
@@ -867,7 +899,7 @@ curl -s http://localhost:8000/health | jq -r .status
 # 期望: healthy（自愈）
 ```
 
-**Pass 标准**：DB 停时 status=unhealthy 但 health 端点本身仍 200；恢复后自动回 healthy。
+**Pass 标准**：DB 停时 `status=degraded`（仅 db check 为 unhealthy、redis/celery 仍 up 的部分降级）、health 端点本身仍 200、业务读路径 500、DB 恢复后自动回 healthy。
 
 ☐ 通过 / 签字：__________
 
@@ -882,6 +914,7 @@ curl -s http://localhost:8000/health | jq -r .status
 # 然后跑 content-process pipeline
 curl -sX POST http://localhost:8000/api/v1/pipelines/content-process/run \
   -H 'Content-Type: application/json' \
+  -H "X-API-Key: $IS_API_KEY" \
   -d "{\"params\":{\"source_id\":\"$SOURCE_ID\"}}"
 
 sleep 30
@@ -908,7 +941,7 @@ docker compose -f docker/docker-compose.yml exec db \
 
 # 4. 整个 API 没有 5xx 给客户端
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8000/api/v1/search \
-  -X POST -H 'Content-Type: application/json' -d '{"query":"test"}'
+  -X POST -H 'Content-Type: application/json' -H "X-API-Key: $IS_API_KEY" -d '{"query":"test"}'
 # 期望: 200
 ```
 
@@ -929,11 +962,12 @@ docker compose -f docker/docker-compose.yml stop redis
 sleep 3
 
 # 业务端点
-curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8000/api/v1/sources
+curl -s -H "X-API-Key: $IS_API_KEY" -o /dev/null -w "%{http_code}\n" http://localhost:8000/api/v1/sources
 # 期望: 200（不依赖 redis 的查询路径不受影响）
 
 # 触发依赖 Redis 的流程（采集走 RateLimiter，缓存走 LLMCache）
 curl -sX POST http://localhost:8000/api/v1/tasks/collect \
+  -H "X-API-Key: $IS_API_KEY" \
   -H 'Content-Type: application/json' \
   -d "{\"source_ids\":[\"$SOURCE_ID\"]}" -w "\nHTTP=%{http_code}\n"
 # 期望: 202 + worker 日志中限流/缓存模块 fallback 警告，但任务整体不崩
@@ -1011,6 +1045,7 @@ Invoke-RestMethod -Method Post -Uri "http://localhost:8000/api/v1/sources" `
 
 ```powershell
 curl.exe -sX POST http://localhost:8000/api/v1/sources `
+  -H "X-API-Key: $IS_API_KEY" `
   -H 'Content-Type: application/json' `
   -d '{"name":"Hacker News","type":"rss","url":"https://hnrss.org/frontpage"}'
 ```

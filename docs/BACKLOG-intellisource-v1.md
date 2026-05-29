@@ -9,7 +9,7 @@ deps: []
 # IntelliSource v1 Backlog
 
 > 维护：本文件梳理 PR #53 / #54 audit 闭环之后的剩余工作。完成项请直接删除条目，新增项按优先级插入。
-> 最后更新：2026-05-29 (PR #72 ✅ 闭环 P3 功能项 B-043 / B-046 / B-047 / B-049 + B-011 弱断言批量强化；核对 B-015 ✅ 早已闭环（promtool 在 CI Lint job）；**B-012 ✅** 常量早闭环 + 本次修复 keyword_tag 空串/空白/重复 tag 三缺陷 + 测试 4→10。unit baseline 2948→2976 PASS @ main；CI 6/6 绿)
+> 最后更新：2026-05-29 (PR #72 ✅ 闭环 P3 功能项 B-043 / B-046 / B-047 / B-049 + B-011 弱断言批量强化；核对 B-015 ✅ 早已闭环（promtool 在 CI Lint job）；**B-012 ✅** 常量早闭环 + 本次修复 keyword_tag 空串/空白/重复 tag 三缺陷 + 测试 4→10；**B-034 ✅** PRE-DEPLOY-WALKTHROUGH 全量订正（health degraded / X-API-Key×33 / to_addr / 指标家族 / push 入口 等，逐条对照代码核实）。unit baseline 2948→2976 PASS @ main；CI 6/6 绿)
 
 ## 优先级语义
 
@@ -148,7 +148,8 @@ deps: []
 
 > B-033 已闭环 (本次会话, B-051 Phase D 子集) — `build_distributor_facade()` 改为 soft-disable：每个渠道 `from_env()` 单独 try/except，`ValueError` 时 `_logger.warning("distribution channel X disabled: ...")` + 该渠道从 channels dict 中剔除；空 channels dict 时额外 warning "no distribution channels configured"。`DistributorFacade.distribute()` 原有路径已正确处理 `channel is None` 分支（增 skipped 计数），无需改动。docker/.env 清空所有渠道凭据后 api lifespan 不再 raise；orphan 占位 `disabled-walkthrough-placeholder` 可从 docker/.env 移除。**测试**：新增 [tests/unit/distributor/test_b033_soft_disable.py](../tests/unit/distributor/test_b033_soft_disable.py) 5 tests + 改造 [tests/unit/distributor/test_facade.py](../tests/unit/distributor/test_facade.py) 2 个 hard-fail 测试为 soft-disable 断言（验证 warning log + facade._channels 不含该渠道）。详见 [composition.py:120](../src/intellisource/composition.py)。
 
-### B-034 PRE-DEPLOY-WALKTHROUGH 文档订正
+### B-034 PRE-DEPLOY-WALKTHROUGH 文档订正 ✅
+> 已闭环 — `docs/deploy/PRE-DEPLOY-WALKTHROUGH.md` 全量订正（逐条对照当前代码核实）：步骤 2 health Pass 标准 `healthy→{healthy,degraded}`（celery 依赖 worker / health.py 聚合规则）+ OpenAPI 加 X-API-Key；§0.2 渠道凭据改 soft-disable 措辞（B-033 已闭环）+ mailhog walkthrough profile 说明；步骤 6 content-process `mode: batch`（非 strict）+ manual-collect steps `params:{}`；步骤 7 trace_id 改"已生效"（B-040 已闭环，删旧"延后/跳过"叙述）；步骤 8 `/api/v1/llm/stats` 需 X-API-Key；步骤 13 channel_config `to`→`to_addr` + 推送入口 push-optimize（flexible/steps:[]）改 manual-collect 完整链路 + PII 验证 SQL `message_preview`(无此列)→`recipient_id`（mask_email 保留首字符+域名，`test@…`→`t***@…`）；步骤 15 删根 `/metrics`(404) + 指标家族正则改实际存在家族（collector_/pipeline_/task_queue_ 不存在；push_→pushes_total）；步骤 18 DB 停 `unhealthy→degraded`（聚合非全 unhealthy 即 degraded）。**另修两处子代理引入的不实细节**：mask 示例 `a***`(虚构)→`t***@example.com`、facade 直调片段去掉会报错的 `build_worker_composition()` 无参调用改为准确指针。**系统性补齐**：全文 33 处业务 curl（`:8000/api/v1/*` 非豁免）补 `X-API-Key`（豁免端点 health/metrics/webhooks 保持无鉴权头以验证公开可达）。块级校验 0 遗漏。
 - **优先级**：P3
 - **关联**：CORRECTIONS-LOG 修正 #5-#7 影响 / walkthrough 步骤 2 期望与实际偏差 / 阶段 2 步骤 6-8 暴露 3 项新 drift / 阶段 5 步骤 13 暴露 4 项新 drift
 - **现状**：步骤 2 "Pass 标准: /health.status == healthy" 与 celery 健康依赖 worker（步骤 12 才起）冲突；OpenAPI 端点假设公开但实际 X-API-Key 中间件保护；步骤 6 期望 `content-process.mode=strict` 实际 `batch` + manual-collect.steps 期望含 `params` 实际 `{}`；步骤 7 期望 trace_id 进 worker log 但 stdlib formatter 不渲染 contextvar（实际机制 OK，见 B-040）；步骤 8 期望 `/llm/stats` 不需 API key 实际需要；步骤 13 channel_config 示例字段名 + 验证 SQL 列名 + 推送入口 + auth header 全错

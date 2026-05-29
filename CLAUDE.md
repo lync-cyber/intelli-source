@@ -19,11 +19,12 @@
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 - 当前阶段: backlog-burndown → **B-031 release gate = approved + 物理闭环（用户 2026-05-29 签字；PR #71 已合入 main, merge 6c7beb7）**；observability(B-040+B-060) + zhparser 搜索 500 修复 + pytest-xdist 全部 on main；**PR #72 已合入 main (merge eff264e)：P3 功能项 B-043/B-046/B-047/B-049 闭环 + B-011 弱断言批量强化**
-- 下一步行动: release 已放行，无阻塞项；剩余 backlog **P2 B-036 / P3 B-014/B-034 + B-016~B-019 + B-011(持续项)** 全部非阻塞（B-015 早已闭环 — promtool 在 CI；B-012 本次闭环 — 常量早已抽取 + 修复 keyword_tag 空串/空白/重复 tag 三缺陷）；BGE-M3 本地 embedding 暂缓
+- 下一步行动: release 已放行，无阻塞项；剩余 backlog **P2 B-036 / P3 B-014 + B-016~B-019 + B-011(持续项)** 全部非阻塞（B-015 早已闭环 — promtool 在 CI；B-012 闭环 — keyword_tag 三缺陷修复；B-034 闭环 — walkthrough 全量订正）；B-014 需真 staging deploy 验证；BGE-M3 本地 embedding 暂缓
 - 当前回归基线: **2976 PASS unit** (`-n auto` 并行 / 0 FAIL；B-012 keyword_tag +6 测试) + **163 PASS / 1 skip integration**（含 zhparser migration e5f6a7b8c9d0）；mypy --strict + ruff + lint-imports 8/8 clean。本地分支 `claude/start-orchestrator-zJJPz`（main HEAD eff264e + 状态对账 + B-012）
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report / deploy-spec = approved；ui-spec = N/A；dev-plan-s8 = draft；backlog = approved
 - 历史闭环索引: 详见 [docs/HISTORY-intellisource-v1.md](docs/HISTORY-intellisource-v1.md) — audit-fix-pr53/54 + backlog 闭环（b001-b002 / b003-b006 / b007-b010 / b029-b030 / b032 / b033 / b035 / b037 / b039-b042 / **b043 / b046 / b047 / b049** / b044-b045 / b048 / b050-b055 / b057-b058 / **b059**）+ B-031 走查阶段 0-7（步骤 1-20，16 N/A，PR #69/#70 合入）+ 编码可移植性修复 + 修正 #1-#29
 - 最近闭环:
+  - **B-034 PRE-DEPLOY-WALKTHROUGH 全量文档订正 (本次会话, devops 子代理×2 + orchestrator 复核, 分支 claude/start-orchestrator-zJJPz)** — 逐条对照当前代码核实后订正 [PRE-DEPLOY-WALKTHROUGH.md](docs/deploy/PRE-DEPLOY-WALKTHROUGH.md)：步骤 2 health `{healthy,degraded}` + OpenAPI X-API-Key；§0.2 渠道 soft-disable（B-033 闭环）+ mailhog profile；步骤 6 content-process `mode:batch`；步骤 7 trace_id 改"已生效"（B-040 闭环）；步骤 8 `/llm/stats` 需 key；步骤 13 `to_addr` + 推送入口改 manual-collect 完整链路 + PII SQL `recipient_id`（无 message_preview 列）；步骤 15 删根 `/metrics`(404) + 指标家族正则改实存家族；步骤 18 DB 停 `degraded`（非 unhealthy）。**复核拦下子代理两处不实细节**：mask 示例 `a***`(虚构)→真值 `t***@example.com`、`build_worker_composition()` 无参调用（实需 session_factory+redis_client）改准确指针。**系统性补齐**全文 **33 处** 业务 curl 的 X-API-Key（块级校验 0 遗漏；豁免端点保持公开）。**子代理 self-report 不可靠**（第二个 agent 声称仅加 3 处，实测 +33）——以块级 grep 实测为准。
   - **B-012 keyword_tag 缺陷修复 + 测试强化 (本次会话, light TDD inline RED→GREEN, 分支 claude/start-orchestrator-zJJPz)** — 常量 `DEFAULT_KEYWORD_TAG` 早在 commit a35fa31 抽取（backlog 未回填）；强化测试时暴露并修复 [tools.py](src/intellisource/pipeline/processors/tools.py) `keyword_tag` 三真实缺陷：① LLM 供给的 tag_library 含空串 → `"" in combined` 恒真匹配所有内容污染 `['']` ② 空白 tag 匹配双空格文本输出垃圾 ③ 重复 tag 直通。修复：跳过 `not tag.strip()` + 按库序去重；substring 匹配保留为 Chinese 刻意契约（加 pin 测试）。`TestKeywordTag` 4→10（含常量耦合：原硬编码 `["未分类"]` 断言改引用常量）。unit 2970→2976。**另核对 B-015 已闭环**（promtool 在 CI Lint job）。
   - **PR #72 backlog P3 burndown 合入 main (merge eff264e, CI 6/6 绿)** — 4 功能项 + 1 持续项强化，无阻塞：
     - **B-046 (P3)**: `processed_contents.published_at` 永 NULL → `agent/tools/executes/process.py` `repo.create(published_at=ctx.get("published_at"))`，缺数据 fallback created_at。+1 测试文件
@@ -45,7 +46,7 @@
   - **B-057 P2** (前次会话, light TDD inline): [matcher.py](src/intellisource/distributor/matcher.py) `_matches` 加 `source_names` 强约束维度。+12 测试
 - Learnings Registry（详见各 RETRO 报告）: [RETRO sprint-1~7 / sprint-8 / sprint-9](docs/reviews/retro/) 9 EXP — EXP-005 装配缺口 → B-017 / EXP-006 truncation → 跨角色 / EXP-007 Mid-Progress Drop Contract → B-018；**EXP-CONTRACT-DRIFT (PR #64)**：改 `api/routers/` 返回类型 / `search.*` dataclass / `storage.*` SQL SELECT / `llm/gateway/_stream` 等"契约文件"必须 push 前跑 `make test-integration`（mock fixtures 常用旧契约 shape）；强制门禁通过 `make contract-check` + `make check-all`
 - 上游反馈: [docs/feedback/](docs/feedback/) — 1 bug + 1 suggest (B-019 未闭环)
-- Backlog 总入口: [docs/BACKLOG-intellisource-v1.md](docs/BACKLOG-intellisource-v1.md) — **release 已放行；剩余全部非阻塞** / P2: B-036 / P3: B-014 / B-034 + B-016~B-019 + B-011(持续项)
+- Backlog 总入口: [docs/BACKLOG-intellisource-v1.md](docs/BACKLOG-intellisource-v1.md) — **release 已放行；剩余全部非阻塞** / P2: B-036 / P3: B-014 + B-016~B-019 + B-011(持续项)
 
 ## 文档导航
 - 导航索引: `docs/.doc-index.json`（机器索引，所有 Agent 通过 `cataforge docs load` 查询；缺失时运行 `cataforge docs index` 重建）
