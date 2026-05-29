@@ -11,7 +11,8 @@ deps: []
 > 维护：本文件梳理 PR #53 / #54 audit 闭环之后的剩余工作。完成项请直接删除条目，新增项按优先级插入。
 > 最后更新：2026-05-29 (PR #72 ✅ 闭环 P3 功能项 B-043 / B-046 / B-047 / B-049 + B-011 弱断言批量强化；核对 B-015 ✅ 早已闭环（promtool 在 CI Lint job）；**B-012 ✅** 常量早闭环 + 本次修复 keyword_tag 空串/空白/重复 tag 三缺陷 + 测试 4→10；**B-034 ✅** PRE-DEPLOY-WALKTHROUGH 全量订正（health degraded / X-API-Key×33 / to_addr / 指标家族 / push 入口 等，逐条对照代码核实）。unit baseline 2948→2976 PASS @ main；CI 6/6 绿)
 > 2026-05-29 增补：**B-011 ✅** 弱断言闭环——规约已入双 COMMON-RULES + AST 检测器精确清扫 46 处 truly-decorative 为语义断言，全 tests/ 仅余 18 处经核实皆合法类型收窄 guard（非 anti-pattern）；2976 PASS 不退化。
-> 2026-05-29 增补：**框架反馈批次移交上游** — 5 个框架级条目 **B-016 / B-017 / B-018 / B-036 / B-038 ✅** + **B-019 ✅**（2 条既有 bundle）打包进 [docs/feedback/feedback-suggest-framework-batch-20260529.md](feedback/feedback-suggest-framework-batch-20260529.md)，移交 CataForge 上游（沙盒无 cataforge/gh CLI 且 GitHub 集成仅限本 repo，issue 由用户提交）。剩余开放项全部非阻塞且均为**项目级**（非框架）：P3 B-013 / B-014 / B-020~B-028（部分疑似 main 已闭环待回填）。
+> 2026-05-29 增补：**框架反馈批次移交上游** — 5 个框架级条目 **B-016 / B-017 / B-018 / B-036 / B-038 ✅** + **B-019 ✅**（2 条既有 bundle）打包进 [docs/feedback/feedback-suggest-framework-batch-20260529.md](feedback/feedback-suggest-framework-batch-20260529.md)，移交 CataForge 上游（沙盒无 cataforge/gh CLI 且 GitHub 集成仅限本 repo，issue 由用户提交）。
+> 2026-05-29 增补：**回填 main 已闭环项** — 核实后 **B-013 ✅**（B-035 CI integration + smoke）/ **B-040 ✅**（celery hijack/redirect off + trace_id signals）/ **B-060 ✅**（error_message 列 + 失败路径 emit）三项 backlog 回填。**剩余开放项 = 项目级真债，刻意保留跟踪（非阻塞）**：P3 B-014（需真 staging 验证 metrics）+ B-020~B-028（架构治理 lint-imports 破场 / deptry / vulture）。
 
 ## 优先级语义
 
@@ -213,7 +214,8 @@ deps: []
 
 ---
 
-### B-040 worker stdlib log → structlog/formatter migration（trace_id 可见性）
+### B-040 worker stdlib log → structlog/formatter migration（trace_id 可见性）✅
+> 回填 2026-05-29：已在 main 闭环（核对 `scheduler/celery_app.py` `worker_hijack_root_logger=False`+`worker_redirect_stdouts=False` + `boot.py` setup_logging/trace_id signals）。
 > **已闭环** (本地分支 `fix/observability-b040-b060`, commit bb1d1e5, 真栈验证)：真因三重——① Celery `worker_hijack_root_logger` 未关 ② `worker_redirect_stdouts=True` 把 sys.stderr 换成 LoggingProxy（早于 setup_logging 吞行）③ `boot.worker_init_handler` setup_logging 在 `_celery_tasks` guard 之后（forked child 短路不配置 root）。修：两 conf 关闭 + setup_logging 提到 guard 前 + signals prerun/middleware inbound 各发语义 INFO 承载行。真栈：`POST /tasks/collect` → 同一 trace_id 现于 api inbound + worker prerun。+6 单测（含 boot-guard + redirect 回归）。
 - **优先级**：P3
 - **关联**：CORRECTIONS-LOG 2026-05-26 B-031 阶段 2 步骤 7 trace_id 一项延后；走查暴露
@@ -228,7 +230,8 @@ deps: []
 
 ---
 
-### B-060 失败 LLM 调用未落 `llm_call_logs`
+### B-060 失败 LLM 调用未落 `llm_call_logs` ✅
+> 回填 2026-05-29：已在 main 闭环（核对 `storage/models.py` `error_message` 列 + `llm/gateway/_retry.py` 失败路径 emit `status="circuit_open"`/`error`/`timeout` + `cost_tracker.log_call` 透传）。
 > **已闭环** (本地分支 `fix/observability-b040-b060`, commit 77b3fae, 真栈验证)：`LLMCallRecord` 加 `error_message` + `CostTracker.log_call` 透传；`_unified_call_with_retry` 中央失败 emit（熔断 OPEN→`circuit_open` / 重试耗尽→`timeout`|`error`），覆盖 complete/chat/stream/embed 四路径。真栈：注入坏 LLM key → `llm_call_logs` 非 success 行 **0→20**（5 `error` 带真 msg + 15 `circuit_open`）。+7 单测。
 - **优先级**：P3（MEDIUM-LOW — 审计/可观测缺口）
 - **关联**：B-031 阶段 7 步骤 19 真起栈走查暴露；B-042 闭环遗留（仅保证 success 落表）/ [src/intellisource/llm/gateway/](../src/intellisource/llm/gateway/) `_RetryMixin._emit_call_log`
@@ -378,7 +381,8 @@ deps: []
 
 ## PR #54 后续验证
 
-### B-013 CI 在 ubuntu-latest 跑 integration（docker available 路径）
+### B-013 CI 在 ubuntu-latest 跑 integration（docker available 路径）✅
+> 回填 2026-05-29：已由 B-035 闭环（核对 `.github/workflows/ci.yml` `integration-tests` job 在 ubuntu-latest 设 `IS_FORCE_DOCKER_TESTS=1` + 复合镜像，0 deselected；另 `docker-compose-smoke` job 真起栈探针）。CI run 26564322038 on main 已验证 163 passed / 0 deselected。
 - **现状**：本地无 Docker 时 47 个 PG 集成测试 deselect；CI 必须真跑
 - **修复方向**：GitHub Actions workflow 设 `IS_FORCE_DOCKER_TESTS=1` 或确保 docker daemon 启动；fail 时阻塞 merge
 - **验证**：CI 输出显示 162 collected，0 deselected，47+ PASS
