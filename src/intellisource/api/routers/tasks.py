@@ -5,14 +5,17 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session
 from intellisource.composition import SOURCE_TYPE_TO_PIPELINE
-from intellisource.scheduler.dispatch import send_task_with_trace
+from intellisource.scheduler.dispatch import (
+    BrokerUnavailableError,
+    send_task_with_trace,
+)
 from intellisource.scheduler.queues import PRIORITY_QUEUES
 from intellisource.storage.repositories.source import SourceRepository
 from intellisource.storage.repositories.task import TaskRepository
@@ -196,29 +199,38 @@ async def trigger_collect(
         source_type_by_id = await source_repo.get_types_by_ids(
             [task.source_id for task in tasks]
         )
-        for task in tasks:
-            source_type = source_type_by_id.get(task.source_id)
-            pipeline_name = (
-                SOURCE_TYPE_TO_PIPELINE.get(source_type, "scheduled-collect")
-                if source_type is not None
-                else "scheduled-collect"
-            )
-            send_task_with_trace(
-                "run_pipeline",
-                kwargs={
-                    "pipeline_name": pipeline_name,
-                    "params": {
-                        "task_id": str(task.id),
-                        "task_chain_id": task_chain_id,
-                        "source_id": str(task.source_id),
-                        "trigger_type": task.trigger_type or "manual",
-                        "priority": priority,
-                        "fingerprint": "",
+        try:
+            for task in tasks:
+                source_type = source_type_by_id.get(task.source_id)
+                pipeline_name = (
+                    SOURCE_TYPE_TO_PIPELINE.get(source_type, "scheduled-collect")
+                    if source_type is not None
+                    else "scheduled-collect"
+                )
+                send_task_with_trace(
+                    "run_pipeline",
+                    kwargs={
+                        "pipeline_name": pipeline_name,
+                        "params": {
+                            "task_id": str(task.id),
+                            "task_chain_id": task_chain_id,
+                            "source_id": str(task.source_id),
+                            "trigger_type": task.trigger_type or "manual",
+                            "priority": priority,
+                            "fingerprint": "",
+                        },
                     },
-                },
-                queue=target_queue,
-                celery_instance=celery_instance,
-            )
+                    queue=target_queue,
+                    celery_instance=celery_instance,
+                )
+        except BrokerUnavailableError as exc:
+            # Broker unreachable — raising here rolls back the just-created
+            # task_chain + task rows (get_db_session rolls back on exception)
+            # so we don't leave orphan pending rows that were never dispatched.
+            raise HTTPException(
+                status_code=503,
+                detail="task broker unavailable; collect not dispatched",
+            ) from exc
 
     return {
         "task_chain_id": task_chain_id,

@@ -45,6 +45,17 @@ deps: []
 
 ## P1 — Audit 残留质量项
 
+### B-059 Celery broker/result-store 宕机时任务派发挂起（无 fast-fail）✅
+- **优先级**：P1（HIGH — 生产稳定性风险）
+- **关联**：B-031 阶段 7 步骤 20 真起栈走查暴露；[src/intellisource/scheduler/celery_app.py](../src/intellisource/scheduler/celery_app.py) / [src/intellisource/scheduler/dispatch.py](../src/intellisource/scheduler/dispatch.py) / [src/intellisource/api/routers/tasks.py](../src/intellisource/api/routers/tasks.py)
+- **现状（修复前）**：redis 宕机时 `POST /api/v1/tasks/collect` → 客户端 **HTTP 000（>30s 挂起）**。**真起栈复测修正了根因**：阻塞主因不是 broker publish（已加 socket 超时后 ≈5s 抛 kombu OperationalError），而是 **Celery redis result 后端在派发期重连重试约 100s 后抛 `builtins.RuntimeError`**（"Retry limit exceeded while trying to reconnect to the Celery result store backend"）—— 该 RuntimeError 不属连接错误类型，原 broker-only 修复无法覆盖。非 redis 查询路径不受影响，`/health` 正确标 `checks.redis=unhealthy`+`celery=unhealthy`
+- **修复（已落地）**：
+  - `celery_app`：**broker + result-backend 双侧** `socket_connect_timeout`/`socket_timeout=5`；`redis_retry_on_timeout=False` + `result_backend_always_retry=False` + `result_backend_max_retries=0`（构造期设置，缓存后端生效）
+  - `dispatch.send_task_with_trace`：`retry=False` + 包装 `(kombu OperationalError / redis ConnectionError / OSError)` → `BrokerUnavailableError`；安全网捕获后端重连耗尽的 `RuntimeError`（match "result store backend"/"reconnect"）
+  - `tasks.collect`：捕获 `BrokerUnavailableError` → `HTTPException(503)`；`get_db_session` 异常回滚丢弃刚建的 `task_chain`+`task` 行（不留 orphan pending）
+- **验证（真起栈复测 PASS）**：stop redis → collect **503/7.9s**（非 HTTP 000 挂起）+ 行数不变（回滚生效）；start redis → **202/0.04s** 自愈。14 新单测 GREEN（broker/backend config + 错误包装 + 503/rollback）；mypy --strict + ruff + lint-imports 8/8 clean。fix 分支 `fix/b059-broker-fast-fail`
+- **依赖**：无
+
 > B-003 / B-004 / B-005 / B-006 已闭环（详见 [docs/reviews/code/CODE-REVIEW-backlog-p1-r1.md](reviews/code/CODE-REVIEW-backlog-p1-r1.md)，含 R-001 修订）
 
 > B-058 follow-up 已闭环 (本次会话) — router-service 完全收敛对齐 subscription 模板 + ReloadRequest.config_name 死字段彻底拆除。[`sources.py`](../src/intellisource/api/routers/sources.py) 5 端点全部走 `Depends(_get_service)`，body 类型直接为 `SourceConfig` / `SourcePatchRequest`，无嵌套 DTO + helper 转换层；POST 语义变为 idempotent upsert by name（删除 409 IntegrityError 处理）。SourceConfigService 扩展：`list_paginated` 接受 `type/status/tag` 过滤，`patch` 内部处理 `metadata → metadata_` ORM 列名映射。删除 3 个 mock-driven 假象测试文件（`test_sources_reload.py` / `test_sources_reload_writes_version.py` / `test_sources_rollback_restores_db.py` 共 17 测试，全部被 [`tests/unit/source/test_service.py`](../tests/unit/source/test_service.py) 用 real SQLite 在 service 层完整覆盖）。`test_sources.py` 改为 `dependency_overrides[_get_service]` 模式 + 删 4 个假象测试（`test_create_source_conflict_409` + 3 个 `test_reload_*config_name*`）+ 新增 2 个 rollback router smoke 测试。`test_deps_integration.py::test_sources_router_uses_deps_get_db_session` 改为 `inspect.signature(_get_service)` 间接 dep chain 验证（参 subscription 同名测试模板）。Unit 2879→2862 PASS 净 -17。mypy strict + ruff + lint-imports 8/8 clean。`on_config_change` (main.py lifespan) 路径未触碰 — 保留 sync record_version 路径不动符合"only what task requires"原则。
@@ -152,8 +163,12 @@ deps: []
   - 步骤 13 推送入口 `POST /pipelines/push-optimize/run` → 改为 `POST /pipelines/manual-collect/run` 走完整 collect→process→distribute 链路；或注 "push-optimize.yaml steps: [] 是 flexible LLM agent 入口，本地走查可改为在 worker 容器内直调 `from intellisource.composition import build_worker_composition; ...; await wc.distributor.distribute(content_id=..., subscription_id=...)` 验证 facade 真路径"
   - 步骤 13 所有 curl 把 `-H 'Authorization: Bearer $IS_API_KEY'` → `-H "X-API-Key: $IS_API_KEY"`
   - 步骤 13 §0.2 增加 "若用 mailhog 做本地 SMTP receiver，须设 `IS_SMTP_HOST=mailhog / IS_SMTP_PORT=1025 / IS_SMTP_USE_TLS=false`，并启 walkthrough profile：`docker compose -f docker/docker-compose.yml --profile walkthrough up -d mailhog`"
+  - 步骤 15（2026-05-29 暴露）指标路径巡检 `for path in /metrics /api/v1/metrics /api/v1/system/metrics` → 删 `/metrics`（根路径未挂路由，实测 404；仅 `/api/v1/metrics` + `/api/v1/system/metrics` 提供指标，Prometheus 也只 scrape `/api/v1/metrics`）；同步建议 `middleware.py` auth-exempt 名单移除并不存在的根 `/metrics` 条目（归 B-040 旁支或单独 chore）
+  - 步骤 15 关键指标家族巡检 `grep -E "^(collector_|pipeline_|llm_|task_queue_|push_)"` → 改为实际存在的家族：`llm_calls_total`/`llm_call_failures_total`/`llm_call_latency_seconds`/`pushes_total`/`celery_tasks_total`/`http_requests_total`/`intellisource_health_status`（`collector_`/`pipeline_`/`task_queue_` 家族代码中不存在；`push_` 应为 `pushes_total`）
+  - 步骤 17 + 步骤 19 所有业务 curl（collect / pipelines run / search）补 `-H "X-API-Key: $IS_API_KEY"`（缺则 401；步骤 17 取 trace_id 的 curl 尤其需要）
+  - 步骤 18 Pass 标准 "DB 停时 status=unhealthy" → 改 "status=degraded（仅 db check unhealthy，redis/celery 仍 up 的部分降级语义）"，health 端点本身仍 200 不变
 
-> B-035 已闭环 (本次会话) — `.github/workflows/ci.yml` 改造：(1) `integration-tests` job 用 `docker/setup-buildx-action@v3` + `docker/build-push-action@v5` 预 build `intellisource/db:pg16-pgvector-zhparser`（cache type=gha,scope=db-image 跨 job/run 复用）→ 设 `IS_FORCE_DOCKER_TESTS=1` + `IS_TEST_DB_IMAGE=intellisource/db:pg16-pgvector-zhparser` 让 conftest 不 deselect docker 测试且用 composite image；(2) 新增 `docker-compose-smoke` job — 复用 cached image，`cp .env.example .env` + sed 填 channel 占位（兼 B-033 hard-fail），`docker compose up -d --wait db redis migrate api` 借 compose 自身 healthcheck + service_completed_successfully 等待，三个 SQL 探针验证 zhparser 真路径活：`SELECT extname FROM pg_extension WHERE extname='zhparser'` / `SELECT cfgname FROM pg_ts_config WHERE cfgname='zhparser'` / `to_tsvector('zhparser', '北京天安门搜索引擎')` 返多 lexeme（防 'simple' 回退）；(3) failure 时 dump db/migrate/api logs；(4) `if: always()` 跑 down -v 清理。预期 CI 首次 1-2 min build 镜像，二次 cache hit secs；smoke job 与 integration-tests job 并行跑独立 stack 互不干扰。**待 PR push 后 GitHub Actions 真跑验证**。
+> B-035 已闭环 (本次会话) — `.github/workflows/ci.yml` 改造：(1) `integration-tests` job 用 `docker/setup-buildx-action@v3` + `docker/build-push-action@v5` 预 build `intellisource/db:pg16-pgvector-zhparser`（cache type=gha,scope=db-image 跨 job/run 复用）→ 设 `IS_FORCE_DOCKER_TESTS=1` + `IS_TEST_DB_IMAGE=intellisource/db:pg16-pgvector-zhparser` 让 conftest 不 deselect docker 测试且用 composite image；(2) 新增 `docker-compose-smoke` job — 复用 cached image，`cp .env.example .env` + sed 填 channel 占位（兼 B-033 hard-fail），`docker compose up -d --wait db redis migrate api` 借 compose 自身 healthcheck + service_completed_successfully 等待，三个 SQL 探针验证 zhparser 真路径活：`SELECT extname FROM pg_extension WHERE extname='zhparser'` / `SELECT cfgname FROM pg_ts_config WHERE cfgname='zhparser'` / `to_tsvector('zhparser', '北京天安门搜索引擎')` 返多 lexeme（防 'simple' 回退）；(3) failure 时 dump db/migrate/api logs；(4) `if: always()` 跑 down -v 清理。预期 CI 首次 1-2 min build 镜像，二次 cache hit secs；smoke job 与 integration-tests job 并行跑独立 stack 互不干扰。**CI 真跑验证 PASS** (run 26564322038 on main)：integration-tests 163 passed / 1 skipped / 0 deselected（`IS_FORCE_DOCKER_TESTS=1` + composite image）；docker-compose-smoke 三 SQL 探针全绿（`pg_extension`/`pg_ts_config` 返 zhparser，`to_tsvector('zhparser','北京天安门搜索引擎')` → `'北京':1 '天安门':2 '搜索引擎':3` 多 lexeme 非 simple 回退）。
 
 ### B-038 framework-feedback: 提议框架默认采用 CLAUDE.md 单一事实来源
 - **优先级**：P3（项目本地已落地，feedback 是为防止 upgrade 漂移）
@@ -197,13 +212,26 @@ deps: []
 ### B-040 worker stdlib log → structlog/formatter migration（trace_id 可见性）
 - **优先级**：P3
 - **关联**：CORRECTIONS-LOG 2026-05-26 B-031 阶段 2 步骤 7 trace_id 一项延后；走查暴露
-- **现状**：[scheduler/signals.py](../src/intellisource/scheduler/signals.py) `_on_task_prerun` 已通过 Celery message header `x-trace-id` 把 contextvar 正确 set/reset（F-23 已闭环，单测覆盖）；但 worker 大多数业务模块用 stdlib `logging.getLogger(__name__)`，root logger 仅挂默认 `StreamHandler`（无 formatter），log line 形如 `[ts: LEVEL/Pool] msg` 无 `trace_id=` 子串。结果：walkthrough 步骤 7 + 步骤 17 的 `grep -oE 'trace_id=[a-f0-9-]+'` 都会命中 0，**给人 propagation 失效的假错觉**，实际机制是工作的。
+- **现状**：[scheduler/signals.py](../src/intellisource/scheduler/signals.py) `_on_task_prerun` 已通过 Celery message header `x-trace-id` 把 contextvar 正确 set/reset（F-23 已闭环，单测覆盖）；middleware 也正确返回 `x-trace-id` 响应头。但 walkthrough 步骤 7+17 的 `grep -oE 'trace_id=[a-f0-9-]+'` 命中 0，**给人 propagation 失效的假错觉**，实际机制工作。**真起栈复核（2026-05-29 步骤 17）修正根因双重**：
+  - worker 端：`setup_logging()` 其实已在 `worker_process_init` 装了 `TraceIdFormatter`（非"root logger 无 formatter"），但 **Celery 默认 `worker_hijack_root_logger=True` 未关**，celery 自有 formatter 覆盖了它 → worker log 形如 `[ts: LEVEL/Pool] msg` 无 `trace_id=`
+  - api 端：热路径无业务日志发射 — `tasks.py` collect 路由 0 处 log 语句、`signals.py` prerun 仅 bind contextvar 不 log；api 容器仅 uvicorn access log（无 structlog 输出）。故即便 formatter 生效也无承载 trace_id 的业务 log line
 - **修复方向**：
-  - 选 A：root logger 装一个 `structlog.stdlib.ProcessorFormatter` + `structlog.contextvars.merge_contextvars`，让 trace_id contextvar 自动出现在 log line（key=trace_id value=<uuid>）
-  - 选 B：自定义 `logging.Formatter` 子类，`format()` 内读 `trace_context.get_trace_id()` 拼接到 msg 前；改动小、零依赖
-  - 选 C：业务代码全量迁移到 `structlog.get_logger()`，contextvar 通过 `merge_contextvars` 自动注入（最重，符合 arch 长期方向，logging.py 已有 NOTE 提到 "mypy --strict 类型不兼容" 阻塞）
-  - 推荐：选 B 最快闭合 walkthrough 期望；选 C 留给独立 sprint
-- **验证**：worker 日志 grep `trace_id=` 至少命中一个 uuid；同一 task 内多条 log 共享同一 trace_id；步骤 17 F-23 回归 PASS
+  - 关 Celery hijack：`scheduler/celery_app.py` 设 `worker_hijack_root_logger=False`（让 setup_logging 的 TraceIdFormatter 生效）
+  - 热路径补 INFO 日志：请求入站（middleware 或 collect 路由）+ task prerun（signals.py）各发射一条带语义的 INFO log，使 trace_id 有承载行
+  - 或（退路）改 walkthrough 步骤 17 验证手段为 `x-trace-id` 响应头 + 单测引用，不依赖 log-grep
+- **验证**：worker + api 日志 grep `trace_id=<同一 uuid>` 各 ≥1 命中；步骤 17 F-23 回归 PASS
+
+---
+
+### B-060 失败 LLM 调用未落 `llm_call_logs`
+- **优先级**：P3（MEDIUM-LOW — 审计/可观测缺口）
+- **关联**：B-031 阶段 7 步骤 19 真起栈走查暴露；B-042 闭环遗留（仅保证 success 落表）/ [src/intellisource/llm/gateway/](../src/intellisource/llm/gateway/) `_RetryMixin._emit_call_log`
+- **现状**：步骤 19 注入无效 LLM key 后，summarize 走 truncation fallback、熔断器正确 OPEN，但 `llm_call_logs` 仍仅 `success|49` — **失败调用 0 行**。walkthrough 步骤 19 检查 #3 期望 `status='error'/'timeout'` 行。根因：B-042 的 `_emit_call_log` 只在成功路径 emit；失败在 litellm 调用抛出后被上层（compaction.py summarize fallback）捕获前未写入审计表
+- **修复方向**：
+  - `_RetryMixin` 失败路径（重试耗尽 / 熔断 OPEN / 上游异常）也 `_emit_call_log(status='error'|'timeout', error_message=...)`
+  - 注意与熔断器 `CircuitOpenError` 短路路径协调：熔断拒绝也应留一条 record（status='circuit_open' 或计数）
+- **验证**：注入 LLM 故障 → `SELECT count(*) FROM llm_call_logs WHERE status != 'success'` ≥ 1，error_message 非空；步骤 19 检查 #3 Pass
+- **依赖**：无
 
 ---
 
@@ -292,7 +320,7 @@ deps: []
 > **未做项**：
 > - `cli init` 渠道选项顺序：B-051 已把 `WeWork (recommended)` 放第一位，`cli doctor` `_REQUIRED_CHANNEL_VARS` 也已 wework 在前，本次无需再改
 > - walkthrough 步骤 13 推送示例：当前 mailhog + Gmail + WeChat webhook 已全部签字闭环（2026-05-27），切换主示例会动既有签字结论，不动
-> - **PRD §F-006 / ARCH M-007 主路径标记**：当前 PRD "v1 优先支持微信公众号/企业微信" 平等列举，ARCH M-007 `WeChatDistributor` 标 AC-040 / `WeWorkDistributor` 标 AC-041 也平等。要改成"主路径 wework / 备选 wechat" 属 requirement 倾斜，需走 change-guard amendment 路径；若用户日后需要，可独立立 B-053 amendment 任务
+> - **PRD §F-006 / ARCH M-007 主路径标记**：PRD "v1 优先支持微信公众号/企业微信" 与 ARCH M-007 `WeChatDistributor` (AC-040) / `WeWorkDistributor` (AC-041) 保持平等列举。决策：不做 "主路径 wework / 备选 wechat" 的 requirement 倾斜 amendment（部署侧 .env.example + walkthrough 已含 wework 优先标注，PRD/ARCH 契约层不收窄）
 > - `config/subscriptions.example.yaml`：当前不存在，订阅创建走 API 不依赖 yaml，本次不新增
 >
 > **验证**：新用户首次 `make bootstrap` → 编辑 `.env` 时阅读到 WeWork 优先标注 + 仅需配 WeWork 三变量即可跑通推送（其他 channel 全空时 lifespan warning 但不阻塞），symmetry 与 `intellisource init` CLI 与 `_REQUIRED_CHANNEL_VARS` 一致。无业务代码改动 → 2829 PASS unit 不需重跑（baseline 守住）。

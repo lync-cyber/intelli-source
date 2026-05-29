@@ -363,3 +363,8 @@
 {"ts": "2026-05-26T12:49:52+00:00", "event": "correction", "phase": "unknown", "detail": "option-override: 选择下一步推进方向（阅过完整 BACKLOG 后）", "agent": "orchestrator"}
 {"ts": "2026-05-28T01:55:01+00:00", "event": "correction", "phase": "unknown", "detail": "option-override: 下一步推进哪条线？", "agent": "orchestrator"}
 {"ts": "2026-05-28T08:28:26+00:00", "event": "state_change", "phase": "backlog-burndown", "detail": "B-058 follow-up: router-service convergence + config_name dead-field removal closed; unit 2879->2862 PASS net -17 (mock-driven cleanup); 0 NEW FAIL; mypy/ruff/lint-imports clean"}
+{"ts": "2026-05-29T05:52:55+00:00", "event": "session_start", "phase": "session", "detail": "IDE session started"}
+{"ts": "2026-05-29T05:53:04+00:00", "event": "session_start", "phase": "session", "detail": "IDE session started"}
+{"ts": "2026-05-29T05:53:09+00:00", "event": "session_start", "phase": "session", "detail": "IDE session started"}
+{"ts": "2026-05-29T06:25:23+00:00", "event": "state_change", "phase": "backlog-burndown", "detail": "B-031 阶段 6-7 步骤 15/17/18/19/20 orchestrator 自动驱动真起栈走查完成（步骤 16 N/A）；步骤 15/18/19 GO，步骤 20 核心 GO；暴露 1 HIGH(B-059 broker 派发挂起) + 2 MEDIUM(B-040 trace_id 可观测/B-060 llm_call_logs 失败行) + doc-staleness 并入 B-034；pre_deploy GO/NO-GO 待用户签字", "agent": "orchestrator"}
+{"ts": "2026-05-29T07:03:54+00:00", "event": "state_change", "phase": "backlog-burndown", "detail": "B-059 (HIGH release-gate 阻塞项) 已修复+真栈验证：Celery broker/result-store 双侧 fast-fail，collect 宕机时 503/7.9s（非挂起）+ task 行回滚；根因实为 result 后端重连 ~100s RuntimeError（非 broker publish）。+14 测试 2862->2876；分支 fix/b059-broker-fast-fail 未 push。B-031 step20 重测 GO；release gate 剩 B-040/B-060 MEDIUM observability 非阻塞", "agent": "orchestrator"}
