@@ -73,7 +73,7 @@ async def list_pipelines() -> list[dict[str, Any]]:
     summaries: list[dict[str, Any]] = []
     for path in _list_pipeline_files():
         try:
-            raw = yaml.safe_load(path.read_text()) or {}
+            raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         except yaml.YAMLError:
             logger.warning("Skipping malformed pipeline YAML: %s", path)
             continue
