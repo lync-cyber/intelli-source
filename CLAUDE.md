@@ -18,12 +18,21 @@
  cataforge setup --emit-env-block}
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: backlog-burndown → **B-031 release gate = approved + 物理闭环（用户 2026-05-29 签字；PR #71 已合入 main, merge 6c7beb7）**；observability(B-040+B-060) + zhparser 搜索 500 修复 + pytest-xdist 全部 on main
-- 下一步行动: release 已放行，无阻塞项；后续 backlog P2 B-036 / P3 B-011/B-012/B-014/B-015/B-034/B-043/B-046/B-047 + B-016~B-019 非阻塞；BGE-M3 本地 embedding 暂缓
-- 当前回归基线: **2948 PASS unit** (`-n auto` 并行 / 0 FAIL) + **163 PASS / 1 skip integration**（含 zhparser migration e5f6a7b8c9d0）；mypy --strict + ruff + lint-imports 8/8 clean。main HEAD 6c7beb7（CI 全绿）
+- 当前阶段: backlog-burndown → **B-031 release gate = approved + 物理闭环（用户 2026-05-29 签字；PR #71 已合入 main, merge 6c7beb7）**；observability(B-040+B-060) + zhparser 搜索 500 修复 + pytest-xdist 全部 on main；**PR #72 已合入 main (merge eff264e)：P3 功能项 B-043/B-046/B-047/B-049 闭环 + B-011 弱断言批量强化**
+- 下一步行动: release 已放行，无阻塞项；剩余 backlog **P2 B-036 / P3 B-014 + B-016~B-019 + B-011(持续项)** 全部非阻塞（B-015 早已闭环 — promtool 在 CI；B-012 闭环 — keyword_tag 三缺陷修复；B-034 闭环 — walkthrough 全量订正）；B-014 需真 staging deploy 验证；BGE-M3 本地 embedding 暂缓
+- 当前回归基线: **2976 PASS unit** (`-n auto` 并行 / 0 FAIL；B-012 keyword_tag +6 测试) + **163 PASS / 1 skip integration**（含 zhparser migration e5f6a7b8c9d0）；mypy --strict + ruff + lint-imports 8/8 clean。本地分支 `claude/start-orchestrator-zJJPz`（main HEAD eff264e + 状态对账 + B-012）
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report / deploy-spec = approved；ui-spec = N/A；dev-plan-s8 = draft；backlog = approved
-- 历史闭环索引: 详见 [docs/HISTORY-intellisource-v1.md](docs/HISTORY-intellisource-v1.md) — audit-fix-pr53/54 + backlog 闭环（b001-b002 / b003-b006 / b007-b010 / b029-b030 / b032 / b033 / b035 / b037 / b039-b042 / b044-b045 / b048 / b050-b055 / b057-b058 / **b059**）+ B-031 走查阶段 0-7（步骤 1-20，16 N/A，PR #69/#70 合入）+ 编码可移植性修复 + 修正 #1-#29
-- 最近闭环 (本次会话):
+- 历史闭环索引: 详见 [docs/HISTORY-intellisource-v1.md](docs/HISTORY-intellisource-v1.md) — audit-fix-pr53/54 + backlog 闭环（b001-b002 / b003-b006 / b007-b010 / b029-b030 / b032 / b033 / b035 / b037 / b039-b042 / **b043 / b046 / b047 / b049** / b044-b045 / b048 / b050-b055 / b057-b058 / **b059**）+ B-031 走查阶段 0-7（步骤 1-20，16 N/A，PR #69/#70 合入）+ 编码可移植性修复 + 修正 #1-#29
+- 最近闭环:
+  - **B-034 PRE-DEPLOY-WALKTHROUGH 全量文档订正 (本次会话, devops 子代理×2 + orchestrator 复核, 分支 claude/start-orchestrator-zJJPz)** — 逐条对照当前代码核实后订正 [PRE-DEPLOY-WALKTHROUGH.md](docs/deploy/PRE-DEPLOY-WALKTHROUGH.md)：步骤 2 health `{healthy,degraded}` + OpenAPI X-API-Key；§0.2 渠道 soft-disable（B-033 闭环）+ mailhog profile；步骤 6 content-process `mode:batch`；步骤 7 trace_id 改"已生效"（B-040 闭环）；步骤 8 `/llm/stats` 需 key；步骤 13 `to_addr` + 推送入口改 manual-collect 完整链路 + PII SQL `recipient_id`（无 message_preview 列）；步骤 15 删根 `/metrics`(404) + 指标家族正则改实存家族；步骤 18 DB 停 `degraded`（非 unhealthy）。**复核拦下子代理两处不实细节**：mask 示例 `a***`(虚构)→真值 `t***@example.com`、`build_worker_composition()` 无参调用（实需 session_factory+redis_client）改准确指针。**系统性补齐**全文 **33 处** 业务 curl 的 X-API-Key（块级校验 0 遗漏；豁免端点保持公开）。**子代理 self-report 不可靠**（第二个 agent 声称仅加 3 处，实测 +33）——以块级 grep 实测为准。
+  - **B-012 keyword_tag 缺陷修复 + 测试强化 (本次会话, light TDD inline RED→GREEN, 分支 claude/start-orchestrator-zJJPz)** — 常量 `DEFAULT_KEYWORD_TAG` 早在 commit a35fa31 抽取（backlog 未回填）；强化测试时暴露并修复 [tools.py](src/intellisource/pipeline/processors/tools.py) `keyword_tag` 三真实缺陷：① LLM 供给的 tag_library 含空串 → `"" in combined` 恒真匹配所有内容污染 `['']` ② 空白 tag 匹配双空格文本输出垃圾 ③ 重复 tag 直通。修复：跳过 `not tag.strip()` + 按库序去重；substring 匹配保留为 Chinese 刻意契约（加 pin 测试）。`TestKeywordTag` 4→10（含常量耦合：原硬编码 `["未分类"]` 断言改引用常量）。unit 2970→2976。**另核对 B-015 已闭环**（promtool 在 CI Lint job）。
+  - **PR #72 backlog P3 burndown 合入 main (merge eff264e, CI 6/6 绿)** — 4 功能项 + 1 持续项强化，无阻塞：
+    - **B-046 (P3)**: `processed_contents.published_at` 永 NULL → `agent/tools/executes/process.py` `repo.create(published_at=ctx.get("published_at"))`，缺数据 fallback created_at。+1 测试文件
+    - **B-043 (P3)**: `chat()` 无缓存路径 → `_chat.py` 加 cache get/set + `flexible.py` 透传 cache_key_parts + `_metrics.py` 计 hit/miss；`/search/chat` 二次执行命中。+1 测试文件
+    - **B-047 (P3)**: sync `/search/chat` sources count=0 + answer 返 dict.repr → `search.py` 修正 `_extract_sources` walk + 强制 LLM answer 整形；`response_utils.py` 对齐。+1 测试文件
+    - **B-049 (P3)**: distributor silent-success（channel 返 failed 仍记 sent）→ `facade.distribute` 检查 `result.status == "failed"`（方案 B，不改 channel 契约）→ 写 status=failed + skipped++。+1 测试文件
+    - **B-011 (持续项)**: 11 个测试文件弱断言 `assert x is not None` 强化为语义断言（integration 多数 + `test_app_entry.py`）
+  - **前次会话闭环（详见 HISTORY 索引）**:
   - **B-040 + B-060 observability 闭环 + zhparser 搜索修复 + pytest-xdist** (standard/light TDD inline + 真起栈验证, 本地分支 `fix/observability-b040-b060` 4 commits 未 push): 用户裁定"先修 observability 再放行"。
     - **B-060 (P3)**: 失败 LLM 调用此前 0 落表。`LLMCallRecord` 加 `error_message` + `CostTracker.log_call` 透传；`_unified_call_with_retry` 中央失败 emit（熔断 OPEN→`circuit_open` / 重试耗尽→`timeout`(Timeout 名)|`error`），覆盖 complete/chat/stream/embed 四路径。真栈：注入坏 LLM key → `llm_call_logs` 非 success 行 **0→20**（5 `error` 带真 `litellm.BadRequestError` msg + 15 `circuit_open`），熔断 OPEN。+7 单测
     - **B-040 (P3)**: trace_id 传播成立但 grep 0 命中，**真因三重**——① Celery `worker_hijack_root_logger` 未关（自有 formatter 覆盖）② `worker_redirect_stdouts=True` 把 sys.stderr 换成 LoggingProxy（早于 `setup_logging`，吞掉行）③ `boot.worker_init_handler` 的 `setup_logging()` 在 `_celery_tasks` 幂等 guard 之后（forked child 短路则不配置 root）。修：两 conf 关闭 + setup_logging 提到 guard 前 + signals prerun/middleware inbound 各发一条语义 INFO 承载行。真栈：`POST /tasks/collect` → 同一 trace_id 同时现于 api inbound + worker prerun。+6 单测（含 boot-guard + redirect 回归）
@@ -37,7 +46,7 @@
   - **B-057 P2** (前次会话, light TDD inline): [matcher.py](src/intellisource/distributor/matcher.py) `_matches` 加 `source_names` 强约束维度。+12 测试
 - Learnings Registry（详见各 RETRO 报告）: [RETRO sprint-1~7 / sprint-8 / sprint-9](docs/reviews/retro/) 9 EXP — EXP-005 装配缺口 → B-017 / EXP-006 truncation → 跨角色 / EXP-007 Mid-Progress Drop Contract → B-018；**EXP-CONTRACT-DRIFT (PR #64)**：改 `api/routers/` 返回类型 / `search.*` dataclass / `storage.*` SQL SELECT / `llm/gateway/_stream` 等"契约文件"必须 push 前跑 `make test-integration`（mock fixtures 常用旧契约 shape）；强制门禁通过 `make contract-check` + `make check-all`
 - 上游反馈: [docs/feedback/](docs/feedback/) — 1 bug + 1 suggest (B-019 未闭环)
-- Backlog 总入口: [docs/BACKLOG-intellisource-v1.md](docs/BACKLOG-intellisource-v1.md) — **next: B-031 release gate go/no-go 用户签字（HIGH 阻塞项 B-059 已合入消除）** / P2: B-036 / P3: B-040 + B-060 (observability) / B-011 / B-012 / B-014 / B-015 / B-034 / B-043 / B-046 / B-047 + B-016~B-019
+- Backlog 总入口: [docs/BACKLOG-intellisource-v1.md](docs/BACKLOG-intellisource-v1.md) — **release 已放行；剩余全部非阻塞** / P2: B-036 / P3: B-014 + B-016~B-019 + B-011(持续项)
 
 ## 文档导航
 - 导航索引: `docs/.doc-index.json`（机器索引，所有 Agent 通过 `cataforge docs load` 查询；缺失时运行 `cataforge docs index` 重建）

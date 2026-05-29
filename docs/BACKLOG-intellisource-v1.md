@@ -9,7 +9,7 @@ deps: []
 # IntelliSource v1 Backlog
 
 > 维护：本文件梳理 PR #53 / #54 audit 闭环之后的剩余工作。完成项请直接删除条目，新增项按优先级插入。
-> 最后更新：2026-05-28 (B-058 follow-up ✅ 闭环 — router-service 完全收敛 + ReloadRequest.config_name 死字段拆除；unit baseline 2879→2862 PASS 净 -17 来自删除 mock-driven 假象测试；mypy strict + ruff + lint-imports 8/8 clean)
+> 最后更新：2026-05-29 (PR #72 ✅ 闭环 P3 功能项 B-043 / B-046 / B-047 / B-049 + B-011 弱断言批量强化；核对 B-015 ✅ 早已闭环（promtool 在 CI Lint job）；**B-012 ✅** 常量早闭环 + 本次修复 keyword_tag 空串/空白/重复 tag 三缺陷 + 测试 4→10；**B-034 ✅** PRE-DEPLOY-WALKTHROUGH 全量订正（health degraded / X-API-Key×33 / to_addr / 指标家族 / push 入口 等，逐条对照代码核实）。unit baseline 2948→2976 PASS @ main；CI 6/6 绿)
 
 ## 优先级语义
 
@@ -123,13 +123,14 @@ deps: []
 
 ## P3 — 优化 / 规约
 
-### B-011 263 处弱断言 `assert .* is not None`
+### B-011 263 处弱断言 `assert .* is not None`（持续项）
 - **关联**：原 audit F-49 / D6-7
-- **现状**：跨 79 个测试文件，大量 `assert result is not None` 不验证语义
+- **现状**：跨 79 个测试文件，大量 `assert result is not None` 不验证语义；PR #72 (commit e3e7607) 已强化 11 个测试文件（integration 多数 + `test_app_entry.py`）为语义断言，余量待新增测试时增量收敛
 - **修复方向**：不批量改；新增测试时由 reviewer code-review Layer 1 检查命中
 - **规约**：在 `.cataforge/rules/COMMON-RULES.md §通用 Anti-Patterns` 加一条"禁止单纯 `is not None` 断言无语义检查"
 
-### B-012 `keyword_tag` 默认值硬编码 `"未分类"`
+### B-012 `keyword_tag` 默认值硬编码 `"未分类"` ✅
+> 常量抽取部分早在 commit a35fa31 已完成（`DEFAULT_KEYWORD_TAG: str = "未分类"` 模块顶层 + `keyword_tag` 返回引用之），backlog 未回填。本次 (light TDD inline, RED→GREEN) 在强化测试时暴露并修复 `keyword_tag` 三处真实缺陷：① 空串 tag（LLM 供给的 tag_library 可能含空串）`"" in combined` 恒真 → 匹配所有内容并污染输出 `['']` ② 空白 tag（如 `"  "`）匹配双空格文本输出垃圾 tag ③ 重复 tag 直通输出 `['Python', 'Python']`。修复：跳过 `not tag.strip()` 条目 + 按库序去重（`seen` 集）；substring 匹配（非词边界）保留为 Chinese 刻意契约并加 pin 测试。测试 `test_tools.py::TestKeywordTag` 4→10（含 RED 暴露 + 常量耦合：原断言硬编码 `["未分类"]` 改引用 `DEFAULT_KEYWORD_TAG`）。unit 2970→2976 PASS；mypy strict + ruff + lint-imports 8/8 clean。
 - **关联**：原 audit F-50 / D6-8
 - **现状**：[`src/intellisource/pipeline/processors/tools.py:305,310`](src/intellisource/pipeline/processors/tools.py:305) 硬编码中文字符串
 - **修复方向**：抽常量 `DEFAULT_KEYWORD_TAG: str = "未分类"` 至模块顶层；i18n 非 v1 范围
@@ -147,7 +148,8 @@ deps: []
 
 > B-033 已闭环 (本次会话, B-051 Phase D 子集) — `build_distributor_facade()` 改为 soft-disable：每个渠道 `from_env()` 单独 try/except，`ValueError` 时 `_logger.warning("distribution channel X disabled: ...")` + 该渠道从 channels dict 中剔除；空 channels dict 时额外 warning "no distribution channels configured"。`DistributorFacade.distribute()` 原有路径已正确处理 `channel is None` 分支（增 skipped 计数），无需改动。docker/.env 清空所有渠道凭据后 api lifespan 不再 raise；orphan 占位 `disabled-walkthrough-placeholder` 可从 docker/.env 移除。**测试**：新增 [tests/unit/distributor/test_b033_soft_disable.py](../tests/unit/distributor/test_b033_soft_disable.py) 5 tests + 改造 [tests/unit/distributor/test_facade.py](../tests/unit/distributor/test_facade.py) 2 个 hard-fail 测试为 soft-disable 断言（验证 warning log + facade._channels 不含该渠道）。详见 [composition.py:120](../src/intellisource/composition.py)。
 
-### B-034 PRE-DEPLOY-WALKTHROUGH 文档订正
+### B-034 PRE-DEPLOY-WALKTHROUGH 文档订正 ✅
+> 已闭环 — `docs/deploy/PRE-DEPLOY-WALKTHROUGH.md` 全量订正（逐条对照当前代码核实）：步骤 2 health Pass 标准 `healthy→{healthy,degraded}`（celery 依赖 worker / health.py 聚合规则）+ OpenAPI 加 X-API-Key；§0.2 渠道凭据改 soft-disable 措辞（B-033 已闭环）+ mailhog walkthrough profile 说明；步骤 6 content-process `mode: batch`（非 strict）+ manual-collect steps `params:{}`；步骤 7 trace_id 改"已生效"（B-040 已闭环，删旧"延后/跳过"叙述）；步骤 8 `/api/v1/llm/stats` 需 X-API-Key；步骤 13 channel_config `to`→`to_addr` + 推送入口 push-optimize（flexible/steps:[]）改 manual-collect 完整链路 + PII 验证 SQL `message_preview`(无此列)→`recipient_id`（mask_email 保留首字符+域名，`test@…`→`t***@…`）；步骤 15 删根 `/metrics`(404) + 指标家族正则改实际存在家族（collector_/pipeline_/task_queue_ 不存在；push_→pushes_total）；步骤 18 DB 停 `unhealthy→degraded`（聚合非全 unhealthy 即 degraded）。**另修两处子代理引入的不实细节**：mask 示例 `a***`(虚构)→`t***@example.com`、facade 直调片段去掉会报错的 `build_worker_composition()` 无参调用改为准确指针。**系统性补齐**：全文 33 处业务 curl（`:8000/api/v1/*` 非豁免）补 `X-API-Key`（豁免端点 health/metrics/webhooks 保持无鉴权头以验证公开可达）。块级校验 0 遗漏。
 - **优先级**：P3
 - **关联**：CORRECTIONS-LOG 修正 #5-#7 影响 / walkthrough 步骤 2 期望与实际偏差 / 阶段 2 步骤 6-8 暴露 3 项新 drift / 阶段 5 步骤 13 暴露 4 项新 drift
 - **现状**：步骤 2 "Pass 标准: /health.status == healthy" 与 celery 健康依赖 worker（步骤 12 才起）冲突；OpenAPI 端点假设公开但实际 X-API-Key 中间件保护；步骤 6 期望 `content-process.mode=strict` 实际 `batch` + manual-collect.steps 期望含 `params` 实际 `{}`；步骤 7 期望 trace_id 进 worker log 但 stdlib formatter 不渲染 contextvar（实际机制 OK，见 B-040）；步骤 8 期望 `/llm/stats` 不需 API key 实际需要；步骤 13 channel_config 示例字段名 + 验证 SQL 列名 + 推送入口 + auth header 全错
@@ -193,7 +195,8 @@ deps: []
 
 > B-042 已闭环 (本次会话, 选 C) — `LLMGateway.__init__` 新增 `session_factory` kwarg；`_RetryMixin._emit_call_log()` 统一 cost_tracker（legacy）+ session_factory（生产）双源；chat/stream 切到 helper，**complete 补 log_call**（之前缺失）；`composition.build_llm_gateway(redis, session_factory=None)` 经 `_build_deps_bundle` 注入；worker + api 进程 singleton 现具 per-call 会话能力。新增 [tests/unit/llm/test_gateway_session_factory.py](../tests/unit/llm/test_gateway_session_factory.py) 10 tests / 7 class GREEN（覆盖构造 / 三入口 emit / 异常吞噬 / 显式 cost_tracker 优先 / 复合 wiring）；test_cache.py 单测重命名 `test_cache_miss_logs_success_not_cached` 适配新契约。真起栈验证（步骤 9 补签）：`SELECT count(*) FROM llm_call_logs WHERE status='success'` ≥ 1，input/output_tokens > 0 — 待用户跑。
 
-### B-043 chat() path 接入 LLMCache
+### B-043 chat() path 接入 LLMCache ✅
+> 已闭环 (PR #72, commit 6beb94a) — `_chat.py` 加 cache get/set 路径（`if self._cache is not None and cache_key_parts is not None`），`flexible.py` 透传 cache_key_parts，`_metrics.py` 计 chat cache hit/miss。`/search/chat` 二次执行命中缓存。+ `test_gateway_chat_cache.py` 覆盖。
 - **优先级**：P3
 - **关联**：CORRECTIONS-LOG 2026-05-26 B-041 carryover；walkthrough 步骤 9 期望 "二次执行命中缓存（增量显著减少或 cache_hit=true）"
 - **现状**：[llm/gateway/_chat.py](../src/intellisource/llm/gateway/_chat.py) `chat()` **无 cache 路径**，仅 [_complete.py](../src/intellisource/llm/gateway/_complete.py) 走 `if self._cache is not None and cache_key_parts is not None: cached = await self._cache.get(...)`。`/search/chat` 走 `chat()` → 永远不命中缓存。
@@ -247,7 +250,8 @@ deps: []
   - 失败案例：B-031 暴露 7 项部署破口，其中 5 项（Dockerfile 路径 / README / 依赖声明 / shebang / uvicorn）在 "本地真起栈" 5 分钟内必被发现
 - **验证**：下次 deploy-spec 审查时模板自动 prompt 这条；framework-review skill 检查 deploy-spec 报告含 "本地最小栈验证证据" 段
 
-### B-046 collector + HTMLParser 填 `processed_contents.published_at`
+### B-046 collector + HTMLParser 填 `processed_contents.published_at` ✅
+> 已闭环 (PR #72, commit abc0adc) — `agent/tools/executes/process.py` `repo.create(published_at=ctx.get("published_at"))`，缺数据 fallback raw_contents.created_at。+ `test_process_published_at.py` 覆盖。
 - **优先级**：P3
 - **关联**：B-031 阶段 4 步骤 10c carryover 修正 #21；CORRECTIONS-LOG 2026-05-27 条目
 - **现状**：`SELECT COUNT(*) FROM processed_contents WHERE published_at IS NULL` = 20/20（B-039 重跑后所有行该列 NULL）；date filter SQL contract 已闭环（B-002 datetime 类型转换 + 422 拦截非法值），但用户视角 0 结果 → /search date_from/date_to 功能不可见
@@ -258,7 +262,8 @@ deps: []
   - 缺数据时 fallback 用 raw_contents.created_at 而非保持 NULL
 - **验证**：重跑 manual-collect 后 `published_at IS NOT NULL` ≥ 18/20；步骤 10c date filter 真路径返回非 0 items
 
-### B-047 sync `/search/chat` sources 提取 + LLM answer 整形
+### B-047 sync `/search/chat` sources 提取 + LLM answer 整形 ✅
+> 已闭环 (PR #72, commit b3a38ab) — `api/routers/search.py` sync chat 修正 `_extract_sources` walk 路径 + 强制 LLM answer 整形（不再 dict.repr）；`agent/response_utils.py` 提取逻辑对齐。+ `test_search_chat_b047.py` 覆盖（sources count ≥ 1 + 自然语言 answer）。
 - **优先级**：P3
 - **关联**：B-031 阶段 4 步骤 11a carryover 修正 #22 + #23；CORRECTIONS-LOG 2026-05-27 条目
 - **现状**：
@@ -346,7 +351,8 @@ deps: []
 >
 > **carryover 立项**：B-050 wework 默认倾斜（依赖 B-033，本次已闭环，可启动）；docker/.env.example 暂未做 wework 块前置（留 B-050 实施时一并）。`config/llm_models.yaml` vs `.example.yaml` 双份的疑惑未处理（B-051 范围外，可独立小立项 B-052）。
 
-### B-049 distributor channel 失败 silent-success — facade.distribute 误判 sent
+### B-049 distributor channel 失败 silent-success — facade.distribute 误判 sent ✅
+> 已闭环 (PR #72, commit 973d3e7, 采方案 B) — `facade.distribute` 检查 channel 返回 `result.get("status") == "failed"`，failed 不写 status=sent → skipped++ 写 status=failed（不改 channel 契约）。+ `test_facade_silent_failure_b049.py` 覆盖。
 - **优先级**：P3
 - **关联**：B-031 阶段 5 步骤 13 carryover；CORRECTIONS-LOG 修正 #29 silent-failure 说明
 - **现状**：[src/intellisource/distributor/facade.py:135](../src/intellisource/distributor/facade.py)
@@ -380,7 +386,8 @@ deps: []
 - **修复方向**：deploy staging 后 `curl /api/v1/metrics | grep -E "(http_requests_total|llm_calls_total|pushes_total|celery_tasks_total|llm_circuit_open)"`
 - **依赖**：B-010 deploy-spec
 
-### B-015 `promtool check rules` 验证 alerts.yml 语法
+### B-015 `promtool check rules` 验证 alerts.yml 语法 ✅
+> 已闭环 (commit 9c118b8 引入 + ffd1c7b refine) — CI Lint job 跑 `docker run --rm --entrypoint promtool -v $PWD/docker/prometheus:/etc/prometheus prom/prometheus:v2.55.1 check rules /etc/prometheus/alerts.yml`（[.github/workflows/ci.yml](../.github/workflows/ci.yml) "Validate Prometheus alert rules"），每次 PR/push to main 无条件运行并 gate merge。`--entrypoint promtool` 必需（镜像默认 entrypoint 是 prometheus 二进制）。alerts.yml 5 组 8 规则；结构层由 `tests/unit/observability/test_alerts_yaml.py` (14 tests) 覆盖。PR #72 Lint job green 即此步通过。
 - **现状**：`test_alerts_yaml.py` 校验 YAML shape + metric 名引用一致，但未跑 `promtool check rules`
 - **修复方向**：CI workflow 加一步 `docker run --rm -v $PWD/docker/prometheus:/etc/prometheus prom/prometheus:v2.55.1 promtool check rules /etc/prometheus/alerts.yml`
 - **依赖**：B-013 CI 升级
