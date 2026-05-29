@@ -9,14 +9,16 @@ from typing import TYPE_CHECKING, Any
 
 from intellisource.core.errors import DistributorError
 from intellisource.distributor.base import BaseDistributor
+from intellisource.distributor.channels.constants import (
+    MAX_RETRY,
+    RETRY_INTERVAL,
+    TOKEN_EXPIRE_BUFFER,
+)
 
 if TYPE_CHECKING:
     from intellisource.storage.repositories.push import PushRepository
 
 TOKEN_CACHE_KEY: str = "wework:access_token"
-TOKEN_EXPIRE_BUFFER: int = 300
-MAX_RETRY: int = 3
-RETRY_INTERVAL: int = 5
 
 _WEWORK_API_BASE = "https://qyapi.weixin.qq.com/cgi-bin"
 

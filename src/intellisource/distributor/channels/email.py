@@ -13,12 +13,11 @@ from urllib.parse import quote
 import aiosmtplib
 
 from intellisource.distributor.base import BaseDistributor
+from intellisource.distributor.channels.constants import MAX_RETRY, RETRY_INTERVAL
 
 if TYPE_CHECKING:
     from intellisource.storage.repositories.push import PushRepository
 
-MAX_RETRY: int = 3
-RETRY_INTERVAL: int = 5
 DEFAULT_SMTP_PORT: int = 587
 
 
