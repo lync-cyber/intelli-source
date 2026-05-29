@@ -45,15 +45,15 @@ deps: []
 
 ## P1 — Audit 残留质量项
 
-### B-059 Celery broker 宕机时任务派发挂起（无 fast-fail）
+### B-059 Celery broker/result-store 宕机时任务派发挂起（无 fast-fail）✅
 - **优先级**：P1（HIGH — 生产稳定性风险）
-- **关联**：B-031 阶段 7 步骤 20 真起栈走查暴露；[src/intellisource/scheduler/celery_app.py:34](../src/intellisource/scheduler/celery_app.py) / [src/intellisource/api/routers/tasks.py](../src/intellisource/api/routers/tasks.py)
-- **现状**：redis（Celery broker）宕机时，`POST /api/v1/tasks/collect` 派发任务 → 客户端 **HTTP 000（15s 超时挂起）** 而非优雅响应。`celery_app.py:34` 仅设 `broker_connection_retry_on_startup=False`，`broker_transport_options` 未配 `socket_timeout`/`socket_connect_timeout`/`max_retries`，broker 不可达时 kombu 阻塞重连，请求挂死。生产风险：broker 故障下请求堆积 → 线程池/连接耗尽 → 级联不可用。非 redis 查询路径（如 `/api/v1/sources`）不受影响，`/health` 正确标 `checks.redis=unhealthy`+`celery=unhealthy`
-- **修复方向**：
-  - `broker_transport_options` 补 `socket_timeout` / `socket_connect_timeout` / `max_retries`（小值，秒级 fast-fail）
-  - 派发端点（collect 等）捕获 broker 连接异常 → 返回 503（或排队降级）而非阻塞
-  - 可选：派发前轻量探活 broker，不可达即短路
-- **验证**：stop redis → collect 在秒级内返回 5xx/503（非 HTTP 000 挂起）；start redis → 自愈；步骤 20 重跑 Pass
+- **关联**：B-031 阶段 7 步骤 20 真起栈走查暴露；[src/intellisource/scheduler/celery_app.py](../src/intellisource/scheduler/celery_app.py) / [src/intellisource/scheduler/dispatch.py](../src/intellisource/scheduler/dispatch.py) / [src/intellisource/api/routers/tasks.py](../src/intellisource/api/routers/tasks.py)
+- **现状（修复前）**：redis 宕机时 `POST /api/v1/tasks/collect` → 客户端 **HTTP 000（>30s 挂起）**。**真起栈复测修正了根因**：阻塞主因不是 broker publish（已加 socket 超时后 ≈5s 抛 kombu OperationalError），而是 **Celery redis result 后端在派发期重连重试约 100s 后抛 `builtins.RuntimeError`**（"Retry limit exceeded while trying to reconnect to the Celery result store backend"）—— 该 RuntimeError 不属连接错误类型，原 broker-only 修复无法覆盖。非 redis 查询路径不受影响，`/health` 正确标 `checks.redis=unhealthy`+`celery=unhealthy`
+- **修复（已落地）**：
+  - `celery_app`：**broker + result-backend 双侧** `socket_connect_timeout`/`socket_timeout=5`；`redis_retry_on_timeout=False` + `result_backend_always_retry=False` + `result_backend_max_retries=0`（构造期设置，缓存后端生效）
+  - `dispatch.send_task_with_trace`：`retry=False` + 包装 `(kombu OperationalError / redis ConnectionError / OSError)` → `BrokerUnavailableError`；安全网捕获后端重连耗尽的 `RuntimeError`（match "result store backend"/"reconnect"）
+  - `tasks.collect`：捕获 `BrokerUnavailableError` → `HTTPException(503)`；`get_db_session` 异常回滚丢弃刚建的 `task_chain`+`task` 行（不留 orphan pending）
+- **验证（真起栈复测 PASS）**：stop redis → collect **503/7.9s**（非 HTTP 000 挂起）+ 行数不变（回滚生效）；start redis → **202/0.04s** 自愈。14 新单测 GREEN（broker/backend config + 错误包装 + 503/rollback）；mypy --strict + ruff + lint-imports 8/8 clean。fix 分支 `fix/b059-broker-fast-fail`
 - **依赖**：无
 
 > B-003 / B-004 / B-005 / B-006 已闭环（详见 [docs/reviews/code/CODE-REVIEW-backlog-p1-r1.md](reviews/code/CODE-REVIEW-backlog-p1-r1.md)，含 R-001 修订）
