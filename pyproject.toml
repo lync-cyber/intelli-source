@@ -239,6 +239,7 @@ dev = [
     "testcontainers[postgres]>=4.0",
     "psycopg[binary]>=3.1",
     "pytest-timeout>=2.4.0",
+    "pytest-xdist>=3.6",
     "asyncpg>=0.31.0",
     # Architecture governance toolchain
     "import-linter>=2.11",      # Architecture contracts (CI-blocking)

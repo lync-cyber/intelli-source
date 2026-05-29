@@ -210,6 +210,7 @@ deps: []
 ---
 
 ### B-040 worker stdlib log → structlog/formatter migration（trace_id 可见性）
+> **已闭环** (本地分支 `fix/observability-b040-b060`, commit bb1d1e5, 真栈验证)：真因三重——① Celery `worker_hijack_root_logger` 未关 ② `worker_redirect_stdouts=True` 把 sys.stderr 换成 LoggingProxy（早于 setup_logging 吞行）③ `boot.worker_init_handler` setup_logging 在 `_celery_tasks` guard 之后（forked child 短路不配置 root）。修：两 conf 关闭 + setup_logging 提到 guard 前 + signals prerun/middleware inbound 各发语义 INFO 承载行。真栈：`POST /tasks/collect` → 同一 trace_id 现于 api inbound + worker prerun。+6 单测（含 boot-guard + redirect 回归）。
 - **优先级**：P3
 - **关联**：CORRECTIONS-LOG 2026-05-26 B-031 阶段 2 步骤 7 trace_id 一项延后；走查暴露
 - **现状**：[scheduler/signals.py](../src/intellisource/scheduler/signals.py) `_on_task_prerun` 已通过 Celery message header `x-trace-id` 把 contextvar 正确 set/reset（F-23 已闭环，单测覆盖）；middleware 也正确返回 `x-trace-id` 响应头。但 walkthrough 步骤 7+17 的 `grep -oE 'trace_id=[a-f0-9-]+'` 命中 0，**给人 propagation 失效的假错觉**，实际机制工作。**真起栈复核（2026-05-29 步骤 17）修正根因双重**：
@@ -224,6 +225,7 @@ deps: []
 ---
 
 ### B-060 失败 LLM 调用未落 `llm_call_logs`
+> **已闭环** (本地分支 `fix/observability-b040-b060`, commit 77b3fae, 真栈验证)：`LLMCallRecord` 加 `error_message` + `CostTracker.log_call` 透传；`_unified_call_with_retry` 中央失败 emit（熔断 OPEN→`circuit_open` / 重试耗尽→`timeout`|`error`），覆盖 complete/chat/stream/embed 四路径。真栈：注入坏 LLM key → `llm_call_logs` 非 success 行 **0→20**（5 `error` 带真 msg + 15 `circuit_open`）。+7 单测。
 - **优先级**：P3（MEDIUM-LOW — 审计/可观测缺口）
 - **关联**：B-031 阶段 7 步骤 19 真起栈走查暴露；B-042 闭环遗留（仅保证 success 落表）/ [src/intellisource/llm/gateway/](../src/intellisource/llm/gateway/) `_RetryMixin._emit_call_log`
 - **现状**：步骤 19 注入无效 LLM key 后，summarize 走 truncation fallback、熔断器正确 OPEN，但 `llm_call_logs` 仍仅 `success|49` — **失败调用 0 行**。walkthrough 步骤 19 检查 #3 期望 `status='error'/'timeout'` 行。根因：B-042 的 `_emit_call_log` 只在成功路径 emit；失败在 litellm 调用抛出后被上层（compaction.py summarize fallback）捕获前未写入审计表

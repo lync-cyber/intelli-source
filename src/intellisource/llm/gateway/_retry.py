@@ -91,35 +91,78 @@ class _RetryMixin:
         if enable_circuit_breaker and self.circuit_breaker is not None:
             allowed = await self.circuit_breaker.allow_request()
             if not allowed:
+                await self._log_failure(
+                    model=model,
+                    call_type=call_type,
+                    status="circuit_open",
+                    error_message="circuit breaker OPEN — request rejected",
+                )
                 raise CircuitOpenError()
 
         _response: Any = None
-        async for attempt in AsyncRetrying(
-            stop=stop_after_attempt(4),
-            wait=self._retry_wait,
-            retry=retry_if_exception(
-                lambda e: _classify_error(e) is ErrorCategory.RECOVERABLE_TRANSIENT
-            ),
-            reraise=True,
-        ):
-            with attempt:
-                attempt_num = attempt.retry_state.attempt_number
-                if attempt_num > 1:
-                    await self._log_retry(
-                        model=model,
-                        retry_attempt=attempt_num - 1,
-                        call_type=call_type,
-                    )
-                try:
-                    _response = await call_fn()
-                except Exception:
-                    if enable_circuit_breaker and self.circuit_breaker is not None:
-                        await self.circuit_breaker.record_failure()
-                    raise
+        try:
+            async for attempt in AsyncRetrying(
+                stop=stop_after_attempt(4),
+                wait=self._retry_wait,
+                retry=retry_if_exception(
+                    lambda e: _classify_error(e) is ErrorCategory.RECOVERABLE_TRANSIENT
+                ),
+                reraise=True,
+            ):
+                with attempt:
+                    attempt_num = attempt.retry_state.attempt_number
+                    if attempt_num > 1:
+                        await self._log_retry(
+                            model=model,
+                            retry_attempt=attempt_num - 1,
+                            call_type=call_type,
+                        )
+                    try:
+                        _response = await call_fn()
+                    except Exception:
+                        if enable_circuit_breaker and self.circuit_breaker is not None:
+                            await self.circuit_breaker.record_failure()
+                        raise
+        except Exception as exc:
+            # Retries exhausted (or non-retryable error) — persist a terminal
+            # audit row before re-raising so failures are not invisible in
+            # llm_call_logs. "Timeout"-named providers map to status='timeout',
+            # everything else to 'error'.
+            status = "timeout" if "Timeout" in type(exc).__name__ else "error"
+            await self._log_failure(
+                model=model,
+                call_type=call_type,
+                status=status,
+                error_message=str(exc) or type(exc).__name__,
+            )
+            raise
 
         if enable_circuit_breaker and self.circuit_breaker is not None:
             await self.circuit_breaker.record_success()
         return _response
+
+    async def _log_failure(
+        self,
+        *,
+        model: str,
+        call_type: str,
+        status: str,
+        error_message: str,
+    ) -> None:
+        """Persist a terminal-failure LLMCallRecord (no tokens consumed)."""
+        record = LLMCallRecord(
+            model=model,
+            provider=model.split("/")[0] if "/" in model else "unknown",
+            call_type=call_type,
+            input_tokens=0,
+            output_tokens=0,
+            latency_ms=0,
+            input_length=0,
+            output_length=0,
+            status=status,
+            error_message=error_message,
+        )
+        await self._emit_call_log(record)
 
     async def _try_fallback(
         self,

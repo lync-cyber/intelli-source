@@ -33,6 +33,16 @@ celery_app = Celery(
 
 celery_app.conf.broker_connection_retry_on_startup = False
 
+# Keep the TraceIdFormatter installed by setup_logging() in worker_process_init:
+# Celery's default root-logger hijack otherwise replaces it with its own
+# formatter, dropping trace_id= from every worker log line.
+celery_app.conf.worker_hijack_root_logger = False
+# Do not let Celery swap sys.stderr for its LoggingProxy: that proxy is installed
+# before worker_process_init runs, so setup_logging()'s StreamHandler(sys.stderr)
+# would bind to the proxy and its trace_id= lines would be swallowed. With this
+# off, our handler writes to the real stderr captured by the container.
+celery_app.conf.worker_redirect_stdouts = False
+
 # B-059 fast-fail: a dead Redis must not hang a publish from /tasks/collect.
 # Two distinct connections are involved on send — the broker (publish) AND the
 # redis result store (Celery touches the backend during dispatch). BOTH must be

@@ -72,6 +72,11 @@ def _on_task_prerun(sender: Any = None, task_id: str = "", **_: Any) -> None:
         pass
     setattr(task.request, _TRACE_TOKEN_ATTR, token)
     setattr(task.request, _START_TIME_ATTR, time.monotonic())
+    # Emit a carrier line so the TraceIdFormatter has a worker-side log row to
+    # decorate with trace_id= (the task body itself may log nothing).
+    logger.info(
+        "celery task prerun name=%s task_id=%s", getattr(task, "name", "?"), task_id
+    )
 
 
 @task_postrun.connect  # type: ignore[untyped-decorator]
