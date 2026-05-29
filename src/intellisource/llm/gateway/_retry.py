@@ -227,6 +227,9 @@ class _RetryMixin:
         when no cost_tracker is configured or when persistence fails, so
         cache lookups never block the request path.
         """
+        from intellisource.llm.gateway._metrics import _record_cache_hit
+
+        _record_cache_hit(call_type)
         if self._cost_tracker is None:
             return
         model_name = str(cached.metadata.get("model", "unknown"))
