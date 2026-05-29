@@ -9,12 +9,12 @@ intellisource.llm directly.
 from __future__ import annotations
 
 import json
-import logging
 from typing import Any
 
 from intellisource.llm.prompts import load_prompt
+from intellisource.observability.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 async def llm_summarize(

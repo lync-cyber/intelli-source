@@ -8,6 +8,9 @@ from typing import Any, Callable, Coroutine
 
 from intellisource.agent.step_params import build_step_params, merge_step_output
 from intellisource.agent.tools import ToolDefinition
+from intellisource.observability.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class ToolDegradedError(Exception):
@@ -153,10 +156,17 @@ async def _retry_step(
     max_retries: int,
 ) -> dict[str, Any]:
     """Retry a failed step up to max_retries times."""
-    for _ in range(max_retries):
+    for attempt in range(max_retries):
         try:
             result = await tool_fn(**params)
             return {"tool": tool_name, "output": result}
-        except Exception:
+        except Exception as exc:
+            logger.debug(
+                "strict step retry failed tool=%s attempt=%d/%d: %s",
+                tool_name,
+                attempt + 1,
+                max_retries,
+                exc,
+            )
             continue
     return {"tool": tool_name, "output": None, "failed": True}

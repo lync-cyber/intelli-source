@@ -3,20 +3,22 @@
 from __future__ import annotations
 
 import asyncio
-import os
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from intellisource.core.errors import DistributorError
+from intellisource.core.settings import get_settings
 from intellisource.distributor.base import BaseDistributor
+from intellisource.distributor.channels.constants import (
+    MAX_RETRY,
+    RETRY_INTERVAL,
+    TOKEN_EXPIRE_BUFFER,
+)
 
 if TYPE_CHECKING:
     from intellisource.storage.repositories.push import PushRepository
 
 TOKEN_CACHE_KEY: str = "wework:access_token"
-TOKEN_EXPIRE_BUFFER: int = 300
-MAX_RETRY: int = 3
-RETRY_INTERVAL: int = 5
 
 _WEWORK_API_BASE = "https://qyapi.weixin.qq.com/cgi-bin"
 
@@ -49,9 +51,10 @@ class WeWorkDistributor(BaseDistributor):
         Raises ValueError when IS_WEWORK_CORP_ID, IS_WEWORK_CORP_SECRET, or
         IS_WEWORK_AGENT_ID are absent.
         """
-        corp_id = os.environ.get("IS_WEWORK_CORP_ID")
-        corp_secret = os.environ.get("IS_WEWORK_CORP_SECRET")
-        agent_id_str = os.environ.get("IS_WEWORK_AGENT_ID")
+        settings = get_settings()
+        corp_id = settings.wework_corp_id
+        corp_secret = settings.wework_corp_secret
+        agent_id_str = settings.wework_agent_id
         if not corp_id:
             raise ValueError(
                 "IS_WEWORK_CORP_ID missing — required for WeWorkDistributor"
@@ -122,10 +125,10 @@ class WeWorkDistributor(BaseDistributor):
         )
 
         if was_deduped:
-            return self._build_result("duplicate", content, subscription)
+            return self._wework_result("duplicate", content, subscription)
         if succeeded:
-            return self._build_result("success", content, subscription)
-        return self._build_result("failed", content, subscription, error=error)
+            return self._wework_result("success", content, subscription)
+        return self._wework_result("failed", content, subscription, error=error)
 
     # ------------------------------------------------------------------
     # Access token
@@ -219,25 +222,21 @@ class WeWorkDistributor(BaseDistributor):
     # Result / formatting helpers
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _build_result(
+    def _wework_result(
+        self,
         status: str,
         content: Any,
         subscription: Any,
         *,
         error: str | None = None,
     ) -> dict[str, Any]:
-        """Build a standardised push-result dict."""
-        result: dict[str, Any] = {
-            "status": status,
-            "channel": "wework",
-            "content_id": content.id,
-            "subscription_id": subscription.id,
-            "pushed_at": _now_iso(),
-        }
+        """Build a WeWork push-result dict (carries ``pushed_at``)."""
+        extra: dict[str, Any] = {"pushed_at": _now_iso()}
         if error is not None:
-            result["error"] = error
-        return result
+            extra["error"] = error
+        return self._build_result(
+            status, "wework", content.id, subscription.id, **extra
+        )
 
     def format_content(self, content: Any, *, msg_type: str = "text") -> Any:
         """Format *content* for the given *msg_type*."""

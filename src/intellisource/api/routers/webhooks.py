@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import logging
 import xml.etree.ElementTree as ET
 from typing import Any
 
@@ -14,8 +13,9 @@ from fastapi.responses import PlainTextResponse
 from intellisource.agent.response_utils import extract_answer
 from intellisource.agent.tools import load_pipeline_config
 from intellisource.api.webhook_crypto import WeComCrypto, WeComCryptoError
+from intellisource.observability.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 

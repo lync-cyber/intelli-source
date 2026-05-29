@@ -7,7 +7,6 @@ Supports strict mode (sequential tool execution) and flexible mode
 from __future__ import annotations
 
 import enum
-import logging
 import time
 import uuid
 from typing import TYPE_CHECKING, Any, AsyncGenerator
@@ -27,6 +26,7 @@ from intellisource.agent.executors.strict import (
     _retry_step,
 )
 from intellisource.agent.tools import PermissionLevel, ToolDefinition
+from intellisource.observability.logging import get_logger
 from intellisource.storage.models import TaskChain
 from intellisource.storage.repositories.task_chain import TaskChainRepository
 
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from intellisource.agent.deps import ToolDeps
     from intellisource.pipeline.engine import PipelineEngine
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 __all__ = [
     "AgentMode",

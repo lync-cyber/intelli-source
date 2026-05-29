@@ -10,6 +10,8 @@ from typing import Any
 import httpx
 import typer
 
+from intellisource.core.settings import get_settings
+
 app = typer.Typer()
 source_app = typer.Typer()
 task_app = typer.Typer()
@@ -27,8 +29,6 @@ app.add_typer(subscriptions_app, name="subscriptions")
 # ---------------------------------------------------------------------------
 
 DEFAULT_API_URL = "http://localhost:8000"
-ENV_API_URL = "IS_API_URL"
-ENV_API_KEY = "IS_API_KEY"
 
 _state: dict[str, Any] = {
     "api_url": DEFAULT_API_URL,
@@ -93,19 +93,16 @@ def main(
     api_key: str | None = typer.Option(None, "--api-key", help="API key"),
 ) -> None:
     """IntelliSource CLI."""
+    settings = get_settings()
     if api_url is not None:
         _state["api_url"] = api_url
-    else:
-        env_url = os.environ.get(ENV_API_URL)
-        if env_url:
-            _state["api_url"] = env_url
+    elif settings.api_url:
+        _state["api_url"] = settings.api_url
 
     if api_key is not None:
         _state["api_key"] = api_key
-    else:
-        env_key = os.environ.get(ENV_API_KEY)
-        if env_key:
-            _state["api_key"] = env_key
+    elif settings.api_key:
+        _state["api_key"] = settings.api_key
 
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())

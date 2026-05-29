@@ -57,7 +57,9 @@ class TestBootstrapBeatSchedule:
             assert entry["task"] == "run_pipeline"
             assert "pipeline_name" in entry["kwargs"]
 
-    def test_empty_sources_table_logs_warning(self, caplog: Any) -> None:
+    def test_empty_sources_table_logs_warning(self) -> None:
+        from structlog.testing import capture_logs
+
         from intellisource.scheduler import boot as boot_mod
 
         execute_result = MagicMock()
@@ -78,13 +80,13 @@ class TestBootstrapBeatSchedule:
         original = boot_mod._module_celery_app
         boot_mod._module_celery_app = celery_stub  # type: ignore[assignment]
         try:
-            with caplog.at_level("WARNING"):
+            with capture_logs() as logs:
                 boot_mod._bootstrap_beat_schedule(factory)
         finally:
             boot_mod._module_celery_app = original  # type: ignore[assignment]
 
         assert celery_stub.conf.beat_schedule == {}
-        warnings = [r.message for r in caplog.records]
+        warnings = [e["event"] for e in logs]
         assert any("zero scheduled tasks" in w or "empty" in w for w in warnings)
 
     def test_is_beat_disabled_env_skips_sync(self, monkeypatch: Any) -> None:

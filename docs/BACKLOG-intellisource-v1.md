@@ -12,7 +12,8 @@ deps: []
 > 最后更新：2026-05-29 (PR #72 ✅ 闭环 P3 功能项 B-043 / B-046 / B-047 / B-049 + B-011 弱断言批量强化；核对 B-015 ✅ 早已闭环（promtool 在 CI Lint job）；**B-012 ✅** 常量早闭环 + 本次修复 keyword_tag 空串/空白/重复 tag 三缺陷 + 测试 4→10；**B-034 ✅** PRE-DEPLOY-WALKTHROUGH 全量订正（health degraded / X-API-Key×33 / to_addr / 指标家族 / push 入口 等，逐条对照代码核实）。unit baseline 2948→2976 PASS @ main；CI 6/6 绿)
 > 2026-05-29 增补：**B-011 ✅** 弱断言闭环——规约已入双 COMMON-RULES + AST 检测器精确清扫 46 处 truly-decorative 为语义断言，全 tests/ 仅余 18 处经核实皆合法类型收窄 guard（非 anti-pattern）；2976 PASS 不退化。
 > 2026-05-29 增补：**框架反馈批次移交上游** — 5 个框架级条目 **B-016 / B-017 / B-018 / B-036 / B-038 ✅** + **B-019 ✅**（2 条既有 bundle）打包进 [docs/feedback/feedback-suggest-framework-batch-20260529.md](feedback/feedback-suggest-framework-batch-20260529.md)，移交 CataForge 上游（沙盒无 cataforge/gh CLI 且 GitHub 集成仅限本 repo，issue 由用户提交）。
-> 2026-05-29 增补：**回填 main 已闭环项** — 核实后 **B-013 ✅**（B-035 CI integration + smoke）/ **B-040 ✅**（celery hijack/redirect off + trace_id signals）/ **B-060 ✅**（error_message 列 + 失败路径 emit）三项 backlog 回填。**剩余开放项 = 项目级真债，刻意保留跟踪（非阻塞）**：P3 B-014（需真 staging 验证 metrics）+ B-020~B-028（架构治理 lint-imports 破场 / deptry / vulture）。
+> 2026-05-29 增补：**回填 main 已闭环项** — 核实后 **B-013 ✅**（B-035 CI integration + smoke）/ **B-040 ✅**（celery hijack/redirect off + trace_id signals）/ **B-060 ✅**（error_message 列 + 失败路径 emit）三项 backlog 回填。
+> 2026-05-29 增补：**架构治理首扫批次回填闭环** — `B-020~B-028 ✅` 全部闭环（commit `9c118b8` / `a35fa31`）：`lint-imports` 8/8 KEPT、`deptry` 无问题、`vulture` 无死代码（实测三工具退出码均 0），CI lint job 已移除 `continue-on-error`（违规阻塞 merge，B-025 强制门禁生效）。**剩余开放项 = 项目级真债（非阻塞）**：P3 B-014（需真 staging 验证 metrics）；`.pre-commit-config.yaml` 本地钩子为 B-025 可选增强，未落地。
 
 ## 优先级语义
 
@@ -433,7 +434,9 @@ deps: []
 > - **pydeps**: 渲染依赖图 SVG（CI nightly artifact）
 > - **CI 集成**: 已加入 lint job + nightly `arch-graph` job，**当前观察模式** (`continue-on-error: true`) → B-025 升级为强制门禁
 
-### B-020 抽 `pipeline.base` + `pipeline.processors.tools` 出新 `intellisource.tools/` 包
+> **2026-05-29 批次闭环**：B-020~B-028 全部 ✅（commit `9c118b8` / `a35fa31`）。实测 `lint-imports` 8/8 KEPT、`deptry` 无问题、`vulture` 无死代码（三工具退出码 0）；CI lint job 已移除 `continue-on-error`，违规阻塞 merge。实际落地与首扫提出的"修复方向"略有出入（B-020 抽到 `core.processor` 而非 `intellisource.tools/`；B-021 落到 `llm.compaction`；B-023 解耦 wiring 而未拆包），但验证标准（工具退出码 0）已满足。
+
+### B-020 抽 `pipeline.base` + `pipeline.processors.tools` 出新 `intellisource.tools/` 包 ✅
 - **关联**：CODE-SCAN-arch V1 + V6
 - **现状**：
   - `llm.processors.filter` 顶层 import `pipeline.base.BaseProcessor` / `pipeline.context.PipelineContext` ([src/intellisource/llm/processors/filter.py:7-8](../src/intellisource/llm/processors/filter.py))
@@ -445,21 +448,21 @@ deps: []
   - pipeline.processors.tools 改为再导出薄层兼容旧路径（一个 deprecation 周期后删除）
 - **验证**：`lint-imports` 中 V1 + V6 消失；distributor/llm 不再依赖 pipeline
 
-### B-021 `compact_messages_for_chat` 从 `agent.compaction` 抽到中性命名空间
+### B-021 `compact_messages_for_chat` 从 `agent.compaction` 抽到中性命名空间 ✅
 - **关联**：CODE-SCAN-arch V5
 - **现状**：[src/intellisource/search/chat_session.py:16](../src/intellisource/search/chat_session.py) 反向依赖 `agent.compaction`；该函数实质是"对话历史 token 压缩工具"，与 agent 编排无关
 - **修复方向**：迁到 `intellisource.tools.conversation` 或 `intellisource.llm.prompt_builder`（与 PromptBuilder 同包，语义贴近）；agent 与 search 都改 import 新位置
 - **成本**：单文件移动 + 2 处 import 路径更新
 - **验证**：`lint-imports` V5 消失
 
-### B-022 `api.routers.search` 单点直接 import `storage.models.ChatSession`
+### B-022 `api.routers.search` 单点直接 import `storage.models.ChatSession` ✅
 - **关联**：CODE-SCAN-arch V7
 - **现状**：[src/intellisource/api/routers/search.py:225](../src/intellisource/api/routers/search.py) 函数内 `from intellisource.storage.models import ChatSession` 用 `db_session.get(ChatSession, ...)`
 - **修复方向**：复用同文件 l.250 已有的 `ChatSessionRepository.get_by_id()`，删除函数内 ORM 直引
 - **成本**：~5 行
 - **验证**：`lint-imports` V7 消失；现有 chat session 单测仍 PASS
 
-### B-023 拆分 `composition.py` 解耦 wiring root 与共享常量
+### B-023 拆分 `composition.py` 解耦 wiring root 与共享常量 ✅
 - **关联**：CODE-SCAN-arch V2 + V3 + V4
 - **现状**：[`composition.py`](../src/intellisource/composition.py) 同时承担 wiring root（依赖一切）和共享常量提供者（`SOURCE_TYPE_TO_PIPELINE`、`CompositionError`、`get_agent_runner_holder`），导致 scheduler.{boot,tasks,beat_sync}（3 处顶层 import）+ agent.factory（lazy import）反向依赖
 - **修复方向**：拆为 `composition/` 包：
@@ -470,7 +473,7 @@ deps: []
 - **影响范围**：composition / agent.factory / scheduler.{boot,tasks,beat_sync} / api.routers.tasks
 - **验证**：`lint-imports` V2/V3/V4 全部消失；现有装配测试 PASS
 
-### B-024 `config.loader` 返回 `SourceConfig` 而非 `Source` ORM
+### B-024 `config.loader` 返回 `SourceConfig` 而非 `Source` ORM ✅
 - **关联**：CODE-SCAN-arch V8
 - **现状**：[src/intellisource/config/loader.py:19](../src/intellisource/config/loader.py) 顶层 import `storage.models.Source`；loader 直接生产 ORM 实例传给 `bulk_upsert`
 - **修复方向**：
@@ -479,7 +482,7 @@ deps: []
   - config 包不再依赖 storage，符合架构图分层
 - **验证**：`lint-imports` V8 消失；source CRUD / reload 路径单测 PASS
 
-### B-025 架构治理工具链 CI 升级为强制门禁
+### B-025 架构治理工具链 CI 升级为强制门禁 ✅（`.pre-commit-config.yaml` 可选增强未落地）
 - **关联**：架构契约首扫 + 依赖卫生 + 死代码扫描的执行保障
 - **现状（已落地一半）**：
   - `pyproject.toml` 已注册 4 工具配置：`[tool.importlinter]` / `[tool.deptry]` / `[tool.vulture]` / `[tool.pydeps]`
@@ -491,7 +494,7 @@ deps: []
 - **强制门禁的前置条件**：B-020 ~ B-024（import-linter）+ B-026 ~ B-028（deptry / vulture）全部闭环 → 三工具退出码 = 0
 - **验证**：故意提交一处违规 → CI 红 → merge 阻塞
 
-### B-026 显式声明 transitive 运行时依赖（deptry DEP003 × 24）
+### B-026 显式声明 transitive 运行时依赖（deptry DEP003 × 24）✅
 - **关联**：架构治理工具链首扫 (deptry, 2026-05-24)
 - **现状**：5 个包被项目直接 import，但依赖于 fastapi/sqlalchemy/celery/litellm 等间接引入：
   - `pydantic`（9 处 import — agent.dto / api.routers.* / config.* / llm.gateway._routing / llm.model_config / push_optimizer / api.schemas.search）
@@ -503,7 +506,7 @@ deps: []
 - **修复方向**：把 `pydantic / pyyaml / starlette / jsonschema / kombu` 加入 [`pyproject.toml`](../pyproject.toml) `[project] dependencies`，每个加合理的 `>=` 版本下限
 - **验证**：`uv run deptry src` DEP003 计数 = 0；`uv sync --upgrade` 不破坏现有测试
 
-### B-027 dev deps 统一到 `[dependency-groups]`（deptry DEP002 × 6）
+### B-027 dev deps 统一到 `[dependency-groups]`（deptry DEP002 × 6）✅
 - **关联**：架构治理工具链首扫 (deptry, 2026-05-24)
 - **现状**：[`pyproject.toml`](../pyproject.toml) 同时存在两套 dev 配置 — 旧 PEP 621 的 `[project.optional-dependencies] dev = [...]` 与新 PEP 735 的 `[dependency-groups] dev = [...]`；deptry 把前者当 extras 看，对 `pytest / pytest-asyncio / mypy / ruff / testcontainers / pydantic-settings` 报 DEP002
 - **修复方向**：
@@ -512,7 +515,7 @@ deps: []
   - `uv sync --all-extras` 改为 `uv sync` 或 `uv sync --group dev`（CI 同步更新）
 - **验证**：`uv run deptry src` DEP002 计数 = 0；CI `uv sync` 步骤仍能拉齐 dev deps
 
-### B-028 删除 `_unified_call_with_retry` 三个未使用参数（vulture × 3）
+### B-028 删除 `_unified_call_with_retry` 三个未使用参数（vulture × 3）✅
 - **关联**：架构治理工具链首扫 (vulture, 2026-05-24)
 - **现状**：[src/intellisource/llm/gateway/_retry.py:44-47](../src/intellisource/llm/gateway/_retry.py) `_unified_call_with_retry` 签名包含 `operation_id` / `enable_fallback` / `fallback_input`，但函数体只在 docstring 提到，未在逻辑中引用；三处调用方（[gateway/__init__.py:385,469,580](../src/intellisource/llm/gateway/__init__.py)）都按位传参 — 是删了实现忘了同步签名的残留
 - **修复方向**：

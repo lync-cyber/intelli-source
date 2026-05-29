@@ -10,13 +10,13 @@ from either of them.
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 from intellisource.llm.model_config import ModelProfile
 from intellisource.llm.prompt_builder import PromptBuilder
+from intellisource.observability.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _PROTECTED_TOOL_COUNT = 3
 _DEFAULT_CONTEXT_TOKEN_BUDGET = 2000

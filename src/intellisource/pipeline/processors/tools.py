@@ -10,14 +10,14 @@ from __future__ import annotations
 
 import hashlib
 import json
-import logging
 import re
 from collections import Counter
 from typing import Any
 
 from intellisource.core.text_tools import filter_sensitive, truncate_for_push
+from intellisource.observability.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 DEFAULT_KEYWORD_TAG: str = "未分类"
 

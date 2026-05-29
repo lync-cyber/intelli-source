@@ -6,7 +6,6 @@ validating outputs against JSON Schema, and SchemaValidationError.
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -30,6 +29,7 @@ from intellisource.llm.gateway._types import (
 )
 from intellisource.llm.model_config import ModelRoutingConfig
 from intellisource.llm.priority_queue import PriorityQueue
+from intellisource.observability.logging import get_logger
 
 if TYPE_CHECKING:
     from intellisource.llm.cache import LLMCache
@@ -43,7 +43,7 @@ if TYPE_CHECKING:
 # `async with session_factory() as session`.
 SessionFactory = Callable[[], Any]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class LLMGateway(

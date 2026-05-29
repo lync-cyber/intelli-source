@@ -10,14 +10,13 @@ Covers:
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 
 import pytest
 import yaml
+from structlog.testing import capture_logs
 
 from intellisource.llm.model_config import (
-    ModelConfig,
     ModelRoutingConfig,
     load_model_config,
 )
@@ -159,16 +158,14 @@ class TestModelRoutingConfig:
         assert result["model"] == "gpt-4o-mini"
         assert result["provider"] == "openai"
 
-    def test_get_model_unknown_task_logs_warning(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_get_model_unknown_task_logs_warning(self) -> None:
         """get_model() logs WARNING when task_type has no matching config."""
         routing = ModelRoutingConfig(SAMPLE_CONFIG_DICT)
 
-        with caplog.at_level(logging.WARNING):
+        with capture_logs() as logs:
             routing.get_model("unknown_task_type")
 
-        assert any("unknown_task_type" in record.message for record in caplog.records)
+        assert any("unknown_task_type" in e["event"] for e in logs)
 
     def test_get_model_returns_task_specific_params(self) -> None:
         """get_model() returns temperature/max_tokens from task config."""
@@ -195,41 +192,6 @@ class TestModelRoutingConfig:
 
         assert default["model"] == "gpt-4o-mini"
         assert default["provider"] == "openai"
-
-
-# ===========================================================================
-# ModelConfig -- individual model config dataclass
-# ===========================================================================
-
-
-class TestModelConfig:
-    """Verify ModelConfig data structure."""
-
-    def test_model_config_from_dict(self) -> None:
-        """ModelConfig can be created from a dict."""
-        data = {"model": "gpt-4o-mini", "provider": "openai", "temperature": 0.5}
-        config = ModelConfig(**data)
-
-        assert config.model == "gpt-4o-mini"
-        assert config.provider == "openai"
-        assert config.temperature == 0.5
-
-    def test_model_config_required_fields(self) -> None:
-        """ModelConfig requires at least model and provider fields."""
-        with pytest.raises(TypeError):
-            ModelConfig()  # type: ignore[call-arg]
-
-    def test_model_config_optional_temperature(self) -> None:
-        """ModelConfig temperature defaults to None when not specified."""
-        config = ModelConfig(model="gpt-4o-mini", provider="openai")
-
-        assert config.temperature is None or isinstance(config.temperature, float)
-
-    def test_model_config_optional_max_tokens(self) -> None:
-        """ModelConfig max_tokens defaults to None when not specified."""
-        config = ModelConfig(model="gpt-4o-mini", provider="openai")
-
-        assert config.max_tokens is None or isinstance(config.max_tokens, int)
 
 
 # ===========================================================================

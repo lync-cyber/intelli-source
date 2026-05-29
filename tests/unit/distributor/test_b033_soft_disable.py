@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
+from structlog.testing import capture_logs
 
 
 class TestB033SoftDisable:
@@ -17,28 +16,24 @@ class TestB033SoftDisable:
     def _make_redis(self) -> MagicMock:
         return MagicMock()
 
-    def test_all_channels_missing_returns_empty_channels(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_all_channels_missing_returns_empty_channels(self) -> None:
         from intellisource.composition import build_distributor_facade
 
         factory = self._make_factory()
         redis = self._make_redis()
 
-        with patch.dict("os.environ", {}, clear=True), caplog.at_level(logging.WARNING):
+        with patch.dict("os.environ", {}, clear=True), capture_logs() as logs:
             facade = build_distributor_facade(
                 session_factory=factory, redis_client=redis
             )
 
         assert facade._channels == {}
-        assert any("wechat" in r.message for r in caplog.records)
-        assert any("wework" in r.message for r in caplog.records)
-        assert any("email" in r.message for r in caplog.records)
-        assert any("no distribution channels" in r.message for r in caplog.records)
+        assert any("wechat" in e["event"] for e in logs)
+        assert any("wework" in e["event"] for e in logs)
+        assert any("email" in e["event"] for e in logs)
+        assert any("no distribution channels" in e["event"] for e in logs)
 
-    def test_wework_only_gives_single_channel(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_wework_only_gives_single_channel(self) -> None:
         from intellisource.composition import build_distributor_facade
 
         factory = self._make_factory()
@@ -51,7 +46,7 @@ class TestB033SoftDisable:
         }
         with (
             patch.dict("os.environ", env, clear=True),
-            caplog.at_level(logging.WARNING),
+            capture_logs() as logs,
         ):
             facade = build_distributor_facade(
                 session_factory=factory, redis_client=redis
@@ -61,11 +56,9 @@ class TestB033SoftDisable:
         assert "wechat" not in facade._channels
         assert "email" not in facade._channels
         assert not any(
-            "wework" in r.message and "disabled" in r.message for r in caplog.records
+            "wework" in e["event"] and "disabled" in e["event"] for e in logs
         )
-        assert any(
-            "wechat" in r.message and "disabled" in r.message for r in caplog.records
-        )
+        assert any("wechat" in e["event"] and "disabled" in e["event"] for e in logs)
 
     def test_no_startup_error_on_empty_env(self) -> None:
         from intellisource.composition import build_distributor_facade
@@ -95,9 +88,7 @@ class TestB033SoftDisable:
         )
         assert facade._channels == {}
 
-    def test_warning_logged_with_channel_name(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_warning_logged_with_channel_name(self) -> None:
         from intellisource.composition import build_distributor_facade
 
         factory = self._make_factory()
@@ -105,11 +96,11 @@ class TestB033SoftDisable:
 
         with (
             patch.dict("os.environ", {}, clear=True),
-            caplog.at_level(logging.WARNING, logger="intellisource.composition"),
+            capture_logs() as logs,
         ):
             build_distributor_facade(session_factory=factory, redis_client=redis)
 
-        messages = [r.message for r in caplog.records]
+        messages = [e["event"] for e in logs]
         assert any("'wechat'" in m or "wechat" in m for m in messages)
         assert any("'wework'" in m or "wework" in m for m in messages)
         assert any("'email'" in m or "email" in m for m in messages)

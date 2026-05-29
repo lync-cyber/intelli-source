@@ -224,15 +224,15 @@ class TestPipelineEngineLogging:
         assert isinstance(elapsed, (int, float))
         assert elapsed >= 0
 
-    def test_execution_logs_start_and_end(self, caplog):
+    def test_execution_logs_start_and_end(self):
         """Pipeline execution should emit log messages at start and end."""
-        import logging
+        from structlog.testing import capture_logs
 
         processors = [AppendProcessor("a")]
         engine = PipelineEngine(processors=processors)
         ctx = PipelineContext()
-        with caplog.at_level(logging.DEBUG):
+        with capture_logs() as logs:
             engine.execute(ctx)
-        log_text = caplog.text.lower()
+        log_text = " ".join(e["event"] for e in logs).lower()
         # Should log both pipeline start and pipeline end/complete
         assert "pipeline" in log_text

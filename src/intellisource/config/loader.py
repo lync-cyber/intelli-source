@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
-import os
 import uuid
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -17,8 +15,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.config.models import SourceConfig
 from intellisource.config.validator import ConfigValidator
+from intellisource.core.settings import get_settings
+from intellisource.observability.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ConfigPathError(ValueError):
@@ -45,7 +45,7 @@ class ConfigLoader:
 
     def __init__(self) -> None:
         self._validator = ConfigValidator()
-        config_dir_env = os.environ.get("IS_SOURCE_CONFIG_DIR", "")
+        config_dir_env = get_settings().source_config_dir
         self._config_dir: Path | None = Path(config_dir_env) if config_dir_env else None
 
     def load_file(self, file_path: str) -> list[SourceConfig]:

@@ -74,7 +74,9 @@ class TestSyncBeatSchedules:
         assert result == {}
         assert celery_app.conf.beat_schedule == {}
 
-    def test_unparseable_expr_is_skipped_with_warning(self, caplog: Any) -> None:
+    def test_unparseable_expr_is_skipped_with_warning(self) -> None:
+        from structlog.testing import capture_logs
+
         from intellisource.scheduler.beat_sync import sync_beat_schedules
         from intellisource.scheduler.state_machine import SchedulerManager
 
@@ -86,11 +88,11 @@ class TestSyncBeatSchedules:
             params={},
         )
         celery_app = _make_celery_stub()
-        with caplog.at_level("WARNING"):
+        with capture_logs() as logs:
             result = sync_beat_schedules(celery_app, sm)
 
         assert "bad" not in result
-        assert any("unparseable" in r.message.lower() for r in caplog.records)
+        assert any("unparseable" in e["event"].lower() for e in logs)
 
     def test_writes_to_celery_conf_beat_schedule(self) -> None:
         from intellisource.scheduler.beat_sync import sync_beat_schedules

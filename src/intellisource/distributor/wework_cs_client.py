@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
+from intellisource.core.settings import get_settings
 from intellisource.distributor.base_cs_client import BaseCustomerServiceClient
 
 
@@ -38,9 +38,10 @@ class WeWorkCustomerServiceClient(BaseCustomerServiceClient):
         Raises ValueError when any of IS_WEWORK_CORP_ID,
         IS_WEWORK_CORP_SECRET, IS_WEWORK_AGENT_ID is absent.
         """
-        corp_id = os.environ.get("IS_WEWORK_CORP_ID")
-        corp_secret = os.environ.get("IS_WEWORK_CORP_SECRET")
-        agent_id_str = os.environ.get("IS_WEWORK_AGENT_ID")
+        settings = get_settings()
+        corp_id = settings.wework_corp_id
+        corp_secret = settings.wework_corp_secret
+        agent_id_str = settings.wework_agent_id
         if not corp_id:
             raise ValueError(
                 "IS_WEWORK_CORP_ID missing — required for WeWorkCustomerServiceClient"

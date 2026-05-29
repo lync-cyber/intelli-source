@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-import logging
-import os
 import uuid
 from typing import TYPE_CHECKING, Any
 
+from intellisource.core.settings import get_settings
 from intellisource.distributor.pii import mask_email, mask_phone
+from intellisource.observability.logging import get_logger
 
 if TYPE_CHECKING:
     from intellisource.distributor.base import BaseDistributor
     from intellisource.distributor.matcher import SubscriptionMatcher
 
-_logger = logging.getLogger(__name__)
+_logger = get_logger(__name__)
 
 # B-005: distributor-layer labeled counter name.
 _METRIC_PUSHES_TOTAL: str = "pushes_total"
@@ -179,7 +179,7 @@ class DistributorFacade:
 
     async def _prepare_push_content(self, content: Any, subscription: Any) -> Any:
         """Optimize content for push when enabled; degrade to original on failure."""
-        if os.environ.get("IS_PUSH_OPTIMIZE_ENABLED") != "1":
+        if get_settings().push_optimize_enabled != "1":
             return content
         if self._llm_gateway is None:
             return content

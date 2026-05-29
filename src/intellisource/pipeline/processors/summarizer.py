@@ -17,13 +17,13 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
-import logging
 from typing import Any
 
+from intellisource.observability.logging import get_logger
 from intellisource.pipeline.base import BaseProcessor, PipelineContext
 from intellisource.pipeline.processors.tools import truncate_summary
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class _GatewayDeps:

@@ -5,7 +5,6 @@ Provides task_type -> model mapping from YAML config files.
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -19,15 +18,13 @@ from intellisource.config.llm_schema import (
     ModelProfileConfig,
     ModelTaskConfig,
 )
+from intellisource.observability.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
-# Re-export for backward compatibility so existing importers using
-# `from intellisource.llm.model_config import LLMModelsConfig` continue to work.
 __all__ = [
     "DefaultModelConfig",
     "LLMModelsConfig",
-    "ModelConfig",
     "ModelProfile",
     "ModelProfileConfig",
     "ModelRoutingConfig",
@@ -45,22 +42,6 @@ class ModelProfile:
     context_window: int
     prompt_style: str = "default"
     timeout_seconds: int = 60
-    thinking: str | None = None
-    reasoning_effort: str | None = None
-
-
-@dataclass
-class ModelConfig:
-    """Individual model configuration.
-
-    # Deprecated: use ModelTaskConfig (Pydantic) for new code;
-    # will be removed in a future sprint.
-    """
-
-    model: str
-    provider: str
-    temperature: float | None = None
-    max_tokens: int | None = None
     thinking: str | None = None
     reasoning_effort: str | None = None
 

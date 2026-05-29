@@ -98,10 +98,10 @@ class TestBuildDistributorFacadeEnvGuard:
     missing required vars log a WARNING and soft-disable that channel."""
 
     def test_missing_wechat_creds_disables_wechat_channel(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """wechat channel absent from facade when IS_WECHAT_APP_ID is missing."""
-        import logging
+        from structlog.testing import capture_logs
 
         monkeypatch.delenv("IS_WECHAT_APP_ID", raising=False)
         monkeypatch.delenv("IS_WECHAT_APP_SECRET", raising=False)
@@ -114,22 +114,20 @@ class TestBuildDistributorFacadeEnvGuard:
 
         from intellisource.composition import build_distributor_facade
 
-        with caplog.at_level(logging.WARNING):
+        with capture_logs() as logs:
             facade = build_distributor_facade(
                 session_factory=MagicMock(),
                 redis_client=MagicMock(),
             )
 
         assert "wechat" not in facade._channels
-        assert any(
-            "wechat" in r.message and "disabled" in r.message for r in caplog.records
-        )
+        assert any("wechat" in e["event"] and "disabled" in e["event"] for e in logs)
 
     def test_missing_smtp_creds_disables_email_channel(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """email channel absent from facade when SMTP env vars are missing."""
-        import logging
+        from structlog.testing import capture_logs
 
         monkeypatch.delenv("IS_SMTP_HOST", raising=False)
         monkeypatch.delenv("IS_SMTP_USER", raising=False)
@@ -142,16 +140,14 @@ class TestBuildDistributorFacadeEnvGuard:
 
         from intellisource.composition import build_distributor_facade
 
-        with caplog.at_level(logging.WARNING):
+        with capture_logs() as logs:
             facade = build_distributor_facade(
                 session_factory=MagicMock(),
                 redis_client=MagicMock(),
             )
 
         assert "email" not in facade._channels
-        assert any(
-            "email" in r.message and "disabled" in r.message for r in caplog.records
-        )
+        assert any("email" in e["event"] and "disabled" in e["event"] for e in logs)
 
     def test_all_env_present_returns_non_none_facade(
         self, monkeypatch: pytest.MonkeyPatch

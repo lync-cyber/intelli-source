@@ -11,15 +11,15 @@ Cron string forms supported:
 
 from __future__ import annotations
 
-import logging
 from datetime import timedelta
 from typing import Any
 
 from celery.schedules import crontab
 
+from intellisource.observability.logging import get_logger
 from intellisource.scheduler.state_machine import SchedulerManager
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _parse_schedule(cron_expr: str) -> Any:

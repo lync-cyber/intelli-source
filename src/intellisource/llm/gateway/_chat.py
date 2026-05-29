@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import logging
 import time
 from typing import Any, cast
 
@@ -20,8 +19,9 @@ from intellisource.llm.gateway._types import (
     SchemaEnforcer,
     SchemaValidationError,
 )
+from intellisource.observability.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _chat_fingerprint(

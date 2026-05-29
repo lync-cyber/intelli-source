@@ -11,11 +11,8 @@ Covers:
 
 from __future__ import annotations
 
-import logging
 import textwrap
 from pathlib import Path
-
-import pytest
 
 from intellisource.agent.tools import (
     AgentToolRegistry,
@@ -71,17 +68,17 @@ class TestAutoDiscoverScansDir:
         assert "real" in listed
         assert "private" not in listed
 
-    def test_missing_dir_logs_warning_and_returns(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_missing_dir_logs_warning_and_returns(self, tmp_path: Path) -> None:
+        from structlog.testing import capture_logs
+
         missing = tmp_path / "does-not-exist"
 
         registry = AgentToolRegistry()
-        with caplog.at_level(logging.WARNING, logger="intellisource.agent.tools"):
+        with capture_logs() as logs:
             registry.auto_discover(str(missing))
 
         assert registry.list_tools() == []
-        assert any("does not exist" in rec.message for rec in caplog.records)
+        assert any("does not exist" in e["event"] for e in logs)
 
 
 # ---------------------------------------------------------------- AC-T066-2
@@ -106,8 +103,10 @@ class TestToolDefinitionConstant:
         assert registry.list_tools() == []
 
     def test_plugin_with_wrong_type_constant_is_warned_and_skipped(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+        self, tmp_path: Path
     ) -> None:
+        from structlog.testing import capture_logs
+
         _write_plugin(
             tmp_path,
             "bad_type.py",
@@ -117,11 +116,11 @@ class TestToolDefinitionConstant:
         )
 
         registry = AgentToolRegistry()
-        with caplog.at_level(logging.WARNING, logger="intellisource.agent.tools"):
+        with capture_logs() as logs:
             registry.auto_discover(str(tmp_path))
 
         assert registry.list_tools() == []
-        assert any("not a ToolDefinition" in rec.message for rec in caplog.records)
+        assert any("not a ToolDefinition" in e["event"] for e in logs)
 
 
 # ---------------------------------------------------------------- AC-T066-3
@@ -209,8 +208,10 @@ class TestManualRegistrationWins:
 
 class TestImportErrorTolerance:
     def test_import_error_in_one_plugin_does_not_abort_discovery(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+        self, tmp_path: Path
     ) -> None:
+        from structlog.testing import capture_logs
+
         _write_plugin(
             tmp_path,
             "broken.py",
@@ -221,18 +222,17 @@ class TestImportErrorTolerance:
         _write_plugin(tmp_path, "healthy.py", _valid_plugin_source("healthy"))
 
         registry = AgentToolRegistry()
-        with caplog.at_level(logging.WARNING, logger="intellisource.agent.tools"):
+        with capture_logs() as logs:
             registry.auto_discover(str(tmp_path))
 
         assert "healthy" in registry.list_tools()
         assert any(
-            "import failed" in rec.message and "broken.py" in rec.message
-            for rec in caplog.records
+            "import failed" in e["event"] and "broken.py" in e["event"] for e in logs
         )
 
-    def test_syntax_error_in_plugin_is_caught(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_syntax_error_in_plugin_is_caught(self, tmp_path: Path) -> None:
+        from structlog.testing import capture_logs
+
         _write_plugin(
             tmp_path,
             "syntaxbad.py",
@@ -242,11 +242,11 @@ class TestImportErrorTolerance:
         )
 
         registry = AgentToolRegistry()
-        with caplog.at_level(logging.WARNING, logger="intellisource.agent.tools"):
+        with capture_logs() as logs:
             registry.auto_discover(str(tmp_path))
 
         assert registry.list_tools() == []
-        assert any("import failed" in rec.message for rec in caplog.records)
+        assert any("import failed" in e["event"] for e in logs)
 
 
 # ---------------------------------------------------------------- AC-T066-6 (mypy)

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import time
 import uuid
 
@@ -12,6 +11,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
 
+from intellisource.core.settings import get_settings
 from intellisource.observability.trace_context import trace_id_ctx
 
 logger = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
-        api_key = os.environ.get("IS_API_KEY", "")
+        api_key = get_settings().api_key
 
         if not api_key:
             return await call_next(request)

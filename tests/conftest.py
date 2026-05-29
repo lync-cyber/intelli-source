@@ -2,7 +2,35 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import pytest
+import structlog
+
+from intellisource.core.settings import get_settings
+
+
+@pytest.fixture(autouse=True)
+def _reset_structlog() -> Iterator[None]:
+    """Reset structlog to defaults around each test.
+
+    ``setup_logging()`` (triggered by app/lifespan tests) reconfigures the
+    process-wide structlog with the stdlib BoundLogger wrapper. Left in place
+    it leaks into later tests and changes how ``structlog.testing.capture_logs``
+    renders events (raw ``%s`` + positional_args vs interpolated). Resetting
+    per test keeps log capture deterministic and isolates config side effects.
+    """
+    structlog.reset_defaults()
+    yield
+    structlog.reset_defaults()
+
+
+@pytest.fixture(autouse=True)
+def _reset_settings_cache() -> Iterator[None]:
+    """Drop the cached Settings so each test re-reads its monkeypatched env."""
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @pytest.fixture(autouse=True)

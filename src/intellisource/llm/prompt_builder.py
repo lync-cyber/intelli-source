@@ -8,15 +8,15 @@ from __future__ import annotations
 
 import hashlib
 import json
-import logging
 from pathlib import Path
 from typing import Any
 
 import litellm
 
 from intellisource.llm.prompts import _TEMPLATE_DIR, _read_template
+from intellisource.observability.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _DEFAULT_MODEL = "gpt-4o-mini"
 _DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant."

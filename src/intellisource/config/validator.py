@@ -10,6 +10,7 @@ from typing import Any, Final, get_args
 import yaml
 from pydantic import ValidationError
 
+from intellisource.config.constants import MAX_NAME_LENGTH
 from intellisource.config.models import SourceConfig
 
 _ENV_VAR_PATTERN: Final[re.Pattern[str]] = re.compile(r"\$\{([^}]+)\}")
@@ -21,7 +22,6 @@ _ALLOWED_SOURCE_TYPES: Final[frozenset[str]] = frozenset(
 )
 _ALLOWED_URL_SCHEMES: Final[frozenset[str]] = frozenset({"http://", "https://"})
 _PATH_TRAVERSAL_CHARS: Final[frozenset[str]] = frozenset({"..", "/", "\\"})
-_MAX_NAME_LENGTH: Final[int] = 100
 
 
 class ConfigValidationError(ValueError):
@@ -59,9 +59,9 @@ class ConfigValidator:
         name = config.name
         if not name:
             raise ConfigValidationError("name must be non-empty")
-        if len(name) > _MAX_NAME_LENGTH:
+        if len(name) > MAX_NAME_LENGTH:
             raise ConfigValidationError(
-                f"name length {len(name)} exceeds maximum {_MAX_NAME_LENGTH}"
+                f"name length {len(name)} exceeds maximum {MAX_NAME_LENGTH}"
             )
         for forbidden in _PATH_TRAVERSAL_CHARS:
             if forbidden in name:

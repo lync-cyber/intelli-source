@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import re
 from pathlib import Path
 from typing import Any
@@ -14,9 +13,10 @@ from pydantic import BaseModel
 from intellisource.agent.pipeline import PipelineConfig
 from intellisource.agent.tools import _PIPELINES_DIR as _SHARED_PIPELINES_DIR
 from intellisource.agent.tools import load_pipeline_config
+from intellisource.observability.logging import get_logger
 from intellisource.scheduler.dispatch import send_task_with_trace
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/pipelines", tags=["pipelines"])
 

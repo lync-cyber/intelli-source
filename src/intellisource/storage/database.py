@@ -6,7 +6,6 @@ SQLAlchemy 2.0's ``create_async_engine`` and ``async_sessionmaker``.
 
 from __future__ import annotations
 
-import os
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
@@ -16,6 +15,8 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+
+from intellisource.core.settings import get_settings
 
 
 class DatabaseManager:
@@ -30,13 +31,12 @@ class DatabaseManager:
     """
 
     def __init__(self, database_url: str | None = None) -> None:
+        settings = get_settings()
         url = (
-            database_url
-            or os.environ.get("DATABASE_URL")
-            or os.environ.get("IS_DATABASE_URL")
+            database_url or settings.database_url or settings.is_database_url
         )  # 12-factor §III Config
         if not url:
-            env = os.environ.get("ENV", "")
+            env = settings.env
             if env in ("production", "staging"):
                 raise ValueError(
                     "DATABASE_URL environment variable must be set "

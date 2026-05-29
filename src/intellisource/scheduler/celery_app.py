@@ -2,18 +2,16 @@
 
 from __future__ import annotations
 
-import os
-
 from celery import Celery
 from kombu import Queue
 
+from intellisource.core.settings import Settings
 from intellisource.scheduler.queues import PRIORITY_QUEUES, TRIGGER_TYPE_QUEUES
 
 
-def _resolve_url(*env_keys: str, default: str) -> str:
-    """Return the first non-empty value from *env_keys*, or *default*."""
-    for key in env_keys:
-        value = os.environ.get(key)
+def _resolve_url(*values: str | None, default: str) -> str:
+    """Return the first non-empty value, or *default*."""
+    for value in values:
         if value:
             return value
     return default
@@ -23,11 +21,18 @@ def _resolve_url(*env_keys: str, default: str) -> str:
 # Module-level singleton
 # ---------------------------------------------------------------------------
 
+# Read once at import for the Celery() broker/backend wiring. Use a direct
+# Settings() instance rather than the cached get_settings() so importing this
+# module never populates the process-wide cache (which tests reset per case).
+_settings = Settings()
+
 celery_app = Celery(
     "intellisource",
-    broker=_resolve_url("IS_CELERY_BROKER_URL", "IS_REDIS_URL", default="memory://"),
+    broker=_resolve_url(
+        _settings.celery_broker_url, _settings.redis_url, default="memory://"
+    ),
     backend=_resolve_url(
-        "IS_CELERY_RESULT_BACKEND", "IS_REDIS_URL", default="cache+memory://"
+        _settings.celery_result_backend, _settings.redis_url, default="cache+memory://"
     ),
 )
 

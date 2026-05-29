@@ -8,6 +8,7 @@ from typing import Any, Final, get_args
 import yaml
 from pydantic import ValidationError
 
+from intellisource.config.constants import MAX_NAME_LENGTH
 from intellisource.config.subscription_models import SubscriptionConfig
 from intellisource.config.validator import _resolve_env_vars
 
@@ -15,7 +16,6 @@ _ALLOWED_CHANNELS: Final[frozenset[str]] = frozenset(
     get_args(SubscriptionConfig.model_fields["channel"].annotation)
 )
 _PATH_TRAVERSAL_CHARS: Final[frozenset[str]] = frozenset({"..", "/", "\\"})
-_MAX_NAME_LENGTH: Final[int] = 100
 _ALLOWED_WEWORK_MSG_TYPES: Final[frozenset[str]] = frozenset(
     {"text", "markdown", "news"}
 )
@@ -77,9 +77,9 @@ class SubscriptionValidator:
         name = config.name
         if not name:
             raise SubscriptionValidationError("name must be non-empty")
-        if len(name) > _MAX_NAME_LENGTH:
+        if len(name) > MAX_NAME_LENGTH:
             raise SubscriptionValidationError(
-                f"name length {len(name)} exceeds maximum {_MAX_NAME_LENGTH}"
+                f"name length {len(name)} exceeds maximum {MAX_NAME_LENGTH}"
             )
         for forbidden in _PATH_TRAVERSAL_CHARS:
             if forbidden in name:

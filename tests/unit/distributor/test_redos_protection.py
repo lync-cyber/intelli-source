@@ -188,11 +188,10 @@ class TestReDoSProtectionKeywordMatches:
         )
         assert result is True
 
-    def test_timeout_logged_not_silently_swallowed(self, caplog):
+    def test_timeout_logged_not_silently_swallowed(self):
         """AC-5: TimeoutError from regex.search timeout must be logged."""
-        import logging
-
         import regex as regex_lib
+        from structlog.testing import capture_logs
 
         with patch.object(
             regex_lib,
@@ -201,19 +200,18 @@ class TestReDoSProtectionKeywordMatches:
         ):
             from intellisource.distributor.matcher import SubscriptionMatcher
 
-            with caplog.at_level(logging.WARNING):
+            with capture_logs() as logs:
                 matcher = SubscriptionMatcher()
                 matcher._evaluate_keywords(["/py.*/"], "python", "python")
 
-        assert len(caplog.records) >= 1, (
+        assert len(logs) >= 1, (
             "regex.TimeoutError was not logged; silent swallowing is not allowed"
         )
 
-    def test_timeout_log_does_not_leak_pattern(self, caplog):
+    def test_timeout_log_does_not_leak_pattern(self):
         """AC-5: timeout warning must not contain the raw pattern text."""
-        import logging
-
         import regex as regex_lib
+        from structlog.testing import capture_logs
 
         pattern = "(secret_business_keyword_xyz+)+$"
         kw = f"/{pattern}/"
@@ -225,13 +223,14 @@ class TestReDoSProtectionKeywordMatches:
         ):
             from intellisource.distributor.matcher import SubscriptionMatcher
 
-            with caplog.at_level(logging.WARNING):
+            with capture_logs() as logs:
                 matcher = SubscriptionMatcher()
                 matcher._evaluate_keywords([kw], "some text", "some text")
 
-        assert pattern not in caplog.text, (
+        events = " ".join(e["event"] for e in logs)
+        assert pattern not in events, (
             "Timeout log must not contain the raw pattern string"
         )
-        assert "sha256=" in caplog.text, (
+        assert "sha256=" in events, (
             "Timeout log should include sha256= hash for traceability"
         )

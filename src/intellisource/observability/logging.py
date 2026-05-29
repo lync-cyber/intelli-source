@@ -7,11 +7,12 @@ Log level is configurable via IS_LOG_LEVEL environment variable (default: INFO).
 from __future__ import annotations
 
 import logging
-import os
 import sys
 from typing import TextIO
 
 import structlog
+
+from intellisource.core.settings import get_settings
 
 
 class TraceIdFormatter(logging.Formatter):
@@ -53,7 +54,7 @@ def setup_logging(stream: TextIO | None = None) -> None:
     if stream is None:
         stream = sys.stderr
 
-    log_level_name = os.environ.get("IS_LOG_LEVEL", "INFO").upper()
+    log_level_name = get_settings().log_level.upper()
     log_level = getattr(logging, log_level_name, logging.INFO)
 
     root_logger = logging.getLogger()
@@ -70,6 +71,7 @@ def setup_logging(stream: TextIO | None = None) -> None:
             structlog.contextvars.merge_contextvars,
             structlog.stdlib.filter_by_level,
             structlog.stdlib.add_log_level,
+            structlog.stdlib.PositionalArgumentsFormatter(),
             structlog.processors.TimeStamper(key="timestamp"),
             structlog.processors.StackInfoRenderer(),
             structlog.processors.format_exc_info,
@@ -92,10 +94,3 @@ def get_logger(name: str) -> structlog.stdlib.BoundLogger:
         A structlog BoundLogger instance.
     """
     return structlog.get_logger(name)  # type: ignore[no-any-return]
-
-
-# NOTE: Most business modules in src/intellisource/ still use
-# `logging.getLogger(__name__)` directly (arch requires structlog).
-# Migration is tracked as a backlog item; blockers are mypy --strict
-# type incompatibilities between logging.Logger and
-# structlog.stdlib.BoundLogger when loggers are passed as parameters.

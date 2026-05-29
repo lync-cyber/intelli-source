@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
+from intellisource.core.settings import get_settings
 from intellisource.distributor.base_cs_client import BaseCustomerServiceClient
 
 
@@ -35,8 +35,9 @@ class WeChatCustomerServiceClient(BaseCustomerServiceClient):
 
         Raises ValueError when either variable is absent.
         """
-        app_id = os.environ.get("IS_WECHAT_APP_ID")
-        app_secret = os.environ.get("IS_WECHAT_APP_SECRET")
+        settings = get_settings()
+        app_id = settings.wechat_app_id
+        app_secret = settings.wechat_app_secret
         if not app_id:
             raise ValueError(
                 "IS_WECHAT_APP_ID missing — required for WeChatCustomerServiceClient"
