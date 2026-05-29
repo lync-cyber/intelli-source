@@ -58,3 +58,16 @@ deps: [arch-intellisource-v1-modules, backlog-intellisource-v1]
 - **本地全门禁**：`make check`（arch + deps + deadcode + ruff + mypy + 单测 `-n auto`），基线保持 8/8 KEPT、零新增违规、单测不退化。
 - **契约相关集成**（EXP-CONTRACT-DRIFT）：触碰 `api/routers/`、`storage` SQL、`llm/gateway/_stream`、渠道返回 shape 时跑 `make test-integration`（`make up` 提供 PG/Redis）。
 - **行为等价专项**：Settings 默认值逐项对账 + `get_settings.cache_clear()` setenv 测试；日志 JSON 行 schema（timestamp/level/trace_id）不变；异常路径错误注入（坏 SMTP/DB/LLM key）分类与恢复行为不变。
+
+## 6. 实施状态（本次工程）
+
+| Phase | 实施结果 | 验证 |
+|-------|---------|------|
+| 0 | ✅ 删除死代码 `ModelConfig` + backlog 回填 B-020~B-028 + 落盘本报告 | `make check` 全绿 |
+| 1 | ✅ `MAX_NAME_LENGTH` → `config/constants.py`；渠道 `MAX_RETRY`/`RETRY_INTERVAL`/`TOKEN_EXPIRE_BUFFER` → `distributor/channels/constants.py` | unit 不退化 |
+| 2 | ✅ push-result 骨架统一到 `BaseDistributor._build_result`（数据等价，状态词表不变） | distributor unit 全绿 |
+| 3 | ✅ `core/settings.py`（pydantic-settings）收敛 14 文件 ~35 处 env 读取；字段保留原始类型 + 各点原解析语义；动态读取保留原样；附带修复 `main.py` 模块级 env 读取的 import 期缓存污染（latent bug） | 2977 unit 全绿；默认值逐项对账 |
+| 4 | ✅ 47 业务模块 → structlog `get_logger`（JSON Lines）；`PositionalArgumentsFormatter` 保 `%s`；`signals`/`middleware` 刻意留 stdlib（B-040 载体）；16 处 caplog → `capture_logs` | 2977 unit 全绿 |
+| 5 | ✅ 保守收尾 — 经诊断异常层级已充分采用（11 处边界抛子类 / 15 处广捕已标注 / 仅 5 处静默吞吃且多为合理）；未做全量收窄（避免行为漂移），仅对 `strict._retry_step` 静默重试吞吃补 debug 日志（行为等价） | unit 全绿 |
+
+**结论**：D-1~D-8 全部闭环。自动化治理基线（import-linter 8/8 / deptry / vulture / ruff / mypy --strict）保持全绿，单测 2977 PASS 不退化。
