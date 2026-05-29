@@ -82,7 +82,7 @@ class TestRateLimiterBasic:
 
         mock_redis = MagicMock()
         limiter = RateLimiter(redis_client=mock_redis)
-        assert limiter is not None
+        assert isinstance(limiter, RateLimiter)
 
     @pytest.mark.asyncio
     async def test_acquire_calls_redis_for_token(self):
@@ -185,7 +185,7 @@ class TestRateLimiterWaitBehavior:
         limiter = RateLimiter(redis_client=mock_redis)
         # This should complete without raising any rate-limit exception
         result = await limiter.acquire(source_id="source_a", qps=1, concurrency=1)
-        assert result is not None
+        assert result
 
 
 # ===================================================================

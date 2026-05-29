@@ -136,4 +136,13 @@ class TestLabeledGaugeCorrectUsage:
 
         mc = MetricsCollector.get_instance()
         checker = HealthChecker(metrics_collector=mc)
-        assert checker is not None
+        assert isinstance(checker, HealthChecker)
+        # Constructing with a collector must register the health gauge under the
+        # "component" label, so a set/get round-trip on that label must succeed.
+        mc.set_labeled_gauge("intellisource_health_status", {"component": "db"}, 0.0)
+        assert (
+            mc.get_labeled_gauge_value(
+                "intellisource_health_status", {"component": "db"}
+            )
+            == 0.0
+        )

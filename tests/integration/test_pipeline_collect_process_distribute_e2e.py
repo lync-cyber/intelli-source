@@ -138,6 +138,8 @@ async def test_collect_process_distribute_persists_push_record(
     raw_id = uuid.UUID(collect_result["raw_content_ids"][0])
     raw_row = await pg_session.get(RawContent, raw_id)
     assert raw_row is not None
+    assert raw_row.id == raw_id
+    assert raw_row.source_id == source.id
 
     process_result = await _process_execute(content_id=str(raw_id), tool_deps=deps)
     assert process_result["status"] == "ok"

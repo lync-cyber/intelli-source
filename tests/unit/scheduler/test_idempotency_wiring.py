@@ -215,7 +215,7 @@ class TestIdempotencyWiringAC3:
         guard.acquire.assert_called_once()
         checker.is_duplicate.assert_called_once()
         agent_runner.execute.assert_called_once()
-        assert result is not None
+        assert result["status"] == "success"
 
 
 # ---------------------------------------------------------------------------
@@ -271,7 +271,7 @@ class TestIdempotencyWiringAC4:
             "news_collect",
             {"task_id": "task-dup-002", "fingerprint": "fp-dup2"},
         )
-        assert result is not None, (
+        assert isinstance(result, dict), (
             "run_pipeline must return a result dict on early exit, not None"
         )
 

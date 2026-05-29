@@ -21,8 +21,9 @@ class TestProcessorRegistryExists:
         """PROCESSOR_REGISTRY must be importable from pipeline.registry."""
         from intellisource.pipeline.registry import PROCESSOR_REGISTRY  # noqa: PLC0415
 
-        assert PROCESSOR_REGISTRY is not None, (
-            "PROCESSOR_REGISTRY must not be None after import"
+        assert isinstance(PROCESSOR_REGISTRY, dict)
+        assert len(PROCESSOR_REGISTRY) > 0, (
+            "PROCESSOR_REGISTRY must be populated after import"
         )
 
     def test_processor_registry_is_dict(self) -> None:

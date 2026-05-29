@@ -92,6 +92,7 @@ class FlexibleLoop:
             response = await self._llm_gateway.chat(
                 messages=messages,
                 tools=tool_descriptors,
+                cache_key_parts={"call_type": "chat", "prompt_version": config.name},
             )
             llm_latency_ms = (time.monotonic() - llm_t0) * 1000.0
             steps_executed += 1
@@ -402,6 +403,7 @@ class FlexibleLoop:
             response = await self._llm_gateway.chat(
                 messages=messages,
                 tools=tool_descriptors,
+                cache_key_parts={"call_type": "chat", "prompt_version": config.name},
             )
             llm_latency_ms = (time.monotonic() - llm_t0) * 1000.0
             steps_executed += 1

@@ -133,9 +133,7 @@ class DistributorFacade:
             # Step 4: pre-push optimize (F-010) then channel.send
             push_content = await self._prepare_push_content(content, sub)
             try:
-                await channel.distribute(push_content, sub)
-                sent += 1
-                _record_push_outcome("sent", channel=channel_name)
+                outcome = await channel.distribute(push_content, sub)
             except Exception:
                 _logger.exception(
                     "channel.distribute failed for sub=%s channel=%s",
@@ -145,6 +143,23 @@ class DistributorFacade:
                 skipped += 1
                 _record_push_outcome("failed", channel=channel_name)
                 continue
+
+            # Channels swallow transport errors and return {"status": "failed"}
+            # instead of raising, so the returned status — not just exceptions —
+            # decides success.
+            if isinstance(outcome, dict) and outcome.get("status") == "failed":
+                _logger.warning(
+                    "channel.distribute reported failure for sub=%s channel=%s: %s",
+                    sub.id,
+                    channel_name,
+                    outcome.get("error"),
+                )
+                skipped += 1
+                _record_push_outcome("failed", channel=channel_name)
+                continue
+
+            sent += 1
+            _record_push_outcome("sent", channel=channel_name)
 
             # Step 5: record_push + PII mask
             recipient_raw = _extract_recipient(sub)

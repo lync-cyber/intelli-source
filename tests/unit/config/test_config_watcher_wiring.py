@@ -72,8 +72,8 @@ class TestLifespanConfigWatcherInstantiation:
         config_dir_value = call_kwargs.kwargs.get(
             "config_dir", call_kwargs.args[0] if call_kwargs.args else None
         )
-        assert config_dir_value is not None, (
-            "ConfigWatcher must be called with a config_dir argument"
+        assert isinstance(config_dir_value, str) and config_dir_value, (
+            "ConfigWatcher must be called with a non-empty config_dir string"
         )
 
     async def test_startup_passes_callback_to_config_watcher(self) -> None:
@@ -382,8 +382,8 @@ class TestLifespanConfigWatcherAppState:
                 assert hasattr(app.state, "config_watcher"), (
                     "app.state.config_watcher must be set during lifespan startup"
                 )
-                assert app.state.config_watcher is not None, (
-                    "app.state.config_watcher must be non-None"
+                assert app.state.config_watcher is mock_watcher_instance, (
+                    "app.state.config_watcher must be the constructed ConfigWatcher"
                 )
 
     async def test_app_state_config_watcher_is_the_watcher_instance(self) -> None:

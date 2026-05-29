@@ -21,6 +21,8 @@ class TestColdStartLifespan:
         """After lifespan startup app.state.celery_app must be non-None."""
         from unittest.mock import AsyncMock, MagicMock, patch
 
+        from celery import Celery
+
         monkeypatch.setenv("IS_CELERY_BROKER_URL", "memory://")
 
         mock_db = MagicMock()
@@ -46,8 +48,8 @@ class TestColdStartLifespan:
                 assert hasattr(app.state, "celery_app"), (
                     "app.state.celery_app must be set during lifespan startup"
                 )
-                assert app.state.celery_app is not None, (
-                    "app.state.celery_app must not be None after startup"
+                assert isinstance(app.state.celery_app, Celery), (
+                    "app.state.celery_app must be a Celery instance after startup"
                 )
 
     @pytest.mark.asyncio

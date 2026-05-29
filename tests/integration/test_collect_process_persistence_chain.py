@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -129,7 +130,7 @@ async def test_process_persists_processed_content(pg_session: AsyncSession) -> N
 
     await pg_session.refresh(raw)
     assert raw.status == "processed"
-    assert raw.processed_at is not None
+    assert isinstance(raw.processed_at, datetime)
 
     stmt = select(ProcessedContent).where(ProcessedContent.raw_content_id == raw.id)
     rows = list((await pg_session.scalars(stmt)).all())

@@ -337,7 +337,7 @@ class TestGatewayTruncationIntegration:
                 max_input_tokens=1000,
             )
         # Should still return a result
-        assert result.content is not None
+        assert result.content == "mocked response"
         # The user message sent should be truncated
         call_kwargs = mock_litellm.acompletion.call_args.kwargs
         user_msg = [m for m in call_kwargs["messages"] if m["role"] == "user"][0]
@@ -378,7 +378,7 @@ class TestGatewayTruncationIntegration:
             mock_pb_litellm.token_counter = MagicMock(return_value=110000)
             gw = LLMGateway()
             result = await gw.complete(prompt=prompt, model="gpt-4o-mini")
-        assert result.content is not None
+        assert result.content == "mocked response"
         call_kwargs = mock_litellm.acompletion.call_args.kwargs
         user_msg = [m for m in call_kwargs["messages"] if m["role"] == "user"][0]
         assert len(user_msg["content"]) < len(prompt)
@@ -424,7 +424,7 @@ class TestGatewayTruncationIntegration:
                 max_tokens=512,
                 task_type="extract",
             )
-        assert result.content is not None
+        assert result.content == "mocked response"
 
 
 # ===================================================================
@@ -567,7 +567,8 @@ class TestPromptBuilderVariantStyle:
     def test_prompt_builder_accepts_prompt_style_kwarg(self) -> None:
         """PromptBuilder accepts prompt_style keyword argument without raising."""
         builder = PromptBuilder(call_type="extraction", prompt_style="structured")
-        assert builder._template is not None
+        assert isinstance(builder._template, str)
+        assert len(builder._template) > 0
 
     def test_prompt_builder_prompt_style_loads_variant(self) -> None:
         """PromptBuilder with prompt_style loads the variant template content."""

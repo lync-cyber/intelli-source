@@ -100,16 +100,17 @@ class TestBuildCeleryTasks:
         assert tasks._session_factory is not None, (
             "CeleryTasks._session_factory must be set after build_celery_tasks()"
         )
-        assert tasks._idempotency_guard is not None, (
-            "CeleryTasks._idempotency_guard must be non-None after build_celery_tasks()"
-        )
-        assert tasks._fingerprint_checker is not None, (
-            "CeleryTasks._fingerprint_checker must be non-None "
+        assert hasattr(tasks._idempotency_guard, "acquire") and hasattr(
+            tasks._idempotency_guard, "release"
+        ), "_idempotency_guard must expose acquire/release after build_celery_tasks()"
+        assert hasattr(tasks._fingerprint_checker, "is_duplicate") and hasattr(
+            tasks._fingerprint_checker, "record"
+        ), (
+            "_fingerprint_checker must expose is_duplicate/record "
             "after build_celery_tasks()"
         )
-        assert tasks._content_repository is not None, (
-            "CeleryTasks._content_repository must be non-None "
-            "after build_celery_tasks()"
+        assert hasattr(tasks._content_repository, "create"), (
+            "_content_repository must expose create() after build_celery_tasks()"
         )
         import inspect  # noqa: PLC0415
 
@@ -385,16 +386,20 @@ class TestWorkerInitHandlerRealBuild:
             assert tasks is not None, (
                 "get_celery_tasks() must return non-None after worker_init_handler()"
             )
-            assert tasks._idempotency_guard is not None, (
-                "worker_init_handler must wire _idempotency_guard via "
-                "build_celery_tasks"
+            assert hasattr(tasks._idempotency_guard, "acquire") and hasattr(
+                tasks._idempotency_guard, "release"
+            ), (
+                "worker_init_handler must wire _idempotency_guard (acquire/release) "
+                "via build_celery_tasks"
             )
-            assert tasks._fingerprint_checker is not None, (
-                "worker_init_handler must wire _fingerprint_checker via "
-                "build_celery_tasks"
+            assert hasattr(tasks._fingerprint_checker, "is_duplicate") and hasattr(
+                tasks._fingerprint_checker, "record"
+            ), (
+                "worker_init_handler must wire _fingerprint_checker "
+                "(is_duplicate/record) via build_celery_tasks"
             )
-            assert tasks._content_repository is not None, (
-                "worker_init_handler must wire _content_repository via "
+            assert hasattr(tasks._content_repository, "create"), (
+                "worker_init_handler must wire _content_repository (create) via "
                 "build_celery_tasks"
             )
         finally:

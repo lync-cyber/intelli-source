@@ -138,7 +138,7 @@ class TestAPIKeyConfiguration:
             mock_litellm.acompletion = AsyncMock(return_value=mock_litellm_response)
             gw = LLMGateway()
             result = await gw.complete(prompt="test", model="gpt-4o-mini")
-            assert result.content is not None
+            assert json.loads(result.content) == {"title": "Test", "tags": ["a", "b"]}
 
     @pytest.mark.asyncio
     async def test_anthropic_api_key_from_env(
@@ -152,7 +152,7 @@ class TestAPIKeyConfiguration:
             mock_litellm.acompletion = AsyncMock(return_value=mock_litellm_response)
             gw = LLMGateway()
             result = await gw.complete(prompt="test", model="claude-3-haiku-20240307")
-            assert result.content is not None
+            assert json.loads(result.content) == {"title": "Test", "tags": ["a", "b"]}
 
     @pytest.mark.asyncio
     async def test_multiple_providers_configured_simultaneously(
@@ -172,7 +172,7 @@ class TestAPIKeyConfiguration:
             gw = LLMGateway()
             # Should be able to call with different providers without error
             result = await gw.complete(prompt="test", model="gpt-4o-mini")
-            assert result.content is not None
+            assert json.loads(result.content) == {"title": "Test", "tags": ["a", "b"]}
 
 
 # ===================================================================

@@ -110,6 +110,11 @@ class LLMGateway(
                 labelnames=["model"],
                 description="Total LLM calls that failed by model",
             )
+            mc.register_labeled_counter(
+                "llm_cache_hits_total",
+                labelnames=["call_type"],
+                description="Total LLM cache hits by call type",
+            )
         except Exception:  # noqa: BLE001 — metric failures must not break LLM path
             logger.exception("failed to register LLM gateway metrics")
 

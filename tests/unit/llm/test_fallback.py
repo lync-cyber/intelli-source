@@ -79,8 +79,8 @@ class TestFallbackSwitchTime:
         assert elapsed_ms < 500, (
             f"Fallback switch took {elapsed_ms:.1f}ms, exceeds 500ms limit"
         )
-        # Also verify the fallback actually returned something
-        assert result is not None
+        # Also verify the fallback actually returned the degraded payload
+        assert result == {"entities": []}
 
     async def test_fallback_switch_time_with_log_recording(
         self, manager: FallbackManager, mock_call_log: AsyncMock
@@ -266,7 +266,7 @@ class TestFallbackEdgeCases:
             task_type="summary_generation",
             input_data="",
         )
-        assert result is not None
+        assert result == ""
 
     async def test_fallback_with_none_input_raises(
         self, manager: FallbackManager

@@ -623,7 +623,8 @@ class TestClustersEndpoint:
         assert len(data["items"]) <= 2
         # With 5 rows and limit=2 there should be more pages
         assert data["has_more"] is True
-        assert data["next_cursor"] is not None
+        assert isinstance(data["next_cursor"], str)
+        assert data["next_cursor"]
 
     @pytest.mark.asyncio
     async def test_clusters_invalid_cursor_returns_400(

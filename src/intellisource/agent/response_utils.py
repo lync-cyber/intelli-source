@@ -16,6 +16,14 @@ def extract_answer(result: dict[str, Any]) -> str:
             continue
         for key in ("summary", "text", "content"):
             value = output.get(key)
-            if value:
-                return str(value)
+            if isinstance(value, str) and value:
+                return value
+        # get_content_detail nests the document under a dict-valued "content"
+        # key; pull readable text out of it rather than stringifying the dict.
+        content = output.get("content")
+        if isinstance(content, dict):
+            for key in ("summary", "body_text"):
+                value = content.get(key)
+                if isinstance(value, str) and value:
+                    return value
     return ""
