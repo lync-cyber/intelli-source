@@ -10,6 +10,7 @@ deps: []
 
 > 维护：本文件梳理 PR #53 / #54 audit 闭环之后的剩余工作。完成项请直接删除条目，新增项按优先级插入。
 > 最后更新：2026-05-29 (PR #72 ✅ 闭环 P3 功能项 B-043 / B-046 / B-047 / B-049 + B-011 弱断言批量强化；核对 B-015 ✅ 早已闭环（promtool 在 CI Lint job）；**B-012 ✅** 常量早闭环 + 本次修复 keyword_tag 空串/空白/重复 tag 三缺陷 + 测试 4→10；**B-034 ✅** PRE-DEPLOY-WALKTHROUGH 全量订正（health degraded / X-API-Key×33 / to_addr / 指标家族 / push 入口 等，逐条对照代码核实）。unit baseline 2948→2976 PASS @ main；CI 6/6 绿)
+> 2026-05-29 增补：**B-011 ✅** 弱断言闭环——规约已入双 COMMON-RULES + AST 检测器精确清扫 46 处 truly-decorative 为语义断言，全 tests/ 仅余 18 处经核实皆合法类型收窄 guard（非 anti-pattern）；2976 PASS 不退化。剩余开放项全部非阻塞：P2 B-036 / P3 B-014 + B-016~B-019。
 
 ## 优先级语义
 
@@ -123,11 +124,9 @@ deps: []
 
 ## P3 — 优化 / 规约
 
-### B-011 263 处弱断言 `assert .* is not None`（持续项）
+### B-011 弱断言 `assert .* is not None` ✅
+> 已闭环。规约部分早已落地：`.cataforge/rules/COMMON-RULES.md` 与 `.claude/rules/COMMON-RULES.md` §通用 Anti-Patterns 均含"禁止单纯 `assert result is not None` 而不验证语义——应断言具体属性 / 类型 / 值"，由 reviewer code-review 加载执行，拦截新增违例。一次性清扫（本次会话 + PR #72）：用 AST 检测器精确筛出"真正修饰性"弱断言（`is not None` 为某测试唯一验证、无同测试兄弟断言引用该变量），与"合法类型收窄 guard"（`is not None` 后紧跟对该变量的行为断言 / 解引用）区分。共强化 **46 处 + repositories CRUD 圈**（detector：repositories 21→13 guard / 跨 23 文件 64→18 guard）：class import→`isinstance(X,type)`、dataclass→`dataclasses.is_dataclass`、pydantic→`issubclass(BaseModel)`、module→`hasattr(mod,symbol)`、包再导出→对 canonical 定义 `is` 同一性、实例化→`isinstance(inst,Cls)`、值测试→具体内容（state_machine `to_state=="paused"`+`revoked_subtasks` list 契约 / registry `get().name` / pipeline config `name` / `celery_app.main` / repo create 全字段 round-trip + update re-fetch 持久化 + cursor 编码末项 id）。**全 tests/ 现仅余 18 处 truly-decorative，逐条核实全为合法 guard**（mock.assert_awaited 前置 / alert-rule expr·annotations deref / cli call_args 后续使用 / pool NullPool / RED-marker pytest.raises 内 / 字面 AC 断言带 message）——非 anti-pattern，不 churn。2976 PASS unit 不退化 / ruff clean。本轮强化断言全部成立，未暴露 src 缺陷。
 - **关联**：原 audit F-49 / D6-7
-- **现状**：跨 79 个测试文件，大量 `assert result is not None` 不验证语义；PR #72 (commit e3e7607) 已强化 11 个测试文件（integration 多数 + `test_app_entry.py`）为语义断言，余量待新增测试时增量收敛
-- **修复方向**：不批量改；新增测试时由 reviewer code-review Layer 1 检查命中
-- **规约**：在 `.cataforge/rules/COMMON-RULES.md §通用 Anti-Patterns` 加一条"禁止单纯 `is not None` 断言无语义检查"
 
 ### B-012 `keyword_tag` 默认值硬编码 `"未分类"` ✅
 > 常量抽取部分早在 commit a35fa31 已完成（`DEFAULT_KEYWORD_TAG: str = "未分类"` 模块顶层 + `keyword_tag` 返回引用之），backlog 未回填。本次 (light TDD inline, RED→GREEN) 在强化测试时暴露并修复 `keyword_tag` 三处真实缺陷：① 空串 tag（LLM 供给的 tag_library 可能含空串）`"" in combined` 恒真 → 匹配所有内容并污染输出 `['']` ② 空白 tag（如 `"  "`）匹配双空格文本输出垃圾 tag ③ 重复 tag 直通输出 `['Python', 'Python']`。修复：跳过 `not tag.strip()` 条目 + 按库序去重（`seen` 集）；substring 匹配（非词边界）保留为 Chinese 刻意契约并加 pin 测试。测试 `test_tools.py::TestKeywordTag` 4→10（含 RED 暴露 + 常量耦合：原断言硬编码 `["未分类"]` 改引用 `DEFAULT_KEYWORD_TAG`）。unit 2970→2976 PASS；mypy strict + ruff + lint-imports 8/8 clean。
