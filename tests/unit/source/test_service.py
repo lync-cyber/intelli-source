@@ -290,6 +290,7 @@ class TestSourceConfigServiceBulkSyncWithVersion:
         assert row is not None, (
             "empty bulk_sync_with_version must still write a row to config_versions"
         )
+        assert row[0] != "", "recorded version must be a non-empty string"
 
 
 # ---------------------------------------------------------------------------

@@ -57,7 +57,7 @@ class TestDistributorFacadeClassShape:
             matcher=mock_matcher,
             channels=mock_channels,
         )
-        assert facade is not None
+        assert isinstance(facade, DistributorFacade)
 
     def test_distribute_signature_accepts_content_id_and_subscription_id(
         self,
@@ -190,31 +190,28 @@ class TestBuildCollectorRegistry:
     with rss, api, and web adapters registered."""
 
     def test_registry_has_rss(self) -> None:
+        from intellisource.collector.adapters.rss import RSSCollector
         from intellisource.composition import build_collector_registry
 
         registry = build_collector_registry()
         collector = registry.get("rss")
-        assert collector is not None, (
-            "registry.get('rss') must return a non-None collector"
-        )
+        assert isinstance(collector, RSSCollector)
 
     def test_registry_has_api(self) -> None:
+        from intellisource.collector.adapters.api import APICollector
         from intellisource.composition import build_collector_registry
 
         registry = build_collector_registry()
         collector = registry.get("api")
-        assert collector is not None, (
-            "registry.get('api') must return a non-None collector"
-        )
+        assert isinstance(collector, APICollector)
 
     def test_registry_has_web(self) -> None:
+        from intellisource.collector.adapters.web import WebCollector
         from intellisource.composition import build_collector_registry
 
         registry = build_collector_registry()
         collector = registry.get("web")
-        assert collector is not None, (
-            "registry.get('web') must return a non-None collector"
-        )
+        assert isinstance(collector, WebCollector)
 
     def test_registry_returns_collector_registry_instance(self) -> None:
         from intellisource.collector.registry import CollectorRegistry

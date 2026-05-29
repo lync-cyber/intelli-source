@@ -167,7 +167,7 @@ class TestStartupInitialisation:
         if _MODULE_MISSING:
             pytest.fail(_SKIP_REASON)
         lifespan = getattr(main_app.router, "lifespan_context", None)
-        assert lifespan is not None, (
+        assert callable(lifespan), (
             "App should have a lifespan context manager for startup/shutdown"
         )
 
@@ -276,7 +276,7 @@ class TestShutdownResourceRelease:
 
         app = create_app()
         lifespan = getattr(app.router, "lifespan_context", None)
-        assert lifespan is not None, "App must have a lifespan context manager"
+        assert callable(lifespan), "App must have a lifespan context manager"
 
         with (
             patch("intellisource.main.DatabaseManager", return_value=mock_db),

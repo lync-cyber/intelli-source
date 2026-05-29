@@ -12,6 +12,7 @@ in the database.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -130,8 +131,8 @@ class TestRawContentResultRepoCreate:
         await repo.create({"status": "ok", "content_id": str(raw.id)})
         await pg_session.refresh(raw)
 
-        assert raw.processed_at is not None, (  # type: ignore[attr-defined]
-            "AC-6: RawContent.processed_at must be set (non-None) after create()"
+        assert isinstance(raw.processed_at, datetime), (  # type: ignore[attr-defined]
+            "AC-6: RawContent.processed_at must be a datetime after create()"
         )
 
     @pytest.mark.asyncio
@@ -279,8 +280,9 @@ class TestRunPipelinePersistsProcessedStatus:
                     f"AC-8: RawContent.status must be 'processed' after run_pipeline, "
                     f"got {refreshed.status!r}"
                 )
-                assert refreshed.processed_at is not None, (
-                    "AC-8: RawContent.processed_at must be set after run_pipeline"
+                assert isinstance(refreshed.processed_at, datetime), (
+                    "AC-8: RawContent.processed_at must be a datetime "
+                    "after run_pipeline"
                 )
         finally:
             await engine.dispose()

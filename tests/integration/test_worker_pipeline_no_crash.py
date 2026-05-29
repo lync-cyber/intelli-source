@@ -81,17 +81,20 @@ def test_worker_init_handler_assembles_complete_tool_deps(env_for_worker: None) 
 
     # After T-095, get_agent_runner returns a runner with non-None deps.
     import intellisource.agent.factory as factory_mod
+    from intellisource.llm.gateway import LLMGateway
 
     runner = factory_mod.get_agent_runner()
     assert runner is not None
     assert runner._tool_deps is not None, (
         "AC-10: AgentRunner.tool_deps must not be None"
     )
-    assert runner._tool_deps.session_factory is not None, (
-        "AC-10: tool_deps.session_factory must be wired by build_worker_composition"
+    assert callable(runner._tool_deps.session_factory), (
+        "AC-10: tool_deps.session_factory must be a callable wired by "
+        "build_worker_composition"
     )
-    assert runner._tool_deps.llm_gateway is not None, (
-        "AC-10: tool_deps.llm_gateway must be wired by build_worker_composition"
+    assert isinstance(runner._tool_deps.llm_gateway, LLMGateway), (
+        "AC-10: tool_deps.llm_gateway must be an LLMGateway wired by "
+        "build_worker_composition"
     )
 
 
@@ -122,10 +125,12 @@ def test_run_pipeline_does_not_raise_attribute_error(
         boot_mod.worker_init_handler(sender=object())
 
     from intellisource.scheduler.celery_app import celery_app
+    from intellisource.scheduler.tasks import CeleryTasks
 
     _instance = getattr(celery_app, "_celery_tasks_instance", None)
-    assert _instance is not None, (
-        "AC-10: celery_app._celery_tasks_instance must be set by worker_init_handler"
+    assert isinstance(_instance, CeleryTasks), (
+        "AC-10: celery_app._celery_tasks_instance must be a CeleryTasks set by "
+        "worker_init_handler"
     )
 
     # Stub AgentRunner.execute so we don't need a full pipeline runtime here.

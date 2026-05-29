@@ -309,8 +309,8 @@ class TestLLMExtractorCallsGateway:
             if isinstance(result, dict)
             else getattr(result, "structured_data", None)
         )
-        assert structured is not None, (
-            "structured_data must be non-None after successful LLM extraction"
+        assert isinstance(structured, dict) and structured, (
+            "structured_data must be a non-empty dict after successful LLM extraction"
         )
 
 
@@ -406,8 +406,8 @@ class TestLLMExtractorFallbackChain:
             if isinstance(result, dict)
             else getattr(result, "structured_data", None)
         )
-        assert result_structured is not None or result is not None, (
-            "Extractor must return a usable result even when falling back to regex"
+        assert result_structured == fallback_data, (
+            "Extractor must surface the fallback value when falling back to regex"
         )
 
     @pytest.mark.asyncio

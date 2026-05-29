@@ -174,7 +174,8 @@ class TestBulkSyncWithVersion:
                 ).where(Subscription.name == "a")
             )
         ).scalar_one_or_none()
-        assert row is not None
+        assert row is not None, "bulk_sync_with_version must persist the synced row"
+        assert row.name == "a"
 
     async def test_bulk_sync_per_config_validation_failure_is_skipped(
         self, session: AsyncSession

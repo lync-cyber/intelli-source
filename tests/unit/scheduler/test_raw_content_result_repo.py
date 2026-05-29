@@ -13,6 +13,7 @@ end-to-end DB persistence in CI.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -53,7 +54,7 @@ async def test_create_calls_session_commit_when_row_found() -> None:
         f"after updating RawContent; got {session_mock.commit.await_count} commit calls"
     )
     assert row.status == "processed"
-    assert row.processed_at is not None
+    assert isinstance(row.processed_at, datetime)
     assert result["content_id"]
 
 

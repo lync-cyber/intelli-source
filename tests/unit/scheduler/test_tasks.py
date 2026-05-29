@@ -151,7 +151,7 @@ class TestSingleStepRetry:
             ]
         )
         result = celery_tasks.run_pipeline("news_collect", params={})
-        assert result is not None
+        assert isinstance(result, dict)
 
     def test_failed_step_is_retried_up_to_max(self, celery_tasks, mock_agent_runner):
         """A failed step should be retried up to 3 times with
@@ -430,7 +430,7 @@ class TestPriorityQueues:
         """Normal priority should resolve to a valid queue."""
         mod = _import_tasks()
         queue = mod.get_queue_for_priority("normal")
-        assert queue is not None
+        assert queue in mod.PRIORITY_QUEUES.values()
 
 
 # ===================================================================
@@ -480,7 +480,7 @@ class TestEdgeCases:
     def test_run_pipeline_with_empty_params(self, celery_tasks):
         """run_pipeline should handle empty params dict."""
         result = celery_tasks.run_pipeline("news_collect", params={})
-        assert result is not None
+        assert result["status"] == "success"
 
     def test_run_pipeline_unknown_pipeline_raises(
         self, celery_tasks, mock_pipeline_config

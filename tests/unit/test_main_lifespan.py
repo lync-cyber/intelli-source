@@ -31,12 +31,16 @@ class TestLifespanCeleryAppState:
             patch("intellisource.main.aioredis") as mock_redis_mod,
         ):
             mock_redis_mod.from_url = AsyncMock(return_value=AsyncMock())
+            from intellisource.scheduler.celery_app import (
+                celery_app as module_celery_app,
+            )
+
             app = create_app()
             lifespan = app.router.lifespan_context
 
             async with lifespan(app):
                 assert hasattr(app.state, "celery_app")
-                assert app.state.celery_app is not None
+                assert app.state.celery_app is module_celery_app
 
     @pytest.mark.asyncio
     async def test_startup_celery_app_is_module_singleton(self) -> None:
@@ -74,12 +78,16 @@ class TestLifespanCeleryAppSendTask:
             patch("intellisource.main.aioredis") as mock_redis_mod,
         ):
             mock_redis_mod.from_url = AsyncMock(return_value=AsyncMock())
+            from intellisource.scheduler.celery_app import (
+                celery_app as module_celery_app,
+            )
+
             app = create_app()
             lifespan = app.router.lifespan_context
 
             async with lifespan(app):
                 celery_app = app.state.celery_app
-                assert celery_app is not None
+                assert celery_app is module_celery_app
                 try:
                     _ = celery_app.send_task
                 except AttributeError as exc:
@@ -98,8 +106,12 @@ class TestLifespanCeleryAppSendTask:
             patch("intellisource.main.aioredis") as mock_redis_mod,
         ):
             mock_redis_mod.from_url = AsyncMock(return_value=AsyncMock())
+            from intellisource.scheduler.celery_app import (
+                celery_app as module_celery_app,
+            )
+
             app = create_app()
             lifespan = app.router.lifespan_context
 
             async with lifespan(app):
-                assert app.state.celery_app is not None
+                assert app.state.celery_app is module_celery_app

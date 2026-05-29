@@ -90,8 +90,9 @@ class TestGetDbSessionYieldsRealSession:
         gen = get_db_session(mock_request)
         yielded = await gen.__anext__()
 
-        assert yielded is not None, (
-            "get_db_session() must yield a real AsyncSession, not None"
+        assert yielded is real_session, (
+            "get_db_session() must yield the session from app.state.db.get_session(), "
+            "not None"
         )
 
 

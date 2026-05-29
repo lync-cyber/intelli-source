@@ -176,7 +176,8 @@ class TestCircuitBreakerRedisPersistence:
         mock_redis.hset.assert_called()
         # The call should write to a Redis HASH with at least these fields
         call_args = mock_redis.hset.call_args
-        assert call_args is not None
+        mapping = call_args.kwargs["mapping"]
+        assert set(mapping) >= {"state", "failure_count", "last_failure_at"}
 
     async def test_state_read_from_redis(
         self, breaker: CircuitBreaker, mock_redis: AsyncMock
@@ -310,13 +311,16 @@ class TestCircuitStateEnum:
     """Verify CircuitState enum values exist."""
 
     def test_closed_state_exists(self) -> None:
-        assert CircuitState.CLOSED is not None
+        assert isinstance(CircuitState.CLOSED, CircuitState)
+        assert CircuitState.CLOSED.value == "CLOSED"
 
     def test_open_state_exists(self) -> None:
-        assert CircuitState.OPEN is not None
+        assert isinstance(CircuitState.OPEN, CircuitState)
+        assert CircuitState.OPEN.value == "OPEN"
 
     def test_half_open_state_exists(self) -> None:
-        assert CircuitState.HALF_OPEN is not None
+        assert isinstance(CircuitState.HALF_OPEN, CircuitState)
+        assert CircuitState.HALF_OPEN.value == "HALF_OPEN"
 
 
 # ===================================================================

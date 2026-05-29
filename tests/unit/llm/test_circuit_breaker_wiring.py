@@ -219,8 +219,9 @@ class TestCircuitBreakerRecording:
                 prompt="ok",
                 task_type=None,
             )
-        # Just confirm it completed without error; no recording side-effects to assert
-        assert result is not None
+        # Completed without error and returned the litellm response unchanged;
+        # no recording side-effects to assert.
+        assert result is fake_response
 
 
 # ---------------------------------------------------------------------------

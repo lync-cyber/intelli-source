@@ -313,7 +313,7 @@ class TestEmailTlsSsl:
 
             # Verify TLS-related argument was passed
             call_kwargs = mock_send.call_args
-            assert call_kwargs is not None
+            assert call_kwargs.kwargs["use_tls"] is True
 
 
 # ===================================================================

@@ -78,7 +78,7 @@ class TestB033SoftDisable:
                 session_factory=factory, redis_client=redis
             )
 
-        assert facade is not None
+        assert facade._channels == {}
 
     def test_disabled_channel_in_facade_distribute_skips(self) -> None:
         """Facade.distribute skips subs targeting a disabled channel (pre-existing)."""

@@ -307,6 +307,7 @@ class TestCompositionInstallsObservabilityState:
         from fastapi import FastAPI as _FastAPI
 
         from intellisource.composition import _install_observability_state
+        from intellisource.observability.metrics import MetricsCollector
 
         app = _FastAPI()
         app.state.celery_app = MagicMock()
@@ -324,7 +325,7 @@ class TestCompositionInstallsObservabilityState:
         assert "redis" in checker._checks
         assert "celery" in checker._checks
 
-        assert app.state.metrics_collector is not None
+        assert isinstance(app.state.metrics_collector, MetricsCollector)
         assert app.state.config_version_manager is not None
         assert app.state.config_version_manager.current_version == 0
 

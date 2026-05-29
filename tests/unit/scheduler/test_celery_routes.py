@@ -29,7 +29,9 @@ class TestCeleryTaskRoutes:
         from intellisource.scheduler.celery_app import celery_app
 
         routes = celery_app.conf.task_routes
-        assert routes is not None, "celery_app.conf.task_routes must be set (not None)"
+        assert isinstance(routes, dict), (
+            "celery_app.conf.task_routes must be set to a mapping"
+        )
 
     def test_task_routes_is_non_empty(self) -> None:
         """task_routes mapping must have at least one entry."""
@@ -84,7 +86,9 @@ class TestCeleryTaskRoutes:
         from intellisource.scheduler.celery_app import celery_app
 
         queues = celery_app.conf.task_queues
-        assert queues is not None, "celery_app.conf.task_queues must be set (not None)"
+        assert isinstance(queues, (list, tuple)), (
+            "celery_app.conf.task_queues must be set to a sequence"
+        )
 
     def test_task_queues_is_non_empty(self) -> None:
         """task_queues sequence must have at least one Queue definition."""

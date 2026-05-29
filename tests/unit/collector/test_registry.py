@@ -63,7 +63,7 @@ class TestCollectorRegistryRegister:
         # If we get here without exception, registration succeeded.
         # We verify via get() in the next test class, but also do a
         # basic assertion that the registry is not empty.
-        assert registry.get("rss") is not None
+        assert isinstance(registry.get("rss"), BaseCollector)
 
     def test_register_multiple_types(self):
         """Different source types can be registered independently."""

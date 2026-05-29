@@ -464,7 +464,7 @@ class TestTriggerModes:
         """trigger_manual should handle empty params dict."""
         mgr = _make_scheduler_manager()
         result = mgr.trigger_manual(pipeline_name="test_pipeline", params={})
-        assert result is not None
+        assert "task_id" in result
 
 
 # ===================================================================

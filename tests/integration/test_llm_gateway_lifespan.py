@@ -37,6 +37,8 @@ class TestLLMGatewayLifespanInjection:
     @pytest.mark.asyncio
     async def test_startup_sets_llm_gateway_on_app_state(self) -> None:
         """After lifespan startup, app.state.llm_gateway is not None."""
+        from intellisource.llm.gateway import LLMGateway
+
         mock_db, mock_celery, mock_redis = _make_lifespan_patches()
 
         with (
@@ -54,8 +56,8 @@ class TestLLMGatewayLifespanInjection:
                 assert hasattr(app.state, "llm_gateway"), (
                     "app.state.llm_gateway must be set during lifespan startup"
                 )
-                assert app.state.llm_gateway is not None, (
-                    "app.state.llm_gateway must not be None after startup"
+                assert isinstance(app.state.llm_gateway, LLMGateway), (
+                    "app.state.llm_gateway must be an LLMGateway instance after startup"
                 )
 
     @pytest.mark.asyncio

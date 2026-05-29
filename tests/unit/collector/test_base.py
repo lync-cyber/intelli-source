@@ -253,4 +253,5 @@ class TestConditionalFetch:
         headers = call_kwargs.kwargs.get("headers") or call_kwargs[1].get("headers", {})
         assert "If-None-Match" not in headers
         assert "If-Modified-Since" not in headers
-        assert result is not None
+        assert isinstance(result, httpx.Response)
+        assert result.status_code == 200

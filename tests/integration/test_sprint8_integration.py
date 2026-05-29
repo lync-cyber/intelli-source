@@ -207,6 +207,7 @@ class TestAutoDiscoverManualPrecedence:
         # Unique plugin registered
         discovered = registry.get("unique_discovered_tool")
         assert discovered is not None, "unique discovered tool should be registered"
+        assert discovered.name == "unique_discovered_tool"
 
 
 # ===========================================================================
@@ -378,14 +379,19 @@ class TestSmokeImportChain:
         )
 
     def test_system_router_importable(self) -> None:
-        from intellisource.api.routers.system import router  # noqa: F401
+        from fastapi import APIRouter
 
-        assert router is not None
+        from intellisource.api.routers.system import router
+
+        assert isinstance(router, APIRouter)
+        assert len(router.routes) > 0
 
     def test_celery_app_importable(self) -> None:
-        from intellisource.scheduler.celery_app import celery_app  # noqa: F401
+        from celery import Celery
 
-        assert celery_app is not None
+        from intellisource.scheduler.celery_app import celery_app
+
+        assert isinstance(celery_app, Celery)
 
 
 # ===========================================================================

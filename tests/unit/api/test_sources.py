@@ -192,7 +192,7 @@ class TestSourceListEndpoint:
         assert resp.status_code == 200
         body = resp.json()
         assert body["has_more"] is True
-        assert body["next_cursor"] is not None
+        assert body["next_cursor"] == str(SOURCE_ID_2)
         call_kwargs = mock_service.list_paginated.call_args.kwargs
         assert call_kwargs.get("cursor") == str(SOURCE_ID)
         assert call_kwargs.get("limit") == 10
