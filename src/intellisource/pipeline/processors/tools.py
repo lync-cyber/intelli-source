@@ -374,13 +374,28 @@ async def keyword_tag(
     title: str,
     tag_library: list[str],
 ) -> list[str]:
-    """Tag content by matching keywords from a tag library.
+    """Tag content by matching library keywords against title + body_text.
+
+    Matching is a case-sensitive substring test (not word-boundary): the
+    tag library is predominantly Chinese, which has no whitespace word
+    boundaries, so an embedded tag must still match.
+
+    Empty or whitespace-only library entries are skipped — ``"" in text`` is
+    always True, so they would otherwise match every content and emit a
+    meaningless tag. Matches preserve library order and are de-duplicated.
 
     Returns:
-        List of matched tags, or ``["未分类"]`` if none matched.
+        List of matched tags, or ``[DEFAULT_KEYWORD_TAG]`` if none matched.
     """
     combined = body_text + " " + title
-    matched = [tag for tag in tag_library if tag in combined]
+    seen: set[str] = set()
+    matched: list[str] = []
+    for tag in tag_library:
+        if not tag.strip() or tag in seen:
+            continue
+        if tag in combined:
+            seen.add(tag)
+            matched.append(tag)
     if not matched:
         return [DEFAULT_KEYWORD_TAG]
     return matched

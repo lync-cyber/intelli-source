@@ -11,6 +11,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from intellisource.pipeline.processors.tools import (
+    DEFAULT_KEYWORD_TAG,
     filter_sensitive,
     find_nearest_cluster,
     fingerprint_dedup,
@@ -450,27 +451,70 @@ class TestKeywordTag:
     """Tests for keyword_tag function."""
 
     async def test_matches_tags_from_library(self) -> None:
-        """Returns tags that appear in body_text or title."""
+        """Returns tags that appear in body_text or title, drops the rest."""
         result = await keyword_tag(
             "Python is great", "Learn Python", ["Python", "Java"]
         )
-        assert "Python" in result
-        assert "Java" not in result
+        assert result == ["Python"]
 
-    async def test_no_match_returns_uncategorized(self) -> None:
-        """When no tag matches, returns ['未分类']."""
+    async def test_no_match_returns_default_tag(self) -> None:
+        """When no library tag matches, returns the default-tag sentinel."""
         result = await keyword_tag("nothing relevant", "no match", ["Rust", "Go"])
-        assert result == ["\u672a\u5206\u7c7b"]
+        assert result == [DEFAULT_KEYWORD_TAG]
 
-    async def test_empty_body_and_title(self) -> None:
-        """Empty body and title: only tags that match empty+space+empty."""
+    async def test_empty_body_and_title_returns_default_tag(self) -> None:
+        """Empty content matches no real tag and falls back to the default."""
         result = await keyword_tag("", "", ["Python"])
-        assert result == ["\u672a\u5206\u7c7b"]
+        assert result == [DEFAULT_KEYWORD_TAG]
 
     async def test_tag_in_title_only(self) -> None:
         """A tag appearing only in the title should still match."""
         result = await keyword_tag("unrelated body", "AI News", ["AI", "ML"])
-        assert "AI" in result
+        assert result == ["AI"]
+
+    async def test_empty_string_tag_is_ignored(self) -> None:
+        """An empty-string library entry must not match every content.
+
+        ``"" in combined`` is always True, so without filtering an empty tag
+        would tag *all* content with ``[""]``. It must be dropped and the
+        content fall back to the default tag.
+        """
+        result = await keyword_tag("hello world", "title", [""])
+        assert result == [DEFAULT_KEYWORD_TAG]
+
+    async def test_whitespace_only_tag_is_ignored(self) -> None:
+        """A whitespace-only tag matches double-spaced text but is garbage.
+
+        ``"  "`` is a substring of ``"hello  world"`` (double space), so the
+        naive matcher would emit ``["  "]``. Whitespace-only tags carry no
+        classification meaning and must be dropped.
+        """
+        result = await keyword_tag("hello  world", "title", ["  "])
+        assert result == [DEFAULT_KEYWORD_TAG]
+
+    async def test_empty_tag_does_not_pollute_real_matches(self) -> None:
+        """A stray empty entry must not ride alongside genuine matches."""
+        result = await keyword_tag("Python rocks", "", ["Python", ""])
+        assert result == ["Python"]
+
+    async def test_duplicate_library_tags_are_deduplicated(self) -> None:
+        """A tag repeated in the library yields a single match, order kept."""
+        result = await keyword_tag("Python rocks", "", ["Python", "Python"])
+        assert result == ["Python"]
+
+    async def test_matched_tags_preserve_library_order(self) -> None:
+        """Multiple matches are returned in library order."""
+        result = await keyword_tag("learning Go and Python", "", ["Python", "Go"])
+        assert result == ["Python", "Go"]
+
+    async def test_substring_match_is_intentional_for_chinese(self) -> None:
+        """Substring (not word-boundary) matching is required for Chinese.
+
+        Chinese has no whitespace word boundaries, so a discipline tag must
+        match when embedded in surrounding text. This pins that contract.
+        """
+        result = await keyword_tag("本文介绍人工智能技术的最新发展", "", ["人工智能"])
+        assert result == ["人工智能"]
 
 
 # ---------------------------------------------------------------------------

@@ -9,7 +9,7 @@ deps: []
 # IntelliSource v1 Backlog
 
 > 维护：本文件梳理 PR #53 / #54 audit 闭环之后的剩余工作。完成项请直接删除条目，新增项按优先级插入。
-> 最后更新：2026-05-29 (PR #72 ✅ 闭环 P3 功能项 B-043 / B-046 / B-047 / B-049 + B-011 弱断言批量强化；unit baseline 2948→2970 PASS @ main HEAD eff264e；CI 6/6 绿。另核对 B-015 ✅ 早已闭环 — promtool check rules 自 commit 9c118b8 起在 CI Lint job 运行，回填 closeout 标记)
+> 最后更新：2026-05-29 (PR #72 ✅ 闭环 P3 功能项 B-043 / B-046 / B-047 / B-049 + B-011 弱断言批量强化；核对 B-015 ✅ 早已闭环（promtool 在 CI Lint job）；**B-012 ✅** 常量早闭环 + 本次修复 keyword_tag 空串/空白/重复 tag 三缺陷 + 测试 4→10。unit baseline 2948→2976 PASS @ main；CI 6/6 绿)
 
 ## 优先级语义
 
@@ -129,7 +129,8 @@ deps: []
 - **修复方向**：不批量改；新增测试时由 reviewer code-review Layer 1 检查命中
 - **规约**：在 `.cataforge/rules/COMMON-RULES.md §通用 Anti-Patterns` 加一条"禁止单纯 `is not None` 断言无语义检查"
 
-### B-012 `keyword_tag` 默认值硬编码 `"未分类"`
+### B-012 `keyword_tag` 默认值硬编码 `"未分类"` ✅
+> 常量抽取部分早在 commit a35fa31 已完成（`DEFAULT_KEYWORD_TAG: str = "未分类"` 模块顶层 + `keyword_tag` 返回引用之），backlog 未回填。本次 (light TDD inline, RED→GREEN) 在强化测试时暴露并修复 `keyword_tag` 三处真实缺陷：① 空串 tag（LLM 供给的 tag_library 可能含空串）`"" in combined` 恒真 → 匹配所有内容并污染输出 `['']` ② 空白 tag（如 `"  "`）匹配双空格文本输出垃圾 tag ③ 重复 tag 直通输出 `['Python', 'Python']`。修复：跳过 `not tag.strip()` 条目 + 按库序去重（`seen` 集）；substring 匹配（非词边界）保留为 Chinese 刻意契约并加 pin 测试。测试 `test_tools.py::TestKeywordTag` 4→10（含 RED 暴露 + 常量耦合：原断言硬编码 `["未分类"]` 改引用 `DEFAULT_KEYWORD_TAG`）。unit 2970→2976 PASS；mypy strict + ruff + lint-imports 8/8 clean。
 - **关联**：原 audit F-50 / D6-8
 - **现状**：[`src/intellisource/pipeline/processors/tools.py:305,310`](src/intellisource/pipeline/processors/tools.py:305) 硬编码中文字符串
 - **修复方向**：抽常量 `DEFAULT_KEYWORD_TAG: str = "未分类"` 至模块顶层；i18n 非 v1 范围
