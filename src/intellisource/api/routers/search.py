@@ -81,25 +81,50 @@ def _search_step_items(output: Any) -> list[Any]:
     return []
 
 
+def _content_detail_row(output: Any) -> dict[str, Any] | None:
+    """Extract the document dict from a get_content_detail step output."""
+    if not isinstance(output, dict):
+        return None
+    content = output.get("content")
+    return content if isinstance(content, dict) else None
+
+
 def _extract_sources(flex_result: dict[str, Any]) -> list[ChatSource]:
-    """Pull search step output (if any) and map to ChatSource list."""
+    """Map search + get_content_detail steps to a deduped ChatSource list.
+
+    The flexible loop may reach documents either by a ``search`` step or by a
+    ``get_content_detail`` step (the LLM tool path is non-deterministic), so
+    both are harvested and deduplicated by content_id.
+    """
+    sources: list[ChatSource] = []
+    seen: set[str] = set()
     for step in flex_result.get("results", []):
-        if step.get("tool") != "search":
-            continue
-        items = _search_step_items(step.get("output", {}))
-        sources: list[ChatSource] = []
-        for item in items:
+        tool = step.get("tool")
+        output = step.get("output", {})
+        rows: list[Any] = []
+        if tool == "search":
+            rows = _search_step_items(output)
+        elif tool == "get_content_detail":
+            row = _content_detail_row(output)
+            if row is not None:
+                rows = [row]
+        for item in rows:
             if not isinstance(item, dict):
                 continue
+            content_id = item.get("content_id") or item.get("id")
+            dedup_key = str(content_id) if content_id is not None else None
+            if dedup_key is not None:
+                if dedup_key in seen:
+                    continue
+                seen.add(dedup_key)
             sources.append(
                 ChatSource(
                     title=str(item.get("title", "")),
-                    url=item.get("url"),
-                    content_id=item.get("content_id") or item.get("id"),
+                    url=item.get("url") or item.get("source_url"),
+                    content_id=content_id,
                 )
             )
-        return sources
-    return []
+    return sources
 
 
 @router.post("/search/chat")
