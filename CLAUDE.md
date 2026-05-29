@@ -19,7 +19,7 @@
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 - 当前阶段: backlog-burndown → **B-031 release gate = approved + 物理闭环（用户 2026-05-29 签字；PR #71 已合入 main, merge 6c7beb7）**；observability(B-040+B-060) + zhparser 搜索 500 修复 + pytest-xdist 全部 on main；**PR #72 已合入 main (merge eff264e)：P3 功能项 B-043/B-046/B-047/B-049 闭环 + B-011 弱断言批量强化**
-- 下一步行动: release 已放行，无阻塞项；剩余 backlog **P2 B-036 / P3 B-014 + B-016~B-019 + B-011(持续项)** 全部非阻塞（B-015 早已闭环 — promtool 在 CI；B-012 闭环 — keyword_tag 三缺陷修复；B-034 闭环 — walkthrough 全量订正）；B-014 需真 staging deploy 验证；BGE-M3 本地 embedding 暂缓
+- 下一步行动: release 已放行，无阻塞项；**框架级 backlog 全部移交上游并本地闭环**（B-016/B-017/B-018/B-036/B-038 + B-019 → [docs/feedback/feedback-suggest-framework-batch-20260529.md](docs/feedback/feedback-suggest-framework-batch-20260529.md)，issue 待用户提交至 CataForge 上游）；**B-013/B-040/B-060 核实后回填 ✅**（main 已闭环）；**剩余开放项 = 项目级真债，刻意保留跟踪（非阻塞）**：P3 B-014（需真 staging 验证 metrics）+ B-020~B-028（架构治理 lint-imports/deptry/vulture）；BGE-M3 本地 embedding 暂缓
 - 当前回归基线: **2976 PASS unit** (`-n auto` 并行 / 0 FAIL；B-012 keyword_tag +6 测试) + **163 PASS / 1 skip integration**（含 zhparser migration e5f6a7b8c9d0）；mypy --strict + ruff + lint-imports 8/8 clean。分支 `claude/start-orchestrator-5sy4Z`（main HEAD a5f7beb + B-011 弱断言强化 2 commits，已 push）
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report / deploy-spec = approved；ui-spec = N/A；dev-plan-s8 = draft；backlog = approved
 - 历史闭环索引: 详见 [docs/HISTORY-intellisource-v1.md](docs/HISTORY-intellisource-v1.md) — audit-fix-pr53/54 + backlog 闭环（b001-b002 / b003-b006 / b007-b010 / b029-b030 / b032 / b033 / b035 / b037 / b039-b042 / **b043 / b046 / b047 / b049** / b044-b045 / b048 / b050-b055 / b057-b058 / **b059**）+ B-031 走查阶段 0-7（步骤 1-20，16 N/A，PR #69/#70 合入）+ 编码可移植性修复 + 修正 #1-#29
@@ -47,7 +47,7 @@
   - **B-057 P2** (前次会话, light TDD inline): [matcher.py](src/intellisource/distributor/matcher.py) `_matches` 加 `source_names` 强约束维度。+12 测试
 - Learnings Registry（详见各 RETRO 报告）: [RETRO sprint-1~7 / sprint-8 / sprint-9](docs/reviews/retro/) 9 EXP — EXP-005 装配缺口 → B-017 / EXP-006 truncation → 跨角色 / EXP-007 Mid-Progress Drop Contract → B-018；**EXP-CONTRACT-DRIFT (PR #64)**：改 `api/routers/` 返回类型 / `search.*` dataclass / `storage.*` SQL SELECT / `llm/gateway/_stream` 等"契约文件"必须 push 前跑 `make test-integration`（mock fixtures 常用旧契约 shape）；强制门禁通过 `make contract-check` + `make check-all`
 - 上游反馈: [docs/feedback/](docs/feedback/) — 1 bug + 1 suggest (B-019 未闭环)
-- Backlog 总入口: [docs/BACKLOG-intellisource-v1.md](docs/BACKLOG-intellisource-v1.md) — **release 已放行；剩余全部非阻塞** / P2: B-036 / P3: B-014 + B-016~B-019 + B-011(持续项)
+- Backlog 总入口: [docs/BACKLOG-intellisource-v1.md](docs/BACKLOG-intellisource-v1.md) — **release 已放行；剩余全部非阻塞** / 框架级 B-016~B-018/B-036/B-038/B-019 已移交上游闭环 / B-011/B-013/B-040/B-060 已闭环 / **项目级真债剩余（保留跟踪）: B-014 + B-020~B-028**
 
 ## 文档导航
 - 导航索引: `docs/.doc-index.json`（机器索引，所有 Agent 通过 `cataforge docs load` 查询；缺失时运行 `cataforge docs index` 重建）

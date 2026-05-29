@@ -10,6 +10,9 @@ deps: []
 
 > 维护：本文件梳理 PR #53 / #54 audit 闭环之后的剩余工作。完成项请直接删除条目，新增项按优先级插入。
 > 最后更新：2026-05-29 (PR #72 ✅ 闭环 P3 功能项 B-043 / B-046 / B-047 / B-049 + B-011 弱断言批量强化；核对 B-015 ✅ 早已闭环（promtool 在 CI Lint job）；**B-012 ✅** 常量早闭环 + 本次修复 keyword_tag 空串/空白/重复 tag 三缺陷 + 测试 4→10；**B-034 ✅** PRE-DEPLOY-WALKTHROUGH 全量订正（health degraded / X-API-Key×33 / to_addr / 指标家族 / push 入口 等，逐条对照代码核实）。unit baseline 2948→2976 PASS @ main；CI 6/6 绿)
+> 2026-05-29 增补：**B-011 ✅** 弱断言闭环——规约已入双 COMMON-RULES + AST 检测器精确清扫 46 处 truly-decorative 为语义断言，全 tests/ 仅余 18 处经核实皆合法类型收窄 guard（非 anti-pattern）；2976 PASS 不退化。
+> 2026-05-29 增补：**框架反馈批次移交上游** — 5 个框架级条目 **B-016 / B-017 / B-018 / B-036 / B-038 ✅** + **B-019 ✅**（2 条既有 bundle）打包进 [docs/feedback/feedback-suggest-framework-batch-20260529.md](feedback/feedback-suggest-framework-batch-20260529.md)，移交 CataForge 上游（沙盒无 cataforge/gh CLI 且 GitHub 集成仅限本 repo，issue 由用户提交）。
+> 2026-05-29 增补：**回填 main 已闭环项** — 核实后 **B-013 ✅**（B-035 CI integration + smoke）/ **B-040 ✅**（celery hijack/redirect off + trace_id signals）/ **B-060 ✅**（error_message 列 + 失败路径 emit）三项 backlog 回填。**剩余开放项 = 项目级真债，刻意保留跟踪（非阻塞）**：P3 B-014（需真 staging 验证 metrics）+ B-020~B-028（架构治理 lint-imports 破场 / deptry / vulture）。
 
 ## 优先级语义
 
@@ -123,11 +126,9 @@ deps: []
 
 ## P3 — 优化 / 规约
 
-### B-011 263 处弱断言 `assert .* is not None`（持续项）
+### B-011 弱断言 `assert .* is not None` ✅
+> 已闭环。规约部分早已落地：`.cataforge/rules/COMMON-RULES.md` 与 `.claude/rules/COMMON-RULES.md` §通用 Anti-Patterns 均含"禁止单纯 `assert result is not None` 而不验证语义——应断言具体属性 / 类型 / 值"，由 reviewer code-review 加载执行，拦截新增违例。一次性清扫（本次会话 + PR #72）：用 AST 检测器精确筛出"真正修饰性"弱断言（`is not None` 为某测试唯一验证、无同测试兄弟断言引用该变量），与"合法类型收窄 guard"（`is not None` 后紧跟对该变量的行为断言 / 解引用）区分。共强化 **46 处 + repositories CRUD 圈**（detector：repositories 21→13 guard / 跨 23 文件 64→18 guard）：class import→`isinstance(X,type)`、dataclass→`dataclasses.is_dataclass`、pydantic→`issubclass(BaseModel)`、module→`hasattr(mod,symbol)`、包再导出→对 canonical 定义 `is` 同一性、实例化→`isinstance(inst,Cls)`、值测试→具体内容（state_machine `to_state=="paused"`+`revoked_subtasks` list 契约 / registry `get().name` / pipeline config `name` / `celery_app.main` / repo create 全字段 round-trip + update re-fetch 持久化 + cursor 编码末项 id）。**全 tests/ 现仅余 18 处 truly-decorative，逐条核实全为合法 guard**（mock.assert_awaited 前置 / alert-rule expr·annotations deref / cli call_args 后续使用 / pool NullPool / RED-marker pytest.raises 内 / 字面 AC 断言带 message）——非 anti-pattern，不 churn。2976 PASS unit 不退化 / ruff clean。本轮强化断言全部成立，未暴露 src 缺陷。
 - **关联**：原 audit F-49 / D6-7
-- **现状**：跨 79 个测试文件，大量 `assert result is not None` 不验证语义；PR #72 (commit e3e7607) 已强化 11 个测试文件（integration 多数 + `test_app_entry.py`）为语义断言，余量待新增测试时增量收敛
-- **修复方向**：不批量改；新增测试时由 reviewer code-review Layer 1 检查命中
-- **规约**：在 `.cataforge/rules/COMMON-RULES.md §通用 Anti-Patterns` 加一条"禁止单纯 `is not None` 断言无语义检查"
 
 ### B-012 `keyword_tag` 默认值硬编码 `"未分类"` ✅
 > 常量抽取部分早在 commit a35fa31 已完成（`DEFAULT_KEYWORD_TAG: str = "未分类"` 模块顶层 + `keyword_tag` 返回引用之），backlog 未回填。本次 (light TDD inline, RED→GREEN) 在强化测试时暴露并修复 `keyword_tag` 三处真实缺陷：① 空串 tag（LLM 供给的 tag_library 可能含空串）`"" in combined` 恒真 → 匹配所有内容并污染输出 `['']` ② 空白 tag（如 `"  "`）匹配双空格文本输出垃圾 tag ③ 重复 tag 直通输出 `['Python', 'Python']`。修复：跳过 `not tag.strip()` 条目 + 按库序去重（`seen` 集）；substring 匹配（非词边界）保留为 Chinese 刻意契约并加 pin 测试。测试 `test_tools.py::TestKeywordTag` 4→10（含 RED 暴露 + 常量耦合：原断言硬编码 `["未分类"]` 改引用 `DEFAULT_KEYWORD_TAG`）。unit 2970→2976 PASS；mypy strict + ruff + lint-imports 8/8 clean。
@@ -172,7 +173,8 @@ deps: []
 
 > B-035 已闭环 (本次会话) — `.github/workflows/ci.yml` 改造：(1) `integration-tests` job 用 `docker/setup-buildx-action@v3` + `docker/build-push-action@v5` 预 build `intellisource/db:pg16-pgvector-zhparser`（cache type=gha,scope=db-image 跨 job/run 复用）→ 设 `IS_FORCE_DOCKER_TESTS=1` + `IS_TEST_DB_IMAGE=intellisource/db:pg16-pgvector-zhparser` 让 conftest 不 deselect docker 测试且用 composite image；(2) 新增 `docker-compose-smoke` job — 复用 cached image，`cp .env.example .env` + sed 填 channel 占位（兼 B-033 hard-fail），`docker compose up -d --wait db redis migrate api` 借 compose 自身 healthcheck + service_completed_successfully 等待，三个 SQL 探针验证 zhparser 真路径活：`SELECT extname FROM pg_extension WHERE extname='zhparser'` / `SELECT cfgname FROM pg_ts_config WHERE cfgname='zhparser'` / `to_tsvector('zhparser', '北京天安门搜索引擎')` 返多 lexeme（防 'simple' 回退）；(3) failure 时 dump db/migrate/api logs；(4) `if: always()` 跑 down -v 清理。预期 CI 首次 1-2 min build 镜像，二次 cache hit secs；smoke job 与 integration-tests job 并行跑独立 stack 互不干扰。**CI 真跑验证 PASS** (run 26564322038 on main)：integration-tests 163 passed / 1 skipped / 0 deselected（`IS_FORCE_DOCKER_TESTS=1` + composite image）；docker-compose-smoke 三 SQL 探针全绿（`pg_extension`/`pg_ts_config` 返 zhparser，`to_tsvector('zhparser','北京天安门搜索引擎')` → `'北京':1 '天安门':2 '搜索引擎':3` 多 lexeme 非 simple 回退）。
 
-### B-038 framework-feedback: 提议框架默认采用 CLAUDE.md 单一事实来源
+### B-038 framework-feedback: 提议框架默认采用 CLAUDE.md 单一事实来源 ✅
+> 已闭环 — 打包进上游反馈 bundle [docs/feedback/feedback-suggest-framework-batch-20260529.md](feedback/feedback-suggest-framework-batch-20260529.md) §S1，移交 CataForge 上游。本地决策（删 PROJECT-STATE.md）已落地；upgrade 漂移风险由上游采纳后消除，下游不再单独跟踪。
 - **优先级**：P3（项目本地已落地，feedback 是为防止 upgrade 漂移）
 - **关联**：本次会话用户决策"删除 PROJECT-STATE.md，CLAUDE.md 为单一事实来源"
 - **现状**：CataForge 框架默认双文件状态机制 — CLAUDE.md（人面向）+ .cataforge/PROJECT-STATE.md（框架镜像）。两份内容必须手工同步，是真实的双写负担 + 不一致风险源。本项目已删除 PROJECT-STATE.md 并改写 4 处硬引用（framework.json migration_checks / scaffold-manifest.json / self-update SKILL.md / 状态持久化机制说明）。
@@ -212,7 +214,8 @@ deps: []
 
 ---
 
-### B-040 worker stdlib log → structlog/formatter migration（trace_id 可见性）
+### B-040 worker stdlib log → structlog/formatter migration（trace_id 可见性）✅
+> 回填 2026-05-29：已在 main 闭环（核对 `scheduler/celery_app.py` `worker_hijack_root_logger=False`+`worker_redirect_stdouts=False` + `boot.py` setup_logging/trace_id signals）。
 > **已闭环** (本地分支 `fix/observability-b040-b060`, commit bb1d1e5, 真栈验证)：真因三重——① Celery `worker_hijack_root_logger` 未关 ② `worker_redirect_stdouts=True` 把 sys.stderr 换成 LoggingProxy（早于 setup_logging 吞行）③ `boot.worker_init_handler` setup_logging 在 `_celery_tasks` guard 之后（forked child 短路不配置 root）。修：两 conf 关闭 + setup_logging 提到 guard 前 + signals prerun/middleware inbound 各发语义 INFO 承载行。真栈：`POST /tasks/collect` → 同一 trace_id 现于 api inbound + worker prerun。+6 单测（含 boot-guard + redirect 回归）。
 - **优先级**：P3
 - **关联**：CORRECTIONS-LOG 2026-05-26 B-031 阶段 2 步骤 7 trace_id 一项延后；走查暴露
@@ -227,7 +230,8 @@ deps: []
 
 ---
 
-### B-060 失败 LLM 调用未落 `llm_call_logs`
+### B-060 失败 LLM 调用未落 `llm_call_logs` ✅
+> 回填 2026-05-29：已在 main 闭环（核对 `storage/models.py` `error_message` 列 + `llm/gateway/_retry.py` 失败路径 emit `status="circuit_open"`/`error`/`timeout` + `cost_tracker.log_call` 透传）。
 > **已闭环** (本地分支 `fix/observability-b040-b060`, commit 77b3fae, 真栈验证)：`LLMCallRecord` 加 `error_message` + `CostTracker.log_call` 透传；`_unified_call_with_retry` 中央失败 emit（熔断 OPEN→`circuit_open` / 重试耗尽→`timeout`|`error`），覆盖 complete/chat/stream/embed 四路径。真栈：注入坏 LLM key → `llm_call_logs` 非 success 行 **0→20**（5 `error` 带真 msg + 15 `circuit_open`）。+7 单测。
 - **优先级**：P3（MEDIUM-LOW — 审计/可观测缺口）
 - **关联**：B-031 阶段 7 步骤 19 真起栈走查暴露；B-042 闭环遗留（仅保证 success 落表）/ [src/intellisource/llm/gateway/](../src/intellisource/llm/gateway/) `_RetryMixin._emit_call_log`
@@ -240,7 +244,8 @@ deps: []
 
 ---
 
-### B-036 deploy-spec 审查模板强化
+### B-036 deploy-spec 审查模板强化 ✅
+> 已闭环 — 框架元资产改动，打包进上游反馈 bundle [docs/feedback/feedback-suggest-framework-batch-20260529.md](feedback/feedback-suggest-framework-batch-20260529.md) §S2（doc-review deploy-spec 维度加"本地最小栈真起验证"强约束 + 模板增证据段），移交 CataForge 上游。下游不在本地 `.cataforge/` 副本改（upgrade 会覆盖）。
 - **优先级**：P2
 - **关联**：CORRECTIONS-LOG 修正 #1~#7 根因；B-010 deploy-spec r1+r2 审查未覆盖 "本地真起栈" 维度
 - **现状**：deploy-spec 审查模板 ([.cataforge/skills/doc-review/](.cataforge/skills/doc-review/)) 关注 SBOM / promtool / 回滚方案 / 灰度策略，但 r1+r2 都没强制要求 "本地最小栈 docker compose up -d db redis migrate api 必须真跑通"
@@ -376,7 +381,8 @@ deps: []
 
 ## PR #54 后续验证
 
-### B-013 CI 在 ubuntu-latest 跑 integration（docker available 路径）
+### B-013 CI 在 ubuntu-latest 跑 integration（docker available 路径）✅
+> 回填 2026-05-29：已由 B-035 闭环（核对 `.github/workflows/ci.yml` `integration-tests` job 在 ubuntu-latest 设 `IS_FORCE_DOCKER_TESTS=1` + 复合镜像，0 deselected；另 `docker-compose-smoke` job 真起栈探针）。CI run 26564322038 on main 已验证 163 passed / 0 deselected。
 - **现状**：本地无 Docker 时 47 个 PG 集成测试 deselect；CI 必须真跑
 - **修复方向**：GitHub Actions workflow 设 `IS_FORCE_DOCKER_TESTS=1` 或确保 docker daemon 启动；fail 时阻塞 merge
 - **验证**：CI 输出显示 162 collected，0 deselected，47+ PASS
@@ -396,17 +402,20 @@ deps: []
 
 ## 框架学习应用（来自 RETRO）
 
-### B-016 应用 6 EXP (sprint-1~7) 到 `.cataforge`
+### B-016 应用 6 EXP (sprint-1~7) 到 `.cataforge` ✅
 - **关联**：CLAUDE.md 原 backlog ①
 - **现状**：[`docs/reviews/retro/RETRO-intellisource-v1.md`](docs/reviews/retro/RETRO-intellisource-v1.md) 列了 6 个改进点，应用决策 deferred
 - **修复方向**：逐条评估 → 改 `.cataforge/skills/<id>/SKILL.md` 或 `agents/<role>/AGENT.md`
+> ✅ 已闭环 — 框架学习沉淀属上游职责（改下游 `.cataforge/` 副本会被 upgrade 覆盖）。打包进上游反馈 bundle [docs/feedback/feedback-suggest-framework-batch-20260529.md](feedback/feedback-suggest-framework-batch-20260529.md) §S5（EXP→scaffold 回流通道）。
 
-### B-017 应用 EXP-005 (sprint-9) 装配缺口 framework-level lint
+### B-017 应用 EXP-005 (sprint-9) 装配缺口 framework-level lint ✅
+> 已闭环 — 打包进上游反馈 bundle [docs/feedback/feedback-suggest-framework-batch-20260529.md](feedback/feedback-suggest-framework-batch-20260529.md) §S3（code-review skill 加 assembly-gap lint），移交 CataForge 上游。
 - **关联**：CLAUDE.md 原 backlog ②
 - **现状**：[`RETRO-intellisource-v1-sprint-9.md`](docs/reviews/retro/RETRO-intellisource-v1-sprint-9.md) — assembly-gap 5 次复发
 - **修复方向**：`.cataforge/skills/code-review/scripts/lint_assembly.py` 检查 build_*_composition 必须把所有声明依赖注入下游 facade
 
-### B-018 应用 EXP-006 / EXP-007 anti-truncation 协议到全角色
+### B-018 应用 EXP-006 / EXP-007 anti-truncation 协议到全角色 ✅
+> 已闭环 — 打包进上游反馈 bundle [docs/feedback/feedback-suggest-framework-batch-20260529.md](feedback/feedback-suggest-framework-batch-20260529.md) §S4（anti-truncation 契约扩展到 reviewer/test-writer/debugger），移交 CataForge 上游。本会话 refactorer stall（49k token / 0 edit）正是该契约要防的失败模式。
 - **关联**：CLAUDE.md 原 backlog ② / RETRO-sprint-8
 - **现状**：EXP-007 Mid-Progress Drop Contract 在 implementer / refactorer 见效；扩展到 reviewer / test-writer / debugger 未做
 - **修复方向**：`.cataforge/agents/{reviewer,test-writer,debugger}/AGENT.md` 加 4 步契约 prompt 段
@@ -515,7 +524,8 @@ deps: []
 
 ## 上游反馈跟进
 
-### B-019 [`docs/feedback/`](docs/feedback/) 1 bug + 1 suggest 未闭环
+### B-019 [`docs/feedback/`](docs/feedback/) 1 bug + 1 suggest ✅
+> 已闭环 — 2 条既有 bundle（eventlog session-end bug / reflector front-matter suggest）经核实对 0.4.1 仍有效，已并入上游反馈批次 [docs/feedback/feedback-suggest-framework-batch-20260529.md](feedback/feedback-suggest-framework-batch-20260529.md) §「Previously filed」一并移交 CataForge 上游。
 - **关联**：CLAUDE.md 原"上游反馈"段
 - **现状**：feedback 目录有 2 条未处理
 - **修复方向**：逐条 triage → 关联到现有 backlog 项或新开
