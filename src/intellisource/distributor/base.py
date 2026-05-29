@@ -41,6 +41,27 @@ class BaseDistributor(abc.ABC):
         """Return True if a push record already exists for this tuple."""
         return await repo.exists(subscription_id, content_id, channel)
 
+    @staticmethod
+    def _build_result(
+        status: str,
+        channel: str,
+        content_id: Any,
+        subscription_id: Any,
+        **extra: Any,
+    ) -> dict[str, Any]:
+        """Build a push-result dict from the common skeleton plus channel extras.
+
+        Each channel supplies its own status vocabulary and any channel-specific
+        fields (e.g. ``pushed_at``, ``error``, ``error_code``) via ``extra``.
+        """
+        return {
+            "status": status,
+            "channel": channel,
+            "content_id": content_id,
+            "subscription_id": subscription_id,
+            **extra,
+        }
+
     def _mask_error_message(self, msg: str | None) -> str | None:
         """Redact any email addresses and phone numbers in *msg* before persistence."""
         if not msg:

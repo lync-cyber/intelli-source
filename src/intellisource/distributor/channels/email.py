@@ -106,22 +106,6 @@ class EmailDistributor(BaseDistributor):
         )
         return {"status": "sent"}
 
-    def _make_result(
-        self,
-        status: str,
-        content_id: str,
-        sub_id: str,
-        **extra: Any,
-    ) -> dict[str, Any]:
-        """Build a standard push-result dict."""
-        return {
-            "status": status,
-            "subscription_id": sub_id,
-            "content_id": content_id,
-            "channel": "email",
-            **extra,
-        }
-
     async def distribute(
         self,
         content: Any,
@@ -160,7 +144,11 @@ class EmailDistributor(BaseDistributor):
         )
 
         if was_deduped:
-            return self._make_result("deduplicated", str(content_id), str(sub_id))
+            return self._build_result(
+                "deduplicated", channel, str(content_id), str(sub_id)
+            )
         if succeeded:
-            return self._make_result("sent", str(content_id), str(sub_id))
-        return self._make_result("failed", str(content_id), str(sub_id), error=error)
+            return self._build_result("sent", channel, str(content_id), str(sub_id))
+        return self._build_result(
+            "failed", channel, str(content_id), str(sub_id), error=error
+        )

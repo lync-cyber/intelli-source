@@ -212,25 +212,14 @@ class WeChatDistributor(BaseDistributor):
         )
 
         if was_deduped:
-            return {
-                "status": "deduplicated",
-                "channel": channel,
-                "content_id": content_id,
-                "subscription_id": sub_id,
-            }
+            return self._build_result("deduplicated", channel, content_id, sub_id)
         if succeeded:
-            return {
-                "status": "success",
-                "channel": channel,
-                "content_id": content_id,
-                "subscription_id": sub_id,
-                **raw,
-            }
-        return {
-            "status": "failed",
-            "channel": channel,
-            "content_id": content_id,
-            "subscription_id": sub_id,
-            "error_code": raw.get("errcode"),
-            "error_msg": error,
-        }
+            return self._build_result("success", channel, content_id, sub_id, **raw)
+        return self._build_result(
+            "failed",
+            channel,
+            content_id,
+            sub_id,
+            error_code=raw.get("errcode"),
+            error_msg=error,
+        )

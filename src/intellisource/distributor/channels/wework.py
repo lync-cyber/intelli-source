@@ -124,10 +124,10 @@ class WeWorkDistributor(BaseDistributor):
         )
 
         if was_deduped:
-            return self._build_result("duplicate", content, subscription)
+            return self._wework_result("duplicate", content, subscription)
         if succeeded:
-            return self._build_result("success", content, subscription)
-        return self._build_result("failed", content, subscription, error=error)
+            return self._wework_result("success", content, subscription)
+        return self._wework_result("failed", content, subscription, error=error)
 
     # ------------------------------------------------------------------
     # Access token
@@ -221,25 +221,21 @@ class WeWorkDistributor(BaseDistributor):
     # Result / formatting helpers
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _build_result(
+    def _wework_result(
+        self,
         status: str,
         content: Any,
         subscription: Any,
         *,
         error: str | None = None,
     ) -> dict[str, Any]:
-        """Build a standardised push-result dict."""
-        result: dict[str, Any] = {
-            "status": status,
-            "channel": "wework",
-            "content_id": content.id,
-            "subscription_id": subscription.id,
-            "pushed_at": _now_iso(),
-        }
+        """Build a WeWork push-result dict (carries ``pushed_at``)."""
+        extra: dict[str, Any] = {"pushed_at": _now_iso()}
         if error is not None:
-            result["error"] = error
-        return result
+            extra["error"] = error
+        return self._build_result(
+            status, "wework", content.id, subscription.id, **extra
+        )
 
     def format_content(self, content: Any, *, msg_type: str = "text") -> Any:
         """Format *content* for the given *msg_type*."""
