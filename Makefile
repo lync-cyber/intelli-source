@@ -91,7 +91,7 @@ check: arch deps deadcode test-unit
 check-all: check test-integration
 
 test-unit:
-	uv run pytest tests/unit -q --tb=short -m "not slow"
+	uv run pytest tests/unit -q --tb=short -m "not slow" -n auto
 
 test-integration:
 	@if ! docker compose -f docker/docker-compose.yml ps --status=running --services 2>/dev/null | grep -q '^db$$'; then \
