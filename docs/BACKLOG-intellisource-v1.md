@@ -9,7 +9,7 @@ deps: []
 # IntelliSource v1 Backlog
 
 > 维护：本文件梳理 PR #53 / #54 audit 闭环之后的剩余工作。完成项请直接删除条目，新增项按优先级插入。
-> 最后更新：2026-05-28 (B-058 follow-up ✅ 闭环 — router-service 完全收敛 + ReloadRequest.config_name 死字段拆除；unit baseline 2879→2862 PASS 净 -17 来自删除 mock-driven 假象测试；mypy strict + ruff + lint-imports 8/8 clean)
+> 最后更新：2026-05-29 (PR #72 ✅ 闭环 P3 功能项 B-043 / B-046 / B-047 / B-049 + B-011 弱断言批量强化；unit baseline 2948→2970 PASS @ main HEAD eff264e；CI 6/6 绿)
 
 ## 优先级语义
 
@@ -123,9 +123,9 @@ deps: []
 
 ## P3 — 优化 / 规约
 
-### B-011 263 处弱断言 `assert .* is not None`
+### B-011 263 处弱断言 `assert .* is not None`（持续项）
 - **关联**：原 audit F-49 / D6-7
-- **现状**：跨 79 个测试文件，大量 `assert result is not None` 不验证语义
+- **现状**：跨 79 个测试文件，大量 `assert result is not None` 不验证语义；PR #72 (commit e3e7607) 已强化 11 个测试文件（integration 多数 + `test_app_entry.py`）为语义断言，余量待新增测试时增量收敛
 - **修复方向**：不批量改；新增测试时由 reviewer code-review Layer 1 检查命中
 - **规约**：在 `.cataforge/rules/COMMON-RULES.md §通用 Anti-Patterns` 加一条"禁止单纯 `is not None` 断言无语义检查"
 
@@ -193,7 +193,8 @@ deps: []
 
 > B-042 已闭环 (本次会话, 选 C) — `LLMGateway.__init__` 新增 `session_factory` kwarg；`_RetryMixin._emit_call_log()` 统一 cost_tracker（legacy）+ session_factory（生产）双源；chat/stream 切到 helper，**complete 补 log_call**（之前缺失）；`composition.build_llm_gateway(redis, session_factory=None)` 经 `_build_deps_bundle` 注入；worker + api 进程 singleton 现具 per-call 会话能力。新增 [tests/unit/llm/test_gateway_session_factory.py](../tests/unit/llm/test_gateway_session_factory.py) 10 tests / 7 class GREEN（覆盖构造 / 三入口 emit / 异常吞噬 / 显式 cost_tracker 优先 / 复合 wiring）；test_cache.py 单测重命名 `test_cache_miss_logs_success_not_cached` 适配新契约。真起栈验证（步骤 9 补签）：`SELECT count(*) FROM llm_call_logs WHERE status='success'` ≥ 1，input/output_tokens > 0 — 待用户跑。
 
-### B-043 chat() path 接入 LLMCache
+### B-043 chat() path 接入 LLMCache ✅
+> 已闭环 (PR #72, commit 6beb94a) — `_chat.py` 加 cache get/set 路径（`if self._cache is not None and cache_key_parts is not None`），`flexible.py` 透传 cache_key_parts，`_metrics.py` 计 chat cache hit/miss。`/search/chat` 二次执行命中缓存。+ `test_gateway_chat_cache.py` 覆盖。
 - **优先级**：P3
 - **关联**：CORRECTIONS-LOG 2026-05-26 B-041 carryover；walkthrough 步骤 9 期望 "二次执行命中缓存（增量显著减少或 cache_hit=true）"
 - **现状**：[llm/gateway/_chat.py](../src/intellisource/llm/gateway/_chat.py) `chat()` **无 cache 路径**，仅 [_complete.py](../src/intellisource/llm/gateway/_complete.py) 走 `if self._cache is not None and cache_key_parts is not None: cached = await self._cache.get(...)`。`/search/chat` 走 `chat()` → 永远不命中缓存。
@@ -247,7 +248,8 @@ deps: []
   - 失败案例：B-031 暴露 7 项部署破口，其中 5 项（Dockerfile 路径 / README / 依赖声明 / shebang / uvicorn）在 "本地真起栈" 5 分钟内必被发现
 - **验证**：下次 deploy-spec 审查时模板自动 prompt 这条；framework-review skill 检查 deploy-spec 报告含 "本地最小栈验证证据" 段
 
-### B-046 collector + HTMLParser 填 `processed_contents.published_at`
+### B-046 collector + HTMLParser 填 `processed_contents.published_at` ✅
+> 已闭环 (PR #72, commit abc0adc) — `agent/tools/executes/process.py` `repo.create(published_at=ctx.get("published_at"))`，缺数据 fallback raw_contents.created_at。+ `test_process_published_at.py` 覆盖。
 - **优先级**：P3
 - **关联**：B-031 阶段 4 步骤 10c carryover 修正 #21；CORRECTIONS-LOG 2026-05-27 条目
 - **现状**：`SELECT COUNT(*) FROM processed_contents WHERE published_at IS NULL` = 20/20（B-039 重跑后所有行该列 NULL）；date filter SQL contract 已闭环（B-002 datetime 类型转换 + 422 拦截非法值），但用户视角 0 结果 → /search date_from/date_to 功能不可见
@@ -258,7 +260,8 @@ deps: []
   - 缺数据时 fallback 用 raw_contents.created_at 而非保持 NULL
 - **验证**：重跑 manual-collect 后 `published_at IS NOT NULL` ≥ 18/20；步骤 10c date filter 真路径返回非 0 items
 
-### B-047 sync `/search/chat` sources 提取 + LLM answer 整形
+### B-047 sync `/search/chat` sources 提取 + LLM answer 整形 ✅
+> 已闭环 (PR #72, commit b3a38ab) — `api/routers/search.py` sync chat 修正 `_extract_sources` walk 路径 + 强制 LLM answer 整形（不再 dict.repr）；`agent/response_utils.py` 提取逻辑对齐。+ `test_search_chat_b047.py` 覆盖（sources count ≥ 1 + 自然语言 answer）。
 - **优先级**：P3
 - **关联**：B-031 阶段 4 步骤 11a carryover 修正 #22 + #23；CORRECTIONS-LOG 2026-05-27 条目
 - **现状**：
@@ -346,7 +349,8 @@ deps: []
 >
 > **carryover 立项**：B-050 wework 默认倾斜（依赖 B-033，本次已闭环，可启动）；docker/.env.example 暂未做 wework 块前置（留 B-050 实施时一并）。`config/llm_models.yaml` vs `.example.yaml` 双份的疑惑未处理（B-051 范围外，可独立小立项 B-052）。
 
-### B-049 distributor channel 失败 silent-success — facade.distribute 误判 sent
+### B-049 distributor channel 失败 silent-success — facade.distribute 误判 sent ✅
+> 已闭环 (PR #72, commit 973d3e7, 采方案 B) — `facade.distribute` 检查 channel 返回 `result.get("status") == "failed"`，failed 不写 status=sent → skipped++ 写 status=failed（不改 channel 契约）。+ `test_facade_silent_failure_b049.py` 覆盖。
 - **优先级**：P3
 - **关联**：B-031 阶段 5 步骤 13 carryover；CORRECTIONS-LOG 修正 #29 silent-failure 说明
 - **现状**：[src/intellisource/distributor/facade.py:135](../src/intellisource/distributor/facade.py)
