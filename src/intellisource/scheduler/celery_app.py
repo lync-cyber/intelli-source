@@ -33,6 +33,31 @@ celery_app = Celery(
 
 celery_app.conf.broker_connection_retry_on_startup = False
 
+# B-059 fast-fail: a dead Redis must not hang a publish from /tasks/collect.
+# Two distinct connections are involved on send — the broker (publish) AND the
+# redis result store (Celery touches the backend during dispatch). BOTH must be
+# bounded, or the slower one dominates (the result backend otherwise retries
+# ~100s before raising). These are set at construction so the cached backend
+# picks them up; post-init conf changes do not apply. Worker-side reconnection
+# still applies per attempt — these only cap each attempt's duration.
+celery_app.conf.broker_transport_options = {
+    "socket_connect_timeout": 5,
+    "socket_timeout": 5,
+}
+# Redis result-backend connection bounds + no reconnect retry loop, so a down
+# backend surfaces a connection error fast instead of the ~100s "Retry limit
+# exceeded while trying to reconnect to the Celery result store backend".
+celery_app.conf.redis_socket_connect_timeout = 5
+celery_app.conf.redis_socket_timeout = 5
+celery_app.conf.redis_retry_on_timeout = False
+celery_app.conf.result_backend_always_retry = False
+celery_app.conf.result_backend_max_retries = 0
+celery_app.conf.result_backend_transport_options = {
+    "socket_connect_timeout": 5,
+    "socket_timeout": 5,
+    "retry_policy": {"max_retries": 0},
+}
+
 # ---------------------------------------------------------------------------
 # Task routing — queues and routes derived from shared queue constants
 # ---------------------------------------------------------------------------
