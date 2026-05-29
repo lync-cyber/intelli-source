@@ -366,3 +366,4 @@
 {"ts": "2026-05-29T05:52:55+00:00", "event": "session_start", "phase": "session", "detail": "IDE session started"}
 {"ts": "2026-05-29T05:53:04+00:00", "event": "session_start", "phase": "session", "detail": "IDE session started"}
 {"ts": "2026-05-29T05:53:09+00:00", "event": "session_start", "phase": "session", "detail": "IDE session started"}
+{"ts": "2026-05-29T06:25:23+00:00", "event": "state_change", "phase": "backlog-burndown", "detail": "B-031 阶段 6-7 步骤 15/17/18/19/20 orchestrator 自动驱动真起栈走查完成（步骤 16 N/A）；步骤 15/18/19 GO，步骤 20 核心 GO；暴露 1 HIGH(B-059 broker 派发挂起) + 2 MEDIUM(B-040 trace_id 可观测/B-060 llm_call_logs 失败行) + doc-staleness 并入 B-034；pre_deploy GO/NO-GO 待用户签字", "agent": "orchestrator"}

@@ -538,3 +538,27 @@ deps: []
 - 基线/推荐: C 先关 B-040 (Recommended)
 - 实际/选择: 先关B-040；核实当前默认是否使用微信公众号分发消息，是否支持微信企业号分发消息, 应优先支持微信企业号，因为相比微信公众号在消息分发和终端微信用户交互上更友好；然后研究如何优化配置管理和引导，简化用户初始配置时的上手难度。
 - 偏差类型: preference
+
+
+### 2026-05-29 | orchestrator | B-031 阶段 6-7 步骤 15-20 真起栈走查（自动驱动）
+
+- 触发信号: 用户授权 orchestrator 通过 Bash 在本地 docker 栈自动驱动步骤 15/17/18/19/20（步骤 16 AdaptiveScheduler 长跑观察标 N/A）；冷栈 bootstrap（db+redis+migrate exit0 / 13 表 / vector+pg_trgm / api+worker+beat healthy / 2 sources：Hacker News rss + GitHub Trending web）
+- 步骤逐项结论:
+  - **步骤 15 Prometheus + 指标暴露 = GO（核心契约）+ 2 项 doc-staleness**:
+    - Prometheus `/-/healthy` ✅ / alerts.yml 加载 8 条规则 ✅ / scrape target `http://api:8000/api/v1/metrics` = `up` ✅（真实监控契约成立）
+    - doc-staleness F1: walkthrough 巡检 `/metrics /api/v1/metrics /api/v1/system/metrics` 三路径，但根 `/metrics` → **404**（仅 `system.py:108` 挂在 `/api/v1` 前缀，根路径未挂路由；`middleware.py:41` auth-exempt 名单预留了一个并不存在的根路由）。Prometheus 用 `/api/v1/metrics` 故无运行时影响
+    - doc-staleness F2: walkthrough 期望 `collector_/pipeline_/task_queue_` 指标家族 — **代码中不存在**；实际自定义家族 = `llm_calls_total`/`llm_call_failures_total`/`llm_call_latency_seconds`/`pushes_total` + signals.py 在首个 task 后注册的 `celery_tasks_total` 等 + `http_*` + `intellisource_health_status`
+  - **步骤 17 trace_id 跨进程串联 = 偏差（observability gap，非客户端缺陷）**:
+    - 功能层成立：middleware 生成并返回 `x-trace-id` 响应头 ✅（实测 `373efcb7-...`）；`signals.py` 从 Celery header 还原 trace_id 到 contextvars；单测在 2862 PASS 套件覆盖
+    - 但 walkthrough 的验证手段（`docker logs | grep $TRACE`）**无法成立**：api/worker/beat 三容器日志 0 处 `trace_id=` token。根因双重 — (a) 热路径无业务日志发射 trace_id：`tasks.py` collect 路由无任何 log 语句、`signals.py` prerun 仅 bind contextvar 不 log；(b) **Celery 默认 `worker_hijack_root_logger=True` 未关**，worker 端 `TraceIdFormatter` 被 celery 自有 formatter 覆盖；api 端仅 uvicorn access log（无 structlog 输出）
+    - → 运维无法按 trace_id 跨服务 grep 关联（F-23 承诺的核心价值在部署形态下不可用）；立 backlog 跟进
+  - **步骤 18 DB 失败注入 = GO + 1 措辞 note**: stop db → `checks.db=unhealthy`(带 last_error InterfaceError) + health 端点本身仍 HTTP 200 ✅ / 业务端点 `/api/v1/sources` → 500 ✅ / start db → 4s 自愈 healthy ✅。note: 顶层 `status` 实为 **`degraded`**（redis+celery 仍 up 的部分降级语义，比 walkthrough 字面 "status=unhealthy" 更准确）
+  - **步骤 19 LLM 上游不可达熔断+降级 = GO（3/3 Pass 标准全中）+ 1 偏差**: 注入手段 = 临时 `DEEPSEEK_API_KEY=sk-invalid-...` + recreate api/worker（.env 已备份并还原，git tree clean，.env 为 gitignore）。collect 自动 chain content-process 后：熔断器 **OPEN** ✅（threshold=5 consecutive / recovery=60s）/ "LLM summarize failed, falling back to truncation" 降级日志 ✅ / processed_contents 34→40（+6，全 embedding NULL 优雅降级）✅ / 客户端 `/api/v1/search`+`/api/v1/sources` 均 200 无 5xx ✅ / 还原 key + recreate 后熔断器 OPEN→**HALF_OPEN** 恢复中 ✅。偏差 F3: 失败的 LLM 调用 **未落 `llm_call_logs`**（仅 stdout WARNING + 熔断计数；walkthrough 检查 #3 期望 status='error'/'timeout' 行，实测 `llm_call_logs` 仍仅 success|49）
+  - **步骤 20 Redis 失败注入 = 核心 GO + 1 HIGH 偏差**: stop redis → `health.checks.redis=unhealthy`(+celery=unhealthy，broker=redis) ✅ / 非 redis 查询 `/api/v1/sources` → 200 不受影响 ✅ / start redis → 9s 自愈 ✅。**偏差 F4 (HIGH)**: redis 依赖的 collect 派发 → **HTTP 000（15s 超时挂起）** 而非优雅 202；`scheduler/celery_app.py:34` 仅 `broker_connection_retry_on_startup=False`，`broker_transport_options` 无 `socket_timeout`/`max_retries`，broker 宕时 kombu 阻塞重连 → 客户端请求挂死（生产风险：broker 故障下请求堆积/线程耗尽）
+- 偏差类型: self-caused（F3/F4/trace_id 三项 observability/resilience 装配缺口）+ doc-staleness（F1/F2 + 步骤 17/19 curl 片段漏 `X-API-Key` 头致 401）
+- go/no-go: **未签 GO** — pre_deploy 为 MANUAL_REVIEW_CHECKPOINT，最终签字属用户。F4(broker 挂起)为 HIGH 级 NO-GO 候选，trace_id observability 与 F3 为 MEDIUM。立以下 backlog 后由用户裁定 release gate
+  - **B-059 (HIGH，新立)**: Celery broker 宕机时任务派发快速失败 — `broker_transport_options` 补 `socket_timeout`/`socket_connect_timeout`/`max_retries`，collect 等派发端点改 fail-fast（503/排队降级）不挂起
+  - **B-040 (MEDIUM，既有项增补证据)**: trace_id 跨进程日志可观测性 — 既有 B-040 现状描述（root logger 无 formatter）需修正：实际 `setup_logging()` 已装 `TraceIdFormatter`，worker 端不可见的真因是 **Celery `worker_hijack_root_logger=True` 未关** 覆盖了 formatter；且 api 端热路径（`tasks.py` collect 路由）无业务日志发射 trace_id。修复需同时关 hijack + 热路径补 INFO log
+  - **B-060 (MEDIUM-LOW，新立)**: 失败 LLM 调用持久化到 `llm_call_logs`（status='error'/'timeout' + error_message）；B-042 仅保证 success 落表，失败路径（summarize fallback 吞异常前）未 emit
+  - doc-staleness F1/F2 + 步骤 17/19 curl 漏 X-API-Key → 并入 B-034 walkthrough 订正
+- 关联: B-031 walkthrough §阶段 6-7 步骤 15-20；scheduler/celery_app.py / observability/logging.py + tracing.py + signals.py / api/routers/tasks.py / middleware.py / system.py；B-059 / B-060 新立 + B-040 增补；B-034 doc drift carryover
