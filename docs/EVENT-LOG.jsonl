@@ -363,3 +363,6 @@
 {"ts": "2026-05-26T12:49:52+00:00", "event": "correction", "phase": "unknown", "detail": "option-override: 选择下一步推进方向（阅过完整 BACKLOG 后）", "agent": "orchestrator"}
 {"ts": "2026-05-28T01:55:01+00:00", "event": "correction", "phase": "unknown", "detail": "option-override: 下一步推进哪条线？", "agent": "orchestrator"}
 {"ts": "2026-05-28T08:28:26+00:00", "event": "state_change", "phase": "backlog-burndown", "detail": "B-058 follow-up: router-service convergence + config_name dead-field removal closed; unit 2879->2862 PASS net -17 (mock-driven cleanup); 0 NEW FAIL; mypy/ruff/lint-imports clean"}
+{"ts": "2026-05-29T05:52:55+00:00", "event": "session_start", "phase": "session", "detail": "IDE session started"}
+{"ts": "2026-05-29T05:53:04+00:00", "event": "session_start", "phase": "session", "detail": "IDE session started"}
+{"ts": "2026-05-29T05:53:09+00:00", "event": "session_start", "phase": "session", "detail": "IDE session started"}
