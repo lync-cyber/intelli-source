@@ -126,7 +126,7 @@ def load_model_config(path: str) -> dict[str, Any]:
     if not file_path.exists():
         raise FileNotFoundError(f"Config file not found: {path}")
 
-    text = file_path.read_text()
+    text = file_path.read_text(encoding="utf-8")
     try:
         data = yaml.safe_load(text)
     except yaml.YAMLError as exc:

@@ -23,7 +23,7 @@ class ContentFilter(BaseProcessor):
     def load_words(self, config_path: str) -> None:
         """Load sensitive words from a JSON config file."""
         self._config_path = config_path
-        with open(config_path) as f:
+        with open(config_path, encoding="utf-8") as f:
             data = json.load(f)
         self._words = list(data.get("sensitive_words", []))
 

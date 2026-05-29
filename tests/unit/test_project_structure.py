@@ -100,7 +100,7 @@ class TestPyprojectDependencies:
         """An IntelliSource-specific pyproject.toml must exist and declare
         the 'intellisource' project (not 'cataforge')."""
         assert PYPROJECT_PATH.exists(), "pyproject.toml does not exist"
-        content = PYPROJECT_PATH.read_text()
+        content = PYPROJECT_PATH.read_text(encoding="utf-8")
         assert "intellisource" in content.lower(), (
             "pyproject.toml does not declare the 'intellisource' project"
         )
@@ -108,7 +108,7 @@ class TestPyprojectDependencies:
     @pytest.mark.parametrize("dep", CORE_DEPENDENCIES)
     def test_core_dependency_declared(self, dep: str) -> None:
         """Each core dependency must appear in pyproject.toml dependencies."""
-        content = PYPROJECT_PATH.read_text().lower()
+        content = PYPROJECT_PATH.read_text(encoding="utf-8").lower()
         # Normalize: both underscore and hyphen forms should match
         dep_normalized = dep.lower().replace("-", "[-_]")
         import re
@@ -125,7 +125,7 @@ class TestPyprojectDependencies:
         project name (validated by test_pyproject_toml_exists_in_project_root).
         """
         # First verify pyproject.toml declares intellisource, not something else
-        content = PYPROJECT_PATH.read_text()
+        content = PYPROJECT_PATH.read_text(encoding="utf-8")
         assert "intellisource" in content.lower(), (
             "pyproject.toml does not declare 'intellisource' project"
         )
