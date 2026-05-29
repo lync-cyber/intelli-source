@@ -606,7 +606,7 @@ class TestClusterRepositoryExport:
                 "intellisource.storage.repositories.cluster not implemented: "
                 "cannot import 'ClusterRepository'"
             )
-        assert ClusterRepository is not None
+        assert isinstance(ClusterRepository, type)
 
     def test_t073_ac6_cluster_repository_exported_from_package(self) -> None:
         """ClusterRepository is re-exported from storage.repositories.__init__."""
@@ -619,7 +619,11 @@ class TestClusterRepositoryExport:
                 "ClusterRepository not exported from "
                 f"storage.repositories.__init__: {exc}"
             )
-        assert ImportedClusterRepository is not None
+        from intellisource.storage.repositories.cluster import (
+            ClusterRepository as _Canonical,
+        )
+
+        assert ImportedClusterRepository is _Canonical
 
     def test_t073_ac6_cluster_repository_has_list_clusters_method(self) -> None:
         """ClusterRepository exposes a list_clusters method."""
@@ -637,7 +641,9 @@ class TestClusterRepositoryExport:
                 "intellisource.api.routers.clusters not implemented: "
                 "cannot import 'router'"
             )
-        assert clusters_router is not None
+        from fastapi import APIRouter
+
+        assert isinstance(clusters_router, APIRouter)
 
 
 # ===========================================================================

@@ -61,7 +61,7 @@ class TestVectorStoreUpsert:
         """VectorStore class must be importable from intellisource.storage.vector."""
         from intellisource.storage.vector import VectorStore
 
-        assert VectorStore is not None
+        assert isinstance(VectorStore, type)
 
     @pytest.mark.asyncio
     async def test_upsert_stores_vector(self) -> None:
@@ -125,9 +125,11 @@ class TestVectorStoreSearch:
     @pytest.mark.asyncio
     async def test_import_search_result(self) -> None:
         """SearchResult must be importable from intellisource.storage.vector."""
+        import dataclasses
+
         from intellisource.storage.vector import SearchResult
 
-        assert SearchResult is not None
+        assert dataclasses.is_dataclass(SearchResult)
 
     @pytest.mark.asyncio
     async def test_search_returns_list_of_search_results(self) -> None:
@@ -249,7 +251,7 @@ class TestHybridIndexSearch:
         """HybridIndex class must be importable from intellisource.storage.vector."""
         from intellisource.storage.vector import HybridIndex
 
-        assert HybridIndex is not None
+        assert isinstance(HybridIndex, type)
 
     @pytest.mark.asyncio
     async def test_semantic_mode_uses_vector_search(self) -> None:

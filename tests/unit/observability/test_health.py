@@ -30,20 +30,22 @@ class TestHealthCheckerImport:
         """HealthChecker class must be importable."""
         from intellisource.observability.health import HealthChecker
 
-        assert HealthChecker is not None
+        assert isinstance(HealthChecker, type)
 
     def test_import_health_result(self) -> None:
         """HealthResult data class must be importable."""
+        import dataclasses
+
         from intellisource.observability.health import HealthResult
 
-        assert HealthResult is not None
+        assert dataclasses.is_dataclass(HealthResult)
 
     def test_health_checker_instantiable(self) -> None:
         """HealthChecker must be instantiable with no required arguments."""
         from intellisource.observability.health import HealthChecker
 
         checker = HealthChecker()
-        assert checker is not None
+        assert isinstance(checker, HealthChecker)
 
 
 # ---------------------------------------------------------------------------

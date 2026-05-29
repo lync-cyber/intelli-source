@@ -89,7 +89,7 @@ class TestBaseDistributorInterface:
         """BaseDistributor can be imported from distributor.base."""
         from intellisource.distributor.base import BaseDistributor  # noqa: F811
 
-        assert BaseDistributor is not None
+        assert isinstance(BaseDistributor, type)
 
     def test_base_distributor_is_abstract(self):
         """BaseDistributor cannot be instantiated directly."""
@@ -133,7 +133,7 @@ class TestSubscriptionMatcherBasic:
             SubscriptionMatcher,
         )
 
-        assert SubscriptionMatcher is not None
+        assert isinstance(SubscriptionMatcher, type)
 
     def test_match_returns_list(self):
         """match(content) should return a list."""
@@ -645,7 +645,7 @@ class TestDeliveryTracker:
             DeliveryTracker,
         )
 
-        assert DeliveryTracker is not None
+        assert isinstance(DeliveryTracker, type)
 
     def test_record_push(self):
         """record() stores a push record."""

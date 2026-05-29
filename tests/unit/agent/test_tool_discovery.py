@@ -147,8 +147,8 @@ class TestUnifiedListTools:
 
         listed = set(registry.list_tools())
         assert {"manual", "discovered"}.issubset(listed)
-        assert registry.get("discovered") is not None
-        assert registry.get("manual") is not None
+        assert registry.get("discovered").name == "discovered"
+        assert registry.get("manual").name == "manual"
 
     def test_discovered_tool_preserves_permission_level(self, tmp_path: Path) -> None:
         _write_plugin(

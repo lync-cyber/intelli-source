@@ -221,7 +221,7 @@ class TestLLMExtractorModuleExists:
         """The extractor module must be importable."""
         import intellisource.llm.processors.extractor as extractor_mod  # type: ignore[import]
 
-        assert extractor_mod is not None
+        assert extractor_mod.__name__ == "intellisource.llm.processors.extractor"
 
     def test_llm_extractor_class_or_function_exists(self) -> None:
         """The extractor module must expose LLMExtractor or an extract() function."""

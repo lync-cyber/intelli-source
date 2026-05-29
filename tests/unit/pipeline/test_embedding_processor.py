@@ -35,7 +35,7 @@ class TestEmbeddingProcessorRegistered:
             EmbeddingProcessor,
         )
 
-        assert EmbeddingProcessor is not None
+        assert isinstance(EmbeddingProcessor, type)
 
     def test_embedder_subclasses_base_processor(self) -> None:
         from intellisource.pipeline.base import BaseProcessor  # noqa: PLC0415

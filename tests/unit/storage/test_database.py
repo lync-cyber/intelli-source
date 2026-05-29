@@ -55,7 +55,7 @@ class TestDatabaseManagerConnection:
         """DatabaseManager class must be importable from the storage module."""
         from intellisource.storage.database import DatabaseManager
 
-        assert DatabaseManager is not None
+        assert isinstance(DatabaseManager, type)
 
     @pytest.mark.asyncio
     async def test_create_instance_with_url(self) -> None:
@@ -63,7 +63,7 @@ class TestDatabaseManagerConnection:
         from intellisource.storage.database import DatabaseManager
 
         manager = DatabaseManager(database_url=SQLITE_TEST_URL)
-        assert manager is not None
+        assert isinstance(manager, DatabaseManager)
 
     @pytest.mark.asyncio
     async def test_engine_property_returns_async_engine(self) -> None:

@@ -113,7 +113,7 @@ class TestWeChatDistributorImportAndInit:
             WeChatDistributor,
         )
 
-        assert WeChatDistributor is not None
+        assert isinstance(WeChatDistributor, type)
 
     def test_inherits_base_distributor(self):
         """WeChatDistributor should inherit from BaseDistributor."""
@@ -138,7 +138,7 @@ class TestWeChatDistributorImportAndInit:
             app_id=app_id,
             app_secret=app_secret,
         )
-        assert dist is not None
+        assert isinstance(dist, WeChatDistributor)
 
 
 class TestSendTemplateMessage:

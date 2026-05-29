@@ -18,7 +18,7 @@ class TestCeleryAppModuleLevel:
         import importlib
 
         mod = importlib.import_module("intellisource.scheduler.celery_app")
-        assert mod is not None
+        assert hasattr(mod, "celery_app")
 
     def test_celery_app_attribute_exists(self) -> None:
         """AC-1: Module exports a module-level 'celery_app' name."""
@@ -26,7 +26,7 @@ class TestCeleryAppModuleLevel:
             celery_app,  # type: ignore[import-untyped]
         )
 
-        assert celery_app is not None
+        assert celery_app.main == "intellisource"
 
     def test_celery_app_is_celery_instance(self) -> None:
         """AC-1: celery_app is a Celery instance."""

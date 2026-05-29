@@ -121,7 +121,7 @@ class TestConfigLoaderLoadFile:
         """ConfigLoader class must be importable from config.loader."""
         from intellisource.config.loader import ConfigLoader
 
-        assert ConfigLoader is not None
+        assert isinstance(ConfigLoader, type)
 
     def test_load_yaml_file(self, tmp_path) -> None:
         """load_file() parses a YAML config and returns list[SourceConfig]."""
@@ -260,7 +260,7 @@ class TestConfigWatcher:
         """ConfigWatcher class must be importable."""
         from intellisource.config.loader import ConfigWatcher
 
-        assert ConfigWatcher is not None
+        assert isinstance(ConfigWatcher, type)
 
     def test_watcher_init_with_callback(self, tmp_path) -> None:
         """ConfigWatcher accepts config_dir and callback."""
@@ -269,7 +269,7 @@ class TestConfigWatcher:
         callback = lambda path: None  # noqa: E731
         watcher = ConfigWatcher(config_dir=str(tmp_path), callback=callback)
 
-        assert watcher is not None
+        assert isinstance(watcher, ConfigWatcher)
 
     @pytest.mark.asyncio
     @pytest.mark.slow
@@ -376,7 +376,7 @@ class TestConfigVersionManager:
         """ConfigVersionManager class must be importable."""
         from intellisource.config.loader import ConfigVersionManager
 
-        assert ConfigVersionManager is not None
+        assert isinstance(ConfigVersionManager, type)
 
     def test_record_version_increments(self) -> None:
         """record_version() increments the version number."""
