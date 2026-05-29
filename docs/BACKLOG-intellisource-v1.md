@@ -10,7 +10,8 @@ deps: []
 
 > 维护：本文件梳理 PR #53 / #54 audit 闭环之后的剩余工作。完成项请直接删除条目，新增项按优先级插入。
 > 最后更新：2026-05-29 (PR #72 ✅ 闭环 P3 功能项 B-043 / B-046 / B-047 / B-049 + B-011 弱断言批量强化；核对 B-015 ✅ 早已闭环（promtool 在 CI Lint job）；**B-012 ✅** 常量早闭环 + 本次修复 keyword_tag 空串/空白/重复 tag 三缺陷 + 测试 4→10；**B-034 ✅** PRE-DEPLOY-WALKTHROUGH 全量订正（health degraded / X-API-Key×33 / to_addr / 指标家族 / push 入口 等，逐条对照代码核实）。unit baseline 2948→2976 PASS @ main；CI 6/6 绿)
-> 2026-05-29 增补：**B-011 ✅** 弱断言闭环——规约已入双 COMMON-RULES + AST 检测器精确清扫 46 处 truly-decorative 为语义断言，全 tests/ 仅余 18 处经核实皆合法类型收窄 guard（非 anti-pattern）；2976 PASS 不退化。剩余开放项全部非阻塞：P2 B-036 / P3 B-014 + B-016~B-019。
+> 2026-05-29 增补：**B-011 ✅** 弱断言闭环——规约已入双 COMMON-RULES + AST 检测器精确清扫 46 处 truly-decorative 为语义断言，全 tests/ 仅余 18 处经核实皆合法类型收窄 guard（非 anti-pattern）；2976 PASS 不退化。
+> 2026-05-29 增补：**框架反馈批次移交上游** — 5 个框架级条目 **B-016 / B-017 / B-018 / B-036 / B-038 ✅** + **B-019 ✅**（2 条既有 bundle）打包进 [docs/feedback/feedback-suggest-framework-batch-20260529.md](feedback/feedback-suggest-framework-batch-20260529.md)，移交 CataForge 上游（沙盒无 cataforge/gh CLI 且 GitHub 集成仅限本 repo，issue 由用户提交）。剩余开放项全部非阻塞且均为**项目级**（非框架）：P3 B-013 / B-014 / B-020~B-028（部分疑似 main 已闭环待回填）。
 
 ## 优先级语义
 
@@ -171,7 +172,8 @@ deps: []
 
 > B-035 已闭环 (本次会话) — `.github/workflows/ci.yml` 改造：(1) `integration-tests` job 用 `docker/setup-buildx-action@v3` + `docker/build-push-action@v5` 预 build `intellisource/db:pg16-pgvector-zhparser`（cache type=gha,scope=db-image 跨 job/run 复用）→ 设 `IS_FORCE_DOCKER_TESTS=1` + `IS_TEST_DB_IMAGE=intellisource/db:pg16-pgvector-zhparser` 让 conftest 不 deselect docker 测试且用 composite image；(2) 新增 `docker-compose-smoke` job — 复用 cached image，`cp .env.example .env` + sed 填 channel 占位（兼 B-033 hard-fail），`docker compose up -d --wait db redis migrate api` 借 compose 自身 healthcheck + service_completed_successfully 等待，三个 SQL 探针验证 zhparser 真路径活：`SELECT extname FROM pg_extension WHERE extname='zhparser'` / `SELECT cfgname FROM pg_ts_config WHERE cfgname='zhparser'` / `to_tsvector('zhparser', '北京天安门搜索引擎')` 返多 lexeme（防 'simple' 回退）；(3) failure 时 dump db/migrate/api logs；(4) `if: always()` 跑 down -v 清理。预期 CI 首次 1-2 min build 镜像，二次 cache hit secs；smoke job 与 integration-tests job 并行跑独立 stack 互不干扰。**CI 真跑验证 PASS** (run 26564322038 on main)：integration-tests 163 passed / 1 skipped / 0 deselected（`IS_FORCE_DOCKER_TESTS=1` + composite image）；docker-compose-smoke 三 SQL 探针全绿（`pg_extension`/`pg_ts_config` 返 zhparser，`to_tsvector('zhparser','北京天安门搜索引擎')` → `'北京':1 '天安门':2 '搜索引擎':3` 多 lexeme 非 simple 回退）。
 
-### B-038 framework-feedback: 提议框架默认采用 CLAUDE.md 单一事实来源
+### B-038 framework-feedback: 提议框架默认采用 CLAUDE.md 单一事实来源 ✅
+> 已闭环 — 打包进上游反馈 bundle [docs/feedback/feedback-suggest-framework-batch-20260529.md](feedback/feedback-suggest-framework-batch-20260529.md) §S1，移交 CataForge 上游。本地决策（删 PROJECT-STATE.md）已落地；upgrade 漂移风险由上游采纳后消除，下游不再单独跟踪。
 - **优先级**：P3（项目本地已落地，feedback 是为防止 upgrade 漂移）
 - **关联**：本次会话用户决策"删除 PROJECT-STATE.md，CLAUDE.md 为单一事实来源"
 - **现状**：CataForge 框架默认双文件状态机制 — CLAUDE.md（人面向）+ .cataforge/PROJECT-STATE.md（框架镜像）。两份内容必须手工同步，是真实的双写负担 + 不一致风险源。本项目已删除 PROJECT-STATE.md 并改写 4 处硬引用（framework.json migration_checks / scaffold-manifest.json / self-update SKILL.md / 状态持久化机制说明）。
@@ -239,7 +241,8 @@ deps: []
 
 ---
 
-### B-036 deploy-spec 审查模板强化
+### B-036 deploy-spec 审查模板强化 ✅
+> 已闭环 — 框架元资产改动，打包进上游反馈 bundle [docs/feedback/feedback-suggest-framework-batch-20260529.md](feedback/feedback-suggest-framework-batch-20260529.md) §S2（doc-review deploy-spec 维度加"本地最小栈真起验证"强约束 + 模板增证据段），移交 CataForge 上游。下游不在本地 `.cataforge/` 副本改（upgrade 会覆盖）。
 - **优先级**：P2
 - **关联**：CORRECTIONS-LOG 修正 #1~#7 根因；B-010 deploy-spec r1+r2 审查未覆盖 "本地真起栈" 维度
 - **现状**：deploy-spec 审查模板 ([.cataforge/skills/doc-review/](.cataforge/skills/doc-review/)) 关注 SBOM / promtool / 回滚方案 / 灰度策略，但 r1+r2 都没强制要求 "本地最小栈 docker compose up -d db redis migrate api 必须真跑通"
@@ -395,17 +398,20 @@ deps: []
 
 ## 框架学习应用（来自 RETRO）
 
-### B-016 应用 6 EXP (sprint-1~7) 到 `.cataforge`
+### B-016 应用 6 EXP (sprint-1~7) 到 `.cataforge` ✅
 - **关联**：CLAUDE.md 原 backlog ①
 - **现状**：[`docs/reviews/retro/RETRO-intellisource-v1.md`](docs/reviews/retro/RETRO-intellisource-v1.md) 列了 6 个改进点，应用决策 deferred
 - **修复方向**：逐条评估 → 改 `.cataforge/skills/<id>/SKILL.md` 或 `agents/<role>/AGENT.md`
+> ✅ 已闭环 — 框架学习沉淀属上游职责（改下游 `.cataforge/` 副本会被 upgrade 覆盖）。打包进上游反馈 bundle [docs/feedback/feedback-suggest-framework-batch-20260529.md](feedback/feedback-suggest-framework-batch-20260529.md) §S5（EXP→scaffold 回流通道）。
 
-### B-017 应用 EXP-005 (sprint-9) 装配缺口 framework-level lint
+### B-017 应用 EXP-005 (sprint-9) 装配缺口 framework-level lint ✅
+> 已闭环 — 打包进上游反馈 bundle [docs/feedback/feedback-suggest-framework-batch-20260529.md](feedback/feedback-suggest-framework-batch-20260529.md) §S3（code-review skill 加 assembly-gap lint），移交 CataForge 上游。
 - **关联**：CLAUDE.md 原 backlog ②
 - **现状**：[`RETRO-intellisource-v1-sprint-9.md`](docs/reviews/retro/RETRO-intellisource-v1-sprint-9.md) — assembly-gap 5 次复发
 - **修复方向**：`.cataforge/skills/code-review/scripts/lint_assembly.py` 检查 build_*_composition 必须把所有声明依赖注入下游 facade
 
-### B-018 应用 EXP-006 / EXP-007 anti-truncation 协议到全角色
+### B-018 应用 EXP-006 / EXP-007 anti-truncation 协议到全角色 ✅
+> 已闭环 — 打包进上游反馈 bundle [docs/feedback/feedback-suggest-framework-batch-20260529.md](feedback/feedback-suggest-framework-batch-20260529.md) §S4（anti-truncation 契约扩展到 reviewer/test-writer/debugger），移交 CataForge 上游。本会话 refactorer stall（49k token / 0 edit）正是该契约要防的失败模式。
 - **关联**：CLAUDE.md 原 backlog ② / RETRO-sprint-8
 - **现状**：EXP-007 Mid-Progress Drop Contract 在 implementer / refactorer 见效；扩展到 reviewer / test-writer / debugger 未做
 - **修复方向**：`.cataforge/agents/{reviewer,test-writer,debugger}/AGENT.md` 加 4 步契约 prompt 段
@@ -514,7 +520,8 @@ deps: []
 
 ## 上游反馈跟进
 
-### B-019 [`docs/feedback/`](docs/feedback/) 1 bug + 1 suggest 未闭环
+### B-019 [`docs/feedback/`](docs/feedback/) 1 bug + 1 suggest ✅
+> 已闭环 — 2 条既有 bundle（eventlog session-end bug / reflector front-matter suggest）经核实对 0.4.1 仍有效，已并入上游反馈批次 [docs/feedback/feedback-suggest-framework-batch-20260529.md](feedback/feedback-suggest-framework-batch-20260529.md) §「Previously filed」一并移交 CataForge 上游。
 - **关联**：CLAUDE.md 原"上游反馈"段
 - **现状**：feedback 目录有 2 条未处理
 - **修复方向**：逐条 triage → 关联到现有 backlog 项或新开
