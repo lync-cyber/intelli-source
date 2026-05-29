@@ -17,7 +17,6 @@ import pytest
 import yaml
 
 from intellisource.llm.model_config import (
-    ModelConfig,
     ModelRoutingConfig,
     load_model_config,
 )
@@ -195,41 +194,6 @@ class TestModelRoutingConfig:
 
         assert default["model"] == "gpt-4o-mini"
         assert default["provider"] == "openai"
-
-
-# ===========================================================================
-# ModelConfig -- individual model config dataclass
-# ===========================================================================
-
-
-class TestModelConfig:
-    """Verify ModelConfig data structure."""
-
-    def test_model_config_from_dict(self) -> None:
-        """ModelConfig can be created from a dict."""
-        data = {"model": "gpt-4o-mini", "provider": "openai", "temperature": 0.5}
-        config = ModelConfig(**data)
-
-        assert config.model == "gpt-4o-mini"
-        assert config.provider == "openai"
-        assert config.temperature == 0.5
-
-    def test_model_config_required_fields(self) -> None:
-        """ModelConfig requires at least model and provider fields."""
-        with pytest.raises(TypeError):
-            ModelConfig()  # type: ignore[call-arg]
-
-    def test_model_config_optional_temperature(self) -> None:
-        """ModelConfig temperature defaults to None when not specified."""
-        config = ModelConfig(model="gpt-4o-mini", provider="openai")
-
-        assert config.temperature is None or isinstance(config.temperature, float)
-
-    def test_model_config_optional_max_tokens(self) -> None:
-        """ModelConfig max_tokens defaults to None when not specified."""
-        config = ModelConfig(model="gpt-4o-mini", provider="openai")
-
-        assert config.max_tokens is None or isinstance(config.max_tokens, int)
 
 
 # ===========================================================================

@@ -9,7 +9,6 @@ from intellisource.llm.gateway import (
     SchemaValidationError,
 )
 from intellisource.llm.model_config import (
-    ModelConfig,
     ModelRoutingConfig,
     load_model_config,
 )
@@ -19,7 +18,6 @@ __all__ = [
     "LLMGateway",
     "LLMOutputError",
     "LLMResult",
-    "ModelConfig",
     "ModelRoutingConfig",
     "SchemaEnforcer",
     "SchemaValidationError",
