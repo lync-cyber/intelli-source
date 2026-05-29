@@ -59,7 +59,7 @@ deps: []
   - **Phase 2**: alembic migration `d4e5f6a7b8c9_add_subscription_config_versions.py` + `ConfigVersionManager` 泛化（**删向后兼容** — table_name+config_cls 强制 kwarg / session 必传）+ `POST /subscriptions/config/rollback/{version}`
   - **Layer 1+2 重构** (修 real bug + 抽 service): 删 SubscriptionCreate/Update Request；POST /subscriptions 直接接 SubscriptionConfig（修复 API 缺 frequency/quiet_hours/timezone/discipline_tags 漂移）；新增 [src/intellisource/subscription/service.py](../src/intellisource/subscription/service.py) `SubscriptionService` 集中调度；router 退化为薄 HTTP 转发；**修真 bug** — 旧 API 不跑 SubscriptionValidator 致 yaml/API 校验严格度不一致
   - **Phase 3 B-055 CLI 薄壳**: [cli/main.py](../src/intellisource/cli/main.py) `intellisource subscriptions list/add/patch/rm/reload/rollback` 子命令；HTTP 自调本地 API 复用 middleware + metrics
-- **B-050** (文档+默认值倾斜, 无业务代码改动, 依赖 B-033): [docker/.env.example](../docker/.env.example) 段重排 WeWork → WeChat → Email + 补 IS_WECOM_TOKEN/AES_KEY/CORP_ID；[docs/deploy/PRE-DEPLOY-WALKTHROUGH.md §0.2](../docs/deploy/PRE-DEPLOY-WALKTHROUGH.md) Distribution channels 矩阵。PRD §F-006 / ARCH M-007 主路径标记待 change-guard amendment（B-053 候选）
+- **B-050** (文档+默认值倾斜, 无业务代码改动, 依赖 B-033): [docker/.env.example](../docker/.env.example) 段重排 WeWork → WeChat → Email + 补 IS_WECOM_TOKEN/AES_KEY/CORP_ID；[docs/deploy/PRE-DEPLOY-WALKTHROUGH.md §0.2](../docs/deploy/PRE-DEPLOY-WALKTHROUGH.md) Distribution channels 矩阵。PRD §F-006 / ARCH M-007 保持 wework/wechat 平等列举，不做主路径倾斜 amendment
 
 ## Learnings Registry (详细见各 RETRO 报告)
 

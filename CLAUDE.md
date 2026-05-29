@@ -19,7 +19,7 @@
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 - 当前阶段: backlog-burndown — **B-031 阶段 6-7（步骤 15-20：Prometheus / AdaptiveScheduler / trace_id 串联 / DB-LLM-Redis 失败注入）**
-- 下一步行动: B-031 步骤 15-20 / B-035 PR push 后 CI 真跑验证 / PRD-ARCH wework 主路径 amendment（B-053 候选）/ BGE-M3 本地 embedding 暂缓
+- 下一步行动: B-031 步骤 15-20 / BGE-M3 本地 embedding 暂缓
 - 当前回归基线: **2862 PASS unit** (HEAD baseline 2879; 净 -17 来自删除 mock-driven 假象测试) / 1 deselected / 0 NEW FAIL；mypy --strict + ruff + lint-imports 8/8 clean
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report / deploy-spec = approved；ui-spec = N/A；dev-plan-s8 = draft；backlog = approved
 - 历史闭环索引: 详见 [docs/HISTORY-intellisource-v1.md](docs/HISTORY-intellisource-v1.md) — audit-fix-pr53/54 + backlog 36 项闭环（b001-b002 / b003-b006 / b007-b010 / b029-b030 / b032 / b033 / b035 / b037 / b039-b042 / b044-b045 / b048 / b050-b055 / b057-b058）+ B-031 走查阶段 0-5（步骤 1-14）+ 修正 #1-#29
@@ -29,7 +29,7 @@
   - **B-057 P2** (前次会话, light TDD inline): [matcher.py](src/intellisource/distributor/matcher.py) `_matches` 加 `source_names` 强约束维度。+12 测试
 - Learnings Registry（详见各 RETRO 报告）: [RETRO sprint-1~7 / sprint-8 / sprint-9](docs/reviews/retro/) 9 EXP — EXP-005 装配缺口 → B-017 / EXP-006 truncation → 跨角色 / EXP-007 Mid-Progress Drop Contract → B-018；**EXP-CONTRACT-DRIFT (PR #64)**：改 `api/routers/` 返回类型 / `search.*` dataclass / `storage.*` SQL SELECT / `llm/gateway/_stream` 等"契约文件"必须 push 前跑 `make test-integration`（mock fixtures 常用旧契约 shape）；强制门禁通过 `make contract-check` + `make check-all`
 - 上游反馈: [docs/feedback/](docs/feedback/) — 1 bug + 1 suggest (B-019 未闭环)
-- Backlog 总入口: [docs/BACKLOG-intellisource-v1.md](docs/BACKLOG-intellisource-v1.md) — **next: B-031 步骤 15-20** / B-035 CI 真跑验证 / wework amendment (B-053 候选) / P2: B-036 / P3: B-011 / B-012 / B-014 / B-015 / B-034 / B-043 / B-046 / B-047 + B-016~B-019
+- Backlog 总入口: [docs/BACKLOG-intellisource-v1.md](docs/BACKLOG-intellisource-v1.md) — **next: B-031 步骤 15-20** / P2: B-036 / P3: B-011 / B-012 / B-014 / B-015 / B-034 / B-043 / B-046 / B-047 + B-016~B-019
 
 ## 文档导航
 - 导航索引: `docs/.doc-index.json`（机器索引，所有 Agent 通过 `cataforge docs load` 查询；缺失时运行 `cataforge docs index` 重建）
