@@ -18,8 +18,8 @@
  cataforge setup --emit-env-block}
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: backlog-burndown — **B-040 + B-060 observability 闭环（unit + 真起栈验证）+ zhparser 搜索 500 修复，4 commits 在本地分支 `fix/observability-b040-b060`（用户裁定"先修 observability 再放行"，未 push）；B-031 release gate 待用户 go/no-go 签字**
-- 下一步行动: 用户裁定 ① `fix/observability-b040-b060` 分支 push/PR 合入 main ② B-031 release gate go/no-go（HIGH 全消除 + observability 闭环 + 搜索 500 修复，剩项无阻塞）→ BGE-M3 本地 embedding 暂缓
+- 当前阶段: backlog-burndown → **B-031 release gate = approved（用户 2026-05-29 签字放行）**；observability(B-040+B-060) + zhparser 搜索 500 修复 + pytest-xdist 经真起栈验证，PR **#71** opened（`fix/observability-b040-b060`，5 commits），CI 跑全量待绿合 main
+- 下一步行动: PR #71 CI 绿 → 合入 main → release gate 物理闭环；BGE-M3 本地 embedding 暂缓；剩 P2 B-036 / P3 B-011/B-012/B-014/B-015/B-034/B-043/B-046/B-047 + B-016~B-019 非阻塞
 - 当前回归基线: **2948 PASS unit** (`-n auto` 并行 / 0 FAIL) + **163 PASS / 1 skip integration**（含新 zhparser migration）；mypy --strict + ruff + lint-imports 8/8 clean。分支 HEAD da1105b
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report / deploy-spec = approved；ui-spec = N/A；dev-plan-s8 = draft；backlog = approved
 - 历史闭环索引: 详见 [docs/HISTORY-intellisource-v1.md](docs/HISTORY-intellisource-v1.md) — audit-fix-pr53/54 + backlog 闭环（b001-b002 / b003-b006 / b007-b010 / b029-b030 / b032 / b033 / b035 / b037 / b039-b042 / b044-b045 / b048 / b050-b055 / b057-b058 / **b059**）+ B-031 走查阶段 0-7（步骤 1-20，16 N/A，PR #69/#70 合入）+ 编码可移植性修复 + 修正 #1-#29
