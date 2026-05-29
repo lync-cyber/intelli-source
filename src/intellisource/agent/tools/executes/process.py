@@ -98,6 +98,7 @@ async def _process_execute(
             ctx.set("title", raw.title or "")
             ctx.set("fingerprint", raw.fingerprint or "")
             ctx.set("content_id", str(raw.id))
+            ctx.set("published_at", raw.published_at)
 
             ctx = await asyncio.to_thread(tool_deps.pipeline_engine.execute, ctx)
 
@@ -123,6 +124,9 @@ async def _process_execute(
                     source_url=raw.source_url,
                     processing_status="completed",
                     processed_at=datetime.now(tz=timezone.utc),
+                    published_at=(
+                        ctx.get("published_at") or raw.published_at or raw.created_at
+                    ),
                 )
 
             raw.status = "processed"
