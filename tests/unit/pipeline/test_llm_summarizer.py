@@ -35,7 +35,7 @@ class TestLLMSummarizerRegistered:
             LLMSummarizer,
         )
 
-        assert LLMSummarizer is not None
+        assert isinstance(LLMSummarizer, type)
 
     def test_llm_summarizer_subclasses_base_processor(self) -> None:
         from intellisource.pipeline.base import BaseProcessor  # noqa: PLC0415

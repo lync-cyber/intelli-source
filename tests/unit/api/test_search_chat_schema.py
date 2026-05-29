@@ -14,11 +14,13 @@ class TestChatSearchRequest:
 
     def test_import_chat_search_request(self) -> None:
         """ChatSearchRequest must be importable from api.schemas.search."""
+        from pydantic import BaseModel
+
         from intellisource.api.schemas.search import (
             ChatSearchRequest,
         )
 
-        assert ChatSearchRequest is not None
+        assert issubclass(ChatSearchRequest, BaseModel)
 
     def test_message_is_required(self) -> None:
         """message field is required; omitting it raises ValidationError."""
@@ -102,9 +104,11 @@ class TestChatSource:
 
     def test_import_chat_source(self) -> None:
         """ChatSource must be importable from api.schemas.search."""
+        from pydantic import BaseModel
+
         from intellisource.api.schemas.search import ChatSource
 
-        assert ChatSource is not None
+        assert issubclass(ChatSource, BaseModel)
 
     def test_chat_source_has_required_fields(self) -> None:
         """ChatSource should contain at minimum title and url or content_id."""
@@ -120,11 +124,13 @@ class TestChatSearchResponse:
 
     def test_import_chat_search_response(self) -> None:
         """ChatSearchResponse must be importable from api.schemas.search."""
+        from pydantic import BaseModel
+
         from intellisource.api.schemas.search import (
             ChatSearchResponse,
         )
 
-        assert ChatSearchResponse is not None
+        assert issubclass(ChatSearchResponse, BaseModel)
 
     def test_response_has_session_id(self) -> None:
         """ChatSearchResponse contains session_id field."""

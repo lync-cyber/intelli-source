@@ -36,7 +36,7 @@ class TestBuildAgentRunnerFactory:
         import importlib
 
         mod = importlib.import_module("intellisource.agent.factory")
-        assert mod is not None
+        assert hasattr(mod, "build_agent_runner")
 
     def test_build_agent_runner_callable_exists(self) -> None:
         from intellisource.agent.factory import build_agent_runner

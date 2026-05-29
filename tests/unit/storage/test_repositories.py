@@ -205,10 +205,14 @@ class TestSourceRepositoryCRUD:
 
     @pytest.mark.asyncio
     async def test_import_source_repository(self) -> None:
-        """SourceRepository class must be importable."""
+        """SourceRepository exposes the documented CRUD + filtering interface."""
+        from intellisource.storage.repositories.base import BaseRepository
         from intellisource.storage.repositories.source import SourceRepository
 
-        assert SourceRepository is not None
+        assert issubclass(SourceRepository, BaseRepository)
+        assert SourceRepository._model_class is Source
+        for method in ("create", "list", "get_by_id", "update", "delete", "upsert"):
+            assert callable(getattr(SourceRepository, method, None))
 
     @pytest.mark.asyncio
     async def test_create_source(self, session: AsyncSession) -> None:
@@ -222,9 +226,11 @@ class TestSourceRepositoryCRUD:
             url="https://example.com/feed.xml",
             tags=["tech", "news"],
         )
-        assert source.id is not None
+        assert isinstance(source.id, uuid.UUID)
         assert source.name == "My RSS Feed"
         assert source.type == "rss"
+        assert source.url == "https://example.com/feed.xml"
+        assert source.tags == ["tech", "news"]
         assert source.status == "active"
 
     @pytest.mark.asyncio
@@ -242,6 +248,7 @@ class TestSourceRepositoryCRUD:
         assert fetched is not None
         assert fetched.id == created.id
         assert fetched.name == "Feed-Get"
+        assert fetched.url == "https://example.com/get"
 
     @pytest.mark.asyncio
     async def test_get_source_by_id_not_found(self, session: AsyncSession) -> None:
@@ -267,6 +274,11 @@ class TestSourceRepositoryCRUD:
         assert updated is not None
         assert updated.name == "Feed-Updated"
         assert updated.status == "paused"
+        # Change must survive a re-fetch (verifies flush, not just in-memory mutation).
+        refetched = await repo.get_by_id(created.id)
+        assert refetched is not None
+        assert refetched.name == "Feed-Updated"
+        assert refetched.status == "paused"
 
     @pytest.mark.asyncio
     async def test_delete_source(self, session: AsyncSession) -> None:
@@ -302,10 +314,14 @@ class TestContentRepositoryCRUD:
 
     @pytest.mark.asyncio
     async def test_import_content_repository(self) -> None:
-        """ContentRepository class must be importable."""
+        """ContentRepository exposes the documented CRUD + filtering interface."""
+        from intellisource.storage.repositories.base import BaseRepository
         from intellisource.storage.repositories.content import ContentRepository
 
-        assert ContentRepository is not None
+        assert issubclass(ContentRepository, BaseRepository)
+        assert ContentRepository._model_class is ProcessedContent
+        for method in ("create", "list", "get_by_id", "update", "delete"):
+            assert callable(getattr(ContentRepository, method, None))
 
     @pytest.mark.asyncio
     async def test_create_and_get_content(self, session: AsyncSession) -> None:
@@ -327,11 +343,14 @@ class TestContentRepositoryCRUD:
             body_text="Hello world",
             tags=["ai"],
         )
-        assert content.id is not None
+        assert isinstance(content.id, uuid.UUID)
+        assert content.raw_content_id == raw.id
 
         fetched = await repo.get_by_id(content.id)
         assert fetched is not None
         assert fetched.title == "Test Content"
+        assert fetched.body_text == "Hello world"
+        assert fetched.tags == ["ai"]
 
     @pytest.mark.asyncio
     async def test_update_content(self, session: AsyncSession) -> None:
@@ -355,7 +374,11 @@ class TestContentRepositoryCRUD:
         updated = await repo.update(content.id, title="Revised", tags=["ai", "tech"])
         assert updated is not None
         assert updated.title == "Revised"
-        assert "ai" in updated.tags
+        assert updated.tags == ["ai", "tech"]
+        refetched = await repo.get_by_id(content.id)
+        assert refetched is not None
+        assert refetched.title == "Revised"
+        assert refetched.tags == ["ai", "tech"]
 
     @pytest.mark.asyncio
     async def test_delete_content(self, session: AsyncSession) -> None:
@@ -386,10 +409,14 @@ class TestTaskRepositoryCRUD:
 
     @pytest.mark.asyncio
     async def test_import_task_repository(self) -> None:
-        """TaskRepository class must be importable."""
+        """TaskRepository exposes the documented CRUD + filtering interface."""
+        from intellisource.storage.repositories.base import BaseRepository
         from intellisource.storage.repositories.task import TaskRepository
 
-        assert TaskRepository is not None
+        assert issubclass(TaskRepository, BaseRepository)
+        assert TaskRepository._model_class is CollectTask
+        for method in ("create", "list", "get_by_id", "update", "delete"):
+            assert callable(getattr(TaskRepository, method, None))
 
     @pytest.mark.asyncio
     async def test_create_and_get_task(self, session: AsyncSession) -> None:
@@ -406,12 +433,14 @@ class TestTaskRepositoryCRUD:
             source_id=src.id,
             trigger_type="scheduled",
         )
-        assert task.id is not None
+        assert isinstance(task.id, uuid.UUID)
         assert task.status == "pending"
+        assert task.trigger_type == "scheduled"
 
         fetched = await repo.get_by_id(task.id)
         assert fetched is not None
         assert fetched.source_id == src.id
+        assert fetched.trigger_type == "scheduled"
 
     @pytest.mark.asyncio
     async def test_update_task_status(self, session: AsyncSession) -> None:
@@ -428,6 +457,9 @@ class TestTaskRepositoryCRUD:
         updated = await repo.update(task.id, status="running")
         assert updated is not None
         assert updated.status == "running"
+        refetched = await repo.get_by_id(task.id)
+        assert refetched is not None
+        assert refetched.status == "running"
 
     @pytest.mark.asyncio
     async def test_delete_task(self, session: AsyncSession) -> None:
@@ -451,10 +483,14 @@ class TestPushRepositoryCRUD:
 
     @pytest.mark.asyncio
     async def test_import_push_repository(self) -> None:
-        """PushRepository class must be importable."""
+        """PushRepository exposes the documented CRUD + dedup interface."""
+        from intellisource.storage.repositories.base import BaseRepository
         from intellisource.storage.repositories.push import PushRepository
 
-        assert PushRepository is not None
+        assert issubclass(PushRepository, BaseRepository)
+        assert PushRepository._model_class is PushRecord
+        for method in ("create", "list", "get_by_id", "exists"):
+            assert callable(getattr(PushRepository, method, None))
 
     @pytest.mark.asyncio
     async def test_create_and_get_push_record(self, session: AsyncSession) -> None:
@@ -480,11 +516,15 @@ class TestPushRepositoryCRUD:
             content_id=pc.id,
             channel="webhook",
         )
-        assert record.id is not None
+        assert isinstance(record.id, uuid.UUID)
+        assert record.content_id == pc.id
+        assert record.channel == "webhook"
 
         fetched = await repo.get_by_id(record.id)
         assert fetched is not None
         assert fetched.subscription_id == sub.id
+        assert fetched.content_id == pc.id
+        assert fetched.channel == "webhook"
 
 
 class TestSubscriptionRepositoryCRUD:
@@ -492,12 +532,16 @@ class TestSubscriptionRepositoryCRUD:
 
     @pytest.mark.asyncio
     async def test_import_subscription_repository(self) -> None:
-        """SubscriptionRepository class must be importable."""
+        """SubscriptionRepository exposes the documented CRUD interface."""
+        from intellisource.storage.repositories.base import BaseRepository
         from intellisource.storage.repositories.subscription import (
             SubscriptionRepository,
         )
 
-        assert SubscriptionRepository is not None
+        assert issubclass(SubscriptionRepository, BaseRepository)
+        assert SubscriptionRepository._model_class is Subscription
+        for method in ("create", "list", "get_by_id", "update", "delete"):
+            assert callable(getattr(SubscriptionRepository, method, None))
 
     @pytest.mark.asyncio
     async def test_create_and_get_subscription(self, session: AsyncSession) -> None:
@@ -519,11 +563,15 @@ class TestSubscriptionRepositoryCRUD:
             match_rules={"tags": ["ai"]},
             source_id=src.id,
         )
-        assert sub.id is not None
+        assert isinstance(sub.id, uuid.UUID)
+        assert sub.source_id == src.id
 
         fetched = await repo.get_by_id(sub.id)
         assert fetched is not None
         assert fetched.name == "My Sub"
+        assert fetched.channel == "webhook"
+        assert fetched.channel_config == {"url": "https://hook.test"}
+        assert fetched.match_rules == {"tags": ["ai"]}
 
     @pytest.mark.asyncio
     async def test_update_subscription(self, session: AsyncSession) -> None:
@@ -548,6 +596,10 @@ class TestSubscriptionRepositoryCRUD:
         assert updated is not None
         assert updated.name == "Sub-Updated"
         assert updated.status == "paused"
+        refetched = await repo.get_by_id(sub.id)
+        assert refetched is not None
+        assert refetched.name == "Sub-Updated"
+        assert refetched.status == "paused"
 
     @pytest.mark.asyncio
     async def test_delete_subscription(self, session: AsyncSession) -> None:
@@ -640,7 +692,8 @@ class TestSourceRepositoryFiltering:
         page1 = await repo.list(limit=2)
         assert len(page1["items"]) == 2
         assert page1["has_more"] is True
-        assert page1["next_cursor"] is not None
+        # Cursor must encode the id of the last item on the page.
+        assert page1["next_cursor"] == str(page1["items"][-1].id)
 
         page2 = await repo.list(limit=2, cursor=page1["next_cursor"])
         assert len(page2["items"]) == 2
@@ -798,7 +851,7 @@ class TestContentRepositoryFiltering:
         page1 = await repo.list(limit=2)
         assert len(page1["items"]) == 2
         assert page1["has_more"] is True
-        assert page1["next_cursor"] is not None
+        assert page1["next_cursor"] == str(page1["items"][-1].id)
 
         page2 = await repo.list(limit=2, cursor=page1["next_cursor"])
         assert len(page2["items"]) == 2

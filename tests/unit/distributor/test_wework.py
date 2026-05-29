@@ -139,7 +139,7 @@ class TestWeWorkDistributorBasic:
         """WeWorkDistributor can be imported from the channels module."""
         from intellisource.distributor.channels.wework import WeWorkDistributor
 
-        assert WeWorkDistributor is not None
+        assert isinstance(WeWorkDistributor, type)
 
     def test_inherits_base_distributor(self, distributor: Any) -> None:
         """WeWorkDistributor inherits from BaseDistributor."""

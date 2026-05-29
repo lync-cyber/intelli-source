@@ -21,14 +21,14 @@ class TestMetricsCollectorImport:
         """MetricsCollector class must be importable."""
         from intellisource.observability.metrics import MetricsCollector
 
-        assert MetricsCollector is not None
+        assert isinstance(MetricsCollector, type)
 
     def test_metrics_collector_is_instantiable(self) -> None:
         """MetricsCollector must be instantiable (or obtainable via factory)."""
         from intellisource.observability.metrics import MetricsCollector
 
         collector = MetricsCollector()
-        assert collector is not None
+        assert isinstance(collector, MetricsCollector)
 
 
 class TestMetricsCollectorCounter:
@@ -179,6 +179,9 @@ class TestMetricsCollectorModuleExports:
 
     def test_metrics_collector_exported_from_init(self) -> None:
         """MetricsCollector must be importable from observability package."""
-        from intellisource.observability import MetricsCollector
+        from intellisource.observability import MetricsCollector as Exported
+        from intellisource.observability.metrics import (
+            MetricsCollector as Canonical,
+        )
 
-        assert MetricsCollector is not None
+        assert Exported is Canonical

@@ -68,7 +68,7 @@ class TestContentScorerBasic:
         """ContentScorer can be imported from distributor.scorer."""
         from intellisource.distributor.scorer import ContentScorer
 
-        assert ContentScorer is not None
+        assert isinstance(ContentScorer, type)
 
     def test_score_returns_float(self):
         """score(content, subscription) should return a float."""

@@ -281,7 +281,7 @@ class TestTracingMiddlewareLogIntegration:
         """TracingMiddleware must be importable from observability.tracing."""
         from intellisource.observability.tracing import TracingMiddleware
 
-        assert TracingMiddleware is not None
+        assert isinstance(TracingMiddleware, type)
 
     @pytest.mark.asyncio
     async def test_trace_id_injected_into_log_context(self) -> None:

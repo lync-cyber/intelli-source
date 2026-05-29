@@ -190,9 +190,11 @@ class TestToolDepsContract:
 
     def test_tool_deps_importable(self) -> None:
         """ToolDeps must be importable from intellisource.agent.deps."""
+        import dataclasses
+
         from intellisource.agent.deps import ToolDeps  # type: ignore[import]
 
-        assert ToolDeps is not None
+        assert dataclasses.is_dataclass(ToolDeps)
 
     def test_tool_deps_has_llm_gateway_field(self) -> None:
         """ToolDeps must expose a llm_gateway attribute."""

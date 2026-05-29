@@ -705,9 +705,11 @@ class TestToolDepsInjectionViaAgentRunner:
 
     def test_tool_deps_class_importable(self) -> None:
         """ToolDeps must be importable from intellisource.agent.deps."""
+        import dataclasses
+
         from intellisource.agent.deps import ToolDeps  # type: ignore[import]
 
-        assert ToolDeps is not None
+        assert dataclasses.is_dataclass(ToolDeps)
 
     def test_tool_deps_has_all_required_fields(self) -> None:
         """ToolDeps must carry all 6 required dependency fields."""

@@ -282,7 +282,7 @@ class TestScheduledCollectPipeline:
     def test_scheduled_collect_yaml_exists(self, tools_mod: Any) -> None:
         """AC-T036-7: scheduled-collect.yaml can be loaded."""
         config = tools_mod.load_pipeline_config("scheduled-collect")
-        assert config is not None
+        assert config.name == "scheduled-collect"
 
     def test_scheduled_collect_mode_is_strict(self, tools_mod: Any) -> None:
         """AC-T036-7: scheduled-collect mode must be strict."""
@@ -315,7 +315,7 @@ class TestInstantSearchPipeline:
     def test_instant_search_yaml_exists(self, tools_mod: Any) -> None:
         """AC-T036-8: instant-search.yaml can be loaded."""
         config = tools_mod.load_pipeline_config("instant-search")
-        assert config is not None
+        assert config.name == "instant-search"
 
     def test_instant_search_mode_is_flexible(self, tools_mod: Any) -> None:
         """AC-T036-8: instant-search mode must be flexible."""

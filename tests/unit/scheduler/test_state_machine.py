@@ -261,8 +261,8 @@ class TestPauseOperation:
         sm.transition("task-1", "start")
         result = sm.transition("task-1", "pause")
         # The transition result should indicate subtasks were revoked
-        assert result is not None
-        assert result.get("revoked_subtasks") is not None
+        assert result["to_state"] == "paused"
+        assert isinstance(result["revoked_subtasks"], list)
 
     def test_pause_records_paused_at_timestamp(self):
         """Pausing a task should record a paused_at timestamp."""

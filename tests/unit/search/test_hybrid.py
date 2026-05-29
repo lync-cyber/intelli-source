@@ -65,13 +65,15 @@ class TestHybridSearchEngineImportAndModes:
         """HybridSearchEngine must be importable from intellisource.search.hybrid."""
         from intellisource.search.hybrid import HybridSearchEngine
 
-        assert HybridSearchEngine is not None
+        assert isinstance(HybridSearchEngine, type)
 
     async def test_import_enriched_search_result(self) -> None:
         """EnrichedSearchResult (rich result dataclass) must be importable."""
+        import dataclasses
+
         from intellisource.search.hybrid import EnrichedSearchResult
 
-        assert EnrichedSearchResult is not None
+        assert dataclasses.is_dataclass(EnrichedSearchResult)
 
     async def test_keyword_mode_executes_search(self) -> None:
         """search(mode='keyword') executes a keyword-based search."""

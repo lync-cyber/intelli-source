@@ -25,7 +25,7 @@ class TestCompositionModuleImportable:
         import importlib
 
         mod = importlib.import_module("intellisource.composition")
-        assert mod is not None
+        assert hasattr(mod, "build_llm_gateway")
 
     def test_build_llm_gateway_exists(self) -> None:
         """AC-1: composition exports build_llm_gateway."""
