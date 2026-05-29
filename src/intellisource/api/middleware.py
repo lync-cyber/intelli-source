@@ -131,6 +131,13 @@ class TracingMiddleware(BaseHTTPMiddleware):
     ) -> Response:
         trace_id = request.headers.get("x-trace-id") or str(uuid.uuid4())
         trace_id_ctx.set(trace_id)
+        # Carrier line emitted while trace_id_ctx is freshly bound so the
+        # TraceIdFormatter renders trace_id= on at least one api-side row.
+        logger.info(
+            "http request inbound method=%s path=%s",
+            request.method,
+            request.url.path,
+        )
         response = await call_next(request)
         response.headers["X-Trace-ID"] = trace_id
         return response

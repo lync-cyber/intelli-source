@@ -210,9 +210,13 @@ def worker_init_handler(**_: Any) -> None:
     so the worker still boots when no schedules are configured.
     """
     global _celery_tasks
+    # Configure logging per worker process before the composition idempotency
+    # guard: with worker_hijack_root_logger=False, Celery no longer installs a
+    # root handler, so a child that short-circuits below would otherwise run
+    # with an unconfigured root logger and drop every INFO line (trace_id=).
+    setup_logging()
     if _celery_tasks is not None:
         return
-    setup_logging()
     factory = init_worker_session_factory()
     redis_client = _build_redis_client()
     composition = build_worker_composition(
