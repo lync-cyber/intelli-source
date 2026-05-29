@@ -9,7 +9,7 @@ deps: []
 # IntelliSource v1 Backlog
 
 > 维护：本文件梳理 PR #53 / #54 audit 闭环之后的剩余工作。完成项请直接删除条目，新增项按优先级插入。
-> 最后更新：2026-05-29 (PR #72 ✅ 闭环 P3 功能项 B-043 / B-046 / B-047 / B-049 + B-011 弱断言批量强化；unit baseline 2948→2970 PASS @ main HEAD eff264e；CI 6/6 绿)
+> 最后更新：2026-05-29 (PR #72 ✅ 闭环 P3 功能项 B-043 / B-046 / B-047 / B-049 + B-011 弱断言批量强化；unit baseline 2948→2970 PASS @ main HEAD eff264e；CI 6/6 绿。另核对 B-015 ✅ 早已闭环 — promtool check rules 自 commit 9c118b8 起在 CI Lint job 运行，回填 closeout 标记)
 
 ## 优先级语义
 
@@ -384,7 +384,8 @@ deps: []
 - **修复方向**：deploy staging 后 `curl /api/v1/metrics | grep -E "(http_requests_total|llm_calls_total|pushes_total|celery_tasks_total|llm_circuit_open)"`
 - **依赖**：B-010 deploy-spec
 
-### B-015 `promtool check rules` 验证 alerts.yml 语法
+### B-015 `promtool check rules` 验证 alerts.yml 语法 ✅
+> 已闭环 (commit 9c118b8 引入 + ffd1c7b refine) — CI Lint job 跑 `docker run --rm --entrypoint promtool -v $PWD/docker/prometheus:/etc/prometheus prom/prometheus:v2.55.1 check rules /etc/prometheus/alerts.yml`（[.github/workflows/ci.yml](../.github/workflows/ci.yml) "Validate Prometheus alert rules"），每次 PR/push to main 无条件运行并 gate merge。`--entrypoint promtool` 必需（镜像默认 entrypoint 是 prometheus 二进制）。alerts.yml 5 组 8 规则；结构层由 `tests/unit/observability/test_alerts_yaml.py` (14 tests) 覆盖。PR #72 Lint job green 即此步通过。
 - **现状**：`test_alerts_yaml.py` 校验 YAML shape + metric 名引用一致，但未跑 `promtool check rules`
 - **修复方向**：CI workflow 加一步 `docker run --rm -v $PWD/docker/prometheus:/etc/prometheus prom/prometheus:v2.55.1 promtool check rules /etc/prometheus/alerts.yml`
 - **依赖**：B-013 CI 升级
