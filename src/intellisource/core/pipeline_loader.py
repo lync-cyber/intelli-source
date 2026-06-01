@@ -1,27 +1,17 @@
-"""PipelineLoader: resolves pipeline yaml names to PipelineConfig instances.
+"""PipelineLoader abstraction.
 
-Lives in `core` (an unlayered cross-cutting module) so that both
-`composition` (top-down layer) and `scheduler` (a lower layer) can import
-it without violating the import-linter layered architecture contract.
+Defines the `PipelineLoader` protocol that lower layers (e.g. ``scheduler``)
+depend on to resolve a pipeline name to its parsed configuration. The concrete
+implementation lives in ``composition`` — the only layer permitted to import
+``agent`` — so ``core`` carries no upward dependency on business packages.
 """
 
 from __future__ import annotations
 
-from intellisource.agent.pipeline import PipelineConfig
-from intellisource.agent.tools import load_pipeline_config
+from typing import Any, Protocol
 
 
-class PipelineLoader:
-    """Resolve a pipeline yaml name to a `PipelineConfig` instance.
+class PipelineLoader(Protocol):
+    """Resolve a pipeline yaml name to a parsed pipeline configuration."""
 
-    Wraps `intellisource.agent.tools.load_pipeline_config` so that the
-    `CeleryTasks.run_pipeline` consumer can hold a stable, mockable
-    dependency instead of a free function.
-    """
-
-    def load(self, name: str) -> PipelineConfig:
-        return load_pipeline_config(name)
-
-
-def build_pipeline_loader() -> PipelineLoader:
-    return PipelineLoader()
+    def load(self, name: str) -> Any: ...
