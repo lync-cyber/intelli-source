@@ -528,6 +528,83 @@ _PROVIDER_ENV: dict[str, str] = {
 }
 
 
+def _topic_source_entry(src: Any) -> dict[str, Any]:
+    """Serialize a TopicSource into a SourceConfig-shaped YAML entry."""
+    entry: dict[str, Any] = {"name": src.name, "type": src.type, "url": src.url}
+    if src.tags:
+        entry["tags"] = list(src.tags)
+    if src.discipline_tags:
+        entry["discipline_tags"] = list(src.discipline_tags)
+    entry["schedule_interval"] = src.schedule_interval
+    if not src.schedule_adaptive:
+        entry["schedule_adaptive"] = src.schedule_adaptive
+    if src.metadata:
+        entry["metadata"] = dict(src.metadata)
+    return entry
+
+
+def _materialize_topic_sources(topic: Any, sources_dir: pathlib.Path) -> pathlib.Path:
+    """Write a topic's sources to ``<sources_dir>/topic-<id>.yaml`` and return path."""
+    import yaml
+
+    sources_dir.mkdir(parents=True, exist_ok=True)
+    path = sources_dir / f"topic-{topic.id}.yaml"
+    payload = {"sources": [_topic_source_entry(s) for s in topic.sources]}
+    header = f"# IntelliSource 内置主题信源: {topic.name} ({topic.id})\n"
+    body = yaml.safe_dump(payload, allow_unicode=True, sort_keys=False)
+    path.write_text(header + body, encoding="utf-8")
+    return path
+
+
+def _select_topics(topics_arg: str | None, non_interactive: bool) -> list[Any]:
+    """Resolve which built-in topics to materialize during ``init``.
+
+    ``topics_arg`` is a comma-separated list of ids (used in non-interactive /
+    scripted runs); when absent and interactive, the user picks from a menu.
+    """
+    from intellisource.topic.loader import TopicLoader
+
+    all_topics = TopicLoader().load_all()
+    by_id = {t.id: t for t in all_topics}
+
+    def _resolve_token(tok: str) -> Any | None:
+        tok = tok.strip()
+        if not tok:
+            return None
+        if tok.isdigit():
+            idx = int(tok) - 1
+            return all_topics[idx] if 0 <= idx < len(all_topics) else None
+        if tok in by_id:
+            return by_id[tok]
+        typer.echo(f"  Warning: unknown topic {tok!r} — skipped")
+        return None
+
+    if topics_arg is not None:
+        raw = topics_arg
+    elif non_interactive:
+        return []
+    else:
+        typer.echo("\nBuilt-in topics (学科 discipline / 行业 industry):")
+        for i, t in enumerate(all_topics, 1):
+            typer.echo(
+                f"  {i}. {t.id}  —  {t.name} [{t.dimension}] ({len(t.sources)} sources)"
+            )
+        raw = typer.prompt(
+            "Select topics to add sources for "
+            "(comma-separated numbers or ids, blank to skip)",
+            default="",
+        )
+
+    chosen: list[Any] = []
+    seen: set[str] = set()
+    for tok in raw.split(","):
+        topic = _resolve_token(tok)
+        if topic is not None and topic.id not in seen:
+            seen.add(topic.id)
+            chosen.append(topic)
+    return chosen
+
+
 def _write_env_file(path: pathlib.Path, updates: dict[str, str]) -> None:
     """Merge ``updates`` into an existing .env file (or create from .env.example)."""
     example = project_root() / "docker" / ".env.example"
@@ -649,6 +726,12 @@ def init(
     provider: str | None = typer.Option(
         None, "--provider", help="LLM provider: deepseek / openai / anthropic"
     ),
+    topics: str | None = typer.Option(
+        None,
+        "--topics",
+        help="Comma-separated built-in topic ids to materialize as source files"
+        " (e.g. 'artificial-intelligence,electrical-engineering').",
+    ),
     non_interactive: bool = typer.Option(
         False,
         "--non-interactive",
@@ -728,6 +811,19 @@ def init(
             typer.echo(f"[OK] Written {sources_path}")
         else:
             typer.echo(f"  {sources_path} already exists — skipped")
+
+    # --- Built-in topics → materialize their sources as files (host-side) ---
+    selected_topics = _select_topics(topics, non_interactive)
+    for topic in selected_topics:
+        written = _materialize_topic_sources(topic, sources_path.parent)
+        typer.echo(
+            f"[OK] Wrote {len(topic.sources)} sources for topic {topic.id} → {written}"
+        )
+    if selected_topics:
+        typer.echo(
+            "  After `up`, run `intellisource topic enable <id> --channel ...`"
+            " to create the matching subscription."
+        )
 
     # --- Next steps ---
     typer.echo("\nNext steps:")
