@@ -24,3 +24,8 @@ coverage.xml
 .codex/
 *.egg-info/
 __pycache__/
+
+# 用户工作配置（含密钥 / 私有 URL）— 仅追踪 *.example 模板与 config/pipelines/
+config/sources/*.yaml
+config/subscriptions/*.yaml
+config/llm_models.yaml

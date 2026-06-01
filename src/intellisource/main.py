@@ -33,7 +33,7 @@ from intellisource.api.routers import (
 from intellisource.composition import build_api_composition
 from intellisource.config.loader import ConfigLoader, ConfigWatcher
 from intellisource.config.validator import ConfigValidator
-from intellisource.core.settings import get_settings
+from intellisource.core.settings import get_settings, load_provider_env
 from intellisource.observability.logging import get_logger, setup_logging
 from intellisource.storage.database import DatabaseManager
 from intellisource.storage.repositories.source import SourceRepository
@@ -189,6 +189,7 @@ def _collect_startup_warnings() -> list[str]:
 async def _lifespan(app: FastAPI) -> AsyncIterator[dict[str, Any]]:
     """Manage application startup and shutdown."""
     global _db_manager, _config_version_manager
+    load_provider_env()
     setup_logging()
 
     api_key = get_settings().api_key

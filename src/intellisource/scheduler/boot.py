@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.pool import NullPool
 
 from intellisource.composition import build_worker_composition
-from intellisource.core.settings import get_settings
+from intellisource.core.settings import get_settings, load_provider_env
 from intellisource.observability.logging import get_logger, setup_logging
 
 # Import signals module for its side-effect: registering task_prerun /
@@ -208,6 +208,9 @@ def worker_init_handler(**_: Any) -> None:
     so the worker still boots when no schedules are configured.
     """
     global _celery_tasks
+    # Provider keys must reach litellm before any task runs — a local bare
+    # worker has no Docker env_file injection.
+    load_provider_env()
     # Configure logging per worker process before the composition idempotency
     # guard: with worker_hijack_root_logger=False, Celery no longer installs a
     # root handler, so a child that short-circuits below would otherwise run
@@ -319,6 +322,7 @@ def beat_init_handler(**_: Any) -> None:
     the full composition graph — Beat only needs the session_factory to
     read Source rows.
     """
+    load_provider_env()
     setup_logging()
     logger.info("beat_init signal received — bootstrapping schedule from DB")
     factory = init_worker_session_factory()

@@ -5,12 +5,20 @@ from __future__ import annotations
 import json
 import os
 import pathlib
+import secrets
+import subprocess
+from collections.abc import Callable
 from typing import Any
 
 import httpx
 import typer
 
-from intellisource.core.settings import get_settings
+from intellisource.core.paths import project_root
+from intellisource.core.settings import (
+    PROVIDER_ENV_KEYS,
+    get_settings,
+    load_provider_env,
+)
 
 app = typer.Typer()
 source_app = typer.Typer()
@@ -46,6 +54,23 @@ def _get_headers() -> dict[str, str]:
 
 def _base_url() -> str:
     return str(_state["api_url"]).rstrip("/")
+
+
+def _http(call: Callable[[], httpx.Response]) -> httpx.Response:
+    """Run an httpx call; turn a connection failure into a friendly CLI exit.
+
+    The underlying ``httpx.<method>`` call is left intact (so tests that patch
+    it still observe the call) — only the raw ConnectError traceback a newcomer
+    hits when the API is not running gets replaced with a clear hint.
+    """
+    try:
+        return call()
+    except httpx.ConnectError:
+        typer.echo(
+            "Error: cannot reach the API — is it running?\n"
+            "  Start it with: uv run intellisource up"
+        )
+        raise typer.Exit(code=1) from None
 
 
 def _emit(data: dict[str, Any], *, json_output: bool) -> None:
@@ -93,6 +118,7 @@ def main(
     api_key: str | None = typer.Option(None, "--api-key", help="API key"),
 ) -> None:
     """IntelliSource CLI."""
+    load_provider_env()
     settings = get_settings()
     if api_url is not None:
         _state["api_url"] = api_url
@@ -109,6 +135,72 @@ def main(
 
 
 # ---------------------------------------------------------------------------
+# Docker stack lifecycle (cross-platform — no make / POSIX shell required)
+# ---------------------------------------------------------------------------
+
+_COMPOSE_FILE_PARTS = ("docker", "docker-compose.yml")
+
+
+def _compose_args(*args: str) -> list[str]:
+    """Build a ``docker compose -f <root>/docker/docker-compose.yml ...`` argv.
+
+    Uses the v2 ``docker compose`` (space) form and an absolute compose-file
+    path anchored at the project root, so it behaves identically from any CWD
+    on Windows PowerShell, macOS, and Linux.
+    """
+    compose_file = project_root().joinpath(*_COMPOSE_FILE_PARTS)
+    return ["docker", "compose", "-f", str(compose_file), *args]
+
+
+def _run_compose(*args: str) -> None:
+    """Run a docker compose subcommand, surfacing failures as a CLI exit code.
+
+    ``shell=False`` with an argv list keeps the space-containing compose path
+    safe on Windows PowerShell (no shell quoting of ``C:\\Program Files\\...``).
+    """
+    argv = _compose_args(*args)
+    try:
+        result = subprocess.run(argv, shell=False)  # noqa: S603
+    except FileNotFoundError:
+        typer.echo(
+            "Error: 'docker' not found on PATH. Install Docker Desktop and retry."
+        )
+        raise typer.Exit(code=1) from None
+    if result.returncode != 0:
+        raise typer.Exit(code=result.returncode)
+
+
+@app.command("up")
+def up() -> None:
+    """Start the full stack (db / redis / migrate / api / worker / beat)."""
+    _run_compose("up", "-d")
+
+
+@app.command("down")
+def down() -> None:
+    """Stop and remove the stack containers."""
+    _run_compose("down")
+
+
+@app.command("migrate")
+def migrate() -> None:
+    """Run database migrations (alembic upgrade head) in a one-off container."""
+    _run_compose("run", "--rm", "migrate")
+
+
+@app.command("logs")
+def logs() -> None:
+    """Follow logs from all stack services (Ctrl-C to stop)."""
+    _run_compose("logs", "-f")
+
+
+@app.command("ps")
+def ps() -> None:
+    """Show status of the stack containers."""
+    _run_compose("ps")
+
+
+# ---------------------------------------------------------------------------
 # source commands
 # ---------------------------------------------------------------------------
 
@@ -119,7 +211,7 @@ def source_list(
 ) -> None:
     """List all sources."""
     url = f"{_base_url()}/api/v1/sources"
-    resp = httpx.get(url, headers=_get_headers())
+    resp = _http(lambda: httpx.get(url, headers=_get_headers()))
     _emit(resp.json(), json_output=json_output)
 
 
@@ -133,7 +225,7 @@ def source_add(
     """Add a new source."""
     api_url = f"{_base_url()}/api/v1/sources"
     payload = {"name": name, "type": source_type, "url": url}
-    resp = httpx.post(api_url, json=payload, headers=_get_headers())
+    resp = _http(lambda: httpx.post(api_url, json=payload, headers=_get_headers()))
     _emit(resp.json(), json_output=json_output)
 
 
@@ -148,7 +240,7 @@ def source_update(
     payload: dict[str, Any] = {}
     if name is not None:
         payload["name"] = name
-    resp = httpx.patch(url, json=payload, headers=_get_headers())
+    resp = _http(lambda: httpx.patch(url, json=payload, headers=_get_headers()))
     _emit(resp.json(), json_output=json_output)
 
 
@@ -158,7 +250,7 @@ def source_delete(
 ) -> None:
     """Delete a source."""
     url = f"{_base_url()}/api/v1/sources/{source_id}"
-    httpx.delete(url, headers=_get_headers())
+    _http(lambda: httpx.delete(url, headers=_get_headers()))
     typer.echo("Deleted.")
 
 
@@ -175,7 +267,7 @@ def task_trigger(
     """Trigger a collection task for a source."""
     url = f"{_base_url()}/api/v1/tasks/collect"
     payload = {"source_ids": [source_id]}
-    resp = httpx.post(url, json=payload, headers=_get_headers())
+    resp = _http(lambda: httpx.post(url, json=payload, headers=_get_headers()))
     try:
         resp.raise_for_status()
     except Exception:
@@ -196,7 +288,7 @@ def task_status(
 ) -> None:
     """Show task status."""
     url = f"{_base_url()}/api/v1/tasks/{task_id}"
-    resp = httpx.get(url, headers=_get_headers())
+    resp = _http(lambda: httpx.get(url, headers=_get_headers()))
     _emit(resp.json(), json_output=json_output)
 
 
@@ -211,7 +303,7 @@ def pipeline_list(
 ) -> None:
     """List all pipelines."""
     url = f"{_base_url()}/api/v1/pipelines"
-    resp = httpx.get(url, headers=_get_headers())
+    resp = _http(lambda: httpx.get(url, headers=_get_headers()))
     _emit(resp.json(), json_output=json_output)
 
 
@@ -228,7 +320,7 @@ def search(
     """Search for content."""
     url = f"{_base_url()}/api/v1/search"
     payload = {"query": query}
-    resp = httpx.post(url, json=payload, headers=_get_headers())
+    resp = _http(lambda: httpx.post(url, json=payload, headers=_get_headers()))
     _emit(resp.json(), json_output=json_output)
 
 
@@ -244,7 +336,9 @@ _REQUIRED_CHANNEL_VARS: list[tuple[str, list[str]]] = [
     ("email", ["IS_SMTP_HOST", "IS_SMTP_USER", "IS_SMTP_PASSWORD"]),
 ]
 
-_LLM_KEYS = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY", "AZURE_API_KEY"]
+# Provider key subset of the authoritative settings.PROVIDER_ENV_KEYS list
+# (excludes AZURE_API_BASE / AZURE_API_VERSION, which are endpoints not keys).
+_PROVIDER_API_KEYS = tuple(k for k in PROVIDER_ENV_KEYS if k.endswith("_API_KEY"))
 
 
 def _load_dotenv_file(path: str) -> dict[str, str]:
@@ -263,9 +357,30 @@ def _load_dotenv_file(path: str) -> dict[str, str]:
     return result
 
 
-def _doctor_env(env: dict[str, str]) -> list[tuple[str, bool, str]]:
-    """Return list of (label, ok, message) for each check."""
-    items: list[tuple[str, bool, str]] = []
+def _dir_check(label: str, raw_dir: str, root: pathlib.Path) -> tuple[str, bool, str]:
+    """Check a config directory exists and holds at least one YAML file."""
+    directory = pathlib.Path(raw_dir)
+    if not directory.is_absolute():
+        directory = root / raw_dir
+    if not directory.is_dir():
+        return (f"{label} ({raw_dir})", False, "directory missing")
+    yamls = [
+        f for f in directory.iterdir() if f.suffix in (".yaml", ".yml") and f.is_file()
+    ]
+    if yamls:
+        return (f"{label} ({raw_dir})", True, f"{len(yamls)} YAML file(s)")
+    return (f"{label} ({raw_dir})", False, "no YAML files found")
+
+
+def _doctor_env(env: dict[str, str]) -> list[tuple[str, bool | None, str]]:
+    """Return a list of (label, ok, message) checks.
+
+    ``ok`` is True/False for required items and None for optional ones.
+    Relative config paths are anchored at the project root so the report is
+    correct regardless of the current working directory.
+    """
+    items: list[tuple[str, bool | None, str]] = []
+    root = project_root()
 
     api_key = env.get("IS_API_KEY", "")
     if api_key == _API_KEY_PLACEHOLDER:
@@ -275,41 +390,60 @@ def _doctor_env(env: dict[str, str]) -> list[tuple[str, bool, str]]:
     else:
         items.append(("IS_API_KEY", True, "set"))
 
-    for var in ["IS_DATABASE_URL", "IS_REDIS_URL", "IS_CELERY_BROKER_URL"]:
+    db_url = env.get("IS_DATABASE_URL", "")
+    if not db_url:
+        items.append(("IS_DATABASE_URL", False, "not set"))
+    elif "asyncpg" not in db_url:
+        items.append(
+            (
+                "IS_DATABASE_URL",
+                False,
+                "should use the asyncpg driver (postgresql+asyncpg://...)",
+            )
+        )
+    else:
+        items.append(("IS_DATABASE_URL", True, "set"))
+
+    for var in ["IS_REDIS_URL", "IS_CELERY_BROKER_URL"]:
         val = env.get(var, "")
         items.append((var, bool(val), "set" if val else "not set"))
 
-    llm_key = next((k for k in _LLM_KEYS if env.get(k)), None)
+    llm_key = next((k for k in _PROVIDER_API_KEYS if env.get(k)), None)
     if llm_key:
         items.append(("LLM key", True, f"{llm_key} set"))
     else:
-        items.append(("LLM key", False, f"none of {', '.join(_LLM_KEYS)} set"))
+        items.append(("LLM key", False, f"none of {', '.join(_PROVIDER_API_KEYS)} set"))
 
-    src_dir = env.get("IS_SOURCE_CONFIG_DIR", "config/sources")
-    if not pathlib.Path(src_dir).is_dir():
-        items.append((f"sources dir ({src_dir})", False, "directory missing"))
-    else:
-        yamls = [
-            f
-            for f in pathlib.Path(src_dir).iterdir()
-            if f.suffix in (".yaml", ".yml") and f.is_file()
-        ]
-        if yamls:
-            items.append(
-                (f"sources dir ({src_dir})", True, f"{len(yamls)} YAML file(s)")
-            )
-        else:
-            items.append((f"sources dir ({src_dir})", False, "no YAML files found"))
+    llm_cfg = env.get("IS_LLM_CONFIG_PATH", "config/llm_models.yaml")
+    llm_cfg_path = pathlib.Path(llm_cfg)
+    if not llm_cfg_path.is_absolute():
+        llm_cfg_path = root / llm_cfg
+    items.append(
+        (
+            f"llm config ({llm_cfg})",
+            llm_cfg_path.is_file(),
+            "found" if llm_cfg_path.is_file() else "file missing",
+        )
+    )
+
+    items.append(
+        _dir_check(
+            "sources dir", env.get("IS_SOURCE_CONFIG_DIR", "config/sources"), root
+        )
+    )
+    items.append(
+        _dir_check(
+            "subscriptions dir",
+            env.get("IS_SUBSCRIPTION_CONFIG_DIR", "config/subscriptions"),
+            root,
+        )
+    )
 
     for channel, vars_ in _REQUIRED_CHANNEL_VARS:
         missing = [v for v in vars_ if not env.get(v)]
         if missing:
             items.append(
-                (
-                    f"channel {channel}",
-                    None,  # type: ignore[arg-type]
-                    f"optional — {', '.join(missing)} not set",
-                )
+                (f"channel {channel}", None, f"optional — {', '.join(missing)} not set")
             )
         else:
             items.append((f"channel {channel}", True, "configured"))
@@ -319,8 +453,11 @@ def _doctor_env(env: dict[str, str]) -> list[tuple[str, bool, str]]:
 
 @app.command("doctor")
 def doctor(
-    env_file: str = typer.Option(
-        "docker/.env", "--env-file", help=".env file to inspect"
+    env_file: str | None = typer.Option(
+        None,
+        "--env-file",
+        help=".env file to inspect (default: <root>/docker/.env;"
+        " override with IS_ENV_FILE)",
     ),
     check_api: bool = typer.Option(
         False, "--check-api", help="Try to reach the running API"
@@ -330,29 +467,36 @@ def doctor(
     ),
 ) -> None:
     """Check configuration and report missing or misconfigured items."""
+    if env_file is None:
+        env_file = os.environ.get("IS_ENV_FILE") or str(
+            project_root() / "docker" / ".env"
+        )
     env = {**_load_dotenv_file(env_file), **os.environ}
+    typer.echo(f"Inspecting {env_file}\n")
 
     items = _doctor_env(env)
     errors = 0
     for label, ok, msg in items:
         if ok is True:
-            typer.echo(f"  ✓  {label:<35} {msg}")
+            typer.echo(f"  [OK]  {label:<35} {msg}")
         elif ok is False:
-            typer.echo(f"  ✗  {label:<35} {msg}", err=False)
+            typer.echo(f"  [FAIL]  {label:<35} {msg}", err=False)
             errors += 1
         else:
-            typer.echo(f"  ○  {label:<35} {msg}")
+            typer.echo(f"  [--]  {label:<35} {msg}")
 
     if check_api:
         try:
             resp = httpx.get(f"{_base_url()}/health", timeout=3)
             status = resp.json().get("status", "unknown")
-            typer.echo(f"  ✓  API /health                        {status}")
+            typer.echo(f"  [OK]  API /health                        {status}")
             missing = resp.json().get("missing_config", [])
             for w in missing:
-                typer.echo(f"  ○  API warning                        {w}")
+                typer.echo(f"  [--]  API warning                        {w}")
         except Exception as exc:
-            typer.echo(f"  ✗  API /health                        unreachable ({exc})")
+            typer.echo(
+                f"  [FAIL]  API /health                        unreachable ({exc})"
+            )
             errors += 1
 
     if errors:
@@ -384,7 +528,7 @@ _PROVIDER_ENV: dict[str, str] = {
 
 def _write_env_file(path: pathlib.Path, updates: dict[str, str]) -> None:
     """Merge ``updates`` into an existing .env file (or create from .env.example)."""
-    example = pathlib.Path("docker/.env.example")
+    example = project_root() / "docker" / ".env.example"
     if path.exists():
         lines = path.read_text(encoding="utf-8").splitlines()
     elif example.exists():
@@ -409,102 +553,186 @@ def _write_env_file(path: pathlib.Path, updates: dict[str, str]) -> None:
     path.write_text("\n".join(out) + "\n", encoding="utf-8")
 
 
-@app.command("init")
-def init(
-    env_file: str = typer.Option(
-        "docker/.env", "--env-file", help="Path to write .env"
-    ),
-    sources_file: str = typer.Option(
-        "config/sources/sources.yaml",
-        "--sources-file",
-        help="Path to write sources YAML",
-    ),
-) -> None:
-    """Interactive first-time setup: generate .env and a starter sources file."""
-    typer.echo("Welcome to IntelliSource setup.\n")
+_PROVIDER_BY_CHOICE = {"1": "deepseek", "2": "openai", "3": "anthropic"}
 
-    env_path = pathlib.Path(env_file)
-    sources_path = pathlib.Path(sources_file)
 
-    # --- API key ---
-    api_key = typer.prompt(
-        "API key for IntelliSource (leave blank to auto-generate)",
-        default="",
-    )
-    if not api_key:
-        import secrets
+def _seed_from_example(example: pathlib.Path, target: pathlib.Path) -> bool:
+    """Copy *example* to *target* when *target* is absent. Returns True if written.
 
-        api_key = secrets.token_hex(32)
-        typer.echo(f"Generated: {api_key}")
+    Idempotent: an existing target is left untouched, so re-running init is safe.
+    """
+    if target.exists() or not example.exists():
+        return False
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(example.read_text(encoding="utf-8"), encoding="utf-8")
+    return True
 
-    # --- LLM provider ---
+
+def _resolve_provider(provider: str | None, non_interactive: bool) -> str:
+    """Resolve the LLM provider, validating explicit input and re-prompting.
+
+    An out-of-range interactive choice re-prompts rather than silently falling
+    back, so the user never ends up on a provider they did not pick.
+    """
+    if provider is not None:
+        chosen = provider.lower()
+        if chosen not in _PROVIDER_ENV:
+            raise typer.BadParameter(
+                f"--provider must be one of {', '.join(_PROVIDER_ENV)}"
+            )
+        return chosen
+    if non_interactive:
+        return "deepseek"
     typer.echo("\nLLM provider:")
     typer.echo("  1. DeepSeek  (recommended — low cost)")
     typer.echo("  2. OpenAI")
     typer.echo("  3. Anthropic")
-    provider_choice = typer.prompt("Choose (1/2/3)", default="1")
-    provider_map = {"1": "deepseek", "2": "openai", "3": "anthropic"}
-    provider = provider_map.get(provider_choice, "deepseek")
-    llm_key_var = _PROVIDER_ENV[provider]
-    llm_key_val = typer.prompt(f"{llm_key_var}")
+    while True:
+        choice = typer.prompt("Choose (1/2/3)", default="1")
+        chosen = _PROVIDER_BY_CHOICE.get(choice, "")
+        if chosen in _PROVIDER_ENV:
+            return chosen
+        typer.echo(f"  Invalid choice {choice!r} — enter 1, 2, or 3.")
 
-    # --- Distribution channel ---
+
+def _prompt_smtp_port() -> str:
+    """Prompt for an SMTP port, re-prompting until it is a valid 1-65535 int."""
+    while True:
+        port: str = typer.prompt("IS_SMTP_PORT", default="587")
+        if port.isdigit() and 1 <= int(port) <= 65535:
+            return port
+        typer.echo(f"  Invalid port {port!r} — enter an integer 1-65535.")
+
+
+def _prompt_channel() -> dict[str, str]:
+    """Interactive distribution-channel prompts; returns the .env updates."""
     typer.echo("\nDistribution channel (optional — can add later):")
     typer.echo("  1. WeWork / 企业微信  (recommended)")
     typer.echo("  2. WeChat Official Account")
     typer.echo("  3. Email SMTP")
     typer.echo("  4. Skip for now")
     ch_choice = typer.prompt("Choose (1/2/3/4)", default="4")
-
-    channel_updates: dict[str, str] = {}
+    updates: dict[str, str] = {}
     if ch_choice == "1":
-        channel_updates["IS_WEWORK_CORP_ID"] = typer.prompt("IS_WEWORK_CORP_ID")
-        channel_updates["IS_WEWORK_CORP_SECRET"] = typer.prompt("IS_WEWORK_CORP_SECRET")
-        channel_updates["IS_WEWORK_AGENT_ID"] = typer.prompt("IS_WEWORK_AGENT_ID")
-        channel_updates["IS_WEWORK_WEBHOOK_TOKEN"] = typer.prompt(
-            "IS_WEWORK_WEBHOOK_TOKEN (optional; inbound webhook reply uses "
-            "IS_WECOM_TOKEN / IS_WECOM_ENCODING_AES_KEY / IS_WECOM_CORP_ID "
-            "— set those separately)",
-            default="",
-        )
+        updates["IS_WEWORK_CORP_ID"] = typer.prompt("IS_WEWORK_CORP_ID")
+        updates["IS_WEWORK_CORP_SECRET"] = typer.prompt("IS_WEWORK_CORP_SECRET")
+        updates["IS_WEWORK_AGENT_ID"] = typer.prompt("IS_WEWORK_AGENT_ID")
     elif ch_choice == "2":
-        channel_updates["IS_WECHAT_APP_ID"] = typer.prompt("IS_WECHAT_APP_ID")
-        channel_updates["IS_WECHAT_APP_SECRET"] = typer.prompt("IS_WECHAT_APP_SECRET")
-        channel_updates["IS_WECHAT_WEBHOOK_TOKEN"] = typer.prompt(
+        updates["IS_WECHAT_APP_ID"] = typer.prompt("IS_WECHAT_APP_ID")
+        updates["IS_WECHAT_APP_SECRET"] = typer.prompt("IS_WECHAT_APP_SECRET")
+        updates["IS_WECHAT_WEBHOOK_TOKEN"] = typer.prompt(
             "IS_WECHAT_WEBHOOK_TOKEN", default=""
         )
     elif ch_choice == "3":
-        channel_updates["IS_SMTP_HOST"] = typer.prompt("IS_SMTP_HOST")
-        channel_updates["IS_SMTP_USER"] = typer.prompt("IS_SMTP_USER")
-        channel_updates["IS_SMTP_PASSWORD"] = typer.prompt(
-            "IS_SMTP_PASSWORD", hide_input=True
-        )
-        channel_updates["IS_SMTP_PORT"] = typer.prompt("IS_SMTP_PORT", default="587")
-        channel_updates["IS_SMTP_USE_TLS"] = typer.prompt(
+        updates["IS_SMTP_HOST"] = typer.prompt("IS_SMTP_HOST")
+        updates["IS_SMTP_USER"] = typer.prompt("IS_SMTP_USER")
+        updates["IS_SMTP_PASSWORD"] = typer.prompt("IS_SMTP_PASSWORD", hide_input=True)
+        updates["IS_SMTP_PORT"] = _prompt_smtp_port()
+        updates["IS_SMTP_USE_TLS"] = typer.prompt(
             "IS_SMTP_USE_TLS (true/false)", default="true"
         )
+    return updates
 
-    # --- Starter RSS source ---
-    add_hn = typer.confirm("\nAdd Hacker News RSS as a starter source?", default=True)
 
-    # --- Write files ---
+@app.command("init")
+def init(
+    env_file: str | None = typer.Option(
+        None, "--env-file", help="Path to write .env (default: <root>/docker/.env)"
+    ),
+    sources_file: str | None = typer.Option(
+        None,
+        "--sources-file",
+        help="Path to write sources YAML (default: <root>/config/sources/sources.yaml)",
+    ),
+    provider: str | None = typer.Option(
+        None, "--provider", help="LLM provider: deepseek / openai / anthropic"
+    ),
+    non_interactive: bool = typer.Option(
+        False,
+        "--non-interactive",
+        "--yes",
+        "-y",
+        help="Run without prompts (CI / scripted): auto-generate the API key,"
+        " take the provider from --provider or env, skip channel setup.",
+    ),
+) -> None:
+    """First-time setup — run on the HOST, before ``intellisource up``.
+
+    Writes docker/.env, seeds the llm_models / subscriptions config templates,
+    and writes a starter sources file. The stack mounts ``config`` read-only,
+    so this must run on the host machine, never inside a container.
+    """
+    root = project_root()
+    env_path = pathlib.Path(env_file) if env_file else root / "docker" / ".env"
+    sources_path = (
+        pathlib.Path(sources_file)
+        if sources_file
+        else root / "config" / "sources" / "sources.yaml"
+    )
+
+    typer.echo("Welcome to IntelliSource setup.\n")
+
+    # --- API key ---
+    if non_interactive:
+        api_key = os.environ.get("IS_API_KEY") or secrets.token_hex(32)
+    else:
+        api_key = typer.prompt(
+            "API key for IntelliSource (leave blank to auto-generate)", default=""
+        )
+        if not api_key:
+            api_key = secrets.token_hex(32)
+            typer.echo(f"Generated: {api_key}")
+
+    # --- LLM provider ---
+    chosen_provider = _resolve_provider(provider, non_interactive)
+    llm_key_var = _PROVIDER_ENV[chosen_provider]
+    if non_interactive:
+        llm_key_val = os.environ.get(llm_key_var, "")
+        if not llm_key_val:
+            typer.echo(f"  Warning: {llm_key_var} not set — set it before first use.")
+    else:
+        llm_key_val = typer.prompt(llm_key_var)
+
+    # --- Distribution channel (interactive only) ---
+    channel_updates = {} if non_interactive else _prompt_channel()
+
+    # --- Write .env ---
     env_path.parent.mkdir(parents=True, exist_ok=True)
     updates: dict[str, str] = {"IS_API_KEY": api_key, llm_key_var: llm_key_val}
     updates.update(channel_updates)
     _write_env_file(env_path, updates)
-    typer.echo(f"\n✓ Written {env_path}")
+    typer.echo(f"\n[OK] Written {env_path}")
 
-    if add_hn:
+    # --- Seed config templates (fixes provider mismatch via llm_models.yaml) ---
+    if _seed_from_example(
+        root / "config" / "llm_models.example.yaml",
+        root / "config" / "llm_models.yaml",
+    ):
+        typer.echo("[OK] Created config/llm_models.yaml")
+    if _seed_from_example(
+        root / "config" / "subscriptions.example.yaml",
+        root / "config" / "subscriptions" / "subscriptions.yaml",
+    ):
+        typer.echo("[OK] Created config/subscriptions/subscriptions.yaml")
+
+    # --- Starter source ---
+    add_starter = non_interactive or typer.confirm(
+        "\nAdd Hacker News RSS as a starter source?", default=True
+    )
+    if add_starter:
         sources_path.parent.mkdir(parents=True, exist_ok=True)
         if not sources_path.exists():
             sources_path.write_text(_DEFAULT_HN_SOURCE, encoding="utf-8")
-            typer.echo(f"✓ Written {sources_path}")
+            typer.echo(f"[OK] Written {sources_path}")
         else:
             typer.echo(f"  {sources_path} already exists — skipped")
 
+    # --- Next steps ---
     typer.echo("\nNext steps:")
-    typer.echo("  make up")
-    typer.echo("  uv run intellisource doctor --check-api")
+    typer.echo("  uv run intellisource up                        # start the stack")
+    typer.echo("  uv run intellisource doctor --check-api        # verify config")
+    typer.echo("  uv run intellisource subscriptions reload      # load subscriptions")
+    typer.echo("  uv run intellisource task trigger <source-id>  # first collection")
 
 
 # ---------------------------------------------------------------------------
@@ -513,7 +741,9 @@ def init(
 
 
 def _post_json(path: str, payload: dict[str, Any]) -> httpx.Response:
-    return httpx.post(f"{_base_url()}{path}", json=payload, headers=_get_headers())
+    return _http(
+        lambda: httpx.post(f"{_base_url()}{path}", json=payload, headers=_get_headers())
+    )
 
 
 def _channel_config_prompt(channel: str) -> dict[str, Any]:
@@ -539,7 +769,7 @@ def subscriptions_list(
 ) -> None:
     """List all subscriptions."""
     url = f"{_base_url()}/api/v1/subscriptions"
-    resp = httpx.get(url, headers=_get_headers())
+    resp = _http(lambda: httpx.get(url, headers=_get_headers()))
     _emit(resp.json(), json_output=json_output)
 
 
@@ -610,7 +840,7 @@ def subscriptions_patch(
         )
         raise typer.Exit(code=2)
     url = f"{_base_url()}/api/v1/subscriptions/{sub_id}"
-    resp = httpx.patch(url, json=body, headers=_get_headers())
+    resp = _http(lambda: httpx.patch(url, json=body, headers=_get_headers()))
     if resp.status_code >= 400:
         typer.echo(f"Error ({resp.status_code}): {resp.text}")
         raise typer.Exit(code=1)
@@ -623,7 +853,7 @@ def subscriptions_rm(
 ) -> None:
     """Soft-delete (paused) a subscription by id."""
     url = f"{_base_url()}/api/v1/subscriptions/{sub_id}"
-    resp = httpx.delete(url, headers=_get_headers())
+    resp = _http(lambda: httpx.delete(url, headers=_get_headers()))
     if resp.status_code == 404:
         typer.echo("Not found")
         raise typer.Exit(code=1)

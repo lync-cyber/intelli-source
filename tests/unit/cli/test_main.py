@@ -12,6 +12,7 @@ Covers:
 from __future__ import annotations
 
 import json
+import pathlib
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -464,3 +465,285 @@ class TestApiConfiguration:
         assert call_kwargs is not None
         full_call_str = str(call_kwargs)
         assert "cli-key" in full_call_str
+
+
+# ===========================================================================
+# Cross-platform docker compose lifecycle commands (up/down/migrate/logs/ps)
+# ===========================================================================
+
+
+class TestComposeCommands:
+    """up/down/migrate/logs/ps wrap `docker compose` via subprocess."""
+
+    @patch("intellisource.cli.main.subprocess")
+    def test_up_runs_compose_up_detached(
+        self, mock_subprocess: MagicMock, runner: Any
+    ) -> None:
+        _skip_if_missing()
+        mock_subprocess.run.return_value = MagicMock(returncode=0)
+
+        result = runner.invoke(app, ["up"])
+
+        assert result.exit_code == 0
+        argv = mock_subprocess.run.call_args[0][0]
+        assert argv[:2] == ["docker", "compose"]
+        assert argv[-2:] == ["up", "-d"]
+        # never shell=True — Windows path quoting safety
+        assert mock_subprocess.run.call_args.kwargs.get("shell", False) is False
+
+    @patch("intellisource.cli.main.subprocess")
+    def test_compose_file_is_absolute_anchored_path(
+        self, mock_subprocess: MagicMock, runner: Any
+    ) -> None:
+        _skip_if_missing()
+        mock_subprocess.run.return_value = MagicMock(returncode=0)
+
+        result = runner.invoke(app, ["up"])
+
+        assert result.exit_code == 0
+        argv = mock_subprocess.run.call_args[0][0]
+        assert argv[2] == "-f"
+        compose_path = pathlib.Path(argv[3])
+        assert compose_path.is_absolute()
+        assert compose_path.name == "docker-compose.yml"
+        assert compose_path.parent.name == "docker"
+
+    @patch("intellisource.cli.main.subprocess")
+    def test_down_runs_compose_down(
+        self, mock_subprocess: MagicMock, runner: Any
+    ) -> None:
+        _skip_if_missing()
+        mock_subprocess.run.return_value = MagicMock(returncode=0)
+
+        result = runner.invoke(app, ["down"])
+
+        assert result.exit_code == 0
+        assert mock_subprocess.run.call_args[0][0][-1] == "down"
+
+    @patch("intellisource.cli.main.subprocess")
+    def test_migrate_runs_compose_run_migrate(
+        self, mock_subprocess: MagicMock, runner: Any
+    ) -> None:
+        _skip_if_missing()
+        mock_subprocess.run.return_value = MagicMock(returncode=0)
+
+        result = runner.invoke(app, ["migrate"])
+
+        assert result.exit_code == 0
+        assert mock_subprocess.run.call_args[0][0][-3:] == ["run", "--rm", "migrate"]
+
+    @patch("intellisource.cli.main.subprocess")
+    def test_nonzero_exit_code_propagates(
+        self, mock_subprocess: MagicMock, runner: Any
+    ) -> None:
+        _skip_if_missing()
+        mock_subprocess.run.return_value = MagicMock(returncode=2)
+
+        result = runner.invoke(app, ["up"])
+
+        assert result.exit_code == 2
+
+    @patch("intellisource.cli.main.subprocess")
+    def test_docker_missing_shows_friendly_error(
+        self, mock_subprocess: MagicMock, runner: Any
+    ) -> None:
+        _skip_if_missing()
+        mock_subprocess.run.side_effect = FileNotFoundError()
+
+        result = runner.invoke(app, ["up"])
+
+        assert result.exit_code == 1
+        assert "docker" in result.output.lower()
+
+
+# ===========================================================================
+# init hardening: anchoring / provider validation / template seeding / -y mode
+# ===========================================================================
+
+
+def _seed_example_tree(root: pathlib.Path) -> None:
+    """Create the minimal example files init's seeding expects under *root*."""
+    (root / "docker").mkdir(parents=True, exist_ok=True)
+    (root / "docker" / ".env.example").write_text("IS_API_KEY=\n", encoding="utf-8")
+    (root / "config").mkdir(parents=True, exist_ok=True)
+    (root / "config" / "llm_models.example.yaml").write_text(
+        "default_model:\n  model: deepseek/deepseek-v4-flash\n", encoding="utf-8"
+    )
+    (root / "config" / "subscriptions.example.yaml").write_text(
+        "subscriptions: []\n", encoding="utf-8"
+    )
+
+
+class TestInitHardening:
+    """init: path anchoring, provider validation, template seeding, -y mode."""
+
+    @patch("intellisource.cli.main.project_root")
+    def test_non_interactive_generates_core_files(
+        self, mock_root: MagicMock, runner: Any, tmp_path: pathlib.Path
+    ) -> None:
+        _skip_if_missing()
+        mock_root.return_value = tmp_path
+        _seed_example_tree(tmp_path)
+
+        result = runner.invoke(
+            app, ["init", "--non-interactive", "--provider", "deepseek"]
+        )
+
+        assert result.exit_code == 0, result.output
+        assert (tmp_path / "docker" / ".env").is_file()
+        # provider-consistency fix: llm_models.yaml seeded from the example
+        assert (tmp_path / "config" / "llm_models.yaml").is_file()
+        assert (tmp_path / "config" / "sources" / "sources.yaml").is_file()
+
+    @patch("intellisource.cli.main.project_root")
+    def test_non_interactive_writes_generated_api_key(
+        self,
+        mock_root: MagicMock,
+        runner: Any,
+        tmp_path: pathlib.Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _skip_if_missing()
+        mock_root.return_value = tmp_path
+        _seed_example_tree(tmp_path)
+        monkeypatch.delenv("IS_API_KEY", raising=False)
+
+        result = runner.invoke(app, ["init", "--non-interactive"])
+
+        assert result.exit_code == 0, result.output
+        env_text = (tmp_path / "docker" / ".env").read_text(encoding="utf-8")
+        key_line = next(
+            ln for ln in env_text.splitlines() if ln.startswith("IS_API_KEY=")
+        )
+        assert key_line.split("=", 1)[1] not in ("", "change-me-in-production")
+
+    @patch("intellisource.cli.main.project_root")
+    def test_invalid_provider_rejected_without_writing(
+        self, mock_root: MagicMock, runner: Any, tmp_path: pathlib.Path
+    ) -> None:
+        _skip_if_missing()
+        mock_root.return_value = tmp_path
+        _seed_example_tree(tmp_path)
+
+        result = runner.invoke(
+            app, ["init", "--non-interactive", "--provider", "bogus"]
+        )
+
+        assert result.exit_code != 0
+        assert not (tmp_path / "docker" / ".env").exists()
+
+    @patch("intellisource.cli.main.project_root")
+    def test_seeding_is_idempotent(
+        self, mock_root: MagicMock, runner: Any, tmp_path: pathlib.Path
+    ) -> None:
+        _skip_if_missing()
+        mock_root.return_value = tmp_path
+        _seed_example_tree(tmp_path)
+        # a pre-existing user llm_models.yaml must not be overwritten
+        (tmp_path / "config" / "llm_models.yaml").write_text(
+            "default_model:\n  model: custom\n", encoding="utf-8"
+        )
+
+        result = runner.invoke(app, ["init", "--non-interactive"])
+
+        assert result.exit_code == 0, result.output
+        assert "custom" in (tmp_path / "config" / "llm_models.yaml").read_text(
+            encoding="utf-8"
+        )
+
+    @patch("intellisource.cli.main.project_root")
+    def test_interactive_reprompts_invalid_provider_choice(
+        self, mock_root: MagicMock, runner: Any, tmp_path: pathlib.Path
+    ) -> None:
+        _skip_if_missing()
+        mock_root.return_value = tmp_path
+        _seed_example_tree(tmp_path)
+        # API key blank (auto-gen) -> provider "9" invalid -> "1" deepseek ->
+        # llm key -> channel "4" skip -> add starter "y"
+        result = runner.invoke(app, ["init"], input="\n9\n1\nsk-test\n4\ny\n")
+
+        assert result.exit_code == 0, result.output
+        assert "Invalid choice" in result.output
+        env_text = (tmp_path / "docker" / ".env").read_text(encoding="utf-8")
+        assert "DEEPSEEK_API_KEY=sk-test" in env_text
+
+
+# ===========================================================================
+# doctor config self-check
+# ===========================================================================
+
+
+class TestDoctorChecks:
+    """doctor's offline _doctor_env logic + command surface."""
+
+    def test_placeholder_api_key_flagged(self) -> None:
+        _skip_if_missing()
+        from intellisource.cli.main import _doctor_env
+
+        items = _doctor_env({"IS_API_KEY": "change-me-in-production"})
+        api = next(i for i in items if i[0] == "IS_API_KEY")
+        assert api[1] is False
+
+    def test_database_url_requires_asyncpg_driver(self) -> None:
+        _skip_if_missing()
+        from intellisource.cli.main import _doctor_env
+
+        items = _doctor_env({"IS_DATABASE_URL": "postgresql://u:p@h/db"})
+        db = next(i for i in items if i[0] == "IS_DATABASE_URL")
+        assert db[1] is False
+        assert "asyncpg" in db[2]
+
+    def test_database_url_asyncpg_accepted(self) -> None:
+        _skip_if_missing()
+        from intellisource.cli.main import _doctor_env
+
+        items = _doctor_env({"IS_DATABASE_URL": "postgresql+asyncpg://u:p@h/db"})
+        db = next(i for i in items if i[0] == "IS_DATABASE_URL")
+        assert db[1] is True
+
+    def test_subscriptions_dir_and_llm_config_checked(self) -> None:
+        _skip_if_missing()
+        from intellisource.cli.main import _doctor_env
+
+        labels = [i[0] for i in _doctor_env({})]
+        assert any("subscriptions dir" in label for label in labels)
+        assert any(label.startswith("llm config") for label in labels)
+
+    def test_channel_reported_optional(self) -> None:
+        _skip_if_missing()
+        from intellisource.cli.main import _doctor_env
+
+        items = _doctor_env({})
+        wework = next(i for i in items if i[0] == "channel wework")
+        assert wework[1] is None
+
+    @patch("intellisource.cli.main.project_root")
+    def test_doctor_command_runs_offline(
+        self, mock_root: MagicMock, runner: Any, tmp_path: pathlib.Path
+    ) -> None:
+        _skip_if_missing()
+        mock_root.return_value = tmp_path
+        (tmp_path / "docker").mkdir()
+        (tmp_path / "docker" / ".env").write_text(
+            "IS_API_KEY=real-key\n", encoding="utf-8"
+        )
+
+        result = runner.invoke(app, ["doctor"])
+
+        assert result.exit_code == 0
+        assert "Inspecting" in result.output
+
+    @patch("intellisource.cli.main.project_root")
+    def test_doctor_strict_exits_nonzero_when_config_missing(
+        self, mock_root: MagicMock, runner: Any, tmp_path: pathlib.Path
+    ) -> None:
+        _skip_if_missing()
+        mock_root.return_value = tmp_path
+        (tmp_path / "docker").mkdir()
+        (tmp_path / "docker" / ".env").write_text(
+            "IS_API_KEY=change-me-in-production\n", encoding="utf-8"
+        )
+
+        result = runner.invoke(app, ["doctor", "--strict"])
+
+        assert result.exit_code == 1
