@@ -39,7 +39,9 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
 )
 
+from intellisource.agent.pipeline import PipelineConfig
 from intellisource.agent.runner import AgentRunner
+from intellisource.agent.tools import load_pipeline_config
 from intellisource.collector.adapters.api import APICollector
 from intellisource.collector.adapters.rss import RSSCollector
 from intellisource.collector.adapters.web import WebCollector
@@ -48,7 +50,6 @@ from intellisource.collector.proxy import ProxyManager
 from intellisource.collector.rate_limiter import RateLimiter
 from intellisource.collector.registry import CollectorRegistry
 from intellisource.core.errors import ErrorCategory, IntelliSourceError
-from intellisource.core.pipeline_loader import PipelineLoader, build_pipeline_loader
 from intellisource.core.settings import get_settings
 from intellisource.distributor.channels.email import EmailDistributor
 from intellisource.distributor.channels.wechat import WeChatDistributor
@@ -292,6 +293,21 @@ def get_agent_runner_holder() -> AgentRunnerHolder:
 # ---------------------------------------------------------------------------
 # WorkerComposition + assembly entry points
 # ---------------------------------------------------------------------------
+
+
+class PipelineLoader:
+    """Resolve a pipeline yaml name to a `PipelineConfig` instance.
+
+    Holds a stable, mockable dependency so `CeleryTasks.run_pipeline` can be
+    injected with it instead of a free function.
+    """
+
+    def load(self, name: str) -> PipelineConfig:
+        return load_pipeline_config(name)
+
+
+def build_pipeline_loader() -> PipelineLoader:
+    return PipelineLoader()
 
 
 @dataclass

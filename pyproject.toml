@@ -294,7 +294,6 @@ exhaustive = false
 ignore_imports = [
     "intellisource.scheduler.boot -> intellisource.composition",
     "intellisource.scheduler.beat_sync -> intellisource.composition",
-    "intellisource.scheduler.tasks -> intellisource.core.pipeline_loader",
     "intellisource.agent.factory -> intellisource.composition",
 ]
 
@@ -361,4 +360,32 @@ name = "Config must not depend on storage.models"
 type = "forbidden"
 source_modules = ["intellisource.config"]
 forbidden_modules = ["intellisource.storage.models"]
+allow_indirect_imports = true
+
+# Contract 9: Cross-cutting base layers must not depend upward.
+# core / config / observability are excluded from the layered stack (any layer
+# may import them), which leaves them unpoliced by the layers contract. This
+# guard forbids them from importing business or orchestration packages, so a
+# reverse edge such as core -> agent can no longer slip through that blind spot.
+[[tool.importlinter.contracts]]
+name = "Cross-cutting base must not depend on business or orchestration layers"
+type = "forbidden"
+source_modules = [
+    "intellisource.core",
+    "intellisource.config",
+    "intellisource.observability",
+]
+forbidden_modules = [
+    "intellisource.main",
+    "intellisource.cli",
+    "intellisource.api",
+    "intellisource.composition",
+    "intellisource.agent",
+    "intellisource.pipeline",
+    "intellisource.collector",
+    "intellisource.search",
+    "intellisource.distributor",
+    "intellisource.scheduler",
+    "intellisource.llm",
+]
 allow_indirect_imports = true
