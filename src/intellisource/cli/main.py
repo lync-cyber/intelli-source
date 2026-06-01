@@ -26,11 +26,13 @@ source_app = typer.Typer()
 task_app = typer.Typer()
 pipeline_app = typer.Typer()
 subscriptions_app = typer.Typer()
+topic_app = typer.Typer()
 
 app.add_typer(source_app, name="source")
 app.add_typer(task_app, name="task")
 app.add_typer(pipeline_app, name="pipeline")
 app.add_typer(subscriptions_app, name="subscriptions")
+app.add_typer(topic_app, name="topic")
 
 
 # ---------------------------------------------------------------------------
@@ -528,6 +530,83 @@ _PROVIDER_ENV: dict[str, str] = {
 }
 
 
+def _topic_source_entry(src: Any) -> dict[str, Any]:
+    """Serialize a TopicSource into a SourceConfig-shaped YAML entry."""
+    entry: dict[str, Any] = {"name": src.name, "type": src.type, "url": src.url}
+    if src.tags:
+        entry["tags"] = list(src.tags)
+    if src.discipline_tags:
+        entry["discipline_tags"] = list(src.discipline_tags)
+    entry["schedule_interval"] = src.schedule_interval
+    if not src.schedule_adaptive:
+        entry["schedule_adaptive"] = src.schedule_adaptive
+    if src.metadata:
+        entry["metadata"] = dict(src.metadata)
+    return entry
+
+
+def _materialize_topic_sources(topic: Any, sources_dir: pathlib.Path) -> pathlib.Path:
+    """Write a topic's sources to ``<sources_dir>/topic-<id>.yaml`` and return path."""
+    import yaml
+
+    sources_dir.mkdir(parents=True, exist_ok=True)
+    path = sources_dir / f"topic-{topic.id}.yaml"
+    payload = {"sources": [_topic_source_entry(s) for s in topic.sources]}
+    header = f"# IntelliSource 内置主题信源: {topic.name} ({topic.id})\n"
+    body = yaml.safe_dump(payload, allow_unicode=True, sort_keys=False)
+    path.write_text(header + body, encoding="utf-8")
+    return path
+
+
+def _select_topics(topics_arg: str | None, non_interactive: bool) -> list[Any]:
+    """Resolve which built-in topics to materialize during ``init``.
+
+    ``topics_arg`` is a comma-separated list of ids (used in non-interactive /
+    scripted runs); when absent and interactive, the user picks from a menu.
+    """
+    from intellisource.topic.loader import TopicLoader
+
+    all_topics = TopicLoader().load_all()
+    by_id = {t.id: t for t in all_topics}
+
+    def _resolve_token(tok: str) -> Any | None:
+        tok = tok.strip()
+        if not tok:
+            return None
+        if tok.isdigit():
+            idx = int(tok) - 1
+            return all_topics[idx] if 0 <= idx < len(all_topics) else None
+        if tok in by_id:
+            return by_id[tok]
+        typer.echo(f"  Warning: unknown topic {tok!r} — skipped")
+        return None
+
+    if topics_arg is not None:
+        raw = topics_arg
+    elif non_interactive:
+        return []
+    else:
+        typer.echo("\nBuilt-in topics (学科 discipline / 行业 industry):")
+        for i, t in enumerate(all_topics, 1):
+            typer.echo(
+                f"  {i}. {t.id}  —  {t.name} [{t.dimension}] ({len(t.sources)} sources)"
+            )
+        raw = typer.prompt(
+            "Select topics to add sources for "
+            "(comma-separated numbers or ids, blank to skip)",
+            default="",
+        )
+
+    chosen: list[Any] = []
+    seen: set[str] = set()
+    for tok in raw.split(","):
+        topic = _resolve_token(tok)
+        if topic is not None and topic.id not in seen:
+            seen.add(topic.id)
+            chosen.append(topic)
+    return chosen
+
+
 def _write_env_file(path: pathlib.Path, updates: dict[str, str]) -> None:
     """Merge ``updates`` into an existing .env file (or create from .env.example)."""
     example = project_root() / "docker" / ".env.example"
@@ -649,6 +728,12 @@ def init(
     provider: str | None = typer.Option(
         None, "--provider", help="LLM provider: deepseek / openai / anthropic"
     ),
+    topics: str | None = typer.Option(
+        None,
+        "--topics",
+        help="Comma-separated built-in topic ids to materialize as source files"
+        " (e.g. 'artificial-intelligence,electrical-engineering').",
+    ),
     non_interactive: bool = typer.Option(
         False,
         "--non-interactive",
@@ -729,10 +814,25 @@ def init(
         else:
             typer.echo(f"  {sources_path} already exists — skipped")
 
+    # --- Built-in topics → materialize their sources as files (host-side) ---
+    selected_topics = _select_topics(topics, non_interactive)
+    for topic in selected_topics:
+        written = _materialize_topic_sources(topic, sources_path.parent)
+        typer.echo(
+            f"[OK] Wrote {len(topic.sources)} sources for topic {topic.id} → {written}"
+        )
+    if selected_topics:
+        typer.echo(
+            "  After `up`, run `intellisource topic enable <id> --channel ...`"
+            " to create the matching subscription."
+        )
+
     # --- Next steps ---
     typer.echo("\nNext steps:")
     typer.echo("  uv run intellisource up                        # start the stack")
     typer.echo("  uv run intellisource doctor --check-api        # verify config")
+    typer.echo("  uv run intellisource topic list                # built-in topics")
+    typer.echo("  uv run intellisource topic enable <id> --channel wework")
     typer.echo("  uv run intellisource subscriptions reload      # load subscriptions")
     typer.echo("  uv run intellisource task trigger <source-id>  # first collection")
 
@@ -880,5 +980,58 @@ def subscriptions_rollback(
     resp = _post_json(f"/api/v1/subscriptions/config/rollback/{version}", {})
     if resp.status_code == 404:
         typer.echo(f"Version {version!r} not found")
+        raise typer.Exit(code=1)
+    _emit(resp.json(), json_output=json_output)
+
+
+@topic_app.command("list")
+def topic_list(
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    """List the built-in collection topics (discipline / industry packs)."""
+    url = f"{_base_url()}/api/v1/topics"
+    resp = _http(lambda: httpx.get(url, headers=_get_headers()))
+    _emit(resp.json(), json_output=json_output)
+
+
+@topic_app.command("enable")
+def topic_enable(
+    topic_id: str = typer.Argument(..., help="Topic id, e.g. artificial-intelligence"),
+    channel: str | None = typer.Option(
+        None, "--channel", help="wework / wechat / email — also creates a subscription"
+    ),
+    to_addr: str | None = typer.Option(None, "--to-addr", help="email recipient"),
+    user_id: str | None = typer.Option(None, "--user-id", help="wework user id"),
+    no_subscription: bool = typer.Option(
+        False, "--no-subscription", help="Only import sources, skip subscription"
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    """Provision a topic: import its sources and (optionally) subscribe a channel."""
+    if channel is not None and channel not in {"wework", "wechat", "email"}:
+        typer.echo(f"Error: channel must be wework/wechat/email, got {channel!r}")
+        raise typer.Exit(code=2)
+
+    channel_config: dict[str, Any] = {}
+    if channel == "email" and to_addr:
+        channel_config["to_addr"] = to_addr
+    if channel == "wework" and user_id:
+        channel_config["user_id"] = user_id
+
+    payload: dict[str, Any] = {
+        "channel": channel,
+        "channel_config": channel_config,
+        "create_subscription": not no_subscription,
+    }
+    resp = _post_json(f"/api/v1/topics/{topic_id}/enable", payload)
+    if resp.status_code == 404:
+        typer.echo(f"Topic {topic_id!r} not found")
+        raise typer.Exit(code=1)
+    if resp.status_code >= 400:
+        try:
+            detail = resp.json().get("detail", "")
+        except Exception:
+            detail = resp.text
+        typer.echo(f"Error ({resp.status_code}): {detail}")
         raise typer.Exit(code=1)
     _emit(resp.json(), json_output=json_output)

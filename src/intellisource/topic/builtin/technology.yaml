@@ -1,0 +1,26 @@
+id: technology
+name: 科技互联网
+dimension: industry
+description: 科技互联网行业信源 — Hacker News、36氪与 GitHub Trending。对齐 GB/T 4754 信息传输/软件业。
+tags: [科技, technology]
+discipline_tags: []
+sources:
+  - name: Hacker News
+    type: rss
+    url: https://hnrss.org/frontpage
+    tags: [科技, tech]
+  - name: 36氪
+    type: rss
+    url: https://rsshub.app/36kr/news/latest
+    tags: [科技, technology, startup]
+  - name: GitHub Trending
+    type: web
+    url: https://github.com/trending
+    tags: [科技, open-source]
+    schedule_interval: 3600
+    schedule_adaptive: false
+subscription_template:
+  name: 科技互联网 订阅
+  frequency: daily
+  match_rules:
+    tags: [科技, technology]

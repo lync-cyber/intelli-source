@@ -294,6 +294,9 @@ class ProcessedContent(CreatedAtMixin, Base):
     body_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     tags: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list)
+    discipline_tags: Mapped[list[str]] = mapped_column(
+        ARRAY(String), nullable=False, default=list
+    )
     cluster_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("content_clusters.id"), nullable=True
     )

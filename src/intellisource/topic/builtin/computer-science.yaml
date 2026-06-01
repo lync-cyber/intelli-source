@@ -1,0 +1,33 @@
+id: computer-science
+name: 计算机科学
+dimension: discipline
+description: 计算机科学学科信源 — arXiv 计算机方向前沿论文与 Hacker News 技术社区。对齐 GB/T 13745 工学一级学科。
+tags: [计算机科学, computer-science]
+discipline_tags: [计算机科学, computer-science]
+sources:
+  - name: arXiv cs.AI
+    type: rss
+    url: https://rss.arxiv.org/rss/cs.AI
+    tags: [计算机科学, ai]
+    discipline_tags: [计算机科学, computer-science]
+  - name: arXiv cs.LG
+    type: rss
+    url: https://rss.arxiv.org/rss/cs.LG
+    tags: [计算机科学, machine-learning]
+    discipline_tags: [计算机科学, computer-science]
+  - name: arXiv cs.CL
+    type: rss
+    url: https://rss.arxiv.org/rss/cs.CL
+    tags: [计算机科学, nlp]
+    discipline_tags: [计算机科学, computer-science]
+  - name: Hacker News
+    type: rss
+    url: https://hnrss.org/frontpage
+    tags: [计算机科学, tech]
+    discipline_tags: [计算机科学, computer-science]
+subscription_template:
+  name: 计算机科学 订阅
+  frequency: daily
+  discipline_tags: [计算机科学, computer-science]
+  match_rules:
+    discipline_tags: [计算机科学, computer-science]

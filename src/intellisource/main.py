@@ -28,6 +28,7 @@ from intellisource.api.routers import (
     subscriptions,
     system,
     tasks,
+    topics,
     webhooks,
 )
 from intellisource.composition import build_api_composition
@@ -307,6 +308,7 @@ def create_app() -> FastAPI:
     app.include_router(system.router, prefix="/api/v1/system")
     app.include_router(webhooks.router, prefix="/api/v1")
     app.include_router(pipelines.router, prefix="/api/v1")
+    app.include_router(topics.router, prefix="/api/v1")
 
     # Health endpoints (root-level + API-versioned per AC-T042-6)
     @app.get("/health")

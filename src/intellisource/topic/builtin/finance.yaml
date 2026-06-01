@@ -1,0 +1,25 @@
+id: finance
+name: 金融财经
+dimension: industry
+description: 金融财经行业信源 — 新浪财经、华尔街见闻与英为财情中文。对齐 GB/T 4754 金融业。
+tags: [财经, finance]
+discipline_tags: []
+sources:
+  - name: 新浪财经
+    type: rss
+    url: https://rss.sina.com.cn/finance/
+    tags: [财经, finance]
+  - name: 华尔街见闻
+    type: rss
+    url: https://rsshub.app/wallstreetcn/live
+    tags: [财经, finance]
+  - name: Investing 中文
+    type: rss
+    url: https://cn.investing.com/rss/news.rss
+    tags: [财经, finance, markets]
+subscription_template:
+  name: 金融财经 订阅
+  frequency: daily
+  match_rules:
+    tags: [财经, finance]
+    keywords: ["!广告"]

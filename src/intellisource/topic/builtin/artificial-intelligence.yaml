@@ -1,0 +1,29 @@
+id: artificial-intelligence
+name: 人工智能
+dimension: industry
+description: 人工智能行业信源 — 机器之心、量子位、MIT Technology Review 与 arXiv AI 论文。对齐 GB/T 4754 信息技术服务业。
+tags: [人工智能, ai]
+discipline_tags: []
+sources:
+  - name: 机器之心
+    type: rss
+    url: https://www.jiqizhixin.com/rss
+    tags: [人工智能, ai]
+  - name: 量子位
+    type: rss
+    url: https://rsshub.app/qbitai
+    tags: [人工智能, ai]
+  - name: MIT Technology Review
+    type: rss
+    url: https://www.technologyreview.com/feed/
+    tags: [人工智能, ai, tech]
+  - name: arXiv cs.AI
+    type: rss
+    url: https://rss.arxiv.org/rss/cs.AI
+    tags: [人工智能, ai]
+subscription_template:
+  name: 人工智能 订阅
+  frequency: daily
+  match_rules:
+    tags: [人工智能, ai]
+    keywords: ["+大模型", "+LLM", "+AIGC", "!招聘", "!广告"]

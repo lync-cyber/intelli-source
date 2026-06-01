@@ -1,0 +1,28 @@
+id: biomedicine
+name: 生物医药
+dimension: discipline
+description: 生物医药学科信源 — bioRxiv 预印本、arXiv 定量生物学与 Nature 新闻。对齐 GB/T 13745 医学/生物学一级学科。
+tags: [生物医药, biomedicine]
+discipline_tags: [生物医药, biomedicine]
+sources:
+  - name: bioRxiv
+    type: rss
+    url: https://connect.biorxiv.org/biorxiv_xml.php?subject=all
+    tags: [生物医药, preprint]
+    discipline_tags: [生物医药, biomedicine]
+  - name: arXiv q-bio
+    type: rss
+    url: https://rss.arxiv.org/rss/q-bio
+    tags: [生物医药, quantitative-biology]
+    discipline_tags: [生物医药, biomedicine]
+  - name: Nature News
+    type: rss
+    url: https://www.nature.com/nature.rss
+    tags: [生物医药, science]
+    discipline_tags: [生物医药, biomedicine]
+subscription_template:
+  name: 生物医药 订阅
+  frequency: daily
+  discipline_tags: [生物医药, biomedicine]
+  match_rules:
+    discipline_tags: [生物医药, biomedicine]
