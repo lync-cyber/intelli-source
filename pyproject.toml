@@ -68,6 +68,11 @@ filterwarnings = [
     # collected before close() is called; scoped to the aiosqlite deallocator path.
     "ignore:Exception ignored while calling deallocator.*Connection\\.__del__:pytest.PytestUnraisableExceptionWarning",
     "ignore:.*aiosqlite\\.core\\.Connection.*was deleted before being closed:ResourceWarning",
+    # A per-function loop from a test double / pytest-asyncio can be GC-collected
+    # before close() on Python 3.11, surfacing under whichever test GC happens to
+    # run in. Production loops are always closed (asyncio.run, or boot.py's
+    # explicit finally: loop.close()), so this is teardown noise, not a leak.
+    "ignore:unclosed event loop:ResourceWarning",
 ]
 
 [tool.ruff]
