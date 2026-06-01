@@ -9,6 +9,15 @@ consumers: [all]
 ---
 # Changelog: IntelliSource v1
 
+## [1.0.0-rc3] - 2026-06-01
+
+### Fixed (deploy-spec r3 — wework 部署就绪度核对修订)
+
+- **R-001 MEDIUM** §2.3 分发渠道清单补入 `IS_WECOM_CORP_ID` / `IS_WECOM_TOKEN` / `IS_WECOM_ENCODING_AES_KEY` 三行（wework 入站 webhook AES 解密强制前提，缺失则 `app.state.wecom_crypto=None` → `/webhooks/wework` 全 503）；§2.4 密钥清单同步补 `IS_WECOM_TOKEN` / `IS_WECOM_ENCODING_AES_KEY`（HIGH 敏感度，43 位 EncodingAESKey）
+- **R-002 LOW** §2.3/§2.4 订正 `IS_WEWORK_WEBHOOK_TOKEN` 标注：wework webhook 由 `IS_WECOM_TOKEN`（AES 路径）验签，该明文 token 字段当前不被 `/webhooks/wework` 路由消费，敏感度降为 LOW 并从 §2.4 密钥轮换表移除；`PRE-DEPLOY-WALKTHROUGH §0.2` 与 CLI `setup` 渠道提示同步订正
+
+---
+
 ## [1.0.0-rc2] - 2026-05-26
 
 ### Fixed (deploy-spec r2 修订)

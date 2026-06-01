@@ -45,7 +45,7 @@ consumers: [devops, qa-engineer, developer]
 
 | 渠道 | 必填变量 | 适用场景 |
 |------|---------|---------|
-| **WeWork (企业微信)** — 推荐主路径 | `IS_WEWORK_CORP_ID` / `IS_WEWORK_CORP_SECRET` / `IS_WEWORK_AGENT_ID` (+ `IS_WEWORK_WEBHOOK_TOKEN` 可选回话) | 无 48h 客服窗口约束 / 支持 markdown / 通讯录直接派发 / API 限流宽松；企业 corp 注册即用，无须备案 |
+| **WeWork (企业微信)** — 推荐主路径 | `IS_WEWORK_CORP_ID` / `IS_WEWORK_CORP_SECRET` / `IS_WEWORK_AGENT_ID`（出站推送）；入站客服回话另需 `IS_WECOM_*`（见下方 WeCom 行）| 无 48h 客服窗口约束 / 支持 markdown / 通讯录直接派发 / API 限流宽松；企业 corp 注册即用，无须备案 |
 | WeChat 公众号 | `IS_WECHAT_APP_ID` / `IS_WECHAT_APP_SECRET` (+ `IS_WECHAT_WEBHOOK_TOKEN` 可选回话) | C 端公众号；**需公众号备案 + 年审**，客服推送受 48h 用户互动窗口约束 |
 | Email (SMTP) | `IS_SMTP_HOST` / `IS_SMTP_USER` / `IS_SMTP_PASSWORD` / `IS_SMTP_PORT` (+ `IS_SMTP_USE_TLS` 默认 true，本地 mailhog/mailpit 设 false) | 团队邮件 / 测试栈本地 mailhog。本地用 mailhog 时设 `IS_SMTP_HOST=mailhog` / `IS_SMTP_PORT=1025` / `IS_SMTP_USE_TLS=false`，并启 walkthrough profile：`docker compose -f docker/docker-compose.yml --profile walkthrough up -d mailhog`（compose 已定义 mailhog 服务，profile=walkthrough，端口 1025） |
 | WeCom 加密回调（仅 wework AES 模式启用时） | `IS_WECOM_TOKEN` / `IS_WECOM_ENCODING_AES_KEY` / `IS_WECOM_CORP_ID` | wework webhook 走 AES-CBC 加密；与 `IS_WEWORK_CORP_ID` 同值另一份命名空间 |
