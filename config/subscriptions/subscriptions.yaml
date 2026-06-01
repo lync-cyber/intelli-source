@@ -1,0 +1,17 @@
+# IntelliSource 订阅配置 — WeWork 最小可用
+#
+# 放置目录由 docker/.env 的 IS_SUBSCRIPTION_CONFIG_DIR 指向（config/subscriptions）。
+# 此 yaml 是 source-of-truth：每次 POST /api/v1/subscriptions/reload 会全量覆盖，
+# 通过 API/CLI 的改动会被冲掉；从 yaml 移除的订阅软删（status=paused），推送历史不丢。
+# 支持 ${ENV_VAR} 占位符（与 sources.yaml 一致）。
+
+subscriptions:
+  - name: "Hacker News - WeWork"
+    channel: "wework"
+    channel_config:
+      user_id: "@all"          # 推全员；指定成员填 UserID（非姓名/手机号），多个用 | 分隔
+      msg_type: "markdown"     # text / markdown / news 三选一
+    match_rules:
+      source_names: ["Hacker News"]   # 强约束：匹配该信源全部内容，最易跑通
+    frequency: "realtime"
+    timezone: "Asia/Shanghai"
