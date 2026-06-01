@@ -15,16 +15,21 @@ third-party LLM provider key presence checks.
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from intellisource.core.paths import resolve_env_file
+
 
 class Settings(BaseSettings):
     """Environment-backed application configuration."""
 
-    model_config = SettingsConfigDict(case_sensitive=False, extra="ignore")
+    model_config = SettingsConfigDict(
+        case_sensitive=False, extra="ignore", env_file_encoding="utf-8"
+    )
 
     # --- Runtime / infra ---
     env: str = Field("", validation_alias="ENV")
@@ -93,5 +98,45 @@ def get_settings() -> Settings:
 
     Call ``get_settings.cache_clear()`` to force a re-read of the environment
     (used by tests that mutate env vars between cases).
+
+    ``_env_file`` is resolved per-call so the pytest isolation guard in
+    :func:`intellisource.core.paths.resolve_env_file` applies at runtime, not
+    at class-definition time.
     """
-    return Settings()
+    return Settings(_env_file=resolve_env_file())
+
+
+# Provider API keys litellm resolves from ``os.environ`` (no ``IS_`` prefix).
+# Authoritative list — startup-warning / doctor checks should reference this
+# rather than maintaining their own copies.
+PROVIDER_ENV_KEYS = (
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "DEEPSEEK_API_KEY",
+    "AZURE_API_KEY",
+    "AZURE_API_BASE",
+    "AZURE_API_VERSION",
+)
+
+
+def load_provider_env() -> None:
+    """Re-export provider API keys from the ``.env`` file into ``os.environ``.
+
+    litellm reads provider credentials from ``os.environ`` at call time and the
+    gateway passes no explicit ``api_key``; pydantic-settings' ``env_file`` only
+    populates Settings *fields*, never ``os.environ``. A local bare process
+    (uvicorn / celery / CLI) therefore needs this bridge. ``setdefault`` keeps
+    any value already present — an explicit export, or Docker's ``env_file:``
+    injection (a no-op there). No-op when no env file is resolved (e.g. under
+    pytest) or the resolved file is absent.
+    """
+    env_path = resolve_env_file()
+    if env_path is None or not env_path.exists():
+        return
+    from dotenv import dotenv_values  # noqa: PLC0415
+
+    values = dotenv_values(env_path, encoding="utf-8")
+    for key in PROVIDER_ENV_KEYS:
+        val = values.get(key)
+        if val:
+            os.environ.setdefault(key, val)

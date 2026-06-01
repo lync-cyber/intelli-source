@@ -34,6 +34,21 @@ def _reset_settings_cache() -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
+def _isolate_env_file(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stop unit tests from auto-loading the developer's real docker/.env.
+
+    ``get_settings()`` / ``load_provider_env()`` resolve the env file via the
+    ``settings`` module's ``resolve_env_file`` reference; docker/.env holds
+    real, gitignored secrets on a dev machine. Stubbing that reference (not the
+    paths-module original) isolates them while leaving test_paths.py free to
+    exercise the real resolver, and survives ``patch.dict(os.environ,
+    clear=True)`` since it does not rely on env vars. Tests needing a specific
+    env file re-stub this reference themselves.
+    """
+    monkeypatch.setattr("intellisource.core.settings.resolve_env_file", lambda: None)
+
+
+@pytest.fixture(autouse=True)
 def _stub_distributor_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Default fake env for distributor channels.
 

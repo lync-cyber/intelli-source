@@ -2,6 +2,44 @@
 
 AI-powered intelligent information aggregation and distribution platform.
 
+## 快速上手（新用户）
+
+零基础把系统跑起来（先装 [Docker Desktop](https://www.docker.com/products/docker-desktop/) 与 [uv](https://docs.astral.sh/uv/)）：
+
+```bash
+# 1. 安装依赖并注册 intellisource 命令
+uv sync
+
+# 2. 交互式初始化（生成 docker/.env、播种配置模板、写入起始信源）
+uv run intellisource init
+
+# 3. 一键启动全栈（db / redis / 迁移 / api / worker / beat）
+uv run intellisource up
+
+# 4. 自检配置（含运行中 API 健康检查）
+uv run intellisource doctor --check-api
+
+# 5. 加载订阅并触发第一次采集
+uv run intellisource subscriptions reload
+uv run intellisource source list             # 找到 source id
+uv run intellisource task trigger <source-id>
+```
+
+Windows PowerShell / macOS / Linux 命令**完全一致**——`intellisource up/down/migrate/logs/ps` 跨平台封装 `docker compose`，无需安装 `make`。装了 `make`（Linux/macOS）也可用等价的 `make up` / `make bootstrap`。
+
+**核心概念**（理解这 4 个即可上手）：
+
+| 概念 | 含义 | 配置位置 |
+|------|------|----------|
+| **source** 信源 | 内容从哪来（RSS / API / 网页） | `config/sources/` |
+| **subscription** 订阅 | 把匹配内容推给谁、走哪个渠道 | `config/subscriptions/` |
+| **channel** 渠道 | 推送目的地（企业微信 / 公众号 / 邮件）凭据 | `docker/.env` |
+| **pipeline** 流水线 | 采集 → 处理 → 分发的自动编排 | `config/pipelines/` |
+
+完整链路需要 **source + subscription + channel** 三者都配置好才会有推送。
+
+> `intellisource init` 在**宿主机**运行（容器以只读挂载 `config`，容器内无法写）。任何"配置不生效"先跑 `uv run intellisource doctor` 自检。本地直接 `uv run uvicorn`/`celery` 时，进程会自动加载 `docker/.env` 中的 `IS_*` 与 LLM provider key。
+
 ## 开发环境
 
 ```bash

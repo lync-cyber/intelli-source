@@ -12,6 +12,8 @@ consumers: [devops, qa-engineer, developer]
 > 用途：deploy 阶段 `pre_deploy` 人工 go/no-go 检查清单。按管线工作流程分 8 阶段、共 20 步手动验证每个模块；每步给出"启动 → 触发 → 期望响应 → 验证手段 → Pass 标准"，并预留签字栏。
 > 范围：本文件覆盖 M-001~M-011 全部模块的功能性烟测；不替代 `uv run pytest` 单元/集成回归（已 2766 PASS 基线）。
 > 已知卡点：B-001（`/search/chat/stream` RAG 上下文缺失）与 B-002（`/search` date 过滤类型）属 P0，必须在阶段 4 前先闭环；详见 [docs/BACKLOG-intellisource-v1.md](../BACKLOG-intellisource-v1.md)。
+>
+> 新手快速上手（非部署走查）见 [README §快速上手（新用户）](../../README.md)：`uv sync` → `uv run intellisource init` → `intellisource up` → `intellisource doctor --check-api`。本清单面向部署 go/no-go，假设读者已理解各模块。
 
 ---
 

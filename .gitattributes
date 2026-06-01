@@ -16,6 +16,10 @@
 Dockerfile text eol=lf
 Makefile   text eol=lf
 
+# 环境文件模板强制 LF（容器 env_file 解析对行尾 \r 敏感）
+.env.example  text eol=lf
+*.env         text eol=lf
+
 # Windows 批处理与 PowerShell 保留 CRLF
 *.bat      text eol=crlf
 *.cmd      text eol=crlf
