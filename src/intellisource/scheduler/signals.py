@@ -15,6 +15,7 @@ import structlog
 from celery.signals import task_failure, task_postrun, task_prerun
 
 from intellisource.observability.metrics import MetricsCollector
+from intellisource.observability.shared_metrics import get_shared_metric_store
 from intellisource.observability.trace_context import (
     TRACE_HEADER_KEY,
     reset_trace_id,
@@ -29,6 +30,18 @@ _START_TIME_ATTR: str = "_intellisource_started_at"
 _METRIC_TASKS_TOTAL = "celery_tasks_total"
 _METRIC_TASK_FAILURES = "celery_task_failures_total"
 _METRIC_TASK_DURATION = "celery_task_duration_seconds"
+
+
+def seed_shared_metrics() -> None:
+    """Seed the celery_* counters at 0 in the cross-process store.
+
+    Called once per worker process at init so the API ``/metrics`` endpoint
+    lists the families before the first task runs (Prometheus then sees a
+    baseline series instead of an absent one).
+    """
+    store = get_shared_metric_store()
+    store.seed_counter(_METRIC_TASKS_TOTAL, "Total Celery tasks executed (any status)")
+    store.seed_counter(_METRIC_TASK_FAILURES, "Total Celery tasks ended in failure")
 
 
 def _register_metrics(mc: MetricsCollector) -> None:
@@ -97,6 +110,13 @@ def _on_task_postrun(
         start = getattr(task.request, _START_TIME_ATTR, None)
         if isinstance(start, float):
             mc.observe_histogram(_METRIC_TASK_DURATION, time.monotonic() - start)
+        # Mirror into the cross-process store so the API /metrics endpoint can
+        # surface this worker child's count (its local collector is never
+        # served over HTTP under the prefork pool).
+        get_shared_metric_store().increment_counter(
+            _METRIC_TASKS_TOTAL,
+            description="Total Celery tasks executed (any status)",
+        )
     except Exception:  # noqa: BLE001 — signal handlers must never raise
         logger.exception("failed to record celery task metrics")
 
@@ -121,5 +141,9 @@ def _on_task_failure(sender: Any = None, **_: Any) -> None:
         mc = MetricsCollector.get_instance()
         _register_metrics(mc)
         mc.increment_counter(_METRIC_TASK_FAILURES)
+        get_shared_metric_store().increment_counter(
+            _METRIC_TASK_FAILURES,
+            description="Total Celery tasks ended in failure",
+        )
     except Exception:  # noqa: BLE001
         logger.exception("failed to record celery task failure metric")

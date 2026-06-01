@@ -10,6 +10,7 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
+from starlette.types import ASGIApp
 
 from intellisource.core.settings import get_settings
 from intellisource.observability.trace_context import trace_id_ctx
@@ -96,6 +97,13 @@ class RequestLoggerMiddleware(BaseHTTPMiddleware):
       labelled counter at scrape time.
     - ``http_request_duration_seconds`` histogram records wall-clock seconds.
     """
+
+    def __init__(self, app: ASGIApp) -> None:
+        super().__init__(app)
+        # Register the HTTP families at startup (when the middleware stack is
+        # built) so the very first /metrics scrape already lists them, rather
+        # than only after the first non-metrics request.
+        _ensure_http_metrics_registered()
 
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint

@@ -485,6 +485,12 @@ def _install_observability_state(
     app.state.health_checker = checker
 
     app.state.metrics_collector = metrics_collector_instance
+
+    # Cross-process metric sink: the API endpoint reads worker-recorded
+    # families (celery_*) back from the shared Redis store at scrape time.
+    from intellisource.observability.shared_metrics import get_shared_metric_store
+
+    app.state.shared_metrics = get_shared_metric_store()
     from intellisource.config.models import SourceConfig
 
     app.state.config_version_manager = ConfigVersionManager(

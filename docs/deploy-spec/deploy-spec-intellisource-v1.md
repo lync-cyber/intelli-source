@@ -480,15 +480,15 @@ curl -s "http://localhost:9090/api/v1/targets" | \
 
 | 指标名 | 类型 | labels | 说明 |
 |--------|------|--------|------|
-| `http_requests_total` | Counter | `method, path, status_code` | HTTP 请求总数 |
-| `http_request_duration_seconds` | Histogram | `method, path` | HTTP 请求延迟 |
+| `http_requests_total` | Counter | — | HTTP 请求总数（任意 method/status，API 进程，启动期 eager 注册）|
+| `http_request_duration_seconds` | Histogram | — | HTTP 请求延迟（MetricsCollector 不支持带标签直方图）|
 | `llm_calls_total` | Counter | `model` | LLM 调用总数（按模型）|
 | `llm_call_failures_total` | Counter | `model` | LLM 调用失败数（按模型）|
-| `llm_call_latency_seconds` | Histogram | `model` | LLM 调用延迟 |
-| `llm_circuit_open` | Gauge | — | 熔断器状态（0=关闭, 1=开路）|
+| `llm_call_latency_seconds` | Histogram | — | LLM 调用延迟 |
+| `llm_circuit_open` | Gauge | — | 任一熔断器 OPEN 即 1，否则 0（熔断器构造期 eager 注册）|
 | `pushes_total` | Counter | `channel, status` | 推送总数（按渠道和状态）|
-| `celery_tasks_total` | Counter | `task_name` | Celery 任务总数 |
-| `celery_task_failures_total` | Counter | `task_name` | Celery 任务失败数 |
+| `celery_tasks_total` | Counter | — | Celery 任务总数（worker 进程经共享 Redis store 暴露，B-014）|
+| `celery_task_failures_total` | Counter | — | Celery 任务失败数（同上，跨进程）|
 | `scheduler_beat_sync_failed_total` | Counter | — | Beat 调度同步失败数 |
 | `intellisource_health_status` | Gauge | `component` | 组件健康状态（0=healthy, 1=degraded, 2=unhealthy）|
 
