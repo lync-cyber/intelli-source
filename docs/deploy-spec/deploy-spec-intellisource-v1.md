@@ -206,10 +206,13 @@ IntelliSource 由 6 个容器组成，通过 Docker Compose 单主机编排；Pr
 | `IS_WECHAT_APP_ID` | MEDIUM | 微信公众号 AppID |
 | `IS_WECHAT_APP_SECRET` | HIGH | 微信公众号 AppSecret |
 | `IS_WECHAT_WEBHOOK_TOKEN` | HIGH | 微信服务端校验 Token |
-| `IS_WEWORK_CORP_ID` | MEDIUM | 企业微信 CorpID |
-| `IS_WEWORK_CORP_SECRET` | HIGH | 企业微信 CorpSecret |
-| `IS_WEWORK_AGENT_ID` | MEDIUM | 企业微信应用 AgentID |
-| `IS_WEWORK_WEBHOOK_TOKEN` | HIGH | 企业微信回调 Token |
+| `IS_WEWORK_CORP_ID` | MEDIUM | 企业微信 CorpID（出站推送必填）|
+| `IS_WEWORK_CORP_SECRET` | HIGH | 企业微信应用 Secret（出站推送必填）|
+| `IS_WEWORK_AGENT_ID` | MEDIUM | 企业微信应用 AgentID（出站推送必填）|
+| `IS_WECOM_CORP_ID` | MEDIUM | 入站 webhook receiver 校验 CorpID（与 `IS_WEWORK_CORP_ID` 同值；入站客服回话必填）|
+| `IS_WECOM_TOKEN` | HIGH | 入站 webhook 回调签名验证 Token（入站客服回话必填）|
+| `IS_WECOM_ENCODING_AES_KEY` | HIGH | 入站 webhook AES-CBC 解密密钥（43 位 EncodingAESKey；入站客服回话必填）|
+| `IS_WEWORK_WEBHOOK_TOKEN` | LOW | 明文回调 Token 字段；wework webhook 走 AES 加密路径（`IS_WECOM_TOKEN` 验签），当前不消费此值 |
 | `IS_SMTP_HOST` | LOW | SMTP 服务器地址 |
 | `IS_SMTP_USER` | MEDIUM | SMTP 登录用户名 |
 | `IS_SMTP_PASSWORD` | HIGH | SMTP 登录密码 |
@@ -234,8 +237,9 @@ IntelliSource 由 6 个容器组成，通过 Docker Compose 单主机编排；Pr
 | `ANTHROPIC_API_KEY` | LLM 调用 | Docker Env / Secret Manager | 按 provider 策略 |
 | `IS_WECHAT_APP_SECRET` | 微信渠道 | Docker Env / Secret Manager | 按微信平台策略 |
 | `IS_WECHAT_WEBHOOK_TOKEN` | 微信回调签名验证 | Docker Env / Secret Manager | 按微信平台策略或泄露时 |
-| `IS_WEWORK_CORP_SECRET` | 企业微信渠道 | Docker Env / Secret Manager | 按企微平台策略 |
-| `IS_WEWORK_WEBHOOK_TOKEN` | 企业微信回调签名验证 | Docker Env / Secret Manager | 按企微平台策略或泄露时 |
+| `IS_WEWORK_CORP_SECRET` | 企业微信出站推送凭据 | Docker Env / Secret Manager | 按企微平台策略 |
+| `IS_WECOM_TOKEN` | 企业微信入站 webhook 回调签名验证 | Docker Env / Secret Manager | 按企微平台策略或泄露时 |
+| `IS_WECOM_ENCODING_AES_KEY` | 企业微信入站 webhook AES-CBC 解密 | Docker Env / Secret Manager | 按企微平台策略或泄露时 |
 | `IS_SMTP_PASSWORD` | 邮件渠道 | Docker Env / Secret Manager | 90 天或泄露时 |
 
 #### 密钥管理规则

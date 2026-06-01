@@ -462,7 +462,10 @@ def init(
         channel_updates["IS_WEWORK_CORP_SECRET"] = typer.prompt("IS_WEWORK_CORP_SECRET")
         channel_updates["IS_WEWORK_AGENT_ID"] = typer.prompt("IS_WEWORK_AGENT_ID")
         channel_updates["IS_WEWORK_WEBHOOK_TOKEN"] = typer.prompt(
-            "IS_WEWORK_WEBHOOK_TOKEN (for incoming webhook verification)", default=""
+            "IS_WEWORK_WEBHOOK_TOKEN (optional; inbound webhook reply uses "
+            "IS_WECOM_TOKEN / IS_WECOM_ENCODING_AES_KEY / IS_WECOM_CORP_ID "
+            "— set those separately)",
+            default="",
         )
     elif ch_choice == "2":
         channel_updates["IS_WECHAT_APP_ID"] = typer.prompt("IS_WECHAT_APP_ID")
