@@ -1,5 +1,10 @@
 COMPOSE := docker compose -f docker/docker-compose.yml
 
+# UTF-8 process floor for local test runs. Must prefix the command so the env
+# is set before the interpreter starts — PYTHONUTF8 is read at init and has no
+# effect if set afterwards. Mirrors docker/Dockerfile and the CI test jobs.
+UTF8_ENV := PYTHONUTF8=1 PYTHONIOENCODING=utf-8
+
 .PHONY: up down migrate logs ps clean rollback bootstrap \
         arch deps deadcode deps-graph check check-all lint-fix help \
         test-unit test-integration contract-check
@@ -81,14 +86,15 @@ check: arch deps deadcode test-unit
 check-all: check test-integration
 
 test-unit:
-	uv run pytest tests/unit -q --tb=short -m "not slow" -n auto
+	$(UTF8_ENV) uv run pytest tests/unit -q --tb=short -m "not slow" -n auto
 
 test-integration:
 	@if ! docker compose -f docker/docker-compose.yml ps --status=running --services 2>/dev/null | grep -q '^db$$'; then \
 		echo "ERROR: db container not running. Run 'make up' first." >&2; \
 		exit 1; \
 	fi
-	DATABASE_URL="postgresql+asyncpg://intellisource:intellisource@localhost:5432/intellisource" \
+	$(UTF8_ENV) \
+		DATABASE_URL="postgresql+asyncpg://intellisource:intellisource@localhost:5432/intellisource" \
 		uv run pytest tests/integration -q --tb=short
 
 # contract-check looks at staged + unstaged diff vs main and prints which test

@@ -152,7 +152,9 @@ class TestSensitiveWordLoading:
 
         # Update the config file to add "forbidden"
         updated_words = SENSITIVE_WORDS + ["forbidden"]
-        config_file.write_text(json.dumps({"sensitive_words": updated_words}))
+        config_file.write_text(
+            json.dumps({"sensitive_words": updated_words}), encoding="utf-8"
+        )
 
         # Hot-reload
         cf.reload_words()

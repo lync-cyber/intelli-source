@@ -13,6 +13,7 @@ from typing import Any
 import httpx
 import typer
 
+from intellisource.core.encoding import enforce_utf8_runtime
 from intellisource.core.paths import project_root
 from intellisource.core.settings import (
     PROVIDER_ENV_KEYS,
@@ -118,6 +119,7 @@ def main(
     api_key: str | None = typer.Option(None, "--api-key", help="API key"),
 ) -> None:
     """IntelliSource CLI."""
+    enforce_utf8_runtime()
     load_provider_env()
     settings = get_settings()
     if api_url is not None:

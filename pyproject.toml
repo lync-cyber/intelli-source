@@ -81,7 +81,13 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W"]
+# PLW1514 (unspecified-encoding) machine-enforces the UTF-8 encoding contract:
+# every text-mode open/read_text/write_text must pass encoding= explicitly, so a
+# locale-dependent default can never slip in. It is a ruff preview rule, scoped
+# in via explicit-preview-rules so no other unstable preview rule activates.
+preview = true
+explicit-preview-rules = true
+select = ["E", "F", "I", "N", "W", "PLW1514"]
 
 [tool.mypy]
 python_version = "3.11"

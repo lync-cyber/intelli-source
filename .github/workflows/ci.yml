@@ -14,6 +14,11 @@ jobs:
   unit-tests:
     name: Unit Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    # UTF-8 process floor: pin the interpreter so test runs match the
+    # containerized runtime (docker/Dockerfile) regardless of runner locale.
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
     strategy:
       matrix:
         python-version: ["3.11", "3.12"]
@@ -39,6 +44,10 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # UTF-8 process floor (matches the unit-tests job and docker/Dockerfile).
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
 
     steps:
       - uses: actions/checkout@v4
