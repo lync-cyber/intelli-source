@@ -61,6 +61,9 @@ async def _process_execute(
     from intellisource.storage.repositories.content import (  # noqa: PLC0415
         ContentRepository,
     )
+    from intellisource.storage.repositories.source import (  # noqa: PLC0415
+        SourceRepository,
+    )
 
     processed_content_ids: list[str] = []
     results: list[dict[str, Any]] = []
@@ -106,6 +109,14 @@ async def _process_execute(
             tags_val = ctx.get("tags")
             tags: list[str] = tags_val if isinstance(tags_val, list) else []
 
+            discipline_tags: list[str] = []
+            source_name: str | None = None
+            if isinstance(raw.source_id, _uuid.UUID):
+                source = await SourceRepository(session).get_by_id(raw.source_id)
+                if source is not None:
+                    discipline_tags = list(source.discipline_tags)
+                    source_name = source.name
+
             existing_processed = await repo.get_processed_by_raw_id(raw_id)
             if existing_processed is not None:
                 processed = existing_processed
@@ -120,6 +131,8 @@ async def _process_execute(
                     body_text=str(ctx.get("body_text") or raw.body_text or ""),
                     summary=str(ctx.get("summary") or ""),
                     tags=tags,
+                    discipline_tags=discipline_tags,
+                    source_name=source_name,
                     embedding=embedding_arg,
                     fingerprint=str(ctx.get("fingerprint") or raw.fingerprint or ""),
                     source_url=raw.source_url,

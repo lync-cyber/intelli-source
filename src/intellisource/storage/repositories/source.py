@@ -33,6 +33,7 @@ class SourceRepository(BaseRepository[Source]):
             existing.type = config.type
             existing.url = config.url
             existing.tags = config.tags
+            existing.discipline_tags = config.discipline_tags
             existing.schedule_interval = config.schedule_interval
             existing.schedule_adaptive = config.schedule_adaptive
             existing.proxy = config.proxy
@@ -46,6 +47,7 @@ class SourceRepository(BaseRepository[Source]):
             type=config.type,
             url=config.url,
             tags=config.tags,
+            discipline_tags=config.discipline_tags,
             status="active",
             schedule_interval=config.schedule_interval,
             schedule_adaptive=config.schedule_adaptive,
@@ -84,6 +86,7 @@ class SourceRepository(BaseRepository[Source]):
                 existing.type = config.type
                 existing.url = config.url
                 existing.tags = config.tags
+                existing.discipline_tags = config.discipline_tags
                 existing.status = "active"
                 existing.schedule_interval = config.schedule_interval
                 existing.schedule_adaptive = config.schedule_adaptive
@@ -98,6 +101,7 @@ class SourceRepository(BaseRepository[Source]):
                         type=config.type,
                         url=config.url,
                         tags=config.tags,
+                        discipline_tags=config.discipline_tags,
                         status="active",
                         schedule_interval=config.schedule_interval,
                         schedule_adaptive=config.schedule_adaptive,

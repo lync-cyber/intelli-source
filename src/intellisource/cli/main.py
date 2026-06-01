@@ -25,11 +25,13 @@ source_app = typer.Typer()
 task_app = typer.Typer()
 pipeline_app = typer.Typer()
 subscriptions_app = typer.Typer()
+topic_app = typer.Typer()
 
 app.add_typer(source_app, name="source")
 app.add_typer(task_app, name="task")
 app.add_typer(pipeline_app, name="pipeline")
 app.add_typer(subscriptions_app, name="subscriptions")
+app.add_typer(topic_app, name="topic")
 
 
 # ---------------------------------------------------------------------------
@@ -731,6 +733,8 @@ def init(
     typer.echo("\nNext steps:")
     typer.echo("  uv run intellisource up                        # start the stack")
     typer.echo("  uv run intellisource doctor --check-api        # verify config")
+    typer.echo("  uv run intellisource topic list                # built-in topics")
+    typer.echo("  uv run intellisource topic enable <id> --channel wework")
     typer.echo("  uv run intellisource subscriptions reload      # load subscriptions")
     typer.echo("  uv run intellisource task trigger <source-id>  # first collection")
 
@@ -878,5 +882,58 @@ def subscriptions_rollback(
     resp = _post_json(f"/api/v1/subscriptions/config/rollback/{version}", {})
     if resp.status_code == 404:
         typer.echo(f"Version {version!r} not found")
+        raise typer.Exit(code=1)
+    _emit(resp.json(), json_output=json_output)
+
+
+@topic_app.command("list")
+def topic_list(
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    """List the built-in collection topics (discipline / industry packs)."""
+    url = f"{_base_url()}/api/v1/topics"
+    resp = _http(lambda: httpx.get(url, headers=_get_headers()))
+    _emit(resp.json(), json_output=json_output)
+
+
+@topic_app.command("enable")
+def topic_enable(
+    topic_id: str = typer.Argument(..., help="Topic id, e.g. artificial-intelligence"),
+    channel: str | None = typer.Option(
+        None, "--channel", help="wework / wechat / email — also creates a subscription"
+    ),
+    to_addr: str | None = typer.Option(None, "--to-addr", help="email recipient"),
+    user_id: str | None = typer.Option(None, "--user-id", help="wework user id"),
+    no_subscription: bool = typer.Option(
+        False, "--no-subscription", help="Only import sources, skip subscription"
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    """Provision a topic: import its sources and (optionally) subscribe a channel."""
+    if channel is not None and channel not in {"wework", "wechat", "email"}:
+        typer.echo(f"Error: channel must be wework/wechat/email, got {channel!r}")
+        raise typer.Exit(code=2)
+
+    channel_config: dict[str, Any] = {}
+    if channel == "email" and to_addr:
+        channel_config["to_addr"] = to_addr
+    if channel == "wework" and user_id:
+        channel_config["user_id"] = user_id
+
+    payload: dict[str, Any] = {
+        "channel": channel,
+        "channel_config": channel_config,
+        "create_subscription": not no_subscription,
+    }
+    resp = _post_json(f"/api/v1/topics/{topic_id}/enable", payload)
+    if resp.status_code == 404:
+        typer.echo(f"Topic {topic_id!r} not found")
+        raise typer.Exit(code=1)
+    if resp.status_code >= 400:
+        try:
+            detail = resp.json().get("detail", "")
+        except Exception:
+            detail = resp.text
+        typer.echo(f"Error ({resp.status_code}): {detail}")
         raise typer.Exit(code=1)
     _emit(resp.json(), json_output=json_output)

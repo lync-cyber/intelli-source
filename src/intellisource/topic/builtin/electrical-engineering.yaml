@@ -1,0 +1,34 @@
+id: electrical-engineering
+name: 电气工程
+dimension: discipline
+description: 电气工程学科信源 — IEEE 行业媒体与 arXiv 信号/系统控制前沿论文。对齐 GB/T 13745 工学一级学科。
+tags: [电气工程, electrical-engineering]
+discipline_tags: [电气工程, electrical-engineering]
+sources:
+  - name: IEEE Spectrum
+    type: rss
+    url: https://spectrum.ieee.org/feeds/feed.rss
+    tags: [电气工程, engineering]
+    discipline_tags: [电气工程, electrical-engineering]
+  - name: IEEE Spectrum Energy
+    type: rss
+    url: https://spectrum.ieee.org/feeds/topic/energy.rss
+    tags: [电气工程, energy, power]
+    discipline_tags: [电气工程, electrical-engineering]
+  - name: arXiv eess.SP
+    type: rss
+    url: https://rss.arxiv.org/rss/eess.SP
+    tags: [电气工程, signal-processing]
+    discipline_tags: [电气工程, electrical-engineering]
+  - name: arXiv eess.SY
+    type: rss
+    url: https://rss.arxiv.org/rss/eess.SY
+    tags: [电气工程, control-systems]
+    discipline_tags: [电气工程, electrical-engineering]
+subscription_template:
+  name: 电气工程 订阅
+  frequency: daily
+  discipline_tags: [电气工程, electrical-engineering]
+  match_rules:
+    discipline_tags: [电气工程, electrical-engineering]
+    keywords: ["+power", "+grid", "!招聘"]

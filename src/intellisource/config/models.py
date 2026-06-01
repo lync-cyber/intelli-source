@@ -14,6 +14,7 @@ class SourceConfig(BaseModel):
     type: Literal["rss", "api", "web"]
     url: str
     tags: list[str] = Field(default_factory=list)
+    discipline_tags: list[str] = Field(default_factory=list)
     schedule_interval: int = 3600
     schedule_adaptive: bool = True
     proxy: str | None = None

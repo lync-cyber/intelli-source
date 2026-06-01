@@ -25,6 +25,7 @@ class SourcePatchRequest(BaseModel):
     type: str | None = None
     url: str | None = None
     tags: list[str] | None = None
+    discipline_tags: list[str] | None = None
     status: str | None = None
     schedule_interval: int | None = None
     schedule_adaptive: bool | None = None
@@ -42,6 +43,7 @@ def _serialize_source(s: Any) -> dict[str, Any]:
         "type": s.type,
         "url": s.url,
         "tags": s.tags,
+        "discipline_tags": list(s.discipline_tags),
         "status": s.status,
         "created_at": s.created_at,
         "updated_at": s.updated_at,

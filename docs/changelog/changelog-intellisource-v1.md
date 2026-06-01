@@ -9,6 +9,16 @@ consumers: [all]
 ---
 # Changelog: IntelliSource v1
 
+## [1.1.0] - 2026-06-01
+
+### Added (内置采集主题目录 + discipline 链路打通)
+
+- **内置主题目录**：新增 `intellisource.topic` 包，按"学科 / 行业"两轴提供 6 组开箱即用主题包（`topic/builtin/*.yaml`）：电气工程 / 计算机科学 / 生物医药（discipline）+ 人工智能 / 金融财经 / 科技互联网（industry）。每个主题绑定一组精选信源 + 默认订阅模板，`TopicService.enable` 一键 additive 同步信源（带版本快照可回滚）并按渠道生成默认订阅
+- **CLI**：`intellisource topic list` / `topic enable <id> [--channel wework|email|wechat] [--to-addr|--user-id] [--no-subscription]`；`init` 引导 Next steps 增加主题发现入口
+- **API**：`GET /api/v1/topics`、`GET /api/v1/topics/{id}`、`POST /api/v1/topics/{id}/enable`
+- **discipline_tags 全链路打通**：`SourceConfig` 新增 `discipline_tags` 字段 → 同步到 `Source.discipline_tags`；`ProcessedContent` 新增 `discipline_tags` 列（migration `f6a7b8c9d0e1`，GIN 索引）；内容处理流水线把来源 source 的 `discipline_tags` 与 `source_name` 落到 `ProcessedContent`，使订阅 `match_rules.discipline_tags`（学科维度）真正生效（此前内容侧无列/无生产，该维度恒不命中）
+- `/sources` 序列化与 PATCH body 暴露 `discipline_tags`
+
 ## [1.0.0-rc3] - 2026-06-01
 
 ### Fixed (deploy-spec r3 — wework 部署就绪度核对修订)
