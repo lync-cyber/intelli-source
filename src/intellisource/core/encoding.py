@@ -18,9 +18,27 @@ Two layers enforce it, and this module is the connective tissue between them:
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from typing import Final
 
 ENCODING: Final = "utf-8"
+
+
+def read_text(path: Path | str) -> str:
+    """Read a whole text file under the UTF-8 contract.
+
+    The single read entrypoint for the project: callers pass only the path,
+    never an ``encoding=`` — the contract lives here, not at each call site.
+    """
+    return Path(path).read_text(encoding=ENCODING)
+
+
+def write_text(path: Path | str, data: str) -> None:
+    """Write a whole text file under the UTF-8 contract.
+
+    The single write entrypoint; see :func:`read_text`.
+    """
+    Path(path).write_text(data, encoding=ENCODING)
 
 
 def enforce_utf8_runtime() -> None:

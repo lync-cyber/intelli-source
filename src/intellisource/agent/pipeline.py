@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from intellisource.core.encoding import read_text
+
 _VALID_MODES = ("strict", "flexible", "batch")
 _VALID_ON_FAILURE = ("abort", "skip", "retry")
 _VALID_AGENT_MODES = ("process", "analyze", "preview")
@@ -146,6 +148,5 @@ class PipelineConfig:
         """Create a PipelineConfig from a YAML file."""
         import yaml  # noqa: WPS433
 
-        with open(path, encoding="utf-8") as fh:
-            data: dict[str, Any] = yaml.safe_load(fh)
+        data: dict[str, Any] = yaml.safe_load(read_text(path))
         return cls.from_dict(data)

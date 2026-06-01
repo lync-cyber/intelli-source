@@ -21,6 +21,7 @@ from functools import lru_cache
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from intellisource.core.encoding import ENCODING
 from intellisource.core.paths import resolve_env_file
 
 
@@ -28,7 +29,7 @@ class Settings(BaseSettings):
     """Environment-backed application configuration."""
 
     model_config = SettingsConfigDict(
-        case_sensitive=False, extra="ignore", env_file_encoding="utf-8"
+        case_sensitive=False, extra="ignore", env_file_encoding=ENCODING
     )
 
     # --- Runtime / infra ---
@@ -135,7 +136,7 @@ def load_provider_env() -> None:
         return
     from dotenv import dotenv_values  # noqa: PLC0415
 
-    values = dotenv_values(env_path, encoding="utf-8")
+    values = dotenv_values(env_path, encoding=ENCODING)
     for key in PROVIDER_ENV_KEYS:
         val = values.get(key)
         if val:

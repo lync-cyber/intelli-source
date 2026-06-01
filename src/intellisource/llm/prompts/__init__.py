@@ -10,6 +10,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from intellisource.core.encoding import read_text
+
 _TEMPLATE_DIR = Path(__file__).parent
 
 
@@ -33,9 +35,9 @@ def _read_template(name: str, style: str | None = None) -> str:
         _validate_path_component(style, "style")
         variant_path = _TEMPLATE_DIR / f"{name}.{style}.txt"
         if variant_path.exists():
-            return variant_path.read_text(encoding="utf-8")
+            return read_text(variant_path)
     path = _TEMPLATE_DIR / f"{name}.txt"
-    return path.read_text(encoding="utf-8")
+    return read_text(path)
 
 
 def load_prompt(name: str, *, style: str | None = None, **kwargs: Any) -> str:

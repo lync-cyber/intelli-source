@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -11,6 +12,8 @@ from intellisource.core.encoding import (
     ENCODING,
     enforce_utf8_runtime,
     is_utf8_environment,
+    read_text,
+    write_text,
 )
 
 
@@ -33,6 +36,32 @@ class _NoReconfigureStream:
 
 def test_encoding_constant_is_utf8() -> None:
     assert ENCODING == "utf-8"
+
+
+def test_read_write_text_round_trip_with_non_ascii(tmp_path: Path) -> None:
+    target = tmp_path / "sub" / "note.txt"
+    target.parent.mkdir()
+    payload = "北京天安门 — café — \U0001f680"
+
+    write_text(target, payload)
+
+    assert read_text(target) == payload
+    # The bytes on disk are UTF-8 regardless of the host locale.
+    assert target.read_bytes() == payload.encode("utf-8")
+
+
+def test_read_text_accepts_str_path(tmp_path: Path) -> None:
+    target = tmp_path / "note.txt"
+    target.write_text("数据", encoding="utf-8")
+
+    assert read_text(str(target)) == "数据"
+
+
+def test_read_text_decodes_utf8_bytes(tmp_path: Path) -> None:
+    target = tmp_path / "raw.txt"
+    target.write_bytes("简体中文".encode("utf-8"))
+
+    assert read_text(target) == "简体中文"
 
 
 def test_enforce_reconfigures_stdout_and_stderr_to_utf8(

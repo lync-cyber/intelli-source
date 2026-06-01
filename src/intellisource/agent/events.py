@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
+from intellisource.core.encoding import ENCODING
 from intellisource.observability.logging import get_logger
 
 logger = get_logger(__name__)
@@ -67,7 +68,7 @@ class PipelineEventLogger:
 
     def _append(self, line: str) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        with self._path.open("a", encoding="utf-8") as fh:
+        with self._path.open("a", encoding=ENCODING) as fh:
             fh.write(line)
 
     async def pipeline_start(

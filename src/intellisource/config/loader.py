@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.config.models import SourceConfig
 from intellisource.config.validator import ConfigValidator
+from intellisource.core.encoding import read_text
 from intellisource.core.settings import get_settings
 from intellisource.observability.logging import get_logger
 
@@ -67,8 +68,7 @@ class ConfigLoader:
 
         fmt = _detect_format(file_path)
 
-        with open(resolved, encoding="utf-8") as f:
-            content = f.read()
+        content = read_text(resolved)
 
         return self._validator.validate_sources_file(content, format=fmt)
 

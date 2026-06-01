@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+from intellisource.core.encoding import read_text
 from intellisource.core.processor import BaseProcessor, PipelineContext
 
 
@@ -23,8 +24,7 @@ class ContentFilter(BaseProcessor):
     def load_words(self, config_path: str) -> None:
         """Load sensitive words from a JSON config file."""
         self._config_path = config_path
-        with open(config_path, encoding="utf-8") as f:
-            data = json.load(f)
+        data = json.loads(read_text(config_path))
         self._words = list(data.get("sensitive_words", []))
 
     def reload_words(self) -> None:
