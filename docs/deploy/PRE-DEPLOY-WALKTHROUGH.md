@@ -812,9 +812,11 @@ done
 curl -s http://localhost:8000/api/v1/metrics | grep -E "^(http_requests_total|llm_calls_total|llm_call_failures_total|llm_call_latency_seconds|llm_circuit_open|pushes_total|celery_tasks_total|scheduler_beat_sync_failed_total|intellisource_health_status)" | head -30
 # 期望: 列出的指标家族至少各有 1 个 sample
 # 注：collector_/pipeline_/task_queue_ 家族在代码中不存在；push_ 实际名为 pushes_total
+# 注：celery_* 由 worker 进程经共享 Redis store 写入、API 端点 merge 后暴露（B-014）；
+#     须 worker 容器已起（步骤 12，启动期 seed 为 0）且 Redis 可达，否则该族不出现。
 ```
 
-**Pass 标准**：Prometheus healthy、alerts 加载非空、两个 metrics 路径（`/api/v1/metrics` / `/api/v1/system/metrics`）都有 `# HELP` 行、上述指标家族都有数据。
+**Pass 标准**：Prometheus healthy、alerts 加载非空、两个 metrics 路径（`/api/v1/metrics` / `/api/v1/system/metrics`）都有 `# HELP` 行、上述指标家族都有数据（`celery_*` 跨进程族依赖 worker 已起 + Redis 可达）。
 
 ☐ 通过 / 签字：__________
 

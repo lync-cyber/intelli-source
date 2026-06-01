@@ -112,9 +112,24 @@ async def metrics(request: Request) -> PlainTextResponse:
 
 
 def metrics_response(request: Request) -> PlainTextResponse:
-    """Build Prometheus text from app.state.metrics_collector."""
+    """Build Prometheus text from app.state.metrics_collector + shared store.
+
+    The local collector covers API-process families (``http_*`` / ``llm_*`` /
+    ``pushes_total`` / ``llm_circuit_open`` / health); worker-process families
+    (``celery_*``) are merged in from the shared Redis store so one scrape of
+    ``/api/v1/metrics`` surfaces every advertised family across processes.
+    """
+    from intellisource.observability.shared_metrics import (
+        get_shared_metric_store,
+        render_shared_metrics_text,
+    )
+
     collector = getattr(request.app.state, "metrics_collector", None)
     text = _format_prometheus(collector)
+    store = getattr(request.app.state, "shared_metrics", None)
+    if store is None:
+        store = get_shared_metric_store()
+    text += render_shared_metrics_text(store.read_all())
     return PlainTextResponse(content=text, media_type="text/plain; version=0.0.4")
 
 

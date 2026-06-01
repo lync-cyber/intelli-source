@@ -61,6 +61,17 @@ class CircuitBreaker:
         self._model = model
         self._provider = provider
         self._key = f"circuit_breaker:{provider}:{model}"
+        # Register the aggregate gauge at construction so a quiet API process
+        # (which builds a breaker at startup) exposes llm_circuit_open at 0,
+        # instead of the family only appearing after the first state transition.
+        try:
+            from intellisource.observability.metrics import (  # noqa: PLC0415
+                MetricsCollector,
+            )
+
+            _ensure_circuit_metric_registered(MetricsCollector.get_instance())
+        except Exception:  # noqa: BLE001 — metrics must never break the breaker
+            pass
 
     async def _read_state(self) -> tuple[CircuitState, int, float]:
         """Read circuit state from Redis.
@@ -141,6 +152,15 @@ class CircuitBreaker:
 _METRIC_LLM_CIRCUIT_OPEN: str = "llm_circuit_open"
 
 
+def _ensure_circuit_metric_registered(mc: Any) -> None:
+    """Idempotently register the aggregate llm_circuit_open gauge."""
+    if _METRIC_LLM_CIRCUIT_OPEN not in mc._gauges:
+        mc.register_gauge(
+            _METRIC_LLM_CIRCUIT_OPEN,
+            "1 when any LLM circuit breaker is OPEN, else 0",
+        )
+
+
 def _publish_state_gauge(provider: str, model: str, state: CircuitState) -> None:
     """Publish a 0/1 gauge for the circuit state.
 
@@ -155,11 +175,7 @@ def _publish_state_gauge(provider: str, model: str, state: CircuitState) -> None
         )
 
         mc = MetricsCollector.get_instance()
-        if _METRIC_LLM_CIRCUIT_OPEN not in mc._gauges:
-            mc.register_gauge(
-                _METRIC_LLM_CIRCUIT_OPEN,
-                "1 when any LLM circuit breaker is OPEN, else 0",
-            )
+        _ensure_circuit_metric_registered(mc)
         # Last-writer-wins: any transition to OPEN sets the gauge to 1;
         # transition to CLOSED sets it back to 0. With multiple
         # (provider, model) pairs the gauge tracks the most recent

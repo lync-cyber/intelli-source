@@ -1,15 +1,25 @@
 {
   "version": "1",
-  "generated_at": "2026-05-28T02:13:51.764738+00:00",
+  "generated_at": "2026-06-01T03:13:43.907588+00:00",
   "documents": {
     "backlog-intellisource-v1": {
       "file_path": "docs/BACKLOG-intellisource-v1.md",
       "doc_type": "backlog",
       "volume": "main",
       "status": "approved",
-      "total_lines": 430,
-      "est_tokens": 12106,
-      "content_hash": "c840645f",
+      "total_lines": 552,
+      "est_tokens": 20672,
+      "content_hash": "2d53bdca",
+      "sections": {}
+    },
+    "history-intellisource-v1": {
+      "file_path": "docs/HISTORY-intellisource-v1.md",
+      "doc_type": "history",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 70,
+      "est_tokens": 4260,
+      "content_hash": "4a9894e8",
       "sections": {}
     },
     "arch-intellisource-v1-api": {
@@ -584,8 +594,8 @@
       "volume": "main",
       "status": "approved",
       "total_lines": 755,
-      "est_tokens": 8491,
-      "content_hash": "1247bcc7",
+      "est_tokens": 8511,
+      "content_hash": "4d10e3c1",
       "sections": {
         "1": {
           "heading": "## 1. 构建流程",
@@ -675,7 +685,7 @@
           "level": 2,
           "line_start": 311,
           "line_end": 686,
-          "est_tokens": 4025,
+          "est_tokens": 4044,
           "deps": [],
           "items": {
             "3.1": {
@@ -710,7 +720,7 @@
               "heading": "### 3.5 监控 SLO 与告警",
               "line_start": 477,
               "line_end": 581,
-              "est_tokens": 1483,
+              "est_tokens": 1502,
               "deps": []
             },
             "3.6": {
@@ -801,16 +811,16 @@
       "doc_type": "deploy-spec",
       "volume": "main",
       "status": "draft",
-      "total_lines": 1021,
-      "est_tokens": 12409,
-      "content_hash": "8fc35a85",
+      "total_lines": 1069,
+      "est_tokens": 13774,
+      "content_hash": "693470fe",
       "sections": {
         "0": {
           "heading": "## 0. 前置条件",
           "level": 2,
           "line_start": 18,
-          "line_end": 62,
-          "est_tokens": 516,
+          "line_end": 73,
+          "est_tokens": 1000,
           "deps": [],
           "items": {
             "0.1": {
@@ -823,28 +833,28 @@
             "0.2": {
               "heading": "### 0.2 环境变量（`docker/.env` 或导出到 shell）",
               "line_start": 31,
-              "line_end": 43,
-              "est_tokens": 219,
+              "line_end": 54,
+              "est_tokens": 703,
               "deps": []
             },
             "0.3": {
               "heading": "### 0.3 信源配置文件",
-              "line_start": 44,
-              "line_end": 52,
+              "line_start": 55,
+              "line_end": 63,
               "est_tokens": 82,
               "deps": []
             },
             "0.4": {
               "heading": "### 0.4 LLM 配置",
-              "line_start": 53,
-              "line_end": 56,
+              "line_start": 64,
+              "line_end": 67,
               "est_tokens": 41,
               "deps": []
             },
             "0.5": {
               "heading": "### 0.5 host 主机端口占用",
-              "line_start": 57,
-              "line_end": 62,
+              "line_start": 68,
+              "line_end": 73,
               "est_tokens": 42,
               "deps": []
             }
@@ -859,7 +869,7 @@
       "dep_hashes": {
         "arch-intellisource-v1-modules": "29d390a9",
         "arch-intellisource-v1-api": "494f914e",
-        "backlog-intellisource-v1": "c840645f"
+        "backlog-intellisource-v1": "2d53bdca"
       }
     },
     "dev-plan-intellisource-v1-s1": {
@@ -2030,6 +2040,16 @@
       "content_hash": "9ca6d689",
       "sections": {}
     },
+    "feedback-suggest-framework-batch-20260529": {
+      "file_path": "docs/feedback/feedback-suggest-framework-batch-20260529.md",
+      "doc_type": "framework-feedback",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 124,
+      "est_tokens": 2255,
+      "content_hash": "2a6e33ba",
+      "sections": {}
+    },
     "feedback-suggest-reflector-frontmatter-20260505": {
       "file_path": "docs/feedback/feedback-suggest-reflector-frontmatter-20260505.md",
       "doc_type": "framework-feedback",
@@ -2630,7 +2650,7 @@
         "backlog-intellisource-v1"
       ],
       "dep_hashes": {
-        "backlog-intellisource-v1": "c840645f"
+        "backlog-intellisource-v1": "2d53bdca"
       }
     },
     "research-b051-config-bootstrap-ux": {
@@ -2723,7 +2743,7 @@
         "backlog-intellisource-v1"
       ],
       "dep_hashes": {
-        "backlog-intellisource-v1": "c840645f"
+        "backlog-intellisource-v1": "2d53bdca"
       }
     },
     "prompt-management-analysis": {
@@ -2879,9 +2899,9 @@
       "doc_type": "correction-log",
       "volume": "main",
       "status": "approved",
-      "total_lines": 540,
-      "est_tokens": 21830,
-      "content_hash": "408a4339",
+      "total_lines": 564,
+      "est_tokens": 23254,
+      "content_hash": "767e718b",
       "sections": {}
     },
     "code-review-B-007-r1": {
@@ -3909,7 +3929,89 @@
       ],
       "dep_hashes": {
         "arch-intellisource-v1-modules": "29d390a9",
-        "backlog-intellisource-v1": "c840645f"
+        "backlog-intellisource-v1": "2d53bdca"
+      }
+    },
+    "code-scan-arch-20260529-r1": {
+      "file_path": "docs/reviews/code/CODE-SCAN-arch-20260529-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "draft",
+      "total_lines": 73,
+      "est_tokens": 1787,
+      "content_hash": "8b0190d2",
+      "sections": {
+        "0": {
+          "heading": "## 0. 关键结论",
+          "level": 2,
+          "line_start": 14,
+          "line_end": 17,
+          "est_tokens": 54,
+          "deps": [],
+          "items": {}
+        },
+        "1": {
+          "heading": "## 1. 问题清单（位置 / 严重程度 / 分类）",
+          "level": 2,
+          "line_start": 18,
+          "line_end": 34,
+          "est_tokens": 510,
+          "deps": [],
+          "items": {}
+        },
+        "2": {
+          "heading": "## 2. 配置散落清单（实测环境变量 + 默认值）",
+          "level": 2,
+          "line_start": 35,
+          "line_end": 38,
+          "est_tokens": 197,
+          "deps": [],
+          "items": {}
+        },
+        "3": {
+          "heading": "## 3. 日志清单（54 处 `logging.getLogger`，代表文件）",
+          "level": 2,
+          "line_start": 39,
+          "line_end": 42,
+          "est_tokens": 190,
+          "deps": [],
+          "items": {}
+        },
+        "4": {
+          "heading": "## 4. 重构方案与优先级（风险低 → 高）",
+          "level": 2,
+          "line_start": 43,
+          "line_end": 55,
+          "est_tokens": 207,
+          "deps": [],
+          "items": {}
+        },
+        "5": {
+          "heading": "## 5. 验证方式",
+          "level": 2,
+          "line_start": 56,
+          "line_end": 61,
+          "est_tokens": 140,
+          "deps": [],
+          "items": {}
+        },
+        "6": {
+          "heading": "## 6. 实施状态（本次工程）",
+          "level": 2,
+          "line_start": 62,
+          "line_end": 73,
+          "est_tokens": 334,
+          "deps": [],
+          "items": {}
+        }
+      },
+      "deps": [
+        "arch-intellisource-v1-modules",
+        "backlog-intellisource-v1"
+      ],
+      "dep_hashes": {
+        "arch-intellisource-v1-modules": "29d390a9",
+        "backlog-intellisource-v1": "2d53bdca"
       }
     },
     "review-arch-intellisource-v1-r1": {
@@ -3973,7 +4075,7 @@
         "deploy-spec-intellisource-v1"
       ],
       "dep_hashes": {
-        "deploy-spec-intellisource-v1": "1247bcc7"
+        "deploy-spec-intellisource-v1": "4d10e3c1"
       }
     },
     "review-deploy-spec-intellisource-v1-r2": {
@@ -3989,7 +4091,7 @@
         "deploy-spec-intellisource-v1"
       ],
       "dep_hashes": {
-        "deploy-spec-intellisource-v1": "1247bcc7"
+        "deploy-spec-intellisource-v1": "4d10e3c1"
       }
     },
     "review-dev-plan-intellisource-v1-r1": {

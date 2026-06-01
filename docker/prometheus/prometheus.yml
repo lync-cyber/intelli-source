@@ -15,6 +15,13 @@ rule_files:
 #         - targets: ["alertmanager:9093"]
 
 scrape_configs:
+  # Single scrape target: the API /api/v1/metrics endpoint serves both
+  # API-process families (http_*/llm_*/pushes_total/llm_circuit_open/health)
+  # and worker-process families (celery_*). Worker children record celery_*
+  # into a shared Redis metric store (each prefork child owns a separate
+  # in-process collector that is never served over HTTP); the API endpoint
+  # merges that store into its exposition at scrape time. A separate
+  # per-process worker endpoint is therefore unnecessary.
   - job_name: intellisource-api
     metrics_path: /api/v1/metrics
     static_configs:
@@ -22,13 +29,3 @@ scrape_configs:
           - api:8000
         labels:
           service: api
-
-  - job_name: intellisource-worker
-    metrics_path: /api/v1/metrics
-    static_configs:
-      # Worker exposes the same MetricsCollector via the API process for now;
-      # split-out worker metrics endpoint is tracked in the deploy backlog.
-      - targets:
-          - api:8000
-        labels:
-          service: worker

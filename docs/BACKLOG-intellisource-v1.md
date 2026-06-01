@@ -14,6 +14,7 @@ deps: []
 > 2026-05-29 增补：**框架反馈批次移交上游** — 5 个框架级条目 **B-016 / B-017 / B-018 / B-036 / B-038 ✅** + **B-019 ✅**（2 条既有 bundle）打包进 [docs/feedback/feedback-suggest-framework-batch-20260529.md](feedback/feedback-suggest-framework-batch-20260529.md)，移交 CataForge 上游（沙盒无 cataforge/gh CLI 且 GitHub 集成仅限本 repo，issue 由用户提交）。
 > 2026-05-29 增补：**回填 main 已闭环项** — 核实后 **B-013 ✅**（B-035 CI integration + smoke）/ **B-040 ✅**（celery hijack/redirect off + trace_id signals）/ **B-060 ✅**（error_message 列 + 失败路径 emit）三项 backlog 回填。
 > 2026-05-29 增补：**架构治理首扫批次回填闭环** — `B-020~B-028 ✅` 全部闭环（commit `9c118b8` / `a35fa31`）：`lint-imports` 8/8 KEPT、`deptry` 无问题、`vulture` 无死代码（实测三工具退出码均 0），CI lint job 已移除 `continue-on-error`（违规阻塞 merge，B-025 强制门禁生效）。**剩余开放项 = 项目级真债（非阻塞）**：P3 B-014（需真 staging 验证 metrics）；`.pre-commit-config.yaml` 本地钩子为 B-025 可选增强，未落地。
+> 2026-06-01 增补：**B-014 ✅** 闭环 — 验证暴露并修复 metrics 暴露两类真实破口：① http_requests_total/llm_circuit_open lazy 注册改 eager（中间件/熔断器 __init__）② worker celery_* 跨进程不可达 → 新增 `observability/shared_metrics.py` Redis 共享 store（worker signals 写入 + boot seed + API endpoint merge），prometheus.yml 收敛单一 scrape job。+19 单测（含端点 5 族 present 断言，永久替代 staging curl grep）。unit 2972→2991 PASS。**剩余真债仅 BGE-M3 本地 embedding 暂缓**。
 
 ## 优先级语义
 
@@ -388,10 +389,13 @@ deps: []
 - **修复方向**：GitHub Actions workflow 设 `IS_FORCE_DOCKER_TESTS=1` 或确保 docker daemon 启动；fail 时阻塞 merge
 - **验证**：CI 输出显示 162 collected，0 deselected，47+ PASS
 
-### B-014 staging 验证 /api/v1/metrics 暴露所有新 metric
-- **现状**：本次新增 metric（http_/llm_/celery_/pushes_/llm_circuit_open）单测覆盖通过，但未在真实 deploy 验证 Prometheus scrape 抓得到
-- **修复方向**：deploy staging 后 `curl /api/v1/metrics | grep -E "(http_requests_total|llm_calls_total|pushes_total|celery_tasks_total|llm_circuit_open)"`
-- **依赖**：B-010 deploy-spec
+### B-014 /api/v1/metrics 暴露所有新 metric（含跨进程 worker 指标）✅
+> 已闭环 — 验证此项时暴露并修复了两类真实破口（自动化端点测试替代一次性 staging curl，永久 CI gate）：
+> 1. **API 侧 lazy 注册**：`http_requests_total` 仅在首个非-metrics 请求后注册、`llm_circuit_open` 仅在熔断器首次 transition 后注册 → 静默/冷启动的 API 进程 scrape 抓不到这两族。修复：`RequestLoggerMiddleware.__init__` 在中间件栈构建期 eager 注册 http 族；`CircuitBreaker.__init__` eager 注册 `llm_circuit_open=0`（API 启动期 `build_llm_gateway` 必建 breaker）。
+> 2. **worker 跨进程不可达（架构破口）**：worker 是 prefork 多进程（concurrency=CPU 数），每个子进程独立 `MetricsCollector` 单例且不暴露 HTTP；`celery_tasks_total` 增量永远进不到 API 进程的 collector，而 [prometheus.yml](../docker/prometheus/prometheus.yml) 的 worker job 却指向 `api:8000`（失效的"per-process via API"假设）。修复：新增 [observability/shared_metrics.py](../src/intellisource/observability/shared_metrics.py) `RedisMetricStore`（跨进程 Redis hash sink，sync client，Redis 宕机 graceful no-op）；worker `signals` postrun/failure 把 `celery_tasks_total`/`celery_task_failures_total` 写入共享 store，`boot.worker_init` 启动期 seed 为 0；API `system.metrics_response` 读共享 store 并 merge 进 exposition。prometheus.yml 收敛为单一 `intellisource-api` scrape job（删除重复 worker job，消除双标签）。
+> - **验证**：新增 19 单测（[test_shared_metrics.py](../tests/unit/observability/test_shared_metrics.py) 11 / [test_metrics_endpoint_families.py](../tests/unit/api/test_metrics_endpoint_families.py) 3 断言 5 族全 present / [test_signals_shared_metrics.py](../tests/unit/scheduler/test_signals_shared_metrics.py) 3 / [test_circuit_metric_eager.py](../tests/unit/llm/test_circuit_metric_eager.py) 2）。`test_metrics_endpoint_families` 即 staging curl grep 的自动化永久替代（端点真起、断言 `http_requests_total|llm_calls_total|pushes_total|celery_tasks_total|llm_circuit_open` 全 present）。unit 2972→2991 PASS；mypy --strict + ruff + lint-imports 8/8 clean。
+- **现状（修复前）**：新增 metric（http_/llm_/celery_/pushes_/llm_circuit_open）单测覆盖通过，但未在真实 deploy 验证 Prometheus scrape 抓得到；验证后发现 celery_* 跨进程根本抓不到 + 两族 lazy 注册
+- **依赖**：B-010 deploy-spec ✅
 
 ### B-015 `promtool check rules` 验证 alerts.yml 语法 ✅
 > 已闭环 (commit 9c118b8 引入 + ffd1c7b refine) — CI Lint job 跑 `docker run --rm --entrypoint promtool -v $PWD/docker/prometheus:/etc/prometheus prom/prometheus:v2.55.1 check rules /etc/prometheus/alerts.yml`（[.github/workflows/ci.yml](../.github/workflows/ci.yml) "Validate Prometheus alert rules"），每次 PR/push to main 无条件运行并 gate merge。`--entrypoint promtool` 必需（镜像默认 entrypoint 是 prometheus 二进制）。alerts.yml 5 组 8 规则；结构层由 `tests/unit/observability/test_alerts_yaml.py` (14 tests) 覆盖。PR #72 Lint job green 即此步通过。

@@ -215,6 +215,9 @@ def worker_init_handler(**_: Any) -> None:
     setup_logging()
     if _celery_tasks is not None:
         return
+    # Seed celery_* at 0 in the shared store so the API /metrics endpoint lists
+    # the families before this worker processes its first task.
+    _signals_module.seed_shared_metrics()
     factory = init_worker_session_factory()
     redis_client = _build_redis_client()
     composition = build_worker_composition(
