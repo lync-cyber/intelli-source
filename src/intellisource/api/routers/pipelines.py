@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from intellisource.agent.pipeline import PipelineConfig
 from intellisource.agent.tools import _PIPELINES_DIR as _SHARED_PIPELINES_DIR
 from intellisource.agent.tools import load_pipeline_config
+from intellisource.core.encoding import read_text
 from intellisource.observability.logging import get_logger
 from intellisource.scheduler.dispatch import send_task_with_trace
 
@@ -73,7 +74,7 @@ async def list_pipelines() -> list[dict[str, Any]]:
     summaries: list[dict[str, Any]] = []
     for path in _list_pipeline_files():
         try:
-            raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            raw = yaml.safe_load(read_text(path)) or {}
         except yaml.YAMLError:
             logger.warning("Skipping malformed pipeline YAML: %s", path)
             continue

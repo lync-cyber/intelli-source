@@ -72,7 +72,7 @@ PROJECT_CONFIG: dict[str, Any] = {
 
 
 def write_yaml(path: Path, data: dict[str, Any]) -> None:
-    path.write_text(yaml.dump(data))
+    path.write_text(yaml.dump(data), encoding="utf-8")
 
 
 # ===========================================================================

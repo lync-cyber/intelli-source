@@ -2,12 +2,30 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Iterator
 
 import pytest
 import structlog
 
+from intellisource.core.encoding import is_utf8_environment
 from intellisource.core.settings import get_settings
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Flag a launch context that skipped the UTF-8 process floor.
+
+    ``make test-unit`` / CI set ``PYTHONUTF8=1``; a bare ``pytest`` on a
+    non-UTF-8 console (e.g. Windows cp936) resolves False here. Warn rather
+    than fail so the suite still runs, but the drift is visible.
+    """
+    if not is_utf8_environment():
+        warnings.warn(
+            "UTF-8 process floor not applied (stdout/filesystem codec is not "
+            "UTF-8). Run via `make test-unit` or set PYTHONUTF8=1 to match the "
+            "container runtime.",
+            stacklevel=2,
+        )
 
 
 @pytest.fixture(autouse=True)

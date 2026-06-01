@@ -43,11 +43,17 @@ COPY config/ ./config/
 COPY alembic/ ./alembic/
 COPY alembic/alembic.ini ./alembic.ini
 
-# Put venv binaries first on PATH so uv run resolves to the venv
+# Put venv binaries first on PATH so uv run resolves to the venv.
+# PYTHONUTF8 / PYTHONIOENCODING are the process-level floor of the UTF-8
+# encoding contract: they pin stdout/stderr, subprocess text streams and the
+# filesystem-path codec to UTF-8 for every containerized process (api, worker,
+# beat, migrate, cli), independent of the base image locale.
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONPATH="/app/src" \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PYTHONUTF8=1 \
+    PYTHONIOENCODING=utf-8
 
 EXPOSE 8000
 

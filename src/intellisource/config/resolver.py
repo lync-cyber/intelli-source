@@ -16,6 +16,7 @@ from typing import Any, Callable
 
 import yaml
 
+from intellisource.core.encoding import read_text
 from intellisource.observability.logging import get_logger
 
 logger = get_logger(__name__)
@@ -57,7 +58,7 @@ def _load_yaml_optional(path: str) -> dict[str, Any]:
     if not file_path.exists():
         logger.info("Config file not found, skipping: %s", path)
         return {}
-    text = file_path.read_text(encoding="utf-8")
+    text = read_text(file_path)
     try:
         data = yaml.safe_load(text)
     except yaml.YAMLError as exc:

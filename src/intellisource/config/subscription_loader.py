@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from intellisource.config.loader import ConfigPathError, _detect_format
 from intellisource.config.subscription_models import SubscriptionConfig
 from intellisource.config.subscription_validator import SubscriptionValidator
+from intellisource.core.encoding import read_text
 from intellisource.core.settings import get_settings
 from intellisource.observability.logging import get_logger
 
@@ -42,8 +43,7 @@ class SubscriptionConfigLoader:
                 )
 
         fmt = _detect_format(file_path)
-        with open(resolved, encoding="utf-8") as f:
-            content = f.read()
+        content = read_text(resolved)
 
         return self._validator.validate_subscriptions_file(content, format=fmt)
 

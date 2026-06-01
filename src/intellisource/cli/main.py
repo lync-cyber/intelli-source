@@ -13,6 +13,7 @@ from typing import Any
 import httpx
 import typer
 
+from intellisource.core.encoding import enforce_utf8_runtime, read_text, write_text
 from intellisource.core.paths import project_root
 from intellisource.core.settings import (
     PROVIDER_ENV_KEYS,
@@ -118,6 +119,7 @@ def main(
     api_key: str | None = typer.Option(None, "--api-key", help="API key"),
 ) -> None:
     """IntelliSource CLI."""
+    enforce_utf8_runtime()
     load_provider_env()
     settings = get_settings()
     if api_url is not None:
@@ -347,7 +349,7 @@ def _load_dotenv_file(path: str) -> dict[str, str]:
     p = pathlib.Path(path)
     if not p.exists():
         return result
-    for raw in p.read_text(encoding="utf-8").splitlines():
+    for raw in read_text(p).splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
@@ -530,9 +532,9 @@ def _write_env_file(path: pathlib.Path, updates: dict[str, str]) -> None:
     """Merge ``updates`` into an existing .env file (or create from .env.example)."""
     example = project_root() / "docker" / ".env.example"
     if path.exists():
-        lines = path.read_text(encoding="utf-8").splitlines()
+        lines = read_text(path).splitlines()
     elif example.exists():
-        lines = example.read_text(encoding="utf-8").splitlines()
+        lines = read_text(example).splitlines()
     else:
         lines = []
 
@@ -550,7 +552,7 @@ def _write_env_file(path: pathlib.Path, updates: dict[str, str]) -> None:
         if key not in written:
             out.append(f"{key}={val}")
 
-    path.write_text("\n".join(out) + "\n", encoding="utf-8")
+    write_text(path, "\n".join(out) + "\n")
 
 
 _PROVIDER_BY_CHOICE = {"1": "deepseek", "2": "openai", "3": "anthropic"}
@@ -564,7 +566,7 @@ def _seed_from_example(example: pathlib.Path, target: pathlib.Path) -> bool:
     if target.exists() or not example.exists():
         return False
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(example.read_text(encoding="utf-8"), encoding="utf-8")
+    write_text(target, read_text(example))
     return True
 
 
@@ -722,7 +724,7 @@ def init(
     if add_starter:
         sources_path.parent.mkdir(parents=True, exist_ok=True)
         if not sources_path.exists():
-            sources_path.write_text(_DEFAULT_HN_SOURCE, encoding="utf-8")
+            write_text(sources_path, _DEFAULT_HN_SOURCE)
             typer.echo(f"[OK] Written {sources_path}")
         else:
             typer.echo(f"  {sources_path} already exists — skipped")
