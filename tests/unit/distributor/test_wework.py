@@ -30,8 +30,8 @@ class StubContent:
     id: uuid.UUID = field(default_factory=uuid.uuid4)
     title: str = "Test Article"
     summary: str = "A brief summary of the article."
-    body: str = "Full article body content in markdown."
-    url: str = "https://example.com/article/1"
+    body_text: str = "Full article body content in markdown."
+    source_url: str = "https://example.com/article/1"
     tags: list[str] = field(default_factory=lambda: ["tech", "ai"])
 
 
@@ -331,11 +331,12 @@ class TestMessageFormats:
 
     def test_format_content_markdown(self, distributor: Any) -> None:
         """format_content with msg_type='markdown' returns a string."""
-        content = StubContent(title="Test", summary="Summary", body="Body")
+        content = StubContent(title="Test", summary="Summary", body_text="Body")
         result = distributor.format_content(content, msg_type="markdown")
 
         assert isinstance(result, str)
         assert "Test" in result
+        assert "Body" in result
 
     def test_format_content_text(self, distributor: Any) -> None:
         """format_content with msg_type='text' returns a plain string."""
@@ -349,13 +350,14 @@ class TestMessageFormats:
         content = StubContent(
             title="Test",
             summary="Summary",
-            url="https://example.com/1",
+            source_url="https://example.com/1",
         )
         result = distributor.format_content(content, msg_type="news")
 
         assert isinstance(result, list)
         assert len(result) >= 1
         assert "title" in result[0]
+        assert result[0]["url"] == "https://example.com/1"
 
 
 # ===========================================================================

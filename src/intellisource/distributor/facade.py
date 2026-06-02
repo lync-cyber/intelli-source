@@ -105,17 +105,29 @@ class DistributorFacade:
                 "matched": 0,
                 "sent": 0,
                 "skipped": 0,
+                "errors": [],
             }
         matched = self._matcher.match(content, subscriptions)
 
         sent = 0
         skipped = 0
+        # Failure reasons per subscription so a channel-level bug (e.g. a raised
+        # AttributeError) surfaces in the return value / task result instead of
+        # being swallowed into an opaque skipped count.
+        errors: list[dict[str, Any]] = []
 
         for sub in matched:
             channel_name: str = getattr(sub, "channel", "")
             channel = self._channels.get(channel_name)
             if channel is None:
                 skipped += 1
+                errors.append(
+                    {
+                        "subscription_id": str(getattr(sub, "id", "")),
+                        "channel": channel_name or "unknown",
+                        "reason": "channel not configured or disabled",
+                    }
+                )
                 _record_push_outcome("skipped", channel=channel_name or "unknown")
                 continue
 
@@ -134,13 +146,20 @@ class DistributorFacade:
             push_content = await self._prepare_push_content(content, sub)
             try:
                 outcome = await channel.distribute(push_content, sub)
-            except Exception:
+            except Exception as exc:
                 _logger.exception(
                     "channel.distribute failed for sub=%s channel=%s",
                     sub.id,
                     channel_name,
                 )
                 skipped += 1
+                errors.append(
+                    {
+                        "subscription_id": str(sub.id),
+                        "channel": channel_name,
+                        "reason": str(exc) or type(exc).__name__,
+                    }
+                )
                 _record_push_outcome("failed", channel=channel_name)
                 continue
 
@@ -148,13 +167,21 @@ class DistributorFacade:
             # instead of raising, so the returned status — not just exceptions —
             # decides success.
             if isinstance(outcome, dict) and outcome.get("status") == "failed":
+                reason = outcome.get("error") or "channel reported failure"
                 _logger.warning(
                     "channel.distribute reported failure for sub=%s channel=%s: %s",
                     sub.id,
                     channel_name,
-                    outcome.get("error"),
+                    reason,
                 )
                 skipped += 1
+                errors.append(
+                    {
+                        "subscription_id": str(sub.id),
+                        "channel": channel_name,
+                        "reason": reason,
+                    }
+                )
                 _record_push_outcome("failed", channel=channel_name)
                 continue
 
@@ -175,6 +202,7 @@ class DistributorFacade:
             "matched": len(matched),
             "sent": sent,
             "skipped": skipped,
+            "errors": errors,
         }
 
     async def _prepare_push_content(self, content: Any, subscription: Any) -> Any:

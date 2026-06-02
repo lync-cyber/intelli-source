@@ -241,13 +241,14 @@ class WeWorkDistributor(BaseDistributor):
     def format_content(self, content: Any, *, msg_type: str = "text") -> Any:
         """Format *content* for the given *msg_type*."""
         if msg_type == "markdown":
-            return f"# {content.title}\n\n{content.summary}\n\n{content.body}"
+            body = content.body_text or ""
+            return f"# {content.title}\n\n{content.summary}\n\n{body}"
         if msg_type == "news":
             return [
                 {
                     "title": content.title,
                     "description": content.summary,
-                    "url": content.url,
+                    "url": content.source_url,
                 }
             ]
         # default: text
