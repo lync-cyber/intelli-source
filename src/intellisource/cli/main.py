@@ -7,6 +7,7 @@ import os
 import pathlib
 import secrets
 import subprocess
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -176,8 +177,13 @@ def _run_compose(*args: str) -> None:
 
 @app.command("up")
 def up() -> None:
-    """Start the full stack (db / redis / migrate / api / worker / beat)."""
-    _run_compose("up", "-d")
+    """Start the full stack and block until services report healthy.
+
+    ``--wait`` holds until the API healthcheck passes, so a follow-up
+    ``doctor --check-api`` / ``task trigger`` does not race uvicorn's boot
+    (the published port answers before the app is serving).
+    """
+    _run_compose("up", "-d", "--wait")
 
 
 @app.command("down")
@@ -455,6 +461,60 @@ def _doctor_env(env: dict[str, str]) -> list[tuple[str, bool | None, str]]:
     return items
 
 
+_HEALTH_PROBE_ATTEMPTS = 5
+_HEALTH_PROBE_BACKOFF_SECONDS = 1.0
+
+
+def _probe_api_health(
+    *,
+    attempts: int = _HEALTH_PROBE_ATTEMPTS,
+    backoff: float = _HEALTH_PROBE_BACKOFF_SECONDS,
+    notify: Callable[[str], None] | None = None,
+) -> tuple[str, dict[str, Any] | str]:
+    """Probe ``GET /health`` with retries, classifying the outcome.
+
+    Returns ``(outcome, payload)`` where outcome is one of:
+
+    - ``"ok"``       — a parseable JSON body (payload = the decoded body)
+    - ``"starting"`` — reachable but not serving a complete response yet:
+      empty / invalid body, read timeout, mid-response disconnect, or 5xx
+      (payload = a short detail string)
+    - ``"down"``     — connection refused / DNS failure / connect timeout
+      (payload = a short detail string)
+
+    A freshly-started stack accepts the published port (docker-proxy) before
+    uvicorn finishes lifespan startup; the body is empty there and
+    ``resp.json()`` raises ``Expecting value: line 1 column 1 (char 0)``.
+    Retrying lets that transient window self-heal instead of being reported
+    as a hard failure. ``notify`` (if given) is called once per pending retry
+    so a caller can surface progress rather than blocking silently.
+    """
+    url = f"{_base_url()}/health"
+    outcome, payload = "down", "no response"
+    for attempt in range(attempts):
+        try:
+            resp = httpx.get(url, timeout=3)
+        except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+            outcome, payload = "down", str(exc) or type(exc).__name__
+        except httpx.HTTPError as exc:
+            outcome, payload = "starting", str(exc) or type(exc).__name__
+        except Exception as exc:  # noqa: BLE001 — doctor must never traceback
+            outcome, payload = "down", str(exc) or type(exc).__name__
+        else:
+            if resp.status_code >= 500:
+                outcome, payload = "starting", f"HTTP {resp.status_code}"
+            else:
+                try:
+                    return "ok", resp.json()
+                except (json.JSONDecodeError, ValueError):
+                    outcome, payload = "starting", "empty or invalid JSON body"
+        if attempt < attempts - 1:
+            if notify is not None:
+                notify(f"waiting for API (attempt {attempt + 2}/{attempts})")
+            time.sleep(backoff)
+    return outcome, payload
+
+
 @app.command("doctor")
 def doctor(
     env_file: str | None = typer.Option(
@@ -490,16 +550,27 @@ def doctor(
             typer.echo(f"  [--]  {label:<35} {msg}")
 
     if check_api:
-        try:
-            resp = httpx.get(f"{_base_url()}/health", timeout=3)
-            status = resp.json().get("status", "unknown")
-            typer.echo(f"  [OK]  API /health                        {status}")
-            missing = resp.json().get("missing_config", [])
-            for w in missing:
-                typer.echo(f"  [--]  API warning                        {w}")
-        except Exception as exc:
+        outcome, payload = _probe_api_health(
+            notify=lambda msg: typer.echo(f"  [..]  {'API /health':<35} {msg}")
+        )
+        if outcome == "ok" and isinstance(payload, dict):
+            status = payload.get("status", "unknown")
+            typer.echo(f"  [OK]  {'API /health':<35} {status}")
+            for w in payload.get("missing_config", []) or []:
+                typer.echo(f"  [--]  {'API warning':<35} {w}")
+        elif outcome == "starting":
             typer.echo(
-                f"  [FAIL]  API /health                        unreachable ({exc})"
+                f"  [--]  {'API /health':<35} "
+                "starting up — not serving yet; re-run shortly"
+            )
+            # In strict mode a not-ready API is a gate failure; interactively
+            # it is just a soft note (it self-heals once boot completes).
+            if strict:
+                errors += 1
+        else:
+            typer.echo(
+                f"  [FAIL]  {'API /health':<35} "
+                f"unreachable ({payload}) — start it with `intellisource up`"
             )
             errors += 1
 

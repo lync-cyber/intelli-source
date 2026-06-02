@@ -16,6 +16,7 @@ import pathlib
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 
 # The CLI app module does not exist yet -- import may fail during RED phase.
@@ -487,7 +488,9 @@ class TestComposeCommands:
         assert result.exit_code == 0
         argv = mock_subprocess.run.call_args[0][0]
         assert argv[:2] == ["docker", "compose"]
-        assert argv[-2:] == ["up", "-d"]
+        # --wait blocks until healthchecks pass so a follow-up check-api does
+        # not race the API boot window.
+        assert argv[-3:] == ["up", "-d", "--wait"]
         # never shell=True — Windows path quoting safety
         assert mock_subprocess.run.call_args.kwargs.get("shell", False) is False
 
@@ -747,3 +750,253 @@ class TestDoctorChecks:
         result = runner.invoke(app, ["doctor", "--strict"])
 
         assert result.exit_code == 1
+
+
+# ===========================================================================
+# doctor --check-api: boot-window-aware health probe
+# ===========================================================================
+
+
+def _health_response(status: str = "healthy", **extra: Any) -> MagicMock:
+    """A 200 response whose body decodes to a health payload."""
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.json.return_value = {"status": status, **extra}
+    return resp
+
+
+def _empty_body_response() -> MagicMock:
+    """A 200 response whose body is empty (``resp.json()`` raises).
+
+    This is the boot-window shape: docker-proxy answers the published port
+    before uvicorn serves, so the body is empty and JSON decoding fails with
+    ``Expecting value: line 1 column 1 (char 0)``.
+    """
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.json.side_effect = json.JSONDecodeError("Expecting value", "", 0)
+    return resp
+
+
+_CLEAN_ENV_KEYS = (
+    "IS_API_KEY",
+    "IS_DATABASE_URL",
+    "IS_REDIS_URL",
+    "IS_CELERY_BROKER_URL",
+    "IS_LLM_CONFIG_PATH",
+    "IS_SOURCE_CONFIG_DIR",
+    "IS_SUBSCRIPTION_CONFIG_DIR",
+    "DEEPSEEK_API_KEY",
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+)
+
+
+def _seed_doctor_clean_tree(root: pathlib.Path) -> None:
+    """Populate *root* so ``_doctor_env`` reports zero required-item errors."""
+    (root / "docker").mkdir(parents=True, exist_ok=True)
+    (root / "docker" / ".env").write_text(
+        "IS_API_KEY=real-key\n"
+        "IS_DATABASE_URL=postgresql+asyncpg://u:p@h:5432/db\n"
+        "IS_REDIS_URL=redis://h:6379/0\n"
+        "IS_CELERY_BROKER_URL=redis://h:6379/0\n"
+        "DEEPSEEK_API_KEY=sk-test\n",
+        encoding="utf-8",
+    )
+    (root / "config" / "sources").mkdir(parents=True, exist_ok=True)
+    (root / "config" / "sources" / "s.yaml").write_text(
+        "sources: []\n", encoding="utf-8"
+    )
+    (root / "config" / "subscriptions").mkdir(parents=True, exist_ok=True)
+    (root / "config" / "subscriptions" / "s.yaml").write_text(
+        "subscriptions: []\n", encoding="utf-8"
+    )
+    (root / "config" / "llm_models.yaml").write_text(
+        "default_model:\n  model: deepseek/deepseek-v4-flash\n", encoding="utf-8"
+    )
+
+
+class TestProbeApiHealth:
+    """_probe_api_health classifies ok / starting / down and retries."""
+
+    @patch("intellisource.cli.main.httpx.get")
+    def test_ok_returns_decoded_body(self, mock_get: MagicMock) -> None:
+        _skip_if_missing()
+        from intellisource.cli.main import _probe_api_health
+
+        mock_get.return_value = _health_response("healthy")
+
+        outcome, payload = _probe_api_health(attempts=3, backoff=0)
+
+        assert outcome == "ok"
+        assert isinstance(payload, dict)
+        assert payload["status"] == "healthy"
+
+    @patch("intellisource.cli.main.httpx.get")
+    def test_empty_body_is_starting_after_retries(self, mock_get: MagicMock) -> None:
+        _skip_if_missing()
+        from intellisource.cli.main import _probe_api_health
+
+        mock_get.return_value = _empty_body_response()
+
+        outcome, payload = _probe_api_health(attempts=3, backoff=0)
+
+        assert outcome == "starting"
+        assert "JSON" in str(payload)
+        # exhausted all attempts before giving up
+        assert mock_get.call_count == 3
+
+    @patch("intellisource.cli.main.httpx.get")
+    def test_5xx_is_starting(self, mock_get: MagicMock) -> None:
+        _skip_if_missing()
+        from intellisource.cli.main import _probe_api_health
+
+        resp = MagicMock()
+        resp.status_code = 503
+        mock_get.return_value = resp
+
+        outcome, payload = _probe_api_health(attempts=2, backoff=0)
+
+        assert outcome == "starting"
+        assert "503" in str(payload)
+
+    @patch("intellisource.cli.main.httpx.get")
+    def test_connect_error_is_down(self, mock_get: MagicMock) -> None:
+        _skip_if_missing()
+        from intellisource.cli.main import _probe_api_health
+
+        mock_get.side_effect = httpx.ConnectError("connection refused")
+
+        outcome, payload = _probe_api_health(attempts=2, backoff=0)
+
+        assert outcome == "down"
+        assert "refused" in str(payload)
+        assert mock_get.call_count == 2
+
+    @patch("intellisource.cli.main.httpx.get")
+    def test_read_timeout_is_starting(self, mock_get: MagicMock) -> None:
+        _skip_if_missing()
+        from intellisource.cli.main import _probe_api_health
+
+        mock_get.side_effect = httpx.ReadTimeout("read timed out")
+
+        outcome, _ = _probe_api_health(attempts=2, backoff=0)
+
+        assert outcome == "starting"
+
+    @patch("intellisource.cli.main.httpx.get")
+    def test_retries_then_succeeds(self, mock_get: MagicMock) -> None:
+        _skip_if_missing()
+        from intellisource.cli.main import _probe_api_health
+
+        # boot window on the first probe, serving on the second
+        mock_get.side_effect = [_empty_body_response(), _health_response("healthy")]
+
+        outcome, payload = _probe_api_health(attempts=5, backoff=0)
+
+        assert outcome == "ok"
+        assert isinstance(payload, dict)
+        assert mock_get.call_count == 2
+
+
+class TestDoctorCheckApi:
+    """doctor --check-api surfaces ok / starting / down distinctly."""
+
+    @patch("intellisource.cli.main.time.sleep")
+    @patch("intellisource.cli.main.httpx.get")
+    @patch("intellisource.cli.main.project_root")
+    def test_check_api_ok_reports_status(
+        self,
+        mock_root: MagicMock,
+        mock_get: MagicMock,
+        _mock_sleep: MagicMock,
+        runner: Any,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        _skip_if_missing()
+        mock_root.return_value = tmp_path
+        (tmp_path / "docker").mkdir()
+        (tmp_path / "docker" / ".env").write_text(
+            "IS_API_KEY=real-key\n", encoding="utf-8"
+        )
+        mock_get.return_value = _health_response("healthy")
+
+        result = runner.invoke(app, ["doctor", "--check-api"])
+
+        assert result.exit_code == 0
+        assert "[OK]" in result.output
+        assert "healthy" in result.output
+
+    @patch("intellisource.cli.main.time.sleep")
+    @patch("intellisource.cli.main.httpx.get")
+    @patch("intellisource.cli.main.project_root")
+    def test_check_api_down_reports_unreachable(
+        self,
+        mock_root: MagicMock,
+        mock_get: MagicMock,
+        _mock_sleep: MagicMock,
+        runner: Any,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        _skip_if_missing()
+        mock_root.return_value = tmp_path
+        (tmp_path / "docker").mkdir()
+        (tmp_path / "docker" / ".env").write_text(
+            "IS_API_KEY=real-key\n", encoding="utf-8"
+        )
+        mock_get.side_effect = httpx.ConnectError("connection refused")
+
+        result = runner.invoke(app, ["doctor", "--check-api"])
+
+        assert "[FAIL]" in result.output
+        assert "unreachable" in result.output
+        assert "intellisource up" in result.output
+
+    @patch("intellisource.cli.main.time.sleep")
+    @patch("intellisource.cli.main.httpx.get")
+    @patch("intellisource.cli.main.project_root")
+    def test_check_api_starting_is_soft_note_in_non_strict(
+        self,
+        mock_root: MagicMock,
+        mock_get: MagicMock,
+        _mock_sleep: MagicMock,
+        runner: Any,
+        tmp_path: pathlib.Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _skip_if_missing()
+        for key in _CLEAN_ENV_KEYS:
+            monkeypatch.delenv(key, raising=False)
+        mock_root.return_value = tmp_path
+        _seed_doctor_clean_tree(tmp_path)
+        mock_get.return_value = _empty_body_response()
+
+        result = runner.invoke(app, ["doctor", "--check-api"])
+
+        assert result.exit_code == 0
+        assert "starting up" in result.output
+        assert "[FAIL]" not in result.output
+
+    @patch("intellisource.cli.main.time.sleep")
+    @patch("intellisource.cli.main.httpx.get")
+    @patch("intellisource.cli.main.project_root")
+    def test_check_api_starting_fails_gate_in_strict(
+        self,
+        mock_root: MagicMock,
+        mock_get: MagicMock,
+        _mock_sleep: MagicMock,
+        runner: Any,
+        tmp_path: pathlib.Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _skip_if_missing()
+        for key in _CLEAN_ENV_KEYS:
+            monkeypatch.delenv(key, raising=False)
+        mock_root.return_value = tmp_path
+        _seed_doctor_clean_tree(tmp_path)
+        mock_get.return_value = _empty_body_response()
+
+        result = runner.invoke(app, ["doctor", "--check-api", "--strict"])
+
+        assert result.exit_code == 1
+        assert "starting up" in result.output

@@ -88,6 +88,42 @@ async def test_failed_status_not_counted_as_sent() -> None:
 
 
 @pytest.mark.asyncio
+async def test_failed_status_surfaces_reason_in_errors() -> None:
+    content, sub = _make_content_and_sub()
+    channel = AsyncMock()
+    channel.distribute = AsyncMock(
+        return_value={"status": "failed", "error": "smtp down"}
+    )
+    facade = _build_facade(channel, content, sub)
+
+    result = await facade.distribute(
+        content_id=str(content.id), subscription_id=str(sub.id)
+    )
+
+    assert result["errors"], "a channel failure must surface a reason"
+    assert result["errors"][0]["reason"] == "smtp down"
+    assert result["errors"][0]["channel"] == "email"
+
+
+@pytest.mark.asyncio
+async def test_raised_channel_exception_surfaces_reason_in_errors() -> None:
+    # A channel-level code bug (e.g. the format_content AttributeError) must not
+    # be swallowed into an opaque skipped count — its reason belongs in errors.
+    content, sub = _make_content_and_sub()
+    channel = AsyncMock()
+    channel.distribute = AsyncMock(side_effect=AttributeError("no attribute 'body'"))
+    facade = _build_facade(channel, content, sub)
+
+    result = await facade.distribute(
+        content_id=str(content.id), subscription_id=str(sub.id)
+    )
+
+    assert result["sent"] == 0
+    assert result["errors"], "a raised channel exception must surface a reason"
+    assert "body" in result["errors"][0]["reason"]
+
+
+@pytest.mark.asyncio
 async def test_failed_status_does_not_write_sent_push_record() -> None:
     content, sub = _make_content_and_sub()
     channel = AsyncMock()
