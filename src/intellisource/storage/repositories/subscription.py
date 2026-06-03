@@ -65,6 +65,11 @@ class SubscriptionRepository(BaseRepository[Subscription]):
             if existing.status == "paused":
                 existing.status = "active"
             await self._session.flush()
+            # Refresh so the onupdate ``updated_at`` (expired after the UPDATE
+            # flush) is repopulated within the async greenlet; a later sync
+            # attribute access on the returned row would otherwise raise
+            # MissingGreenlet.
+            await self._session.refresh(existing)
             return existing
         subscription = Subscription(
             name=config.name,
