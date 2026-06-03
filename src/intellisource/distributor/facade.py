@@ -258,7 +258,12 @@ class DistributorFacade:
             )
             content = (await session.scalars(content_stmt)).one_or_none()
 
-            if subscription_id is None:
+            if not subscription_id:
+                # None or "" → distribute to every active subscription. The
+                # strict-pipeline distribute step has no subscription_id param,
+                # so it arrives as "" here; treating that as an invalid uuid
+                # would drop the loaded content and report content_not_found
+                # (0 pushes) instead of matching subscriptions.
                 sub_stmt = select(Subscription).where(Subscription.status == "active")
             else:
                 try:

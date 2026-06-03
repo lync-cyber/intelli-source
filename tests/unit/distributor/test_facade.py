@@ -321,6 +321,44 @@ class TestDistributeFiveSteps:
         passed_content = mock_matcher.match.call_args[0][0]
         assert passed_content is mock_processed_content
 
+    async def test_empty_subscription_id_resolves_all_active_not_content_not_found(
+        self,
+        content_id: str,
+        mock_processed_content: MagicMock,
+        mock_subscription: MagicMock,
+    ) -> None:
+        """Regression: the strict-pipeline distribute step carries no subscription_id,
+        so it reaches the facade as "". That must mean "all active subscriptions",
+        never an invalid uuid that discards the loaded content and reports
+        content_not_found (the 0-pushes failure mode)."""
+        from intellisource.distributor.facade import DistributorFacade
+        from intellisource.distributor.matcher import SubscriptionMatcher
+
+        mock_matcher = MagicMock(spec=SubscriptionMatcher)
+        mock_matcher.match.return_value = [mock_subscription]
+
+        mock_channel = AsyncMock()
+        mock_channel.distribute = AsyncMock(return_value={"status": "sent"})
+
+        mock_session_factory = self._make_mock_session_factory(
+            mock_processed_content, [mock_subscription]
+        )
+
+        facade = DistributorFacade(
+            session_factory=mock_session_factory,
+            matcher=mock_matcher,
+            channels={"email": mock_channel},
+        )
+
+        result = await facade.distribute(content_id=content_id, subscription_id="")
+
+        assert result["status"] == "ok"
+        assert "reason" not in result, (
+            "empty subscription_id must not be content_not_found"
+        )
+        mock_matcher.match.assert_called_once()
+        assert mock_matcher.match.call_args[0][0] is mock_processed_content
+
     async def test_step2_matcher_match_called_after_content_load(
         self,
         content_id: str,
