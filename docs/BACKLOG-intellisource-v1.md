@@ -50,6 +50,26 @@ deps: []
 
 ## P1 — Audit 残留质量项
 
+### B-061 manual-collect 链路经 distribute 步骤 0 推送（`subscription_id=""` → content_not_found）🔧 已修复待提交
+- **优先级**：P1（HIGH — 生产正确性：核心 email/push 分发经文档化 manual-collect 链路全程产出 0 推送）
+- **关联**：[distributor/facade.py](src/intellisource/distributor/facade.py)（`_load_content_and_subscriptions`）/ [agent/tools/executes/distribute.py](src/intellisource/agent/tools/executes/distribute.py)（`subscription_id=""` 来源）/ [config/pipelines/manual-collect.yaml](config/pipelines/manual-collect.yaml)；[CORRECTIONS-LOG 2026-06-03](reviews/CORRECTIONS-LOG.md)
+- **根因**：`distribute` step 无 `subscription_id` 参数，执行器默认传 `""`；facade 把 `""` 当非法 UUID（`uuid.UUID("")`→ValueError）返回 `(None,[])`，把已加载内容误判 `content_not_found`。commit `6d685fb`（标题 repair chain 0 pushes）仅修 process→distribute 的 `processed_content_ids` 传递，未修此处，经 manual-collect 链路仍 0 推送
+- **修复（分支 `fix/walkthrough-email-push-defects`）**：facade 把 falsy `subscription_id`（None 或 `""`）统一解释为"全部 active 订阅" + 回归测试。真起栈复测：distribute 20 条全 `sent:1`、push_records 20 行 sent、mailhog total=20、幂等去重 sent:0/skipped:20
+- **状态**：代码已修并端到端验证，待 commit/PR 合入 main
+
+### B-062 `POST /sources`·`/subscriptions` 同名 500（upsert UPDATE 路径序列化 MissingGreenlet）🔧 已修复待提交
+- **优先级**：P1（API 正确性 — 已存在同名记录时创建端点 HTTP 500）
+- **关联**：[storage/repositories/source.py](src/intellisource/storage/repositories/source.py) / [storage/repositories/subscription.py](src/intellisource/storage/repositories/subscription.py)（`upsert` UPDATE 分支）/ [api/routers/sources.py](src/intellisource/api/routers/sources.py)（`_serialize_source`）；[CORRECTIONS-LOG 2026-06-03](reviews/CORRECTIONS-LOG.md)
+- **根因**：upsert UPDATE 分支 `flush()` 后未 `refresh`，`updated_at`（`onupdate=func.now()`）保持 expired；路由同步属性访问触发会话外惰性加载 → `MissingGreenlet`。INSERT 路径靠 asyncpg RETURNING 回填故正常；单测以 mock 覆盖 `_get_service`，真 async session 提交后序列化路径无集成覆盖故漏网
+- **修复（分支 `fix/walkthrough-email-push-defects`）**：两个 upsert UPDATE 分支 `flush()` 后 `await session.refresh(existing)` + 回归测试。真起栈复测：`POST /sources` 同名 500→201
+- **状态**：代码已修并端到端验证，待 commit/PR 合入 main
+
+### B-063 RSS collector 对瞬时 `httpx.ConnectError` 无重试（单次抖动令 `on_failure:abort` 管道夭折）
+- **优先级**：P2（健壮性观察 — 走查首次触发即因单次网络抖动 `steps_executed:1/results:[]` 空转，重试后正常）
+- **关联**：[collector/adapters/rss.py](src/intellisource/collector/adapters/rss.py) / [collector/base.py](src/intellisource/collector/base.py)（`conditional_fetch`）；[CORRECTIONS-LOG 2026-06-03](reviews/CORRECTIONS-LOG.md)
+- **修复方向**：collect 层对瞬时连接错误加有限重试/退避，或 manual-collect 对 collect 步骤用 `on_failure:retry`；未修，留作观察
+- **状态**：open（非阻塞）
+
 ### B-059 Celery broker/result-store 宕机时任务派发挂起（无 fast-fail）✅
 - **优先级**：P1（HIGH — 生产稳定性风险）
 - **关联**：B-031 阶段 7 步骤 20 真起栈走查暴露；[src/intellisource/scheduler/celery_app.py](../src/intellisource/scheduler/celery_app.py) / [src/intellisource/scheduler/dispatch.py](../src/intellisource/scheduler/dispatch.py) / [src/intellisource/api/routers/tasks.py](../src/intellisource/api/routers/tasks.py)

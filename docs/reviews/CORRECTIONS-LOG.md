@@ -562,3 +562,20 @@ deps: []
   - **B-060 (MEDIUM-LOW，新立)**: 失败 LLM 调用持久化到 `llm_call_logs`（status='error'/'timeout' + error_message）；B-042 仅保证 success 落表，失败路径（summarize fallback 吞异常前）未 emit
   - doc-staleness F1/F2 + 步骤 17/19 curl 漏 X-API-Key → 并入 B-034 walkthrough 订正
 - 关联: B-031 walkthrough §阶段 6-7 步骤 15-20；scheduler/celery_app.py / observability/logging.py + tracing.py + signals.py / api/routers/tasks.py / middleware.py / system.py；B-059 / B-060 新立 + B-040 增补；B-034 doc drift carryover
+
+
+### 2026-06-03 | orchestrator | 邮箱推送链路真起栈走查（用户触发：触发一次通过邮箱路径的推送，检查流水线是否正确工作）
+
+- 触发信号: 用户授权 orchestrator 通过 Bash 在本地 docker 栈端到端验证 email 通道 collect→process→distribute；栈含 mailhog（profile=walkthrough，SMTP 1025）；source=Hacker News rss（hnrss.org/frontpage）+ 1 个 active email 订阅（match_rules.source_names=["Hacker News"]，to_addr 占位）
+- 步骤逐项结论:
+  - **collect / process = GO**: RSS 拉取落 `raw_contents` 102 行、`processed_contents` 89 行；`process` 正确写 `source_name`/`processed_content_ids`（6d685fb fan-out 修复成立）。**偏差 F-RSS（健壮性观察，未修）**: RSS collector 对瞬时 `httpx.ConnectError` 无重试，单次网络抖动即令 `on_failure:abort` 管道夭折（首次触发即因此 `steps_executed:1 / results:[]` 空转，重试后正常）
+  - **distribute = NO-GO（核心缺陷，0 推送）→ 已 inline 修复**: manual-collect 的 `distribute` step 无 `subscription_id` 参数，执行器默认传 `""`；`facade._load_content_and_subscriptions` 把 `""` 当非法 UUID（`uuid.UUID("")`→ValueError）直接返回 `(None,[])`，把已加载内容误判 `content_not_found`。实测：20 条已处理内容 fan-out **全部 `content_not_found / matched:0 / sent:0`**，push_records 零新增、mailhog `total=0`。**注：commit `6d685fb` 标题"repair chain (0 pushes)"仅修了 process→distribute 的 id 传递，经 manual-collect 链路仍是 0 推送，未真正闭环。** 立 **B-061**
+  - **附带发现 — `POST /sources`/`/subscriptions` 同名 500 → 已 inline 修复**: `SourceRepository.upsert`/`SubscriptionRepository.upsert` 的 UPDATE 分支 `flush()` 后未 `refresh`，`updated_at`（`onupdate=func.now()`）保持 expired；路由层 `_serialize_source`（同步属性访问）触发会话外惰性加载 → `sqlalchemy.exc.MissingGreenlet` → HTTP 500。INSERT 路径靠 asyncpg RETURNING 回填故正常，仅 UPDATE 路径破。单测以 mock 覆盖 `_get_service`，真 async session"提交后序列化"路径无集成覆盖故漏网。立 **B-062**
+- 修复（分支 `fix/walkthrough-email-push-defects`，未 commit，6 文件 +87/-1）:
+  - **B-061**: `facade.py` 把 falsy `subscription_id`（None 或 `""`）统一解释为"全部 active 订阅"
+  - **B-062**: 两个 `upsert` UPDATE 分支 `flush()` 后 `await session.refresh(existing)` 回填 onupdate 列
+  - +3 回归测试（facade 空 subscription_id 不再 content_not_found；source/subscription upsert UPDATE 后 `updated_at` 已加载）
+- 验证证据（重建镜像后真起栈复测）: distribute 20 条 → 全 `ok / matched:1 / sent:1`；`push_records` 20 行 status=sent + recipient `w***@example.com`（PII 脱敏）；mailhog `total=20`（真实 HN 标题）；二次触发幂等去重 `sent:0 / skipped:20` 不重复发信；`POST /sources` 同名 500→**201**。门禁：tests/unit 全量 PASS + 相关 integration 串行 PASS + mypy --strict + ruff clean
+- 偏差类型: self-caused（B-061 distribute 装配缺口为本项目代码缺陷；B-062 async session 序列化破口）
+- go/no-go: 两缺陷已 inline 修复并端到端验证；落地（commit/PR）待用户裁定。F-RSS（collector 无重试）留作健壮性 backlog 观察
+- 关联: distributor/facade.py / storage/repositories/{source,subscription}.py / agent/tools/executes/distribute.py（subscription_id="" 来源）/ config/pipelines/manual-collect.yaml；B-061 / B-062 新立；6d685fb 链路修复未闭环证据
