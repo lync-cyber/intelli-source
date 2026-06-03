@@ -41,6 +41,11 @@ class SourceRepository(BaseRepository[Source]):
             existing.rate_limit_concurrency = config.rate_limit_concurrency
             existing.metadata_ = config.metadata
             await self._session.flush()
+            # ``updated_at`` carries onupdate=func.now(); after an UPDATE flush it
+            # is expired (server-side value not returned), so a later attribute
+            # access from a sync context (e.g. router serialization) would trigger
+            # an out-of-greenlet lazy load → MissingGreenlet. Refresh repopulates it.
+            await self._session.refresh(existing)
             return existing
         source = Source(
             name=config.name,

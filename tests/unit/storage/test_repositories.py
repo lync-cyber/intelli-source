@@ -281,6 +281,32 @@ class TestSourceRepositoryCRUD:
         assert refetched.status == "paused"
 
     @pytest.mark.asyncio
+    async def test_upsert_update_path_keeps_updated_at_loaded(
+        self, session: AsyncSession
+    ) -> None:
+        """Regression: upsert's UPDATE branch must refresh the row so the onupdate
+        ``updated_at`` is populated, not left expired. An expired attribute forces a
+        lazy load on the next sync access (router serialization) → MissingGreenlet
+        → HTTP 500 on POST /sources when the name already exists."""
+        from sqlalchemy import inspect as sa_inspect
+
+        from intellisource.config.models import SourceConfig
+        from intellisource.storage.repositories.source import SourceRepository
+
+        repo = SourceRepository(session)
+        await repo.upsert(
+            SourceConfig(name="Upsert-Feed", type="rss", url="https://x.com/a")
+        )
+        updated = await repo.upsert(
+            SourceConfig(name="Upsert-Feed", type="rss", url="https://x.com/b")
+        )
+
+        assert updated.url == "https://x.com/b"
+        # updated_at must be eagerly loaded by the post-flush refresh, not expired.
+        assert "updated_at" not in sa_inspect(updated).unloaded
+        assert updated.updated_at is not None
+
+    @pytest.mark.asyncio
     async def test_delete_source(self, session: AsyncSession) -> None:
         """SourceRepository.delete() removes the Source from the database."""
         from intellisource.storage.repositories.source import SourceRepository

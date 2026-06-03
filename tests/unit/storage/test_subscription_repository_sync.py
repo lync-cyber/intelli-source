@@ -106,6 +106,13 @@ class TestUpsertByName:
         assert updated.id == first_id, "upsert must update in-place, not duplicate"
         assert updated.channel_config["to_addr"] == "new@x.com"
         assert updated.match_rules["tags"] == ["ai", "ml"]
+        # Regression: the UPDATE branch must refresh so onupdate ``updated_at`` is
+        # loaded, not expired (an expired attr lazy-loads on the next sync access →
+        # MissingGreenlet during router serialization).
+        from sqlalchemy import inspect as sa_inspect
+
+        assert "updated_at" not in sa_inspect(updated).unloaded
+        assert updated.updated_at is not None
 
     async def test_upsert_reactivates_paused_subscription(
         self, session: AsyncSession
