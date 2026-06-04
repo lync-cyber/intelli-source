@@ -32,6 +32,23 @@ class TaskListResponse(APIModel):
     has_more: bool
 
 
+class TaskChainDetail(APIModel):
+    """A task chain (parent of collect tasks) — mirrors `_serialize_task_chain`."""
+
+    id: str
+    pipeline_name: str | None = None
+    status: str
+    trigger_type: str | None = None
+    execution_mode: str | None = None
+    total_steps: int | None = None
+    completed_steps: int | None = None
+    current_step: str | None = None
+    error_message: str | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    created_at: datetime | None = None
+
+
 class TaskBrief(APIModel):
     """Compact task descriptor returned by the collect trigger."""
 

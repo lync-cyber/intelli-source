@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session
 from intellisource.api.schemas.tasks import (
+    TaskChainDetail,
     TaskItem,
     TaskListResponse,
     TaskTriggerResponse,
@@ -82,6 +83,24 @@ def _task_brief(task: Any) -> dict[str, Any]:
         "type": "collect",
         "status": task.status,
         "created_at": task.created_at,
+    }
+
+
+def _serialize_task_chain(chain: Any) -> dict[str, Any]:
+    """Convert a TaskChain ORM object to a JSON-serializable dict."""
+    return {
+        "id": str(chain.id),
+        "pipeline_name": chain.pipeline_name,
+        "status": chain.status,
+        "trigger_type": chain.trigger_type,
+        "execution_mode": chain.execution_mode,
+        "total_steps": chain.total_steps,
+        "completed_steps": chain.completed_steps,
+        "current_step": chain.current_step,
+        "error_message": chain.error_message,
+        "started_at": chain.started_at,
+        "finished_at": chain.finished_at,
+        "created_at": chain.created_at,
     }
 
 
@@ -242,6 +261,19 @@ async def trigger_collect(
         "tasks": [_task_brief(t) for t in tasks],
         "message": f"已创建 {len(tasks)} 个采集任务",
     }
+
+
+@router.get("/tasks/chains/{id}", response_model=TaskChainDetail)
+async def get_task_chain(
+    id: uuid.UUID,
+    session: AsyncSession = Depends(get_db_session),
+) -> Any:
+    """Return the parent TaskChain for *id* or 404 if absent."""
+    repo = TaskChainRepository(session)
+    chain = await repo.get(str(id))
+    if chain is None:
+        return JSONResponse(status_code=404, content={"detail": "not found"})
+    return _serialize_task_chain(chain)
 
 
 @router.get("/tasks/{id}", response_model=TaskItem)

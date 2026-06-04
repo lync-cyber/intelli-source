@@ -26,6 +26,11 @@ _TYPED_ENDPOINTS = [
     ("/api/v1/pipelines", "get"),
     ("/api/v1/pipelines/{name}", "get"),
     ("/api/v1/llm/status", "get"),
+    ("/api/v1/channels", "get"),
+    ("/api/v1/templates", "get"),
+    ("/api/v1/push-records", "get"),
+    ("/api/v1/tasks/chains/{id}", "get"),
+    ("/api/v1/distributions/assemble", "post"),
 ]
 
 
