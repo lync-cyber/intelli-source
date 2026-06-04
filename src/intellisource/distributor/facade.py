@@ -65,6 +65,11 @@ class DistributorFacade:
         self._llm_gateway = llm_gateway
         self._register_metrics()
 
+    @property
+    def channels(self) -> dict[str, BaseDistributor]:
+        """Configured channel distributors, keyed by channel name."""
+        return self._channels
+
     def _register_metrics(self) -> None:
         try:
             from intellisource.observability.metrics import MetricsCollector

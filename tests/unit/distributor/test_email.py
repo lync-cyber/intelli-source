@@ -187,72 +187,9 @@ class TestEmailDistributorFromEnv:
 
 
 # ===================================================================
-# AC-T034-2: HTML template formatting (title/summary/source link)
+# AC-T034-2: HTML email body is rendered by the topic-deepdive template.
+# Rendering assertions live in tests/unit/distributor/test_templates.py.
 # ===================================================================
-
-
-class TestEmailHtmlTemplate:
-    """format_html() produces HTML with title, summary, and source link."""
-
-    def test_format_html_contains_title(self):
-        """HTML output contains the content title."""
-        cls = _import_email_distributor()
-        distributor = cls(
-            smtp_host="smtp.example.com",
-            smtp_port=587,
-            smtp_user="user@example.com",
-            smtp_password="secret",
-        )
-        content = StubContent(title="Breaking News")
-        html = distributor.format_html(content)
-
-        assert "Breaking News" in html
-
-    def test_format_html_contains_summary(self):
-        """HTML output contains the content summary."""
-        cls = _import_email_distributor()
-        distributor = cls(
-            smtp_host="smtp.example.com",
-            smtp_port=587,
-            smtp_user="user@example.com",
-            smtp_password="secret",
-        )
-        content = StubContent(summary="Important summary text")
-        html = distributor.format_html(content)
-
-        assert "Important summary text" in html
-
-    def test_format_html_contains_source_link(self):
-        """HTML output contains a hyperlink to the source URL."""
-        cls = _import_email_distributor()
-        distributor = cls(
-            smtp_host="smtp.example.com",
-            smtp_port=587,
-            smtp_user="user@example.com",
-            smtp_password="secret",
-        )
-        content = StubContent(
-            source_url="https://example.com/article/42",
-        )
-        html = distributor.format_html(content)
-
-        assert "https://example.com/article/42" in html
-        assert "<a " in html.lower() or "href=" in html.lower()
-
-    def test_format_html_is_valid_html(self):
-        """HTML output contains basic HTML structure tags."""
-        cls = _import_email_distributor()
-        distributor = cls(
-            smtp_host="smtp.example.com",
-            smtp_port=587,
-            smtp_user="user@example.com",
-            smtp_password="secret",
-        )
-        content = StubContent()
-        html = distributor.format_html(content)
-
-        html_lower = html.lower()
-        assert "<html" in html_lower or "<!doctype" in html_lower
 
 
 # ===================================================================

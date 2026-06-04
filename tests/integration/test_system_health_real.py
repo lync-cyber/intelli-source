@@ -204,33 +204,35 @@ async def sqlite_session() -> AsyncIterator[AsyncSession]:
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
     event.listen(engine.sync_engine, "connect", _set_sqlite_fk_pragma)
     _remove_pg_only_indexes(Base)
+    # Coerce PG-only column types to portable SQLite equivalents for create_all.
+    # Base.metadata is a process-global shared by every test, so snapshot the
+    # originals and restore them in teardown — otherwise the mutation leaks and
+    # later tests (e.g. storage.test_models column-type assertions) see JSON
+    # where they expect JSONB.
+    original_types: dict[tuple[str, str], Any] = {}
     for table in Base.metadata.tables.values():
         for col in table.columns:
             type_name = type(col.type).__name__
-            if type_name == "Vector":
-                col.type = Text()
-            elif type_name == "JSONB":
-                # sqlite has no JSONB; coerce to portable JSON so
-                # Base.metadata.create_all does not trip SQLiteTypeCompiler.
-                col.type = JSON()
-            elif type_name == "ARRAY":
-                # sqlite has no native ARRAY (postgresql.dialects ARRAY type).
-                # JSON serialises [] / ["tag"] cleanly enough for the route's
-                # read-side aggregation that this fixture exercises.
-                col.type = JSON()
+            if type_name in {"Vector", "JSONB", "ARRAY"}:
+                original_types[(table.name, col.name)] = col.type
+                col.type = Text() if type_name == "Vector" else JSON()
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
 
-    factory = async_sessionmaker(
-        bind=engine, class_=AsyncSession, expire_on_commit=False
-    )
-    async with factory() as session:
-        yield session
+        factory = async_sessionmaker(
+            bind=engine, class_=AsyncSession, expire_on_commit=False
+        )
+        async with factory() as session:
+            yield session
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-    await engine.dispose()
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+    finally:
+        for (table_name, col_name), original in original_types.items():
+            Base.metadata.tables[table_name].columns[col_name].type = original
+        await engine.dispose()
 
 
 class TestSystemLLMStatsRealRoute:

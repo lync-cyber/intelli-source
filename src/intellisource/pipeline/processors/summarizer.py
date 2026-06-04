@@ -56,10 +56,17 @@ class LLMSummarizer(BaseProcessor):
                 exc_info=True,
             )
             context.set("summary", "")
+            context.set(
+                "digest",
+                {"title": title, "summary": "", "timeline": [], "key_points": []},
+            )
             return context
 
         summary = str(result.get("summary", "") or "")
         context.set("summary", summary)
+        # Expose the full structured digest so _process_execute can persist
+        # timeline / key_points into ProcessedContent.structured_data.
+        context.set("digest", result)
         return context
 
 

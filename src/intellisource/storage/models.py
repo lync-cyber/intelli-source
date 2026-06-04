@@ -439,6 +439,9 @@ class Subscription(TimestampMixin, Base):
         ARRAY(String), nullable=False, default=list
     )
     status: Mapped[str] = mapped_column(VARCHAR(20), nullable=False, default="active")
+    last_sent_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
 
     # Relationships
     source: Mapped[Optional["Source"]] = relationship(back_populates="subscriptions")

@@ -28,6 +28,7 @@ __all__ = [
     "PRIORITY_QUEUES",
     "TRIGGER_TYPE_QUEUES",
     "CeleryTasks",
+    "assemble_daily_weekly_digests",
     "get_queue_for_priority",
     "get_queue_for_trigger_type",
     "run_pipeline",
@@ -266,3 +267,28 @@ def run_pipeline(self: Any, **kwargs: Any) -> dict[str, Any]:
     cover them without invoking the Celery Task wrapper.
     """
     return _run_pipeline_body(**kwargs)
+
+
+def _assemble_digests_body() -> dict[str, Any]:
+    """Run the wired PeriodicDigestRunner; raise if the Worker never wired one."""
+    runner = getattr(celery_app, "_periodic_digest_runner", None)
+    if runner is None:
+        raise RuntimeError(
+            "PeriodicDigestRunner not wired: build_worker_composition() must run"
+            " in the worker_process_init handler"
+        )
+    result: dict[str, Any] = _run_sync(runner.run())
+    return result
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="assemble_daily_weekly_digests", bind=True
+)
+def assemble_daily_weekly_digests(self: Any, **kwargs: Any) -> dict[str, Any]:
+    """Beat entry point: assemble + send every due daily/weekly digest.
+
+    Self-gating — each subscription's :class:`FrequencyController` decides
+    whether it is due, so this can fire as often as hourly without over-sending.
+    """
+    del kwargs
+    return _assemble_digests_body()

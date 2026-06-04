@@ -66,7 +66,7 @@ class TestPromptVersionTracksContentChanges:
 
         with (
             patch("intellisource.llm.prompt_builder._TEMPLATE_DIR", custom_dir),
-            patch("intellisource.llm.prompts._TEMPLATE_DIR", custom_dir),
+            patch("intellisource.llm.prompts.loader._TEMPLATE_DIR", custom_dir),
         ):
             # Reset lru_cache so the new template is read fresh.
             from intellisource.llm.prompts import _read_template  # noqa: PLC0415
@@ -157,7 +157,7 @@ class TestUnknownVersionWhenTemplateMissing:
 
         with (
             patch("intellisource.llm.prompt_builder._TEMPLATE_DIR", custom_dir),
-            patch("intellisource.llm.prompts._TEMPLATE_DIR", custom_dir),
+            patch("intellisource.llm.prompts.loader._TEMPLATE_DIR", custom_dir),
         ):
             from intellisource.llm.prompts import _read_template  # noqa: PLC0415
 

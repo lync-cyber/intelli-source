@@ -1,0 +1,34 @@
+<html>
+<body style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;padding:16px;line-height:1.5;color:#1a1a1a">
+<h1 style="font-size:20px;margin:0 0 8px">{{ bundle.title }}{% if bundle.period_label %} · {{ bundle.period_label }}{% endif %}</h1>
+{% if bundle.intro %}
+<p style="font-style:italic;color:#555;margin:0 0 16px">{{ bundle.intro }}</p>
+<hr style="border:none;border-top:1px solid #eee">
+{% endif %}
+{% for section in bundle.sections %}
+<h2 style="text-transform:uppercase;font-size:13px;letter-spacing:.5px;color:#888;margin:20px 0 8px">{{ section.heading }}</h2>
+{% for item in section.items %}
+<div style="margin:0 0 16px">
+{% if item.source_url %}
+<a href="{{ item.source_url }}" style="font-weight:600;font-size:16px;color:#1a1a1a;text-decoration:none">{{ item.title }}</a>
+{% else %}
+<span style="font-weight:600;font-size:16px">{{ item.title }}</span>
+{% endif %}
+{% if item.summary %}
+<p style="margin:4px 0;color:#333">{{ item.summary }}</p>
+{% endif %}
+{% if item.why_it_matters %}
+<p style="margin:4px 0;color:#444"><strong>为什么重要：</strong>{{ item.why_it_matters }}</p>
+{% endif %}
+{% if item.source_name %}
+<span style="font-size:12px;color:#999">— {{ item.source_name }}</span>
+{% endif %}
+</div>
+{% endfor %}
+{% endfor %}
+{% if bundle.outro %}
+<hr style="border:none;border-top:1px solid #eee">
+<p style="color:#555">{{ bundle.outro }}</p>
+{% endif %}
+</body>
+</html>

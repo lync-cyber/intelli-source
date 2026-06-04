@@ -310,6 +310,16 @@ def _bootstrap_beat_schedule(factory: async_sessionmaker[AsyncSession]) -> None:
         coro.close()
 
     sync_beat_schedules(_module_celery_app, scheduler_manager)
+
+    # Static system task: fire the periodic-digest assembler hourly. It is
+    # self-gating per subscription (FrequencyController.should_send_now), so an
+    # hourly tick never over-sends a daily/weekly digest.
+    from celery.schedules import crontab  # noqa: PLC0415
+
+    _module_celery_app.conf.beat_schedule["assemble_daily_weekly_digests"] = {
+        "task": "assemble_daily_weekly_digests",
+        "schedule": crontab(minute=0),
+    }
     setattr(_module_celery_app, "_scheduler_manager", scheduler_manager)
 
 

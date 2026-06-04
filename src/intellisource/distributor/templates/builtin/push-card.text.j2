@@ -1,0 +1,6 @@
+{% set item = bundle.sections[0].items[0] if bundle.sections and bundle.sections[0].items else None %}
+{% if item %}{{ item.title }}
+{% if item.summary %}{{ item.summary }}
+{% endif %}
+{% if item.source_url %}{{ item.source_url }}{% endif %}
+{% endif %}

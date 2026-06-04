@@ -30,6 +30,20 @@ class BaseDistributor(abc.ABC):
     async def distribute(self, content: Any, subscription: Any) -> Any:
         """Distribute content to a subscription."""
 
+    async def send_rendered(
+        self, subscription: Any, *, title: str, body: str, fmt: str
+    ) -> dict[str, Any]:
+        """Send a pre-rendered digest body (multi-item) to one subscription.
+
+        Distinct from :meth:`distribute`, which renders a single content item
+        internally. Channels that cannot deliver free-form rendered bodies (e.g.
+        WeChat, which only sends pre-approved template messages) inherit this
+        default and signal that to the caller.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not support rendered digest delivery"
+        )
+
     async def check_dedup(
         self,
         subscription_id: Any,

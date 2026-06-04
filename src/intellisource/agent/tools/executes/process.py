@@ -136,6 +136,7 @@ async def _process_execute(
                     embedding=embedding_arg,
                     fingerprint=str(ctx.get("fingerprint") or raw.fingerprint or ""),
                     source_url=raw.source_url,
+                    structured_data=ctx.get("digest"),
                     processing_status="completed",
                     processed_at=datetime.now(tz=timezone.utc),
                     published_at=(

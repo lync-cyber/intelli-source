@@ -1,0 +1,45 @@
+<html>
+<body style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:640px;margin:0 auto;padding:16px;line-height:1.6;color:#1a1a1a">
+<h1 style="font-size:22px;margin:0 0 8px">{{ bundle.title }}{% if bundle.period_label %} · {{ bundle.period_label }}{% endif %}</h1>
+{% if bundle.intro %}
+<p style="color:#555;margin:0 0 16px">{{ bundle.intro }}</p>
+{% endif %}
+{% if bundle.top_picks %}
+<h2 style="font-size:16px;margin:16px 0 8px">本周头条</h2>
+{% for item in bundle.top_picks %}
+<div style="margin:0 0 20px;padding-bottom:12px;border-bottom:1px solid #eee">
+{% if item.source_url %}
+<a href="{{ item.source_url }}" style="font-size:18px;font-weight:700;color:#1a1a1a;text-decoration:none">{{ item.title }}</a>
+{% else %}
+<span style="font-size:18px;font-weight:700">{{ item.title }}</span>
+{% endif %}
+{% if item.summary %}
+<p style="margin:6px 0;color:#333">{{ item.summary }}</p>
+{% endif %}
+{% if item.why_it_matters %}
+<p style="margin:6px 0;color:#444"><strong>为什么重要：</strong>{{ item.why_it_matters }}</p>
+{% endif %}
+</div>
+{% endfor %}
+{% endif %}
+{% for section in bundle.sections %}
+<h3 style="text-transform:uppercase;font-size:13px;color:#888;margin:16px 0 6px">{{ section.heading }}</h3>
+<ul style="padding-left:20px;margin:0">
+{% for item in section.items %}
+<li style="margin:4px 0">{% if item.source_url %}<a href="{{ item.source_url }}" style="color:#2563eb">{{ item.title }}</a>{% else %}{{ item.title }}{% endif %}{% if item.summary %} — {{ item.summary }}{% endif %}</li>
+{% endfor %}
+</ul>
+{% endfor %}
+{% if bundle.timeline %}
+<h3 style="font-size:15px;color:#666;margin:16px 0 6px">本周时间线</h3>
+<ul style="padding-left:20px;margin:0">
+{% for e in bundle.timeline %}
+<li style="margin:4px 0">{{ e.date }} — {{ e.event }}</li>
+{% endfor %}
+</ul>
+{% endif %}
+{% if bundle.outro %}
+<p style="color:#555;margin-top:16px">{{ bundle.outro }}</p>
+{% endif %}
+</body>
+</html>
