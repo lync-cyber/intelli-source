@@ -41,7 +41,7 @@ dependencies = [
 ]
 
 [project.scripts]
-intellisource = "intellisource.cli.main:app"
+intellisource = "intellisource.cli.main:run"
 
 [build-system]
 requires = ["hatchling"]

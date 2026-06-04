@@ -1170,3 +1170,24 @@ class TestConfigStatus:
         assert result.exit_code == 0
         assert "diff unavailable" in result.output
         assert "latest recorded version: (none)" in result.output
+
+
+class TestRunEntrypoint:
+    """The console-script ``run`` wrapper enters UTF-8 mode before dispatching."""
+
+    def test_run_reexecs_then_invokes_app(self) -> None:
+        _skip_if_missing()
+        from intellisource.cli import main as cli_main
+
+        order: list[str] = []
+        with (
+            patch.object(
+                cli_main,
+                "reexec_in_utf8_mode_if_needed",
+                side_effect=lambda: order.append("reexec"),
+            ),
+            patch.object(cli_main, "app", side_effect=lambda: order.append("app")),
+        ):
+            cli_main.run()
+
+        assert order == ["reexec", "app"]

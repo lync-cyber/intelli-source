@@ -14,7 +14,12 @@ from typing import Any
 import httpx
 import typer
 
-from intellisource.core.encoding import enforce_utf8_runtime, read_text, write_text
+from intellisource.core.encoding import (
+    enforce_utf8_runtime,
+    read_text,
+    reexec_in_utf8_mode_if_needed,
+    write_text,
+)
 from intellisource.core.paths import project_root
 from intellisource.core.settings import (
     PROVIDER_ENV_KEYS,
@@ -36,6 +41,17 @@ app.add_typer(pipeline_app, name="pipeline")
 app.add_typer(subscriptions_app, name="subscriptions")
 app.add_typer(topic_app, name="topic")
 app.add_typer(config_app, name="config")
+
+
+def run() -> None:
+    """Console-script entrypoint: enter UTF-8 mode (re-exec if needed) then dispatch.
+
+    Runs before typer parses argv so help text and parse errors are emitted in
+    UTF-8 too. Tests drive ``app`` directly via ``CliRunner`` and never hit this,
+    so the re-exec can only fire on a genuine standalone launch.
+    """
+    reexec_in_utf8_mode_if_needed()
+    app()
 
 
 # ---------------------------------------------------------------------------
