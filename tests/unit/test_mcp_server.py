@@ -191,6 +191,41 @@ async def test_create_then_get_and_delete_template(session_factory: Any) -> None
 
 
 @pytest.mark.asyncio
+async def test_update_template_patches_existing(session_factory: Any) -> None:
+    mcp = build_mcp_server(session_factory=session_factory)
+    _parse(
+        await mcp.call_tool(
+            "create_template",
+            {
+                "name": "patch-me",
+                "base_template": "daily-brief",
+                "formats": ["markdown"],
+                "default_format": "markdown",
+                "jinja_source": {"markdown": "# x"},
+            },
+        )
+    )
+    updated = _parse(
+        await mcp.call_tool(
+            "update_template", {"name": "patch-me", "status": "archived"}
+        )
+    )
+    assert updated["status"] == "archived"
+
+    got = _parse(await mcp.call_tool("get_template", {"name": "patch-me"}))
+    assert got["status"] == "archived"
+
+
+@pytest.mark.asyncio
+async def test_update_template_not_found(session_factory: Any) -> None:
+    mcp = build_mcp_server(session_factory=session_factory)
+    payload = _parse(
+        await mcp.call_tool("update_template", {"name": "ghost", "status": "archived"})
+    )
+    assert payload["error"] == "not_found"
+
+
+@pytest.mark.asyncio
 async def test_create_template_unknown_base_returns_error(session_factory: Any) -> None:
     mcp = build_mcp_server(session_factory=session_factory)
     payload = _parse(

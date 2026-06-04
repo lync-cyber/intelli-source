@@ -29,6 +29,45 @@ def _props(name: str) -> dict[str, Any]:
     return properties
 
 
+def _params(name: str) -> dict[str, Any]:
+    reg = AgentToolRegistry()
+    reg.register_defaults()
+    tool = reg.get(name)
+    assert tool is not None
+    return tool.parameters
+
+
+def _required_sets(parameters: dict[str, Any]) -> list[set[str]]:
+    """Collect every ``required`` list reachable via top-level or anyOf branches."""
+    sets: list[set[str]] = []
+    if isinstance(parameters.get("required"), list):
+        sets.append(set(parameters["required"]))
+    for branch in parameters.get("anyOf", []):
+        if isinstance(branch, dict) and isinstance(branch.get("required"), list):
+            sets.append(set(branch["required"]))
+    return sets
+
+
+def test_distribute_requires_a_content_identifier() -> None:
+    """At least one content id (single or batch) must be required; subscription_id
+    stays optional so the documented fan-out behaviour survives."""
+    params = _params("distribute")
+    required = _required_sets(params)
+    # content_id and processed_content_ids each appear as an alternative requirement
+    assert {"content_id"} in required
+    assert {"processed_content_ids"} in required
+    # subscription_id must never be globally required (omitting it = fan-out)
+    for s in required:
+        assert "subscription_id" not in s
+
+
+def test_process_requires_a_content_identifier() -> None:
+    params = _params("process")
+    required = _required_sets(params)
+    assert {"content_id"} in required
+    assert {"raw_content_ids"} in required
+
+
 def _accepted_params(fn: Callable[..., Any]) -> set[str]:
     """Named keyword parameters the executor accepts (excludes tool_deps/**kwargs)."""
     return {

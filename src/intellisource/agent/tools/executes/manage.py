@@ -111,6 +111,17 @@ def _serialize_subscription(s: Any) -> dict[str, Any]:
     }
 
 
+def _serialize_template(t: Any) -> dict[str, Any]:
+    return {
+        "id": str(t.id),
+        "name": t.name,
+        "base_template": t.base_template,
+        "formats": list(getattr(t, "formats", None) or []),
+        "default_format": t.default_format,
+        "status": t.status,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Sources
 # ---------------------------------------------------------------------------
@@ -549,6 +560,64 @@ async def _create_template_execute(
     except Exception as exc:
         logger.warning("create_template failed: %s", exc)
         return tool_error("create_template", str(exc), code="error")
+
+
+async def _get_template_execute(
+    tool_deps: Any = None, name: str = "", **kwargs: Any
+) -> dict[str, Any]:
+    """Fetch a single custom template by name."""
+    factory, session_factory = _wiring(tool_deps, "template_service_factory")
+    if factory is None or session_factory is None:
+        return tool_error("get_template", "tool_deps not injected", code="not_wired")
+    if not name:
+        return tool_error("get_template", "name is required", code="invalid_input")
+    try:
+        async with session_factory() as session:
+            row = await factory(session).get_by_name(name)
+        if row is None:
+            return tool_error("get_template", "template not found", code="not_found")
+        return tool_ok("get_template", template=_serialize_template(row))
+    except Exception as exc:
+        logger.warning("get_template failed: %s", exc)
+        return tool_error("get_template", str(exc), code="error")
+
+
+async def _update_template_execute(
+    tool_deps: Any = None, name: str = "", **kwargs: Any
+) -> dict[str, Any]:
+    """Partial-update an existing custom template by name (real patch)."""
+    factory, session_factory = _wiring(tool_deps, "template_service_factory")
+    if factory is None or session_factory is None:
+        return tool_error("update_template", "tool_deps not injected", code="not_wired")
+    if not name:
+        return tool_error("update_template", "name is required", code="invalid_input")
+    # ``name`` is the immutable identifier — never part of the patch body.
+    fields = _pick(kwargs, tuple(f for f in _TEMPLATE_FIELDS if f != "name"))
+    if not fields:
+        return tool_error(
+            "update_template", "no fields to update", code="invalid_input"
+        )
+    try:
+        async with session_factory() as session:
+            service = factory(session)
+            row = await service.get_by_name(name)
+            if row is None:
+                return tool_error(
+                    "update_template", "template not found", code="not_found"
+                )
+            updated = await service.patch(row.id, fields)
+            if updated is None:
+                return tool_error(
+                    "update_template", "template not found", code="not_found"
+                )
+            payload = _serialize_template(updated)
+            await session.commit()
+        return tool_ok("update_template", template=payload)
+    except TemplateValidationError as exc:
+        return tool_error("update_template", str(exc), code="invalid_input")
+    except Exception as exc:
+        logger.warning("update_template failed: %s", exc)
+        return tool_error("update_template", str(exc), code="error")
 
 
 async def _list_templates_execute(

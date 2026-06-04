@@ -34,6 +34,7 @@ from intellisource.agent.tools.executes.manage import (
     _delete_template_execute,
     _get_source_execute,
     _get_subscription_execute,
+    _get_template_execute,
     _list_pipelines_execute,
     _list_sources_execute,
     _list_subscriptions_execute,
@@ -41,6 +42,7 @@ from intellisource.agent.tools.executes.manage import (
     _update_pipeline_execute,
     _update_source_execute,
     _update_subscription_execute,
+    _update_template_execute,
 )
 from intellisource.agent.tools.executes.process import _process_execute
 from intellisource.agent.tools.executes.run import (
@@ -449,6 +451,12 @@ def _default_tool_defs() -> list[ToolDefinition]:
                         ),
                     },
                 },
+                # At least one content identifier must be supplied (single id or
+                # the batch list); a call with neither is a no-op.
+                "anyOf": [
+                    {"required": ["content_id"]},
+                    {"required": ["raw_content_ids"]},
+                ],
             },
             execute=_process_execute,
             mutates_external_state=True,
@@ -481,6 +489,13 @@ def _default_tool_defs() -> list[ToolDefinition]:
                         ),
                     },
                 },
+                # At least one content identifier is required (single id or the
+                # batch list). subscription_id stays optional on purpose: omitting
+                # it fans out to every matching active subscription.
+                "anyOf": [
+                    {"required": ["content_id"]},
+                    {"required": ["processed_content_ids"]},
+                ],
             },
             execute=_distribute_execute,
             permission_level=PermissionLevel.confirm,
@@ -867,6 +882,54 @@ def _management_tool_defs() -> list[ToolDefinition]:
                 "properties": {"limit": {"type": "integer"}},
             },
             execute=_list_templates_execute,
+        ),
+        ToolDefinition(
+            name="get_template",
+            description=(
+                "Fetch a single custom digest template by name, returning its"
+                " base_template, formats, default_format and status."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the custom template to fetch.",
+                    }
+                },
+                "required": ["name"],
+            },
+            execute=_get_template_execute,
+        ),
+        ToolDefinition(
+            name="update_template",
+            description=(
+                "Partially update an EXISTING custom digest template by name. Only"
+                " supplied fields change; the template must already exist (use"
+                " create_template to add a new one). The name is the immutable"
+                " identifier and cannot be renamed here."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the template to update.",
+                    },
+                    "base_template": {"type": "string"},
+                    "formats": {"type": "array", "items": {"type": "string"}},
+                    "default_format": {"type": "string"},
+                    "jinja_source": {
+                        "type": "object",
+                        "description": "Map of format -> Jinja source string.",
+                    },
+                    "aggregate_config": {"type": "object"},
+                    "status": {"type": "string", "enum": ["active", "archived"]},
+                },
+                "required": ["name"],
+            },
+            execute=_update_template_execute,
+            mutates_external_state=True,
         ),
         ToolDefinition(
             name="delete_template",

@@ -732,6 +732,53 @@ def build_mcp_server(
         return payload
 
     @mcp.tool(
+        name="update_template",
+        description=(
+            "Partially update an EXISTING custom digest template by name. Params:"
+            " name (required) plus any of base_template, formats, default_format,"
+            " jinja_source, aggregate_config, status — only the ones you pass"
+            " change. Returns {name, base_template, status}, or"
+            " {error:'not_found'} when the name is absent (use create_template to"
+            " add a new one)."
+        ),
+    )
+    async def update_template(
+        name: str,
+        base_template: str | None = None,
+        formats: list[str] | None = None,
+        default_format: str | None = None,
+        jinja_source: dict[str, str] | None = None,
+        aggregate_config: dict[str, Any] | None = None,
+        status: str | None = None,
+    ) -> dict[str, Any]:
+        fields = _only_set(
+            base_template=base_template,
+            formats=formats,
+            default_format=default_format,
+            jinja_source=jinja_source,
+            aggregate_config=aggregate_config,
+            status=status,
+        )
+        if not fields:
+            return {"error": "invalid_input", "reason": "no fields to update"}
+        try:
+            async with session_cm() as session:
+                service = TemplateService(session)
+                row = await service.get_by_name(name)
+                if row is None:
+                    return {"error": "not_found", "name": name}
+                updated = await service.patch(row.id, fields)
+                payload = {
+                    "name": updated.name,  # type: ignore[union-attr]
+                    "base_template": updated.base_template,  # type: ignore[union-attr]
+                    "status": updated.status,  # type: ignore[union-attr]
+                }
+                await session.commit()
+        except TemplateValidationError as exc:
+            return {"error": "invalid_input", "reason": str(exc)}
+        return payload
+
+    @mcp.tool(
         name="delete_template",
         description=(
             "Delete a custom digest template by name. Params: name (str)."
