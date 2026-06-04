@@ -806,6 +806,8 @@ def _management_tool_defs() -> list[ToolDefinition]:
             name="run_pipeline",
             description=(
                 "Trigger a run of a persisted pipeline by name via the task queue."
+                " Returns {task_chain_id, celery_task_id}; poll task_chain_id with"
+                " get_task_status to read run progress and result."
             ),
             parameters={
                 "type": "object",
@@ -828,7 +830,8 @@ def _management_tool_defs() -> list[ToolDefinition]:
             name="get_task_status",
             description=(
                 "Get the status of a pipeline run by its task_chain_id"
-                " (e.g. the id returned by run_pipeline's run record)."
+                " (the task_chain_id returned by run_pipeline). Returns the run"
+                " state (status / completed_steps / total_steps / error_message)."
             ),
             parameters={
                 "type": "object",

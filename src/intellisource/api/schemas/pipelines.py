@@ -36,3 +36,4 @@ class PipelineRunResponse(APIModel):
     """Dispatch result for POST /pipelines/{name}/run."""
 
     task_id: str
+    task_chain_id: str

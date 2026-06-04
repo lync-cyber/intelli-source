@@ -10,6 +10,7 @@ without a broker or a database.
 
 from __future__ import annotations
 
+import uuid
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from typing import Any, AsyncIterator
@@ -63,12 +64,47 @@ async def test_run_pipeline_dispatches_when_pipeline_exists() -> None:
     result = await _run_pipeline_execute(tool_deps=deps, name="daily", params={"k": 1})
 
     assert result["status"] == "ok"
-    assert result["task_id"] == "celery-task-7"
+    assert result["celery_task_id"] == "celery-task-7"
     assert result["pipeline"] == "daily"
     # existence is verified before dispatch, and the dispatcher receives the
-    # exact name + params (guards against the param being dropped en route)
-    assert dispatched == [("daily", {"k": 1})]
+    # exact name + caller params (guards against a param being dropped en route)
+    assert len(dispatched) == 1
+    dispatched_name, dispatched_params = dispatched[0]
+    assert dispatched_name == "daily"
+    assert dispatched_params["k"] == 1
     pipeline_svc.get.assert_awaited_once_with("daily")
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_returns_task_chain_id_handed_to_worker() -> None:
+    """The returned task_chain_id is exactly the one dispatched to the worker.
+
+    This is the closed loop at the tool layer: a caller can feed run_pipeline's
+    task_chain_id straight into get_task_status because the worker persists the
+    run under that same id (see scheduler.tasks._ensure_chain).
+    """
+    pipeline_svc = SimpleNamespace(
+        get=AsyncMock(return_value=SimpleNamespace(name="daily"))
+    )
+    dispatched: list[tuple[str, dict[str, Any]]] = []
+
+    def _dispatcher(name: str, params: dict[str, Any]) -> Any:
+        dispatched.append((name, params))
+        return SimpleNamespace(id="celery-task-9")
+
+    deps = _deps(
+        pipeline_service_factory=lambda _s: pipeline_svc,
+        task_dispatcher=_dispatcher,
+    )
+    result = await _run_pipeline_execute(tool_deps=deps, name="daily")
+
+    chain_id = result["task_chain_id"]
+    # a valid UUID was generated and is distinct from the celery task id
+    assert uuid.UUID(chain_id)
+    assert chain_id != result["celery_task_id"]
+    # and it is the id handed to the worker via params (not the lock key)
+    assert dispatched[0][1]["task_chain_id"] == chain_id
+    assert "task_id" not in dispatched[0][1]
 
 
 @pytest.mark.asyncio

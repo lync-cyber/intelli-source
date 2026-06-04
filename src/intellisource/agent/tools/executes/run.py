@@ -10,6 +10,7 @@ tools are unit-testable without a broker or database.
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 from intellisource.agent.tools.results import tool_error, tool_ok
@@ -52,13 +53,24 @@ async def _run_pipeline_execute(
         return tool_error(
             "run_pipeline", f"pipeline {name!r} not found", code="not_found"
         )
+    # Pre-generate the TaskChain id and hand it to the worker via params so the
+    # id returned here is the same one get_task_status polls (closing the
+    # trigger -> check-status loop). Distinct from params["task_id"], which the
+    # worker consumes as the idempotency lock key.
+    chain_id = str(uuid.uuid4())
+    run_params = {**(params or {}), "task_chain_id": chain_id}
     try:
-        result = dispatcher(name, params or {})
+        result = dispatcher(name, run_params)
     except Exception as exc:
         logger.warning("run_pipeline dispatch failed: %s", exc)
         return tool_error("run_pipeline", str(exc), code="dispatch_failed")
-    task_id = str(getattr(result, "id", result))
-    return tool_ok("run_pipeline", task_id=task_id, pipeline=name)
+    celery_task_id = str(getattr(result, "id", result))
+    return tool_ok(
+        "run_pipeline",
+        task_chain_id=chain_id,
+        celery_task_id=celery_task_id,
+        pipeline=name,
+    )
 
 
 async def _get_task_status_execute(
