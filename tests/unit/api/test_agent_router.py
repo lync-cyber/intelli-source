@@ -9,12 +9,15 @@ the write-capable agent against arbitrary config injection.
 
 from __future__ import annotations
 
-from typing import Any
+import json
+import uuid
+from typing import Any, AsyncIterator
 
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
+from intellisource.api.confirm_token import mint_confirm_token
 from intellisource.api.routers.agent import router as agent_router
 
 
@@ -178,3 +181,197 @@ async def test_agent_chat_falls_back_to_step_output_when_no_final_answer() -> No
     assert resp.status_code == 200
     # extract_answer falls back to the last step's summary text
     assert resp.json()["answer"] == "三条结果"
+
+
+# ---------------------------------------------------------------------------
+# P1.1: server-side session memory
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_agent_chat_returns_session_id() -> None:
+    """The response always carries a usable session token (even without a DB)."""
+    runner = _StubRunner(
+        {"final_answer": "ok", "steps_executed": 1, "task_chain_id": "c", "results": []}
+    )
+    app = _make_app(runner)
+
+    resp = await _post(app, {"message": "hi"})
+
+    assert resp.status_code == 200
+    # a parseable session id is returned so the client can continue the thread
+    assert uuid.UUID(resp.json()["session_id"])
+
+
+# ---------------------------------------------------------------------------
+# P1.2: confirm-token human-in-the-loop
+# ---------------------------------------------------------------------------
+
+
+class _CapturingRunner:
+    """Records run_flexible kwargs (esp. approved_calls) and returns a result."""
+
+    def __init__(self, result: dict[str, Any]) -> None:
+        self._result = result
+        self.approved_calls: Any = "unset"
+
+    async def run_flexible(
+        self, config: Any, user_message: str, session: dict[str, Any], **kwargs: Any
+    ) -> dict[str, Any]:
+        self.approved_calls = kwargs.get("approved_calls")
+        return self._result
+
+
+@pytest.mark.asyncio
+async def test_agent_chat_mints_confirm_token_for_pending() -> None:
+    runner = _CapturingRunner(
+        {
+            "final_answer": "将向订阅 s1 推送 c1，确认？",
+            "steps_executed": 1,
+            "task_chain_id": "c",
+            "results": [
+                {
+                    "tool": "distribute",
+                    "status": "pending_confirmation",
+                    "args": {"content_id": "c1", "subscription_id": "s1"},
+                    "tool_call_id": "tc-1",
+                }
+            ],
+        }
+    )
+    app = _make_app(runner)
+
+    resp = await _post(app, {"message": "把 c1 推给 s1"})
+
+    body = resp.json()
+    assert resp.status_code == 200
+    # a confirm token + the pending action are surfaced for the user to approve
+    assert body["confirm_token"]
+    assert body["pending_confirmations"] == [
+        {"tool": "distribute", "args": {"content_id": "c1", "subscription_id": "s1"}}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_agent_chat_forwards_confirm_token_as_approved_calls() -> None:
+    runner = _CapturingRunner(
+        {
+            "final_answer": "已推送",
+            "steps_executed": 1,
+            "task_chain_id": "c",
+            "results": [],
+        }
+    )
+    app = _make_app(runner)
+    token = mint_confirm_token([{"tool": "distribute", "args": {"content_id": "c1"}}])
+
+    resp = await _post(app, {"message": "确认", "confirm_token": token})
+
+    assert resp.status_code == 200
+    # the approved calls recovered from the token reach the runner verbatim
+    assert runner.approved_calls == [
+        {"tool": "distribute", "args": {"content_id": "c1"}}
+    ]
+    # nothing left pending after approval
+    assert resp.json()["confirm_token"] is None
+
+
+@pytest.mark.asyncio
+async def test_agent_chat_no_confirm_token_when_nothing_pending() -> None:
+    runner = _CapturingRunner(
+        {
+            "final_answer": "已创建",
+            "steps_executed": 1,
+            "task_chain_id": "c",
+            "results": [{"tool": "create_source", "output": {"status": "ok"}}],
+        }
+    )
+    app = _make_app(runner)
+
+    resp = await _post(app, {"message": "建信源"})
+
+    body = resp.json()
+    assert body["confirm_token"] is None
+    assert body["pending_confirmations"] == []
+    # approved_calls is None when no confirm_token is supplied
+    assert runner.approved_calls is None
+
+
+# ---------------------------------------------------------------------------
+# P1.3: SSE streaming endpoint
+# ---------------------------------------------------------------------------
+
+
+class _StreamRunner:
+    """Yields a fixed SSE event sequence from run_flexible_stream."""
+
+    def __init__(self, events: list[dict[str, Any]]) -> None:
+        self._events = events
+        self.approved_calls: Any = "unset"
+
+    async def run_flexible_stream(
+        self, config: Any, user_message: str, session: dict[str, Any], **kwargs: Any
+    ) -> AsyncIterator[dict[str, Any]]:
+        self.approved_calls = kwargs.get("approved_calls")
+        for event in self._events:
+            yield event
+
+
+def _parse_sse(text: str) -> list[dict[str, Any]]:
+    return [
+        json.loads(line[len("data: ") :])
+        for line in text.splitlines()
+        if line.startswith("data: ")
+    ]
+
+
+@pytest.mark.asyncio
+async def test_agent_chat_stream_done_carries_session_and_confirm_token() -> None:
+    runner = _StreamRunner(
+        [
+            {"type": "token", "delta": "将推送 c1，确认？"},
+            {
+                "type": "done",
+                "metadata": {
+                    "task_chain_id": "c",
+                    "results": [
+                        {
+                            "tool": "distribute",
+                            "status": "pending_confirmation",
+                            "args": {"content_id": "c1"},
+                        }
+                    ],
+                },
+            },
+        ]
+    )
+    app = _make_app(runner)
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        resp = await client.post("/api/v1/agent/chat/stream", json={"message": "推 c1"})
+
+    assert resp.status_code == 200
+    events = _parse_sse(resp.text)
+    done = next(e for e in events if e["type"] == "done")
+    meta = done["metadata"]
+    assert uuid.UUID(meta["session_id"])
+    assert meta["confirm_token"]
+    assert meta["pending_confirmations"] == [
+        {"tool": "distribute", "args": {"content_id": "c1"}}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_agent_chat_stream_503_when_runner_absent() -> None:
+    app = _make_app(None)
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        resp = await client.post("/api/v1/agent/chat/stream", json={"message": "hi"})
+
+    assert resp.status_code == 503
+    events = _parse_sse(resp.text)
+    assert events[0]["type"] == "error"

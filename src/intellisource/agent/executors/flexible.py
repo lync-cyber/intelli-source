@@ -52,8 +52,15 @@ class FlexibleLoop:
         agent_mode: Any,
         max_tokens_budget: int | None = None,
         tool_deps: Any = None,
+        approved_calls: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
-        """Run LLM agent loop with tool access."""
+        """Run LLM agent loop with tool access.
+
+        ``approved_calls`` carries human-in-the-loop confirmed tool calls
+        (tool + args) recovered from a confirm token: they are executed up
+        front and seeded into the history so the next LLM turn summarises the
+        result, letting a confirm-gated action (e.g. distribute) actually run.
+        """
         chain_id = str(uuid.uuid4())
         await self._emit_pipeline_start(config.name, chain_id, "flexible")
 
@@ -86,6 +93,18 @@ class FlexibleLoop:
         if self._llm_gateway is None:
             msg = "LLM gateway is required for flexible mode"
             raise IntelliSourceError(msg, ErrorCategory.UNRECOVERABLE)
+
+        if approved_calls:
+            async for _ in self._execute_approved_calls(
+                approved_calls,
+                config=config,
+                chain_id=chain_id,
+                tool_deps=tool_deps,
+                messages=messages,
+                tool_results=tool_results,
+                agent_mode=agent_mode,
+            ):
+                pass
 
         while steps_executed < config.max_steps and not budget_exhausted:
             llm_t0 = time.monotonic()
@@ -343,6 +362,7 @@ class FlexibleLoop:
         agent_mode: Any,
         max_tokens_budget: int | None = None,
         tool_deps: Any = None,
+        approved_calls: list[dict[str, Any]] | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """Streaming counterpart to ``run``.
 
@@ -397,6 +417,18 @@ class FlexibleLoop:
         if _is_preview_mode(agent_mode):
             msg = "preview agent_mode is not supported by run_stream"
             raise IntelliSourceError(msg, ErrorCategory.UNRECOVERABLE)
+
+        if approved_calls:
+            async for event in self._execute_approved_calls(
+                approved_calls,
+                config=config,
+                chain_id=chain_id,
+                tool_deps=tool_deps,
+                messages=messages,
+                tool_results=tool_results,
+                agent_mode=agent_mode,
+            ):
+                yield event
 
         while steps_executed < config.max_steps and not budget_exhausted:
             llm_t0 = time.monotonic()
@@ -670,6 +702,146 @@ class FlexibleLoop:
             yield {"type": "error", "detail": stream_error}
         else:
             yield {"type": "done", "metadata": persist_result}
+
+    async def _execute_approved_calls(
+        self,
+        approved_calls: list[dict[str, Any]],
+        *,
+        config: Any,
+        chain_id: str,
+        tool_deps: Any,
+        messages: list[dict[str, Any]],
+        tool_results: list[dict[str, Any]],
+        agent_mode: Any,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        """Execute human-confirmed tool calls before the agent loop runs.
+
+        Each approved call is seeded into ``messages`` as a completed assistant
+        tool_call + tool result so the next LLM turn can summarise it. The
+        confirm permission is bypassed (that *is* the approval), but ``deny``
+        and analyze-mode denial still hard-block — a forged approval can never
+        run a denied or read-only-mode-blocked tool. Yields a ``step`` event per
+        executed call for streaming callers.
+        """
+        pipeline_perms: dict[str, str] = getattr(config, "tool_permissions", {}) or {}
+        for call in approved_calls:
+            tc_name = str(call.get("tool") or "")
+            tc_args = dict(call.get("args") or {})
+            tc_id = f"confirmed-{uuid.uuid4()}"
+
+            tool_raw = self._tool_registry.get(tc_name)
+            if tool_raw is None:
+                tool_results.append(
+                    {"tool": tc_name, "output": None, "error": "unknown_tool"}
+                )
+                continue
+
+            override = pipeline_perms.get(tc_name)
+            if override is not None:
+                effective_perm = PermissionLevel(override)
+            elif isinstance(tool_raw, ToolDefinition):
+                effective_perm = tool_raw.permission_level
+            else:
+                effective_perm = PermissionLevel.auto
+            blocked = (
+                "denied_by_permission"
+                if effective_perm is PermissionLevel.deny
+                else (
+                    "denied_by_analyze_mode"
+                    if self._is_analyze_denied(tc_name, agent_mode)
+                    else None
+                )
+            )
+            if blocked is not None:
+                messages.append(
+                    {
+                        "role": "tool",
+                        "content": json.dumps({"status": blocked, "tool": tc_name}),
+                        "tool_call_id": tc_id,
+                    }
+                )
+                tool_results.append(
+                    {"tool": tc_name, "status": blocked, "output": None}
+                )
+                continue
+
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "id": tc_id,
+                            "type": "function",
+                            "function": {
+                                "name": tc_name,
+                                "arguments": json.dumps(tc_args, default=str),
+                            },
+                        }
+                    ],
+                }
+            )
+            exec_args = (
+                {**tc_args, "tool_deps": tool_deps}
+                if tool_deps is not None
+                else tc_args
+            )
+            tool_fn = _resolve_callable(tool_raw)
+            tool_t0 = time.monotonic()
+            try:
+                result = await tool_fn(**exec_args)
+                duration_ms = (time.monotonic() - tool_t0) * 1000.0
+                await self._emit_tool_call(
+                    config.name, chain_id, tc_name, duration_ms, "success"
+                )
+                messages.append(
+                    {
+                        "role": "tool",
+                        "content": json.dumps(result, default=str),
+                        "tool_call_id": tc_id,
+                    }
+                )
+                tool_results.append(
+                    {"tool": tc_name, "output": result, "confirmed": True}
+                )
+                yield {
+                    "type": "step",
+                    "step": 0,
+                    "action": "tool_call",
+                    "tool": tc_name,
+                    "duration_ms": duration_ms,
+                    "status": "success",
+                }
+            except Exception as exc:
+                duration_ms = (time.monotonic() - tool_t0) * 1000.0
+                logger.warning("Confirmed tool %s failed: %s", tc_name, exc)
+                await self._emit_tool_call(
+                    config.name, chain_id, tc_name, duration_ms, "error", error=str(exc)
+                )
+                messages.append(
+                    {
+                        "role": "tool",
+                        "content": f"Error: {exc}",
+                        "tool_call_id": tc_id,
+                    }
+                )
+                tool_results.append(
+                    {
+                        "tool": tc_name,
+                        "output": None,
+                        "error": str(exc),
+                        "confirmed": True,
+                    }
+                )
+                yield {
+                    "type": "step",
+                    "step": 0,
+                    "action": "tool_call",
+                    "tool": tc_name,
+                    "duration_ms": duration_ms,
+                    "status": "error",
+                    "error": str(exc),
+                }
 
     def _filter_tools(
         self,

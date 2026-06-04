@@ -191,6 +191,7 @@ class AgentRunner:
         *,
         max_tokens_budget: int | None = None,
         tool_deps: Any = None,
+        approved_calls: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Run LLM agent loop with tool access.
 
@@ -202,6 +203,8 @@ class AgentRunner:
                 the loop stops and returns with budget_exhausted=True.
             tool_deps: Optional dependency container injected into each tool call.
                 Falls back to self._tool_deps when not provided.
+            approved_calls: Human-in-the-loop confirmed tool calls (tool + args)
+                executed before the loop, letting a confirm-gated action run.
         """
         agent_mode_str = getattr(config, "agent_mode", AgentMode.process.value)
         try:
@@ -226,6 +229,7 @@ class AgentRunner:
             agent_mode=agent_mode,
             max_tokens_budget=max_tokens_budget,
             tool_deps=effective_deps,
+            approved_calls=approved_calls,
         )
 
     async def run_flexible_stream(
@@ -236,6 +240,7 @@ class AgentRunner:
         *,
         max_tokens_budget: int | None = None,
         tool_deps: Any = None,
+        approved_calls: list[dict[str, Any]] | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """Streaming counterpart to ``run_flexible``.
 
@@ -266,6 +271,7 @@ class AgentRunner:
             agent_mode=agent_mode,
             max_tokens_budget=max_tokens_budget,
             tool_deps=effective_deps,
+            approved_calls=approved_calls,
         ):
             yield event
 
