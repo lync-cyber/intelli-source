@@ -66,6 +66,8 @@ from intellisource.pipeline.definition_service import (
     load_pipeline_config,
 )
 from intellisource.search.hybrid import HybridSearchEngine
+from intellisource.source.service import SourceConfigService
+from intellisource.subscription.service import SubscriptionService
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -408,6 +410,9 @@ def _install_agent_runner(session_factory: Any, bundle: _DepsBundle) -> AgentRun
         collector_registry=bundle.collector_registry,
         distributor=bundle.distributor,
         search_engine_factory=bundle.search_engine_factory,
+        source_service_factory=lambda session: SourceConfigService(session),
+        subscription_service_factory=lambda session: SubscriptionService(session),
+        pipeline_service_factory=lambda session: PipelineDefinitionService(session),
     )
     _global_agent_runner_holder.install(runner)
     return runner

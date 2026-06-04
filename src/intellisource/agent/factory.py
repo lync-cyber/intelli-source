@@ -74,13 +74,16 @@ def build_agent_runner(
     distributor: DistributorFacade,
     search_engine_factory: Callable[[AsyncSession], HybridSearchEngine],
     pipeline_config: str | None = None,
+    source_service_factory: Any = None,
+    subscription_service_factory: Any = None,
+    pipeline_service_factory: Any = None,
 ) -> AgentRunner:
     """Build a fully-wired AgentRunner.
 
-    All dependencies are required keyword arguments. Passing `None` raises
-    CompositionError (also a ValueError) so wiring bugs fail loudly at
-    composition time rather than silently producing degraded tool responses
-    at runtime.
+    The five infrastructure dependencies are required keyword arguments; passing
+    `None` raises CompositionError (also a ValueError) so wiring bugs fail loudly
+    at composition time. The three ``*_service_factory`` arguments are optional
+    ``Callable[[session], Service]`` that back the management (CRUD) tools.
     """
     # Lazy import — composition imports build_agent_runner from this module.
     from intellisource.composition import CompositionError
@@ -99,6 +102,7 @@ def build_agent_runner(
     registry = AgentToolRegistry()
     registry.register_defaults()
     registry.register_atomic_tools()
+    registry.register_management_tools()
 
     resolved_yaml = (
         Path(pipeline_config) if pipeline_config is not None else _DEFAULT_PIPELINE_YAML
@@ -116,6 +120,9 @@ def build_agent_runner(
         search_engine_factory=search_engine_factory,
         collector_registry=collector_registry,
         distributor=distributor,
+        source_service_factory=source_service_factory,
+        subscription_service_factory=subscription_service_factory,
+        pipeline_service_factory=pipeline_service_factory,
     )
 
     return AgentRunner(
