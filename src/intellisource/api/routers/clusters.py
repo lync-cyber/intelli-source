@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session
+from intellisource.api.schemas.clusters import ClusterListResponse
 from intellisource.storage.repositories.cluster import ClusterRepository
 
 router = APIRouter(tags=["clusters"])
@@ -48,7 +49,7 @@ def _serialize_cluster(obj: Any) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-@router.get("/clusters")
+@router.get("/clusters", response_model=ClusterListResponse)
 async def list_clusters(
     tag: str | None = None,
     date_from: str | None = None,

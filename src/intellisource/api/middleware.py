@@ -17,8 +17,25 @@ from intellisource.observability.trace_context import trace_id_ctx
 
 logger = logging.getLogger(__name__)
 
+# Probe / observability / webhook endpoints reachable without the production API
+# key. Module-level so the OpenAPI security-scheme builder can mark exactly the
+# same paths public (single source of truth shared with api.openapi).
+PUBLIC_EXACT_PATHS = frozenset(
+    {
+        "/health",
+        "/api/v1/health",
+        "/api/v1/system/health",
+        "/api/v1/metrics",
+        "/api/v1/system/metrics",
+        "/metrics",
+    }
+)
+PUBLIC_PATH_PREFIXES = ("/api/v1/webhooks",)
+
 __all__ = [
     "AuthMiddleware",
+    "PUBLIC_EXACT_PATHS",
+    "PUBLIC_PATH_PREFIXES",
     "RequestLoggerMiddleware",
     "TracingMiddleware",
     "trace_id_ctx",
@@ -33,15 +50,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
     can reach them without holding a shared production API key.
     """
 
-    _EXEMPT_EXACT = {
-        "/health",
-        "/api/v1/health",
-        "/api/v1/system/health",
-        "/api/v1/metrics",
-        "/api/v1/system/metrics",
-        "/metrics",
-    }
-    _EXEMPT_PREFIXES = ("/api/v1/webhooks",)
+    _EXEMPT_EXACT = PUBLIC_EXACT_PATHS
+    _EXEMPT_PREFIXES = PUBLIC_PATH_PREFIXES
 
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint

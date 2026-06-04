@@ -127,7 +127,7 @@ def _extract_sources(flex_result: dict[str, Any]) -> list[ChatSource]:
     return sources
 
 
-@router.post("/search/chat")
+@router.post("/search/chat", response_model=ChatSearchResponse)
 async def chat_search(
     request: Request,
     body: ChatSearchRequest,

@@ -11,6 +11,11 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session
+from intellisource.api.schemas.tasks import (
+    TaskItem,
+    TaskListResponse,
+    TaskTriggerResponse,
+)
 from intellisource.composition import SOURCE_TYPE_TO_PIPELINE
 from intellisource.scheduler.dispatch import (
     BrokerUnavailableError,
@@ -85,7 +90,7 @@ def _task_brief(task: Any) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-@router.get("/tasks")
+@router.get("/tasks", response_model=TaskListResponse)
 async def list_tasks(
     status: str | None = None,
     trigger_type: str | None = None,
@@ -113,7 +118,7 @@ async def list_tasks(
     }
 
 
-@router.post("/tasks/collect", status_code=202)
+@router.post("/tasks/collect", status_code=202, response_model=TaskTriggerResponse)
 async def trigger_collect(
     request: Request,
     body: CollectRequest,
@@ -239,7 +244,7 @@ async def trigger_collect(
     }
 
 
-@router.get("/tasks/{id}")
+@router.get("/tasks/{id}", response_model=TaskItem)
 async def get_task(
     id: uuid.UUID,
     session: AsyncSession = Depends(get_db_session),
@@ -251,7 +256,7 @@ async def get_task(
     return _serialize_task(task)
 
 
-@router.patch("/tasks/{id}")
+@router.patch("/tasks/{id}", response_model=TaskItem)
 async def update_task(
     id: uuid.UUID,
     body: TaskUpdateRequest,

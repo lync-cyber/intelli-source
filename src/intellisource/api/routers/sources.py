@@ -11,6 +11,8 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session
+from intellisource.api.schemas.common import OperationResult
+from intellisource.api.schemas.sources import SourceItem, SourceListResponse
 from intellisource.config.loader import ConfigLoader
 from intellisource.config.models import SourceConfig
 from intellisource.source.service import SourceConfigService
@@ -69,7 +71,7 @@ def _get_service(
     return SourceConfigService(session)
 
 
-@router.get("/sources")
+@router.get("/sources", response_model=SourceListResponse)
 async def list_sources(
     type: str | None = None,
     tag: str | None = None,
@@ -89,7 +91,7 @@ async def list_sources(
     }
 
 
-@router.get("/sources/config/versions")
+@router.get("/sources/config/versions", response_model=OperationResult)
 async def list_source_versions(
     limit: int = 20,
     service: SourceConfigService = Depends(_get_service),
@@ -99,7 +101,7 @@ async def list_source_versions(
     return {"versions": await service.list_versions(limit=limit)}
 
 
-@router.get("/sources/config/diff")
+@router.get("/sources/config/diff", response_model=OperationResult)
 async def diff_source_config(
     service: SourceConfigService = Depends(_get_service),
 ) -> dict[str, Any]:
@@ -114,7 +116,7 @@ async def diff_source_config(
     return await service.diff_with_yaml(configs)
 
 
-@router.get("/sources/{id}")
+@router.get("/sources/{id}", response_model=SourceItem)
 async def get_source(
     id: uuid.UUID,
     service: SourceConfigService = Depends(_get_service),
@@ -125,7 +127,11 @@ async def get_source(
     return _serialize_source(obj)
 
 
-@router.post("/sources", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/sources",
+    status_code=status.HTTP_201_CREATED,
+    response_model=SourceItem,
+)
 async def create_source(
     body: SourceConfig,
     service: SourceConfigService = Depends(_get_service),
@@ -134,7 +140,7 @@ async def create_source(
     return _serialize_source(await service.create(body))
 
 
-@router.patch("/sources/{id}")
+@router.patch("/sources/{id}", response_model=SourceItem)
 async def update_source(
     id: uuid.UUID,
     body: SourcePatchRequest,
@@ -158,7 +164,7 @@ async def delete_source(
     return Response(status_code=204)
 
 
-@router.post("/sources/reload")
+@router.post("/sources/reload", response_model=OperationResult)
 async def reload_sources(
     service: SourceConfigService = Depends(_get_service),
 ) -> dict[str, Any]:
@@ -178,7 +184,7 @@ async def reload_sources(
         }
 
 
-@router.post("/sources/config/rollback/{version}")
+@router.post("/sources/config/rollback/{version}", response_model=OperationResult)
 async def rollback_source_config(
     version: str,
     service: SourceConfigService = Depends(_get_service),

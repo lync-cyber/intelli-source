@@ -13,11 +13,13 @@ from fastapi import FastAPI, Request
 from fastapi.responses import PlainTextResponse
 from starlette.types import Receive, Scope, Send
 
+from intellisource.api.errors import install_exception_handlers
 from intellisource.api.middleware import (
     AuthMiddleware,
     RequestLoggerMiddleware,
     TracingMiddleware,
 )
+from intellisource.api.openapi import install_openapi
 from intellisource.api.routers import (
     clusters,
     contents,
@@ -31,6 +33,7 @@ from intellisource.api.routers import (
     topics,
     webhooks,
 )
+from intellisource.api.schemas.observability import HealthResponse
 from intellisource.composition import build_api_composition
 from intellisource.config.loader import ConfigLoader, ConfigWatcher
 from intellisource.config.validator import ConfigValidator
@@ -310,6 +313,11 @@ def create_app() -> FastAPI:
         lifespan=_lifespan,
     )
 
+    # Standard error envelope for domain + unhandled errors; X-API-Key surfaced
+    # as an OpenAPI security scheme (enforcement stays in AuthMiddleware).
+    install_exception_handlers(app)
+    install_openapi(app)
+
     # Register middleware (order matters: last added = outermost)
     app.add_middleware(TracingMiddleware)
     app.add_middleware(RequestLoggerMiddleware)
@@ -329,11 +337,11 @@ def create_app() -> FastAPI:
     app.include_router(topics.router, prefix="/api/v1")
 
     # Health endpoints (root-level + API-versioned per AC-T042-6)
-    @app.get("/health")
+    @app.get("/health", response_model=HealthResponse)
     async def health_root(request: Request) -> dict[str, Any]:
         return await system.health_payload(request)
 
-    @app.get("/api/v1/health")
+    @app.get("/api/v1/health", response_model=HealthResponse)
     async def health_v1(request: Request) -> dict[str, Any]:
         return await system.health_payload(request)
 

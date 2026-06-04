@@ -14,6 +14,8 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session
+from intellisource.api.schemas.common import OperationResult
+from intellisource.api.schemas.observability import HealthResponse
 from intellisource.observability.logging import get_logger
 from intellisource.storage.repositories.llm_call_log import LLMCallLogRepository
 
@@ -69,7 +71,7 @@ def _format_prometheus(metrics_collector: Any) -> str:
     return "\n".join(lines) + ("\n" if lines else "")
 
 
-@router.get("/health")
+@router.get("/health", response_model=HealthResponse)
 async def health(request: Request) -> dict[str, Any]:
     """Return real DB/Redis/Celery health via app.state.health_checker."""
     return await health_payload(request)
@@ -133,7 +135,7 @@ def metrics_response(request: Request) -> PlainTextResponse:
     return PlainTextResponse(content=text, media_type="text/plain; version=0.0.4")
 
 
-@router.get("/llm-stats")
+@router.get("/llm-stats", response_model=OperationResult)
 async def system_llm_stats(
     period: str = "day",
     model: str | None = None,

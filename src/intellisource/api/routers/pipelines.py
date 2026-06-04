@@ -9,6 +9,11 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session
+from intellisource.api.schemas.pipelines import (
+    PipelineDetail,
+    PipelineRunResponse,
+    PipelineSummary,
+)
 from intellisource.config.pipeline_models import PipelineConfig
 from intellisource.observability.logging import get_logger
 from intellisource.pipeline.definition_service import PipelineDefinitionService
@@ -44,7 +49,7 @@ def _pipeline_to_dict(config: PipelineConfig) -> dict[str, Any]:
     }
 
 
-@router.get("")
+@router.get("", response_model=list[PipelineSummary])
 async def list_pipelines(
     service: PipelineDefinitionService = Depends(_get_service),
 ) -> list[dict[str, Any]]:
@@ -52,7 +57,7 @@ async def list_pipelines(
     return await service.list_summaries()
 
 
-@router.get("/{name}")
+@router.get("/{name}", response_model=PipelineDetail)
 async def get_pipeline(
     name: str,
     service: PipelineDefinitionService = Depends(_get_service),
@@ -64,7 +69,7 @@ async def get_pipeline(
     return _pipeline_to_dict(config)
 
 
-@router.post("/{name}/run")
+@router.post("/{name}/run", response_model=PipelineRunResponse)
 async def run_pipeline(
     name: str,
     body: PipelineRunRequest,

@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session
+from intellisource.api.schemas.contents import ContentListResponse
 from intellisource.storage.repositories.content import ContentRepository
 
 router = APIRouter(tags=["contents"])
@@ -42,7 +43,7 @@ def _serialize_content(obj: Any) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-@router.get("/contents")
+@router.get("/contents", response_model=ContentListResponse)
 async def list_contents(
     tag: str | None = None,
     source_id: uuid.UUID | None = None,
