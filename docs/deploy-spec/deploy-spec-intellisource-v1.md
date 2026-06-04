@@ -310,6 +310,44 @@ celery -A intellisource.scheduler.celery_app worker --queues queue.priority.high
 - 搜索对话：每次对话 1-2 次 LLM 调用
 - 生产峰值：[ASSUMPTION] 按实际信源数量和采集频率估算 token 消耗
 
+### 2.6 MCP 控制面服务（stdio）
+
+IntelliSource 通过 MCP（Model Context Protocol）把控制面能力（信源 / 订阅 / 模板 / 管线的 CRUD + 触发运行 + 状态/搜索查询）暴露给支持 MCP 的 LLM 客户端（Claude Desktop、IDE 扩展等）。它与 REST API、Agent 工具同源——三者都委托同一批 domain service，行为一致。
+
+**运行形态**：MCP server 以 **stdio** 子进程方式运行，由 MCP 客户端按需拉起，不监听网络端口、不随 docker-compose 常驻。
+
+- 控制台入口：`intellisource-mcp`（等价 `python -m intellisource.mcp_server`）
+- 它直接连接同一套 PostgreSQL（经 `DatabaseManager`）；需要可达的数据库，不依赖 Redis/Celery（仅 `trigger_pipeline` 经 broker 派发，broker 不可达时返回 `dispatch_failed`）。
+
+**信任模型**：stdio 传输没有独立鉴权——安全边界是“谁能在宿主上启动该子进程”。MCP 客户端以启动它的本地用户身份运行，因此：
+
+- 只在受信任的本地/运维环境配置 MCP 客户端，凭据经环境变量注入（不写入客户端配置明文）。
+- 该进程拥有控制面写权限（含 `delete_*`），与持有 `IS_API_KEY` 的 REST 调用方等价；按最小权限分发。
+- 如需远程暴露 MCP，须自行在前置接入层补充鉴权/隧道，stdio 本身不提供。
+
+**MCP 客户端配置示例**（以 Claude Desktop `mcpServers` 为例）：
+
+```json
+{
+  "mcpServers": {
+    "intellisource": {
+      "command": "intellisource-mcp",
+      "env": {
+        "IS_DATABASE_URL": "postgresql+asyncpg://user:pass@db-host:5432/intellisource",
+        "IS_REDIS_URL": "redis://redis-host:6379/0",
+        "OPENAI_API_KEY": "sk-..."
+      }
+    }
+  }
+}
+```
+
+- `IS_DATABASE_URL`（必需）：控制面读写的库，与 api/worker 同库。
+- `IS_REDIS_URL`（可选）：仅 `trigger_pipeline` 派发运行时需要；缺省则该工具返回派发失败、其余工具正常。
+- LLM provider key（可选）：仅 `search` 的语义检索路径用到；纯 CRUD/状态查询不需要。
+
+> 验证：`echo '{}' | intellisource-mcp` 应启动 stdio 循环（无端口监听）；在 MCP 客户端中应能发现 `list_sources` / `get_pipeline` / `trigger_pipeline` / `get_task_status` 等工具并成功调用。
+
 ---
 
 ## 3. CI/CD流水线

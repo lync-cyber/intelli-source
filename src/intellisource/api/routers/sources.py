@@ -6,11 +6,11 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, Response, status
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session
+from intellisource.api.errors import error_json
 from intellisource.api.schemas.common import OperationResult
 from intellisource.api.schemas.sources import SourceItem, SourceListResponse
 from intellisource.config.loader import ConfigLoader
@@ -110,9 +110,7 @@ async def diff_source_config(
     try:
         configs = loader.load_source_configs()
     except Exception as exc:
-        return JSONResponse(  # type: ignore[return-value]
-            status_code=400, content={"detail": f"failed to load yaml: {exc}"}
-        )
+        return error_json(400, f"failed to load yaml: {exc}")  # type: ignore[return-value]
     return await service.diff_with_yaml(configs)
 
 
@@ -123,7 +121,7 @@ async def get_source(
 ) -> Any:
     obj = await service.get(id)
     if obj is None:
-        return JSONResponse(status_code=404, content={"detail": "not found"})
+        return error_json(404, "not found")
     return _serialize_source(obj)
 
 
@@ -149,7 +147,7 @@ async def update_source(
     fields = body.model_dump(exclude_unset=True)
     updated = await service.patch(id, fields)
     if updated is None:
-        return JSONResponse(status_code=404, content={"detail": "not found"})
+        return error_json(404, "not found")
     return _serialize_source(updated)
 
 
@@ -160,7 +158,7 @@ async def delete_source(
 ) -> Response:
     deleted = await service.delete(id)
     if not deleted:
-        return JSONResponse(status_code=404, content={"detail": "not found"})
+        return error_json(404, "not found")
     return Response(status_code=204)
 
 
@@ -193,4 +191,4 @@ async def rollback_source_config(
     try:
         return await service.rollback_to_version(version)
     except ValueError as exc:
-        return JSONResponse(status_code=404, content={"detail": str(exc)})  # type: ignore[return-value]
+        return error_json(404, str(exc))  # type: ignore[return-value]

@@ -32,6 +32,7 @@ from intellisource.agent.tools.executes.manage import (
     _delete_source_execute,
     _delete_subscription_execute,
     _delete_template_execute,
+    _get_pipeline_execute,
     _get_source_execute,
     _get_subscription_execute,
     _get_template_execute,
@@ -755,6 +756,26 @@ def _management_tool_defs() -> list[ToolDefinition]:
             execute=_list_pipelines_execute,
         ),
         ToolDefinition(
+            name="get_pipeline",
+            description=(
+                "Fetch one pipeline definition's full config by name (mode, steps,"
+                " max_steps, on_failure, tools_allowed/denied, system_prompt,"
+                " agent_mode, max_tokens_budget, tool_permissions). Call before"
+                " update_pipeline to edit from the current definition."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the pipeline to fetch.",
+                    }
+                },
+                "required": ["name"],
+            },
+            execute=_get_pipeline_execute,
+        ),
+        ToolDefinition(
             name="update_pipeline",
             description=(
                 "Partially update an EXISTING pipeline definition by name. Only"
@@ -806,6 +827,8 @@ def _management_tool_defs() -> list[ToolDefinition]:
             name="run_pipeline",
             description=(
                 "Trigger a run of a persisted pipeline by name via the task queue."
+                " Returns {task_chain_id, celery_task_id}; poll task_chain_id with"
+                " get_task_status to read run progress and result."
             ),
             parameters={
                 "type": "object",
@@ -828,7 +851,8 @@ def _management_tool_defs() -> list[ToolDefinition]:
             name="get_task_status",
             description=(
                 "Get the status of a pipeline run by its task_chain_id"
-                " (e.g. the id returned by run_pipeline's run record)."
+                " (the task_chain_id returned by run_pipeline). Returns the run"
+                " state (status / completed_steps / total_steps / error_message)."
             ),
             parameters={
                 "type": "object",

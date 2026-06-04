@@ -3,7 +3,6 @@ mode: flexible
 agent_mode: process
 max_steps: 25
 max_tokens_budget: 16000
-on_failure: skip
 system_prompt: >-
   你是 IntelliSource 的管理助手。你可以通过工具查询和管理信源（source）、订阅
   （subscription）、聚合模板（template）与管线（pipeline），用 run_pipeline 触发
@@ -28,6 +27,7 @@ tools_allowed:
   - update_subscription
   - delete_subscription
   - list_pipelines
+  - get_pipeline
   - create_pipeline
   - update_pipeline
   - delete_pipeline

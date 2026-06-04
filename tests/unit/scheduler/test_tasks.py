@@ -16,6 +16,7 @@ Covers:
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -389,6 +390,114 @@ class TestTaskChainPersistence:
         assert any("failed" in str(c) for c in update_calls), (
             f"Expected update_status(..., 'failed') call, got: {update_calls}"
         )
+
+    def test_explicit_task_chain_id_is_persisted_as_row_id(
+        self, mock_agent_runner, mock_pipeline_config
+    ):
+        """params['task_chain_id'] becomes the persisted TaskChain id.
+
+        Closes the trigger -> get_task_status loop: the worker writes the run
+        under the same id the dispatch layer (api / agent / mcp) returned.
+        """
+        import uuid
+
+        from intellisource.storage.models import TaskChain
+
+        chain_id = str(uuid.uuid4())
+        mock_repo = AsyncMock()
+        mock_repo.get = AsyncMock(return_value=None)  # row does not pre-exist
+        mock_session = AsyncMock()
+        mock_session.close = AsyncMock()
+
+        async def fake_session_factory():
+            return mock_session
+
+        with patch(
+            "intellisource.scheduler.tasks.TaskChainRepository",
+            return_value=mock_repo,
+        ):
+            tasks = _make_celery_tasks_with_session_factory(
+                mock_agent_runner, mock_pipeline_config, fake_session_factory
+            )
+            tasks.run_pipeline("news_collect", params={"task_chain_id": chain_id})
+
+        chain_arg = mock_repo.create.call_args.args[0]
+        assert isinstance(chain_arg, TaskChain)
+        assert str(chain_arg.id) == chain_id
+        # completion status is written against that same id
+        update_calls = mock_repo.update_status.call_args_list
+        assert any(chain_id in str(c) and "success" in str(c) for c in update_calls)
+
+    def test_explicit_task_chain_id_already_owned_does_not_hijack_parent(
+        self, mock_agent_runner, mock_pipeline_config
+    ):
+        """When the id is already owned (collect batch parent) a separate child
+        row is created — the worker must not adopt the parent id or overwrite
+        the parent's status."""
+        import uuid
+
+        from intellisource.storage.models import TaskChain
+
+        parent_id = str(uuid.uuid4())
+        existing = SimpleNamespace(id=uuid.UUID(parent_id))
+        child_id = uuid.uuid4()
+
+        async def fake_create(chain: TaskChain) -> TaskChain:
+            # the parent id is free of the child INSERT; flush assigns a fresh id
+            chain.id = child_id
+            return chain
+
+        mock_repo = AsyncMock()
+        mock_repo.get = AsyncMock(return_value=existing)
+        mock_repo.create = AsyncMock(side_effect=fake_create)
+        mock_session = AsyncMock()
+        mock_session.close = AsyncMock()
+
+        async def fake_session_factory():
+            return mock_session
+
+        with patch(
+            "intellisource.scheduler.tasks.TaskChainRepository",
+            return_value=mock_repo,
+        ):
+            tasks = _make_celery_tasks_with_session_factory(
+                mock_agent_runner, mock_pipeline_config, fake_session_factory
+            )
+            tasks.run_pipeline("news_collect", params={"task_chain_id": parent_id})
+
+        # a separate child row was inserted without adopting the parent id
+        chain_arg = mock_repo.create.call_args.args[0]
+        assert chain_arg.id != uuid.UUID(parent_id)
+        # the parent's status is never touched by this child run
+        update_calls = mock_repo.update_status.call_args_list
+        assert not any(parent_id in str(c) for c in update_calls)
+        assert any(
+            str(child_id) in str(c) and "success" in str(c) for c in update_calls
+        )
+
+    def test_malformed_task_chain_id_falls_back_to_generated(
+        self, mock_agent_runner, mock_pipeline_config
+    ):
+        """A non-UUID task_chain_id is ignored; the worker generates its own."""
+        mock_repo = AsyncMock()
+        mock_session = AsyncMock()
+        mock_session.close = AsyncMock()
+
+        async def fake_session_factory():
+            return mock_session
+
+        with patch(
+            "intellisource.scheduler.tasks.TaskChainRepository",
+            return_value=mock_repo,
+        ):
+            tasks = _make_celery_tasks_with_session_factory(
+                mock_agent_runner, mock_pipeline_config, fake_session_factory
+            )
+            tasks.run_pipeline("news_collect", params={"task_chain_id": "not-a-uuid"})
+
+        # falls back to the generate-fresh path: create called, get-or-create not
+        mock_repo.create.assert_called_once()
+        mock_repo.get.assert_not_called()
 
 
 # ===================================================================

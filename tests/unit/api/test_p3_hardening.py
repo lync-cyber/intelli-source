@@ -239,7 +239,7 @@ async def test_unset_key_in_production_rejects_with_503(
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/api/v1/sources")
     assert resp.status_code == 503
-    assert "detail" in resp.json()
+    assert "error" in resp.json()
 
 
 @pytest.mark.asyncio

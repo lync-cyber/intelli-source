@@ -467,7 +467,7 @@ class TestSourceRollbackEndpoint:
         resp = await client.post("/api/v1/sources/config/rollback/99")
 
         assert resp.status_code == 404
-        assert "not found" in resp.json()["detail"]
+        assert "not found" in resp.json()["error"]["message"]
 
 
 # ===========================================================================

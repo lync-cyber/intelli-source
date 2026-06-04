@@ -538,9 +538,9 @@ def build_mcp_server(
         name="trigger_pipeline",
         description=(
             "Dispatch a run of a persisted pipeline via the task queue. Params:"
-            " name, params (optional run kwargs). Returns {task_id} (the Celery"
-            " id), or {error} when the name is unknown or the broker is"
-            " unreachable. Poll progress with get_task_status."
+            " name, params (optional run kwargs). Returns {task_chain_id,"
+            " celery_task_id}, or {error} when the name is unknown or the broker"
+            " is unreachable. Poll task_chain_id with get_task_status."
         ),
     )
     async def trigger_pipeline(
@@ -553,15 +553,22 @@ def build_mcp_server(
         from intellisource.scheduler.celery_app import celery_app
         from intellisource.scheduler.dispatch import send_task_with_trace
 
+        # Pass a pre-generated TaskChain id to the worker so the id returned
+        # here is the one get_task_status reads.
+        chain_id = str(_uuid.uuid4())
+        run_params = {**(params or {}), "task_chain_id": chain_id}
         try:
             result = send_task_with_trace(
                 "run_pipeline",
-                kwargs={"pipeline_name": name, "params": params or {}},
+                kwargs={"pipeline_name": name, "params": run_params},
                 celery_instance=celery_app,
             )
         except Exception as exc:
             return {"error": "dispatch_failed", "reason": str(exc)}
-        return {"task_id": str(getattr(result, "id", result))}
+        return {
+            "task_chain_id": chain_id,
+            "celery_task_id": str(getattr(result, "id", result)),
+        }
 
     @mcp.tool(
         name="get_task_status",

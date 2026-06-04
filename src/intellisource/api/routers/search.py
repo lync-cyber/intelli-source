@@ -10,12 +10,18 @@ from datetime import datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.agent.response_utils import extract_answer
+from intellisource.api.chat_sessions import (
+    compact_history,
+    persist_turn,
+    prepare_session,
+)
 from intellisource.api.deps import get_db_session
+from intellisource.api.errors import error_json
 from intellisource.api.schemas.search import (
     ChatSearchRequest,
     ChatSearchResponse,
@@ -23,16 +29,11 @@ from intellisource.api.schemas.search import (
 )
 from intellisource.observability.logging import get_logger
 from intellisource.pipeline.definition_service import load_pipeline_config
-from intellisource.search.chat_session import ChatSessionManager
 from intellisource.search.hybrid import HybridSearchEngine, SearchResponse
 
 logger = get_logger(__name__)
 
 router = APIRouter(tags=["search"])
-
-_CHAT_CHANNEL_API: str = "api"
-_MAX_HISTORY_TURNS: int = 10
-_CHAT_COMPACT_TOKEN_BUDGET: int = 6000
 
 
 # ---------------------------------------------------------------------------
@@ -145,10 +146,7 @@ async def chat_search(
     """
     runner = getattr(request.app.state, "agent_runner", None)
     if runner is None:
-        return JSONResponse(
-            status_code=503,
-            content={"detail": "agent_runner not initialised"},
-        )
+        return error_json(503, "agent_runner not initialised")
 
     db_manager = getattr(request.app.state, "db", None)
     stored_session, session_uuid, session_payload = await _prepare_chat_session(
@@ -269,33 +267,16 @@ async def _prepare_chat_session(
 ) -> tuple[Any, uuid.UUID | None, dict[str, Any]]:
     """Load the stored ChatSession (if any) and build the run session payload.
 
-    Shared by ``/search/chat`` and ``/search/chat/stream`` so both replay the
-    same compacted history. Returns ``(stored_session, session_uuid,
-    session_payload)``; persistence is silently skipped (and an empty payload
-    returned) when no DB is configured or no ``session_id`` is supplied.
+    Thin request/body adapter over :func:`api.chat_sessions.prepare_session`,
+    shared with ``/agent/chat``.
     """
-    stored_session: Any = None
-    session_uuid: uuid.UUID | None = None
-    session_payload = dict(body.session or {})
-
-    if db_manager is not None and body.session_id:
-        try:
-            async with db_manager.get_session() as db_session:
-                stored_session, session_uuid = await _load_chat_session(
-                    db_session, body.session_id
-                )
-        except Exception:
-            logger.exception("ChatSession lookup transaction failed")
-
-    if stored_session is not None:
-        history_messages = (stored_session.context or {}).get("messages")
-        if isinstance(history_messages, list) and "messages" not in session_payload:
-            compacted = await _compact_history(
-                request, stored_session, history_messages, body.max_tokens_budget
-            )
-            session_payload["messages"] = compacted[-_MAX_HISTORY_TURNS:]
-
-    return stored_session, session_uuid, session_payload
+    return await prepare_session(
+        db_manager=db_manager,
+        llm_gateway=getattr(request.app.state, "llm_gateway", None),
+        session_id=body.session_id,
+        base_session=body.session,
+        max_tokens_budget=body.max_tokens_budget,
+    )
 
 
 async def _persist_chat_turn_tx(
@@ -306,99 +287,14 @@ async def _persist_chat_turn_tx(
     user_message: str,
     assistant_answer: str,
 ) -> uuid.UUID:
-    """Persist one user+assistant turn in its own DB transaction; return its id.
-
-    Shared by both chat endpoints. When no DB is configured the turn is not
-    written but a fresh session id is still returned, so the response always
-    carries a usable session token. DB errors are logged, never raised.
-    """
-    response_session_uuid = session_uuid or uuid.uuid4()
-    if db_manager is None:
-        return response_session_uuid
-    try:
-        async with db_manager.get_session() as db_session:
-            response_session_uuid = await _persist_chat_turn(
-                db_session,
-                existing=stored_session,
-                session_id=response_session_uuid,
-                user_message=user_message,
-                assistant_answer=assistant_answer,
-            )
-    except Exception:
-        logger.exception("ChatSession persist transaction failed")
-    return response_session_uuid
-
-
-async def _load_chat_session(
-    db_session: AsyncSession, session_id: str | None
-) -> tuple[Any, uuid.UUID | None]:
-    """Return (ChatSession row or None, parsed UUID or None) for *session_id*."""
-    if not session_id:
-        return None, None
-    try:
-        session_uuid = uuid.UUID(session_id)
-    except ValueError:
-        return None, None
-
-    from intellisource.storage.repositories.chat_session import (
-        ChatSessionRepository,
+    """Persist one user+assistant turn; delegates to api.chat_sessions."""
+    return await persist_turn(
+        db_manager,
+        stored_session=stored_session,
+        session_uuid=session_uuid,
+        user_message=user_message,
+        assistant_answer=assistant_answer,
     )
-
-    try:
-        row = await ChatSessionRepository(db_session).get_by_id(session_uuid)
-    except Exception:
-        logger.exception("ChatSession lookup failed for session_id=%s", session_id)
-        return None, session_uuid
-    return row, session_uuid
-
-
-async def _persist_chat_turn(
-    db_session: AsyncSession,
-    *,
-    existing: Any,
-    session_id: uuid.UUID,
-    user_message: str,
-    assistant_answer: str,
-) -> uuid.UUID:
-    """Append the new user+assistant turn to ChatSession.context.messages.
-
-    Creates a new row when *existing* is None, using *session_id* as both
-    the primary key and API channel_user_id so the response token can be
-    used to load the same row on the next request. DB errors are logged
-    but never raised so the chat reply still returns.
-    """
-    from intellisource.storage.repositories.chat_session import (
-        ChatSessionRepository,
-    )
-
-    new_messages = [
-        {"role": "user", "content": user_message},
-        {"role": "assistant", "content": assistant_answer},
-    ]
-    repo = ChatSessionRepository(db_session)
-    try:
-        if existing is not None:
-            context = dict(existing.context or {})
-            history = list(context.get("messages") or [])
-            history.extend(new_messages)
-            context["messages"] = history[-(_MAX_HISTORY_TURNS * 2) :]
-            await repo.update_context(existing.id, context)
-            session_id = existing.id
-        else:
-            await repo.create(
-                id=session_id,
-                channel=_CHAT_CHANNEL_API,
-                channel_user_id=str(session_id),
-                context={"messages": new_messages},
-            )
-        await db_session.commit()
-    except Exception:
-        logger.exception("ChatSession persist failed; rolling back")
-        try:
-            await db_session.rollback()
-        except Exception:
-            logger.exception("ChatSession rollback also failed")
-    return session_id
 
 
 async def _compact_history(
@@ -407,20 +303,10 @@ async def _compact_history(
     history_messages: list[dict[str, Any]],
     max_tokens_budget: int | None,
 ) -> list[dict[str, Any]]:
-    """Compact stored chat history via ChatSessionManager before replay.
-
-    A history over the token budget is LLM-summarized (or truncated when no
-    gateway is configured) instead of hard-sliced, so older context survives.
-    Returns the (possibly compacted) message list; falls back to the raw history
-    on any error.
-    """
-    budget = max_tokens_budget or _CHAT_COMPACT_TOKEN_BUDGET
-    gateway = getattr(request.app.state, "llm_gateway", None)
-    manager = ChatSessionManager(session=None, llm_gateway=gateway)
-    try:
-        await manager.maybe_compact(stored_session, max_tokens=budget)
-    except Exception:
-        logger.exception("chat history compaction failed; using raw history")
-        return history_messages
-    compacted = (stored_session.context or {}).get("messages")
-    return compacted if isinstance(compacted, list) else history_messages
+    """Compact stored chat history; delegates to api.chat_sessions."""
+    return await compact_history(
+        getattr(request.app.state, "llm_gateway", None),
+        stored_session,
+        history_messages,
+        max_tokens_budget,
+    )

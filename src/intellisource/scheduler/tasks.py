@@ -71,6 +71,24 @@ def _run_sync(coro_or_result: Any) -> Any:
     return coro_or_result
 
 
+def _parse_chain_id(raw: Any) -> uuid.UUID | None:
+    """Return a validated TaskChain UUID from a dispatch param, or None.
+
+    The api / agent / mcp dispatch layer passes ``params['task_chain_id']`` so
+    the worker persists the run under the id it returned to the caller, which
+    ``get_task_status`` then reads. A missing or malformed value falls back to a
+    worker-generated id. Kept distinct from ``params['task_id']``, which
+    :func:`_task_lock_key` consumes as the idempotency key.
+    """
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    try:
+        return uuid.UUID(text)
+    except ValueError:
+        return None
+
+
 def _task_lock_key(pipeline_name: str, params: dict[str, Any]) -> str:
     """Return a stable, non-empty idempotency lock key for a pipeline run."""
     explicit = str(params.get("task_id") or "").strip()
@@ -142,6 +160,47 @@ class CeleryTasks:
 
         _run_sync(_do())
 
+    def _create_chain_with_id(
+        self,
+        chain_id: uuid.UUID,
+        *,
+        pipeline_name: str,
+        trigger_type: str,
+        execution_mode: str,
+        total_steps: int,
+    ) -> uuid.UUID | None:
+        """Create this run's TaskChain under an externally supplied id.
+
+        The id is adopted only when it is free, so the id the dispatch layer
+        (api / agent / mcp) returned to the caller is the one get_task_status
+        polls. When a row already owns that id — the collect endpoint
+        pre-creates a batch-parent chain and fans the same id out to its
+        children — a fresh per-run row is created instead so a child run never
+        hijacks the parent's status.
+        """
+        if self._session_factory is None:
+            return None
+
+        async def _do() -> uuid.UUID:
+            async with self._chain_repo_session() as repo:
+                row_id = chain_id if await repo.get(str(chain_id)) is None else None
+                task_chain = TaskChain(
+                    pipeline_name=pipeline_name,
+                    status="pending",
+                    trigger_type=trigger_type,
+                    execution_mode=execution_mode,
+                    total_steps=total_steps,
+                    completed_steps=0,
+                )
+                if row_id is not None:
+                    task_chain.id = row_id
+                await repo.create(task_chain)
+                created_id: uuid.UUID = task_chain.id
+                return created_id
+
+        result: uuid.UUID = _run_sync(_do())
+        return result
+
     def run_pipeline(
         self,
         pipeline_name: str,
@@ -180,18 +239,31 @@ class CeleryTasks:
             execution_mode = config.mode
             total_steps = len(config.steps)
 
-            # Persist TaskChain record via session_factory when wired.
+            # Persist TaskChain record via session_factory when wired. When the
+            # dispatch layer (api / agent / mcp) supplied params["task_chain_id"],
+            # reuse that id so the id returned to the caller correlates with this
+            # row; otherwise generate one worker-side as before.
             chain_id: uuid.UUID | None = None
             if self._session_factory is not None:
-                task_chain = TaskChain(
-                    pipeline_name=pipeline_name,
-                    status="pending",
-                    trigger_type=trigger_type,
-                    execution_mode=execution_mode,
-                    total_steps=total_steps,
-                    completed_steps=0,
-                )
-                chain_id = self._create_chain(task_chain)
+                explicit_chain_id = _parse_chain_id(params.get("task_chain_id"))
+                if explicit_chain_id is not None:
+                    chain_id = self._create_chain_with_id(
+                        explicit_chain_id,
+                        pipeline_name=pipeline_name,
+                        trigger_type=trigger_type,
+                        execution_mode=execution_mode,
+                        total_steps=total_steps,
+                    )
+                else:
+                    task_chain = TaskChain(
+                        pipeline_name=pipeline_name,
+                        status="pending",
+                        trigger_type=trigger_type,
+                        execution_mode=execution_mode,
+                        total_steps=total_steps,
+                        completed_steps=0,
+                    )
+                    chain_id = self._create_chain(task_chain)
 
             last_error: Exception | None = None
             for attempt in range(1 + MAX_RETRIES):

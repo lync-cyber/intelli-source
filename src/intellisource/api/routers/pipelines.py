@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -122,12 +123,20 @@ async def run_pipeline(
     if celery_instance is None:
         raise HTTPException(status_code=503, detail="celery_app not initialised")
 
+    # Pre-generate the TaskChain id and pass it to the worker so the caller can
+    # poll run progress via GET /tasks/chains/{task_chain_id}; celery task_id is
+    # still returned for GET /tasks/celery/{task_id}.
+    chain_id = str(uuid.uuid4())
+    run_params = {**(body.params or {}), "task_chain_id": chain_id}
     result = send_task_with_trace(
         "run_pipeline",
-        kwargs={"pipeline_name": name, "params": body.params or {}},
+        kwargs={"pipeline_name": name, "params": run_params},
         celery_instance=celery_instance,
     )
-    return {"task_id": str(getattr(result, "id", result))}
+    return {
+        "task_id": str(getattr(result, "id", result)),
+        "task_chain_id": chain_id,
+    }
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=PipelineDetail)

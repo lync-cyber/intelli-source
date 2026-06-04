@@ -136,4 +136,4 @@ async def test_celery_task_503_on_backend_error(
     ) as client:
         resp = await client.get("/api/v1/tasks/celery/x")
     assert resp.status_code == 503
-    assert "result backend unavailable" in resp.json()["detail"]
+    assert "result backend unavailable" in resp.json()["error"]["message"]

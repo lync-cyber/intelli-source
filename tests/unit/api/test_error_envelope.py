@@ -1,6 +1,7 @@
-"""Inc2 P0-2: standardised JSON error envelope for domain + unhandled errors.
+"""Standardised JSON error envelope for every API error.
 
-The envelope is additive — HTTPException keeps FastAPI's {"detail": ...} shape.
+Domain, framework 4xx (HTTPException / validation) and unhandled errors all
+render as the single ``{"error": {...}}`` envelope.
 """
 
 from __future__ import annotations
@@ -82,12 +83,32 @@ async def test_unhandled_exception_returns_500_envelope() -> None:
 
 
 @pytest.mark.asyncio
-async def test_http_exception_keeps_detail_contract() -> None:
-    """Additive guard: HTTPException must still render FastAPI's {"detail": ...}."""
+async def test_http_exception_renders_unified_envelope() -> None:
+    """HTTPException renders the unified envelope, not FastAPI's {"detail"}."""
     app = _build_app()
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://t"
     ) as client:
         resp = await client.get("/boom-http")
     assert resp.status_code == 404
-    assert resp.json() == {"detail": "missing thing"}
+    assert resp.json() == {"error": {"code": "NotFound", "message": "missing thing"}}
+
+
+@pytest.mark.asyncio
+async def test_request_validation_error_renders_unified_envelope() -> None:
+    """Request validation failures use the envelope with the raw errors detail."""
+    app = _build_app()
+
+    @app.get("/needs-param")
+    async def needs_param(n: int) -> dict[str, int]:  # noqa: ARG001
+        return {"n": n}
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://t"
+    ) as client:
+        resp = await client.get("/needs-param")  # missing required ?n=
+    assert resp.status_code == 422
+    err = resp.json()["error"]
+    assert err["code"] == "ValidationError"
+    # the original per-field validation errors are preserved under detail
+    assert isinstance(err["detail"], list) and err["detail"]

@@ -198,7 +198,7 @@ class TestAuthMiddleware:
             resp = await client.get("/api/v1/sources")
         assert resp.status_code == 401
         body = resp.json()
-        assert "detail" in body
+        assert "error" in body
 
 
 # ===========================================================================

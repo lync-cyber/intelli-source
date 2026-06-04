@@ -7,6 +7,7 @@ dependency override, mirroring the sources-router test pattern.
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -141,13 +142,19 @@ class TestRunPipeline:
             )
 
         assert resp.status_code == 200
-        assert resp.json() == {"task_id": "task-fake-001"}
+        body = resp.json()
+        assert body["task_id"] == "task-fake-001"
+        # a correlatable TaskChain id is returned for GET /tasks/chains/{id}
+        chain_id = body["task_chain_id"]
+        assert uuid.UUID(chain_id)
 
         call = app.state.celery_app.send_task.call_args
         assert call.args[0] == "run_pipeline"
         kwargs = call.kwargs["kwargs"]
         assert kwargs["pipeline_name"] == "instant-search"
-        assert kwargs["params"] == {"foo": "bar"}
+        # caller params preserved, plus the same task_chain_id handed to the worker
+        assert kwargs["params"]["foo"] == "bar"
+        assert kwargs["params"]["task_chain_id"] == chain_id
 
     async def test_run_unknown_pipeline_returns_404(
         self, seeded_session: AsyncSession

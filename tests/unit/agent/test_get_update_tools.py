@@ -1,4 +1,4 @@
-"""P2: single-read (get_*) and real-patch (update_*) management tools.
+"""Single-read (get_*) and real-patch (update_*) management tools.
 
 The patch tools must be *distinct* from the create-upsert tools — they target an
 existing row by id/name and partially update it, returning ``not_found`` when the
@@ -18,6 +18,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from intellisource.agent.tools.executes.manage import (
+    _get_pipeline_execute,
     _get_source_execute,
     _get_subscription_execute,
     _update_pipeline_execute,
@@ -323,3 +324,82 @@ def test_get_update_schemas_match_executor_signatures() -> None:
         assert key in accepted, f"{tool_name} executor must accept {key}"
         # No advertised scalar identifier may be unknown to the executor.
         assert key in props & accepted
+
+
+# ---------------------------------------------------------------------------
+# get_pipeline (parity with get_source / get_subscription / get_template)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_pipeline_returns_full_config() -> None:
+    cfg = SimpleNamespace(
+        name="daily",
+        mode="flexible",
+        max_steps=25,
+        on_failure="abort",
+        steps=[],
+        tools_allowed=["search"],
+        tools_denied=[],
+        system_prompt="hi",
+        max_tokens_budget=16000,
+        agent_mode="process",
+        tool_permissions={"distribute": "confirm"},
+    )
+    service = SimpleNamespace(get=AsyncMock(return_value=cfg))
+    deps = _deps("pipeline_service_factory", service)
+
+    result = await _get_pipeline_execute(tool_deps=deps, name="daily")
+
+    assert result["status"] == "ok"
+    pipeline = result["pipeline"]
+    # the full editable shape is returned so the LLM can get-then-update safely
+    assert pipeline["name"] == "daily"
+    assert pipeline["steps"] == []
+    assert pipeline["system_prompt"] == "hi"
+    assert pipeline["tool_permissions"] == {"distribute": "confirm"}
+    service.get.assert_awaited_once_with("daily")
+
+
+@pytest.mark.asyncio
+async def test_get_pipeline_not_found() -> None:
+    service = SimpleNamespace(get=AsyncMock(return_value=None))
+    deps = _deps("pipeline_service_factory", service)
+
+    result = await _get_pipeline_execute(tool_deps=deps, name="ghost")
+
+    assert result["status"] == "error"
+    assert result["code"] == "not_found"
+
+
+@pytest.mark.asyncio
+async def test_get_pipeline_requires_name() -> None:
+    service = SimpleNamespace(get=AsyncMock())
+    deps = _deps("pipeline_service_factory", service)
+
+    result = await _get_pipeline_execute(tool_deps=deps, name="")
+
+    assert result["code"] == "invalid_input"
+    service.get.assert_not_awaited()
+
+
+def test_get_pipeline_registered_and_granted_to_admin_agent() -> None:
+    from pathlib import Path
+
+    from intellisource.config.pipeline_models import PipelineConfig
+
+    reg = AgentToolRegistry()
+    reg.register_management_tools()
+    defn = reg.get("get_pipeline")
+    assert defn is not None
+    assert defn.mutates_external_state is False  # read-only
+    assert defn.parameters["required"] == ["name"]
+
+    path = (
+        Path(__file__).resolve().parents[3]
+        / "config"
+        / "pipelines"
+        / "admin-agent.yaml"
+    )
+    cfg = PipelineConfig.from_yaml(str(path))
+    assert "get_pipeline" in cfg.tools_allowed

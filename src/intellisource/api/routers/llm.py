@@ -5,10 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session, require_api_key
+from intellisource.api.errors import error_json
 from intellisource.api.schemas.common import OperationResult
 from intellisource.api.schemas.observability import LLMStatusResponse
 from intellisource.observability.logging import get_logger
@@ -36,7 +36,7 @@ async def compute_llm_stats(
     try:
         return await repo.get_stats(period=period, model=model, call_type=call_type)
     except ValueError as exc:
-        return JSONResponse(status_code=400, content={"detail": str(exc)})
+        return error_json(400, str(exc))
 
 
 @router.get("/llm/stats", response_model=OperationResult)

@@ -422,6 +422,43 @@ async def _delete_subscription_execute(
 # ---------------------------------------------------------------------------
 
 
+def _serialize_pipeline(cfg: Any) -> dict[str, Any]:
+    """Project a PipelineConfig to the full editable shape (get-before-update)."""
+    return {
+        "name": cfg.name,
+        "mode": cfg.mode,
+        "max_steps": cfg.max_steps,
+        "on_failure": cfg.on_failure,
+        "steps": cfg.steps,
+        "tools_allowed": cfg.tools_allowed,
+        "tools_denied": cfg.tools_denied,
+        "system_prompt": cfg.system_prompt,
+        "max_tokens_budget": cfg.max_tokens_budget,
+        "agent_mode": cfg.agent_mode,
+        "tool_permissions": cfg.tool_permissions,
+    }
+
+
+async def _get_pipeline_execute(
+    tool_deps: Any = None, name: str = "", **kwargs: Any
+) -> dict[str, Any]:
+    """Fetch one pipeline definition's full config by name (get-before-update)."""
+    factory, session_factory = _wiring(tool_deps, "pipeline_service_factory")
+    if factory is None or session_factory is None:
+        return tool_error("get_pipeline", "tool_deps not injected", code="not_wired")
+    if not name:
+        return tool_error("get_pipeline", "name is required", code="invalid_input")
+    try:
+        async with session_factory() as session:
+            cfg = await factory(session).get(name)
+        if cfg is None:
+            return tool_error("get_pipeline", "pipeline not found", code="not_found")
+        return tool_ok("get_pipeline", pipeline=_serialize_pipeline(cfg))
+    except Exception as exc:
+        logger.warning("get_pipeline failed: %s", exc)
+        return tool_error("get_pipeline", str(exc), code="error")
+
+
 async def _create_pipeline_execute(
     tool_deps: Any = None, **kwargs: Any
 ) -> dict[str, Any]:

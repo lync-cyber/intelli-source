@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session
+from intellisource.api.errors import error_json
 from intellisource.api.schemas.tasks import (
     TaskChainDetail,
     TaskItem,
@@ -60,10 +61,8 @@ def _serialize_task(task: Any) -> dict[str, Any]:
     """Convert a CollectTask ORM object to a JSON-serializable dict.
 
     `pipeline_name` / `execution_mode` live on the parent TaskChain row;
-    callers who need them should follow `task_chain_id` and query
-    /tasks/chains/{id} (when available) rather than expecting them inlined
-    here. Including them inline previously caused AttributeError on every
-    GET /tasks/{id} call.
+    callers who need them follow `task_chain_id` and query /tasks/chains/{id}
+    rather than expecting them inlined here (they are not columns on CollectTask).
     """
     return {
         "id": str(task.id),
@@ -153,14 +152,9 @@ async def trigger_collect(
     priority = body.priority
 
     if priority not in _VALID_PRIORITIES:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "detail": (
-                    f"invalid priority {priority!r}; "
-                    f"must be one of {sorted(_VALID_PRIORITIES)}"
-                )
-            },
+        allowed = sorted(_VALID_PRIORITIES)
+        return error_json(
+            400, f"invalid priority {priority!r}; must be one of {allowed}"
         )
 
     target_queue = PRIORITY_QUEUES[priority]
@@ -175,10 +169,7 @@ async def trigger_collect(
             except ValueError:
                 invalid.append(raw)
         if invalid:
-            return JSONResponse(
-                status_code=400,
-                content={"detail": f"invalid source_ids: {invalid}"},
-            )
+            return error_json(400, f"invalid source_ids: {invalid}")
         source_uuids = resolved
     else:
         source_uuids = await source_repo.list_active_source_ids()
@@ -277,7 +268,7 @@ async def get_task_chain(
     repo = TaskChainRepository(session)
     chain = await repo.get(str(id))
     if chain is None:
-        return JSONResponse(status_code=404, content={"detail": "not found"})
+        return error_json(404, "not found")
     return _serialize_task_chain(chain)
 
 
@@ -307,9 +298,7 @@ async def get_celery_task(task_id: str, request: Request) -> Any:
     """
     celery_instance = getattr(request.app.state, "celery_app", None)
     if celery_instance is None:
-        return JSONResponse(
-            status_code=503, content={"detail": "celery_app not initialised"}
-        )
+        return error_json(503, "celery_app not initialised")
     try:
         async_result = AsyncResult(task_id, app=celery_instance)
         state = async_result.state
@@ -328,10 +317,7 @@ async def get_celery_task(task_id: str, request: Request) -> Any:
                 payload["error"] = str(async_result.result)
     except Exception as exc:
         logger.warning("celery AsyncResult lookup failed for %s: %s", task_id, exc)
-        return JSONResponse(
-            status_code=503,
-            content={"detail": f"result backend unavailable: {exc}"},
-        )
+        return error_json(503, f"result backend unavailable: {exc}")
     return payload
 
 
@@ -343,7 +329,7 @@ async def get_task(
     repo = TaskRepository(session)
     task = await repo.get_by_id(id)
     if task is None:
-        return JSONResponse(status_code=404, content={"detail": "not found"})
+        return error_json(404, "not found")
     return _serialize_task(task)
 
 
@@ -357,5 +343,5 @@ async def update_task(
     fields = body.model_dump(exclude_unset=True)
     updated = await repo.update(id, **fields)
     if updated is None:
-        return JSONResponse(status_code=404, content={"detail": "not found"})
+        return error_json(404, "not found")
     return _serialize_task(updated)

@@ -105,6 +105,23 @@ def _emit(data: dict[str, Any], *, json_output: bool) -> None:
         typer.echo(_format_table(data))
 
 
+def _error_message(resp: httpx.Response) -> str:
+    """Extract the human message from the ``{"error": {...}}`` envelope.
+
+    Falls back to a top-level ``detail`` field when the envelope is absent.
+    """
+    try:
+        body = resp.json()
+    except Exception:
+        return ""
+    if not isinstance(body, dict):
+        return ""
+    err = body.get("error")
+    if isinstance(err, dict):
+        return str(err.get("message", "") or "")
+    return str(body.get("detail", "") or "")
+
+
 def _format_table(data: dict[str, Any] | list[dict[str, Any]]) -> str:
     """Format data as a simple text table."""
     if isinstance(data, dict):
@@ -431,7 +448,7 @@ def task_trigger(
     except Exception:
         detail = ""
         try:
-            detail = resp.json().get("detail", "")
+            detail = _error_message(resp)
         except Exception:
             pass
         typer.echo(f"Error: {detail or 'not found'}")
@@ -1141,7 +1158,7 @@ def template_add(
     resp = _post_json("/api/v1/templates", payload)
     if resp.status_code >= 400:
         try:
-            detail = resp.json().get("detail", "")
+            detail = _error_message(resp)
         except Exception:
             detail = resp.text
         typer.echo(f"Error ({resp.status_code}): {detail}")
@@ -1350,7 +1367,7 @@ def subscriptions_add(
     resp = _post_json("/api/v1/subscriptions", payload)
     if resp.status_code >= 400:
         try:
-            detail = resp.json().get("detail", "")
+            detail = _error_message(resp)
         except Exception:
             detail = resp.text
         typer.echo(f"Error ({resp.status_code}): {detail}")
@@ -1559,7 +1576,7 @@ def topic_enable(
         raise typer.Exit(code=1)
     if resp.status_code >= 400:
         try:
-            detail = resp.json().get("detail", "")
+            detail = _error_message(resp)
         except Exception:
             detail = resp.text
         typer.echo(f"Error ({resp.status_code}): {detail}")
