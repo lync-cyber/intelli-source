@@ -16,6 +16,7 @@ from typing import Any
 
 from intellisource.core.text_tools import filter_sensitive, truncate_for_push
 from intellisource.observability.logging import get_logger
+from intellisource.pipeline.digest.schemas import ContentDigest, parse_digest
 
 logger = get_logger(__name__)
 
@@ -286,15 +287,15 @@ async def truncate_summary(
         Dict with title, summary, timeline, key_points.
     """
     if not cluster_contents:
-        return {"title": "", "summary": "", "timeline": [], "key_points": []}
+        return ContentDigest(title="", summary="").model_dump()
 
     gateway = getattr(tool_deps, "llm_gateway", None) if tool_deps is not None else None
     if gateway is not None:
-        result = await _llm_summarize(cluster_contents, gateway)
-        if result is not None:
-            return result
+        digest = await _llm_summarize(cluster_contents, gateway)
+        if digest is not None:
+            return digest.model_dump()
 
-    return _truncate_fallback(cluster_contents)
+    return _truncate_fallback(cluster_contents).model_dump()
 
 
 _SUMMARIZER_PROMPT_TEMPLATE = (
@@ -316,7 +317,7 @@ _SUMMARIZER_PROMPT_TEMPLATE = (
 async def _llm_summarize(
     cluster_contents: list[dict[str, str]],
     gateway: Any,
-) -> dict[str, Any] | None:
+) -> ContentDigest | None:
     """Call LLM to produce a structured summary; return None on failure."""
     docs_text = "\n\n".join(
         f"Title: {doc.get('title', '')}\n{doc.get('body_text', '')}"
@@ -334,20 +335,13 @@ async def _llm_summarize(
         logger.warning("LLM summarize failed, falling back to truncation")
         return None
 
-    required_keys = {"title", "summary", "timeline", "key_points"}
-    if not required_keys.issubset(parsed.keys()):
+    digest = parse_digest(parsed)
+    if digest is None:
         logger.warning("LLM response missing required keys, falling back")
-        return None
-
-    return {
-        "title": str(parsed["title"]),
-        "summary": str(parsed["summary"]),
-        "timeline": list(parsed["timeline"]),
-        "key_points": list(parsed["key_points"]),
-    }
+    return digest
 
 
-def _truncate_fallback(cluster_contents: list[dict[str, str]]) -> dict[str, Any]:
+def _truncate_fallback(cluster_contents: list[dict[str, str]]) -> ContentDigest:
     """First-3-sentence truncation (original logic)."""
     title = cluster_contents[0].get("title", "")
     combined_text = " ".join(doc.get("body_text", "") for doc in cluster_contents)
@@ -356,12 +350,7 @@ def _truncate_fallback(cluster_contents: list[dict[str, str]]) -> dict[str, Any]
     if first_sentences and not first_sentences.endswith("."):
         first_sentences += "."
 
-    return {
-        "title": title,
-        "summary": first_sentences,
-        "timeline": [],
-        "key_points": [],
-    }
+    return ContentDigest(title=title, summary=first_sentences)
 
 
 # ---------------------------------------------------------------------------

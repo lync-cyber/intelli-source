@@ -1,0 +1,19 @@
+# {{ bundle.title }}{% if bundle.period_label %} · {{ bundle.period_label }}{% endif %}
+{% if bundle.intro %}
+
+> {{ bundle.intro }}
+{% endif %}
+{% for section in bundle.sections %}
+
+## {{ section.heading }}
+{% for item in section.items %}
+
+**[{{ item.title }}]({{ item.source_url or '#' }})**
+{% if item.summary %}{{ item.summary }}{% endif %}
+{% if item.why_it_matters %}_为什么重要：{{ item.why_it_matters }}_{% endif %}
+{% endfor %}
+{% endfor %}
+{% if bundle.outro %}
+
+{{ bundle.outro }}
+{% endif %}

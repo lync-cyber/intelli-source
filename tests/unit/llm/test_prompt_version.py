@@ -22,10 +22,10 @@ from intellisource.llm.prompt_builder import PromptBuilder
 
 @pytest.fixture
 def real_template_path() -> Path:
-    """Path to the real `extraction.txt` template shipped with the package."""
+    """Path to the real `extraction.prompt.md` template shipped with the package."""
     from intellisource.llm.prompts import _TEMPLATE_DIR  # noqa: PLC0415
 
-    return _TEMPLATE_DIR / "extraction.txt"
+    return _TEMPLATE_DIR / "extraction.prompt.md"
 
 
 # ----------------------------------------------------------------- AC-T069-1
@@ -61,20 +61,22 @@ class TestPromptVersionTracksContentChanges:
         # Point the template lookup at a temporary directory.
         custom_dir = tmp_path / "templates"
         custom_dir.mkdir()
-        tpl = custom_dir / "demo.txt"
-        tpl.write_text("hello {name}", encoding="utf-8")
+        tpl = custom_dir / "demo.prompt.md"
+        tpl.write_text("hello {{ name }}", encoding="utf-8")
 
         with (
             patch("intellisource.llm.prompt_builder._TEMPLATE_DIR", custom_dir),
-            patch("intellisource.llm.prompts._TEMPLATE_DIR", custom_dir),
+            patch("intellisource.llm.prompts.loader._TEMPLATE_DIR", custom_dir),
         ):
             # Reset lru_cache so the new template is read fresh.
-            from intellisource.llm.prompts import _read_template  # noqa: PLC0415
+            from intellisource.llm.prompts.loader import (  # noqa: PLC0415
+                _read_prompt_md,
+            )
 
-            _read_template.cache_clear()
+            _read_prompt_md.cache_clear()
             v1 = PromptBuilder(call_type="demo").prompt_version
 
-            tpl.write_text("hello {name}, updated body", encoding="utf-8")
+            tpl.write_text("hello {{ name }}, updated body", encoding="utf-8")
             # Bump mtime explicitly — NTFS mtime resolution (~16ms) can
             # collapse two writes within one tick into a single key for the
             # (path, mtime_ns) cache. In real user-edit flows mtime advances
@@ -152,16 +154,18 @@ class TestUnknownVersionWhenTemplateMissing:
     def test_template_deleted_after_init_returns_unknown(self, tmp_path: Path) -> None:
         custom_dir = tmp_path / "templates"
         custom_dir.mkdir()
-        tpl = custom_dir / "ephemeral.txt"
+        tpl = custom_dir / "ephemeral.prompt.md"
         tpl.write_text("hello", encoding="utf-8")
 
         with (
             patch("intellisource.llm.prompt_builder._TEMPLATE_DIR", custom_dir),
-            patch("intellisource.llm.prompts._TEMPLATE_DIR", custom_dir),
+            patch("intellisource.llm.prompts.loader._TEMPLATE_DIR", custom_dir),
         ):
-            from intellisource.llm.prompts import _read_template  # noqa: PLC0415
+            from intellisource.llm.prompts.loader import (  # noqa: PLC0415
+                _read_prompt_md,
+            )
 
-            _read_template.cache_clear()
+            _read_prompt_md.cache_clear()
             builder = PromptBuilder(call_type="ephemeral")
             assert builder.prompt_version != "unknown"
 

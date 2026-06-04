@@ -439,6 +439,9 @@ class Subscription(TimestampMixin, Base):
         ARRAY(String), nullable=False, default=list
     )
     status: Mapped[str] = mapped_column(VARCHAR(20), nullable=False, default="active")
+    last_sent_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
 
     # Relationships
     source: Mapped[Optional["Source"]] = relationship(back_populates="subscriptions")
@@ -487,6 +490,7 @@ class PushRecord(CreatedAtMixin, Base):
         TIMESTAMP(timezone=True), nullable=True
     )
     recipient_id: Mapped[Optional[str]] = mapped_column(VARCHAR(255), nullable=True)
+    render_mode: Mapped[Optional[str]] = mapped_column(VARCHAR(20), nullable=True)
 
     # Relationships
     subscription: Mapped["Subscription"] = relationship(back_populates="push_records")

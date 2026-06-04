@@ -3,17 +3,16 @@
 from __future__ import annotations
 
 import asyncio
-import html
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import TYPE_CHECKING, Any
-from urllib.parse import quote
 
 import aiosmtplib
 
 from intellisource.core.settings import get_settings
 from intellisource.distributor.base import BaseDistributor
 from intellisource.distributor.channels.constants import MAX_RETRY, RETRY_INTERVAL
+from intellisource.distributor.templates import resolve_template_for
 
 if TYPE_CHECKING:
     from intellisource.storage.repositories.push import PushRepository
@@ -69,20 +68,6 @@ class EmailDistributor(BaseDistributor):
             use_tls=use_tls,
         )
 
-    def format_html(self, content: Any) -> str:
-        """Render content as an HTML email body."""
-        title = html.escape(getattr(content, "title", ""))
-        summary = html.escape(getattr(content, "summary", ""))
-        raw_url = getattr(content, "source_url", "")
-        safe_url = quote(raw_url, safe=":/?#[]@!$&'()*+,;=-._~%")
-        return (
-            "<html><body>"
-            f"<h1>{title}</h1>"
-            f"<p>{summary}</p>"
-            f'<a href="{safe_url}">{html.escape(raw_url)}</a>'
-            "</body></html>"
-        )
-
     async def send_email(
         self,
         *,
@@ -107,6 +92,18 @@ class EmailDistributor(BaseDistributor):
         )
         return {"status": "sent"}
 
+    async def send_rendered(
+        self, subscription: Any, *, title: str, body: str, fmt: str
+    ) -> dict[str, Any]:
+        """Send a pre-rendered digest (html) as one email; *title* is the subject."""
+        del fmt  # email always delivers html via send_email
+        to_addr: str = subscription.channel_config.get("to_addr", "")
+        try:
+            await self.send_email(to_addr=to_addr, subject=title, html_body=body)
+        except Exception as exc:  # noqa: BLE001 — surface transport failure as status
+            return {"status": "failed", "channel": "email", "error": str(exc)}
+        return {"status": "sent", "channel": "email"}
+
     async def distribute(
         self,
         content: Any,
@@ -119,7 +116,12 @@ class EmailDistributor(BaseDistributor):
 
         to_addr: str = subscription.channel_config.get("to_addr", "")
         subject = getattr(content, "title", "")
-        html_body = self.format_html(content)
+        template, tmpl_cfg = resolve_template_for(
+            subscription.channel_config, default="topic-deepdive"
+        )
+        bundle = template.aggregate([content], tmpl_cfg)
+        rendered = await template.render(bundle, "html")
+        html_body = rendered if isinstance(rendered, str) else str(rendered)
 
         async def attempt_fn(
             _attempt: int, is_last: bool

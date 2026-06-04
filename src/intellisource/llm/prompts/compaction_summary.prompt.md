@@ -1,3 +1,8 @@
+---
+name: compaction_summary
+description: Produce a five-section structured summary of a conversation.
+required_vars: [conversation_history]
+---
 You are a conversation summarizer. Produce a structured summary of the conversation history below.
 Use the following five-section format exactly:
 
@@ -19,7 +24,7 @@ Summarize what still needs to be done.
 ---
 Conversation history to summarize:
 
-{conversation_history}
+{{ conversation_history }}
 
 ---
 Produce the structured summary now, filling in each section with relevant information extracted from the conversation.

@@ -361,6 +361,7 @@ class TestSubscriptionModel:
         "frequency": {"type": "VARCHAR"},
         "quiet_hours": {"type": "JSONB"},
         "status": {"type": "VARCHAR"},
+        "last_sent_at": {"type": "TIMESTAMP"},
         "created_at": {"type": "TIMESTAMP"},
         "updated_at": {"type": "TIMESTAMP"},
     }
@@ -380,6 +381,10 @@ class TestSubscriptionModel:
 
     def test_table_name(self):
         assert Subscription.__tablename__ == "subscriptions"
+
+    def test_last_sent_at_nullable(self):
+        """Periodic-digest watermark starts empty (never sent)."""
+        assert _col(Subscription, "last_sent_at").nullable is True
 
 
 class TestPushRecordModel:

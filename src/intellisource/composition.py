@@ -395,6 +395,22 @@ def build_worker_composition(
     )
     agent_runner = _install_agent_runner(session_factory, bundle)
     pipeline_loader = build_pipeline_loader()
+
+    # Wire the periodic-digest runner onto the shared Celery app so the
+    # ``assemble_daily_weekly_digests`` beat task can reach it. It reuses the
+    # facade's channels and the LLM gateway (for opt-in digest enrichment).
+    from intellisource.distributor.periodic import PeriodicDigestRunner
+
+    setattr(
+        _worker_celery_app,
+        "_periodic_digest_runner",
+        PeriodicDigestRunner(
+            session_factory=session_factory,
+            channels=bundle.distributor.channels,
+            llm_gateway=bundle.llm_gateway,
+        ),
+    )
+
     return WorkerComposition(
         agent_runner=agent_runner,
         pipeline_loader=pipeline_loader,

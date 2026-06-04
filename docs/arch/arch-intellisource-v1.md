@@ -390,8 +390,9 @@ intellisource/
 │       │   │   ├── summarizer.py     # 摘要
 │       │   │   ├── tagger.py         # 打标
 │       │   │   └── optimizer.py      # 推送优化
-│       │   ├── prompts/              # LLM prompt 模板
-│       │   │   └── context_compress.txt  # 上下文压缩 prompt
+│       │   ├── prompts/              # LLM prompt 模板（front-matter + Jinja）
+│       │   │   ├── *.prompt.md       # 模板：声明式 required_vars + Jinja body
+│       │   │   └── _fragments/       # 可复用片段（编辑人设 / 注入防护框）
 │       │   └── schemas/              # LLM 输入输出 JSON Schema
 │       │       └── *.json
 │       ├── scheduler/                 # M-006 任务调度（触发层）

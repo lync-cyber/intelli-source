@@ -1,0 +1,12 @@
+{{ bundle.title }}{% if bundle.period_label %} · {{ bundle.period_label }}{% endif %}
+{% if bundle.intro %}
+{{ bundle.intro }}
+{% endif %}
+{% for section in bundle.sections %}
+【{{ section.heading }}】
+{% for item in section.items %}
+- {{ item.title }}
+{% if item.summary %}  {{ item.summary }}{% endif %}
+{% if item.source_url %}  {{ item.source_url }}{% endif %}
+{% endfor %}
+{% endfor %}

@@ -329,35 +329,8 @@ class TestMessageFormats:
             payload = call_args[0][1] if len(call_args[0]) > 1 else {}
         assert payload.get("msgtype") == "news"
 
-    def test_format_content_markdown(self, distributor: Any) -> None:
-        """format_content with msg_type='markdown' returns a string."""
-        content = StubContent(title="Test", summary="Summary", body_text="Body")
-        result = distributor.format_content(content, msg_type="markdown")
-
-        assert isinstance(result, str)
-        assert "Test" in result
-        assert "Body" in result
-
-    def test_format_content_text(self, distributor: Any) -> None:
-        """format_content with msg_type='text' returns a plain string."""
-        content = StubContent(title="Test", summary="Summary")
-        result = distributor.format_content(content, msg_type="text")
-
-        assert isinstance(result, str)
-
-    def test_format_content_news(self, distributor: Any) -> None:
-        """format_content with msg_type='news' returns a list of articles."""
-        content = StubContent(
-            title="Test",
-            summary="Summary",
-            source_url="https://example.com/1",
-        )
-        result = distributor.format_content(content, msg_type="news")
-
-        assert isinstance(result, list)
-        assert len(result) >= 1
-        assert "title" in result[0]
-        assert result[0]["url"] == "https://example.com/1"
+    # Per-msg_type content formatting now lives in the push-card template;
+    # see tests/unit/distributor/test_templates.py::TestPushCard.
 
 
 # ===========================================================================

@@ -346,3 +346,134 @@ async def test_process_execute_persists_summary_from_context() -> None:
     # sanity: created_at/processed_at flow remains
     assert isinstance(create_calls[0].get("processed_at"), datetime)
     assert create_calls[0]["processed_at"].tzinfo == timezone.utc
+
+
+# ---------------------------------------------------------------------------
+# WF-1.3: full digest flows into ctx["digest"] and persists to structured_data
+# ---------------------------------------------------------------------------
+
+
+class TestLLMSummarizerPopulatesDigest:
+    def test_process_populates_full_digest_in_context(self) -> None:
+        from intellisource.pipeline.context import PipelineContext  # noqa: PLC0415
+        from intellisource.pipeline.processors.summarizer import (  # noqa: PLC0415
+            LLMSummarizer,
+        )
+
+        gw = MagicMock()
+        gw.complete = AsyncMock(
+            return_value=_make_complete_result(
+                '{"title": "DT", "summary": "DS",'
+                ' "timeline": [{"date": "2026-01-01", "event": "E"}],'
+                ' "key_points": ["k1", "k2"]}'
+            )
+        )
+        summarizer = LLMSummarizer(llm_gateway=gw)
+        ctx = PipelineContext()
+        ctx.set("title", "Hello")
+        ctx.set("body_text", "Body.")
+
+        ctx = summarizer.process(ctx)
+
+        # Full structured digest is exposed (not just the flattened summary),
+        # so the executor can persist timeline / key_points into structured_data.
+        assert ctx.get("digest") == {
+            "title": "DT",
+            "summary": "DS",
+            "timeline": [{"date": "2026-01-01", "event": "E"}],
+            "key_points": ["k1", "k2"],
+        }
+        # back-compat: summary still flattened for existing readers
+        assert ctx.get("summary") == "DS"
+
+
+@pytest.mark.asyncio
+async def test_process_execute_persists_structured_data_from_digest() -> None:
+    """_process_execute must persist ctx['digest'] into structured_data."""
+    from uuid import uuid4  # noqa: PLC0415
+
+    from intellisource.agent.tools.executes.process import (  # noqa: PLC0415
+        _process_execute,
+    )
+    from intellisource.pipeline.context import PipelineContext  # noqa: PLC0415
+
+    raw_id = uuid4()
+    digest_payload = {
+        "title": "DT",
+        "summary": "DS",
+        "timeline": [{"date": "2026-01-01", "event": "E"}],
+        "key_points": ["k"],
+    }
+
+    raw_stub = MagicMock()
+    raw_stub.id = raw_id
+    raw_stub.body_html = "<p>hi</p>"
+    raw_stub.body_text = "hi"
+    raw_stub.title = "Hello"
+    raw_stub.fingerprint = "fp"
+    raw_stub.source_url = "https://example.com/x"
+    raw_stub.status = "pending"
+    raw_stub.processed_at = None
+    raw_stub.source_id = None
+    raw_stub.published_at = None
+    raw_stub.created_at = None
+
+    processed_stub = MagicMock()
+    processed_stub.id = uuid4()
+    create_calls: list[dict[str, Any]] = []
+
+    class _Repo:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
+
+        async def get_raw_by_id(self, _rid: Any) -> Any:
+            return raw_stub
+
+        async def get_processed_by_raw_id(self, _rid: Any) -> Any:
+            return None
+
+        async def create(self, **kwargs: Any) -> Any:
+            create_calls.append(kwargs)
+            return processed_stub
+
+    class _Session:
+        async def __aenter__(self) -> "_Session":
+            return self
+
+        async def __aexit__(self, *_exc_info: Any) -> None:
+            return None
+
+        async def commit(self) -> None:
+            return None
+
+    class _SessionFactory:
+        def __call__(self) -> "_Session":
+            return _Session()
+
+    def _stub_execute(ctx: PipelineContext) -> PipelineContext:
+        ctx.set("summary", "DS")
+        ctx.set("digest", digest_payload)
+        ctx.set("tags", [])
+        return ctx
+
+    pipeline_engine = MagicMock()
+    pipeline_engine.execute = _stub_execute
+
+    tool_deps = MagicMock()
+    tool_deps.session_factory = _SessionFactory()
+    tool_deps.pipeline_engine = pipeline_engine
+
+    import intellisource.storage.repositories.content as content_repo_mod  # noqa: PLC0415
+
+    real_cls = content_repo_mod.ContentRepository
+    content_repo_mod.ContentRepository = _Repo  # type: ignore[assignment]
+    try:
+        out = await _process_execute(content_id=str(raw_id), tool_deps=tool_deps)
+    finally:
+        content_repo_mod.ContentRepository = real_cls  # type: ignore[assignment]
+
+    assert out["status"] == "ok", out
+    assert len(create_calls) == 1
+    assert create_calls[0].get("structured_data") == digest_payload, (
+        "ctx['digest'] must be persisted into ProcessedContent.structured_data"
+    )

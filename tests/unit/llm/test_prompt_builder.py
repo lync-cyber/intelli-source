@@ -48,7 +48,7 @@ class TestPromptBuilderTemplateLoading:
     """Verify PromptBuilder loads templates from prompts/ directory."""
 
     def test_init_loads_template_for_known_call_type(self) -> None:
-        """PromptBuilder loads template when call_type matches a .txt file."""
+        """PromptBuilder loads template when call_type matches a .prompt.md file."""
         builder = PromptBuilder(call_type="extraction")
         # The builder should have loaded the template internally
         assert builder._template is not None
@@ -433,10 +433,10 @@ class TestGatewayTruncationIntegration:
 
 
 class TestPromptVariantNaming:
-    """AC-T062-1: Variant files are named {name}.{style}.txt."""
+    """AC-T062-1: Variant files are named {name}.{style}.prompt.md."""
 
     def test_variant_files_exist_extraction_structured(self) -> None:
-        """`extraction.structured.txt` exists in the prompts directory."""
+        """`extraction.structured.prompt.md` exists in the prompts directory."""
         from pathlib import Path
 
         prompts_dir = (
@@ -446,10 +446,10 @@ class TestPromptVariantNaming:
             / "llm"
             / "prompts"
         )
-        assert (prompts_dir / "extraction.structured.txt").exists()
+        assert (prompts_dir / "extraction.structured.prompt.md").exists()
 
     def test_variant_files_exist_extraction_concise(self) -> None:
-        """`extraction.concise.txt` exists in the prompts directory."""
+        """`extraction.concise.prompt.md` exists in the prompts directory."""
         from pathlib import Path
 
         prompts_dir = (
@@ -459,10 +459,10 @@ class TestPromptVariantNaming:
             / "llm"
             / "prompts"
         )
-        assert (prompts_dir / "extraction.concise.txt").exists()
+        assert (prompts_dir / "extraction.concise.prompt.md").exists()
 
     def test_variant_files_exist_summarizer_structured(self) -> None:
-        """`summarizer.structured.txt` exists in the prompts directory."""
+        """`summarizer.structured.prompt.md` exists in the prompts directory."""
         from pathlib import Path
 
         prompts_dir = (
@@ -472,37 +472,26 @@ class TestPromptVariantNaming:
             / "llm"
             / "prompts"
         )
-        assert (prompts_dir / "summarizer.structured.txt").exists()
+        assert (prompts_dir / "summarizer.structured.prompt.md").exists()
 
 
 class TestLoadPromptVariantStyle:
     """AC-T062-2 / AC-T062-5: load_prompt() resolves variant with style kwarg."""
 
     def test_load_prompt_style_loads_variant_content(self) -> None:
-        """load_prompt(name, style=...) returns variant file content when it exists."""
-        from pathlib import Path
-
-        prompts_dir = (
-            Path(__file__).parent.parent.parent.parent
-            / "src"
-            / "intellisource"
-            / "llm"
-            / "prompts"
-        )
-        variant_raw = (prompts_dir / "extraction.structured.txt").read_text(
-            encoding="utf-8"
-        )
+        """load_prompt(name, style=...) renders the variant when it exists."""
         result = load_prompt(
             "extraction", style="structured", schema="{}", body_text="text"
         )
-        expected = variant_raw.format_map({"schema": "{}", "body_text": "text"})
-        assert result == expected
-        # Sanity: variant content also differs from the default template
+        # The structured variant carries its own <schema>/<document> framing.
+        assert "<schema>" in result
+        assert "text" in result
+        # Sanity: variant content differs from the default template.
         default = load_prompt("extraction", schema="{}", body_text="text")
         assert result != default
 
     def test_load_prompt_style_fallback_when_variant_missing(self) -> None:
-        """load_prompt(name, style=...) falls back to base {name}.txt when absent."""
+        """load_prompt(name, style=...) falls back to base when variant absent."""
         result = load_prompt(
             "extraction",
             style="nonexistent_style_xyz",
@@ -531,7 +520,7 @@ class TestVariantFilesNonEmpty:
     """AC-T062-3/AC-T062-4: Variant files are non-empty with expected placeholders."""
 
     def test_extraction_structured_is_nonempty(self) -> None:
-        """extraction.structured.txt has content and {schema}/{body_text} vars."""
+        """extraction.structured renders content with {schema}/{body_text} vars."""
         result = load_prompt(
             "extraction",
             style="structured",
@@ -543,7 +532,7 @@ class TestVariantFilesNonEmpty:
         assert "sample" in result
 
     def test_extraction_concise_is_nonempty(self) -> None:
-        """extraction.concise.txt has content and {schema}/{body_text} placeholders."""
+        """extraction.concise renders content with {schema}/{body_text} vars."""
         result = load_prompt(
             "extraction",
             style="concise",
@@ -555,7 +544,7 @@ class TestVariantFilesNonEmpty:
         assert "sample" in result
 
     def test_summarizer_structured_is_nonempty(self) -> None:
-        """summarizer.structured.txt has content and {docs_text} placeholder."""
+        """summarizer.structured renders content with the {docs_text} var."""
         result = load_prompt("summarizer", style="structured", docs_text="sample docs")
         assert len(result) > 0
         assert "sample docs" in result
@@ -623,6 +612,6 @@ class TestPromptPathComponentValidation:
             load_prompt("extraction", style=bad_style, schema="{}", body_text="x")
 
     def test_prompt_builder_rejects_unsafe_prompt_style(self) -> None:
-        """PromptBuilder propagates the ValueError raised by _read_template."""
+        """PromptBuilder propagates the ValueError raised by the loader."""
         with pytest.raises(ValueError, match="Invalid style"):
             PromptBuilder(call_type="extraction", prompt_style="../escape")

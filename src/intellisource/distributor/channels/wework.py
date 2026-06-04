@@ -14,6 +14,7 @@ from intellisource.distributor.channels.constants import (
     RETRY_INTERVAL,
     TOKEN_EXPIRE_BUFFER,
 )
+from intellisource.distributor.templates import resolve_template_for
 
 if TYPE_CHECKING:
     from intellisource.storage.repositories.push import PushRepository
@@ -79,6 +80,27 @@ class WeWorkDistributor(BaseDistributor):
     # distribute (ABC entry-point)
     # ------------------------------------------------------------------
 
+    async def send_rendered(
+        self, subscription: Any, *, title: str, body: str, fmt: str
+    ) -> dict[str, Any]:
+        """Send a pre-rendered digest body via markdown (default) or text message."""
+        del title  # wework messages carry no separate subject line
+        user_id: str = subscription.channel_config.get("user_id", "@all")
+        try:
+            if fmt == "markdown":
+                res = await self.send_markdown_message(user_id, body)
+            else:
+                res = await self.send_text_message(user_id, body)
+        except Exception as exc:  # noqa: BLE001 — surface transport failure as status
+            return {"status": "failed", "channel": "wework", "error": str(exc)}
+        if res.get("errcode", -1) == 0:
+            return {"status": "sent", "channel": "wework"}
+        return {
+            "status": "failed",
+            "channel": "wework",
+            "error": str(res.get("errmsg", "unknown error")),
+        }
+
     async def distribute(
         self,
         content: Any,
@@ -92,7 +114,9 @@ class WeWorkDistributor(BaseDistributor):
         cfg = subscription.channel_config
         msg_type: str = cfg.get("msg_type", "text")
         user_id: str = cfg.get("user_id", "@all")
-        formatted = self.format_content(content, msg_type=msg_type)
+        template, tmpl_cfg = resolve_template_for(cfg, default="push-card")
+        bundle = template.aggregate([content], tmpl_cfg)
+        formatted = await template.render(bundle, msg_type)
 
         async def attempt_fn(
             _attempt: int, is_last: bool
@@ -237,22 +261,6 @@ class WeWorkDistributor(BaseDistributor):
         return self._build_result(
             status, "wework", content.id, subscription.id, **extra
         )
-
-    def format_content(self, content: Any, *, msg_type: str = "text") -> Any:
-        """Format *content* for the given *msg_type*."""
-        if msg_type == "markdown":
-            body = content.body_text or ""
-            return f"# {content.title}\n\n{content.summary}\n\n{body}"
-        if msg_type == "news":
-            return [
-                {
-                    "title": content.title,
-                    "description": content.summary,
-                    "url": content.source_url,
-                }
-            ]
-        # default: text
-        return f"{content.title}\n{content.summary}"
 
 
 def _now_iso() -> str:

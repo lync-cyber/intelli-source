@@ -1,0 +1,29 @@
+{% set item = bundle.sections[0].items[0] if bundle.sections and bundle.sections[0].items else None %}
+{% if item %}
+# {{ item.title }}
+{% if item.summary %}
+
+**TL;DR** {{ item.summary }}
+{% endif %}
+{% if item.key_points %}
+
+{% for kp in item.key_points %}
+- {{ kp }}
+{% endfor %}
+{% endif %}
+{% if item.body_text %}
+
+{{ item.body_text }}
+{% endif %}
+{% if bundle.timeline %}
+
+## 时间线
+{% for e in bundle.timeline %}
+- {{ e.date }} — {{ e.event }}
+{% endfor %}
+{% endif %}
+{% if item.source_url %}
+
+[{{ item.source_name or item.source_url }}]({{ item.source_url }})
+{% endif %}
+{% endif %}
