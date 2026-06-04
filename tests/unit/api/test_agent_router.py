@@ -84,6 +84,12 @@ async def test_agent_chat_runs_admin_agent_and_summarizes() -> None:
     assert body["task_chain_id"] == "chain-1"
     # tools_used reflects, in order, which tools the agent actually invoked
     assert body["tools_used"] == ["list_sources", "create_source"]
+    # results carries the full per-step trace (tool + output), not just names,
+    # so a caller can inspect what each tool returned
+    assert body["results"] == [
+        {"tool": "list_sources", "output": {"status": "ok"}},
+        {"tool": "create_source", "output": {"status": "ok"}},
+    ]
     # the endpoint must drive the management-capable admin-agent config, not a
     # read-only search config
     assert runner.calls[0]["config_name"] == "admin-agent"

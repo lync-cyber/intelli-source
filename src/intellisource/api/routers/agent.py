@@ -42,13 +42,19 @@ class AgentChatRequest(BaseModel):
 
 
 class AgentChatResponse(BaseModel):
-    """Response for /agent/chat."""
+    """Response for /agent/chat.
+
+    ``tools_used`` is the compact ordered list of tool names; ``results`` is the
+    full per-step tool trace (tool + output/error) for callers that need to
+    inspect what each tool returned, not just which tools ran.
+    """
 
     answer: str
     pipeline: str
     steps_executed: int
     task_chain_id: str
     tools_used: list[str]
+    results: list[dict[str, Any]] = []
 
 
 def _tools_used(flex_result: dict[str, Any]) -> list[str]:
@@ -83,10 +89,14 @@ async def agent_chat(request: Request, body: AgentChatRequest) -> Any:
         max_tokens_budget=body.max_tokens_budget,
     )
 
+    raw_results = flex_result.get("results", [])
+    results = [step for step in raw_results if isinstance(step, dict)]
+
     return AgentChatResponse(
         answer=extract_answer(flex_result),
         pipeline=body.pipeline,
         steps_executed=int(flex_result.get("steps_executed", 0)),
         task_chain_id=str(flex_result.get("task_chain_id", "")),
         tools_used=_tools_used(flex_result),
+        results=results,
     )
