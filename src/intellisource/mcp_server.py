@@ -553,8 +553,8 @@ def build_mcp_server(
         from intellisource.scheduler.celery_app import celery_app
         from intellisource.scheduler.dispatch import send_task_with_trace
 
-        # Pre-generate the TaskChain id and pass it to the worker so the id
-        # returned here is the one get_task_status polls (closes the loop).
+        # Pass a pre-generated TaskChain id to the worker so the id returned
+        # here is the one get_task_status reads.
         chain_id = str(_uuid.uuid4())
         run_params = {**(params or {}), "task_chain_id": chain_id}
         try:

@@ -1,8 +1,8 @@
 """Execution-control tool execute functions: trigger a pipeline run + poll status.
 
 Lets an LLM dispatch a persisted pipeline and read back the resulting TaskChain
-status, closing the conversational "trigger → check result" loop. The Celery
-dispatcher and the TaskChain repository are injected via ``ToolDeps`` factories
+status. The Celery dispatcher and the TaskChain repository are injected via
+``ToolDeps`` factories
 (constructed in the composition root); this module imports no scheduler or
 storage package directly, so the agent layer stays dependency-injected and the
 tools are unit-testable without a broker or database.
@@ -53,10 +53,9 @@ async def _run_pipeline_execute(
         return tool_error(
             "run_pipeline", f"pipeline {name!r} not found", code="not_found"
         )
-    # Pre-generate the TaskChain id and hand it to the worker via params so the
-    # id returned here is the same one get_task_status polls (closing the
-    # trigger -> check-status loop). Distinct from params["task_id"], which the
-    # worker consumes as the idempotency lock key.
+    # Pass a pre-generated TaskChain id to the worker so the id returned here is
+    # the one get_task_status reads. Kept distinct from params["task_id"], which
+    # the worker consumes as the idempotency lock key.
     chain_id = str(uuid.uuid4())
     run_params = {**(params or {}), "task_chain_id": chain_id}
     try:

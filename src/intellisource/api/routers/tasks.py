@@ -61,10 +61,8 @@ def _serialize_task(task: Any) -> dict[str, Any]:
     """Convert a CollectTask ORM object to a JSON-serializable dict.
 
     `pipeline_name` / `execution_mode` live on the parent TaskChain row;
-    callers who need them should follow `task_chain_id` and query
-    /tasks/chains/{id} (when available) rather than expecting them inlined
-    here. Including them inline previously caused AttributeError on every
-    GET /tasks/{id} call.
+    callers who need them follow `task_chain_id` and query /tasks/chains/{id}
+    rather than expecting them inlined here (they are not columns on CollectTask).
     """
     return {
         "id": str(task.id),

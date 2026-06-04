@@ -75,10 +75,10 @@ def _parse_chain_id(raw: Any) -> uuid.UUID | None:
     """Return a validated TaskChain UUID from a dispatch param, or None.
 
     The api / agent / mcp dispatch layer passes ``params['task_chain_id']`` so
-    the worker persists the run under the id it already returned to the caller,
-    closing the trigger -> get_task_status loop. A missing or malformed value
-    falls back to a worker-generated id. Kept distinct from ``params['task_id']``,
-    which :func:`_task_lock_key` consumes as the idempotency key.
+    the worker persists the run under the id it returned to the caller, which
+    ``get_task_status`` then reads. A missing or malformed value falls back to a
+    worker-generated id. Kept distinct from ``params['task_id']``, which
+    :func:`_task_lock_key` consumes as the idempotency key.
     """
     text = str(raw or "").strip()
     if not text:

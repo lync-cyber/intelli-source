@@ -1,4 +1,4 @@
-"""Shared ChatSession persistence used by /search/chat and /agent/chat (P1.1).
+"""Shared ChatSession persistence used by /search/chat and /agent/chat.
 
 Locks the cross-endpoint multi-turn memory contract: history hydration into the
 run payload and best-effort write-back, independent of any one router.

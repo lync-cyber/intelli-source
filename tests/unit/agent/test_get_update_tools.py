@@ -1,4 +1,4 @@
-"""P2: single-read (get_*) and real-patch (update_*) management tools.
+"""Single-read (get_*) and real-patch (update_*) management tools.
 
 The patch tools must be *distinct* from the create-upsert tools — they target an
 existing row by id/name and partially update it, returning ``not_found`` when the
@@ -327,7 +327,7 @@ def test_get_update_schemas_match_executor_signatures() -> None:
 
 
 # ---------------------------------------------------------------------------
-# get_pipeline (P2: parity with get_source / get_subscription / get_template)
+# get_pipeline (parity with get_source / get_subscription / get_template)
 # ---------------------------------------------------------------------------
 
 

@@ -1,9 +1,9 @@
-"""FlexibleLoop human-in-the-loop approved-call pre-execution (P1.2).
+"""FlexibleLoop human-in-the-loop approved-call pre-execution.
 
 When the endpoint recovers approved calls from a confirm token, the loop
 executes them up front — bypassing the confirm gate (that *is* the approval)
 but still honouring deny — and seeds them into history so the next LLM turn
-summarises the result. This is what makes "对话直接触发推送" actually run.
+summarises the result.
 """
 
 from __future__ import annotations

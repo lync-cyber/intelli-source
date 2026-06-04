@@ -74,8 +74,8 @@ def error_json(
 ) -> JSONResponse:
     """Build the standard ``{"error": {...}}`` envelope for any status.
 
-    Used by routers/middleware that return a response directly, so their bodies
-    match the exception-handler envelope instead of the legacy ``{"detail"}``.
+    Used by routers/middleware that return a response directly so their bodies
+    match the exception-handler envelope.
     """
     body: dict[str, Any] = {
         "code": code or _http_code_name(status_code),
@@ -119,7 +119,7 @@ async def _handle_domain_error(request: Request, exc: Exception) -> JSONResponse
 
 
 async def _handle_http_exception(request: Request, exc: Exception) -> JSONResponse:
-    """Render HTTPException in the unified envelope (was FastAPI ``{"detail"}``)."""
+    """Render an HTTPException in the unified error envelope."""
     status_code = getattr(exc, "status_code", 500)
     raw_detail = getattr(exc, "detail", None)
     if isinstance(raw_detail, str):

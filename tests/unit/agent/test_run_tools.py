@@ -1,11 +1,9 @@
-"""P0-2: run_pipeline + get_task_status agent tools.
+"""run_pipeline + get_task_status agent tools.
 
-These two tools close the conversational "trigger a pipeline → check its
-result" loop that the management agent previously could not reach (it could
-create a pipeline definition but had no tool to run it or poll its status).
-Both delegate to dependencies injected via ``ToolDeps`` (a Celery dispatcher
-callable and a TaskChain repository factory), so they are unit-testable
-without a broker or a database.
+The agent dispatches a persisted pipeline and polls its TaskChain status. Both
+delegate to dependencies injected via ``ToolDeps`` (a Celery dispatcher callable
+and a TaskChain repository factory), so they are unit-testable without a broker
+or a database.
 """
 
 from __future__ import annotations

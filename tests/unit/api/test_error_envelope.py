@@ -1,4 +1,4 @@
-"""Inc2 P0-2: standardised JSON error envelope for every API error.
+"""Standardised JSON error envelope for every API error.
 
 Domain, framework 4xx (HTTPException / validation) and unhandled errors all
 render as the single ``{"error": {...}}`` envelope.

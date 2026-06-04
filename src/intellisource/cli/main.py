@@ -106,10 +106,9 @@ def _emit(data: dict[str, Any], *, json_output: bool) -> None:
 
 
 def _error_message(resp: httpx.Response) -> str:
-    """Extract the human message from the unified ``{"error": {...}}`` envelope.
+    """Extract the human message from the ``{"error": {...}}`` envelope.
 
-    Falls back to a legacy ``{"detail": ...}`` body so the CLI keeps working
-    against an older server.
+    Falls back to a top-level ``detail`` field when the envelope is absent.
     """
     try:
         body = resp.json()

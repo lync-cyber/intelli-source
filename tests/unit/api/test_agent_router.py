@@ -1,4 +1,4 @@
-"""P0-1: POST /api/v1/agent/chat — admin-agent conversational control plane.
+"""POST /api/v1/agent/chat — admin-agent conversational control plane.
 
 The endpoint loads the management-capable ``admin-agent`` pipeline (full
 CRUD + collect/process/distribute + run/status tools) and drives it through
@@ -184,7 +184,7 @@ async def test_agent_chat_falls_back_to_step_output_when_no_final_answer() -> No
 
 
 # ---------------------------------------------------------------------------
-# P1.1: server-side session memory
+# server-side session memory
 # ---------------------------------------------------------------------------
 
 
@@ -204,7 +204,7 @@ async def test_agent_chat_returns_session_id() -> None:
 
 
 # ---------------------------------------------------------------------------
-# P1.2: confirm-token human-in-the-loop
+# confirm-token human-in-the-loop
 # ---------------------------------------------------------------------------
 
 
@@ -298,7 +298,7 @@ async def test_agent_chat_no_confirm_token_when_nothing_pending() -> None:
 
 
 # ---------------------------------------------------------------------------
-# P1.3: SSE streaming endpoint
+# SSE streaming endpoint
 # ---------------------------------------------------------------------------
 
 
