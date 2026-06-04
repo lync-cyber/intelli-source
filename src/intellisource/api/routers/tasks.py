@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from typing import Any
 
+from celery.result import AsyncResult
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -18,6 +20,7 @@ from intellisource.api.schemas.tasks import (
     TaskTriggerResponse,
 )
 from intellisource.composition import SOURCE_TYPE_TO_PIPELINE
+from intellisource.observability.logging import get_logger
 from intellisource.scheduler.dispatch import (
     BrokerUnavailableError,
     send_task_with_trace,
@@ -26,6 +29,8 @@ from intellisource.scheduler.queues import PRIORITY_QUEUES
 from intellisource.storage.repositories.source import SourceRepository
 from intellisource.storage.repositories.task import TaskRepository
 from intellisource.storage.repositories.task_chain import TaskChainRepository
+
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["tasks"])
 
@@ -274,6 +279,60 @@ async def get_task_chain(
     if chain is None:
         return JSONResponse(status_code=404, content={"detail": "not found"})
     return _serialize_task_chain(chain)
+
+
+def _celery_result_jsonable(value: Any) -> Any:
+    """Return *value* if JSON-encodable, else its ``str`` form.
+
+    A task result can be an arbitrary Python object (or a raised exception);
+    coerce anything the JSON encoder cannot handle so the endpoint never 500s
+    on an exotic payload.
+    """
+    try:
+        json.dumps(value, default=str)
+    except (TypeError, ValueError):
+        return str(value)
+    return value
+
+
+@router.get("/tasks/celery/{task_id}")
+async def get_celery_task(task_id: str, request: Request) -> Any:
+    """Resolve a Celery task id to its broker-side state and result.
+
+    ``task_id`` is the id returned by a pipeline-run dispatch (``run_pipeline`` /
+    ``trigger_pipeline`` / ``POST /pipelines/{name}/run``), distinct from the
+    ``task_chain_id`` used by ``/tasks/chains/{id}``. Wraps
+    ``celery.result.AsyncResult`` so a caller holding only the Celery id can poll
+    state (PENDING/STARTED/SUCCESS/FAILURE) and fetch the result when ready.
+    """
+    celery_instance = getattr(request.app.state, "celery_app", None)
+    if celery_instance is None:
+        return JSONResponse(
+            status_code=503, content={"detail": "celery_app not initialised"}
+        )
+    try:
+        async_result = AsyncResult(task_id, app=celery_instance)
+        state = async_result.state
+        ready = async_result.ready()
+        payload: dict[str, Any] = {
+            "task_id": task_id,
+            "state": state,
+            "ready": ready,
+        }
+        if ready:
+            successful = async_result.successful()
+            payload["successful"] = successful
+            if successful:
+                payload["result"] = _celery_result_jsonable(async_result.result)
+            else:
+                payload["error"] = str(async_result.result)
+    except Exception as exc:
+        logger.warning("celery AsyncResult lookup failed for %s: %s", task_id, exc)
+        return JSONResponse(
+            status_code=503,
+            content={"detail": f"result backend unavailable: {exc}"},
+        )
+    return payload
 
 
 @router.get("/tasks/{id}", response_model=TaskItem)

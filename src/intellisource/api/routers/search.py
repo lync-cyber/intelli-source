@@ -151,27 +151,9 @@ async def chat_search(
         )
 
     db_manager = getattr(request.app.state, "db", None)
-
-    stored_session: Any = None
-    session_uuid: uuid.UUID | None = None
-    session_payload = dict(body.session or {})
-
-    if db_manager is not None and body.session_id:
-        try:
-            async with db_manager.get_session() as db_session:
-                stored_session, session_uuid = await _load_chat_session(
-                    db_session, body.session_id
-                )
-        except Exception:
-            logger.exception("ChatSession lookup transaction failed")
-
-    if stored_session is not None:
-        history_messages = (stored_session.context or {}).get("messages")
-        if isinstance(history_messages, list) and "messages" not in session_payload:
-            compacted = await _compact_history(
-                request, stored_session, history_messages, body.max_tokens_budget
-            )
-            session_payload["messages"] = compacted[-_MAX_HISTORY_TURNS:]
+    stored_session, session_uuid, session_payload = await _prepare_chat_session(
+        request, db_manager, body
+    )
 
     config = load_pipeline_config("instant-search")
     start = time.monotonic()
@@ -185,22 +167,16 @@ async def chat_search(
 
     answer = extract_answer(flex_result)
 
-    response_session_uuid = session_uuid or uuid.uuid4()
     steps_executed: int = int(flex_result.get("steps_executed", 0))
     task_chain_id: str = str(flex_result.get("task_chain_id", ""))
 
-    if db_manager is not None:
-        try:
-            async with db_manager.get_session() as db_session:
-                response_session_uuid = await _persist_chat_turn(
-                    db_session,
-                    existing=stored_session,
-                    session_id=response_session_uuid,
-                    user_message=body.message,
-                    assistant_answer=answer,
-                )
-        except Exception:
-            logger.exception("ChatSession persist transaction failed")
+    response_session_uuid = await _persist_chat_turn_tx(
+        db_manager,
+        stored_session=stored_session,
+        session_uuid=session_uuid,
+        user_message=body.message,
+        assistant_answer=answer,
+    )
 
     resp = ChatSearchResponse(
         session_id=str(response_session_uuid),
@@ -244,10 +220,15 @@ async def chat_search_stream(
             media_type="text/event-stream",
         )
 
+    db_manager = getattr(request.app.state, "db", None)
+    stored_session, session_uuid, session_payload = await _prepare_chat_session(
+        request, db_manager, body
+    )
+
     config = load_pipeline_config("instant-search")
-    session_payload = dict(body.session or {})
 
     async def event_gen() -> Any:
+        final_answer = ""
         try:
             async for event in runner.run_flexible_stream(
                 config,
@@ -257,11 +238,95 @@ async def chat_search_stream(
             ):
                 if await request.is_disconnected():
                     break
+                etype = event.get("type")
+                if etype == "token":
+                    final_answer += str(event.get("delta", ""))
+                elif etype == "done":
+                    # Persist the completed turn (same path as POST /search/chat)
+                    # and surface the session token in the terminal event so the
+                    # client can continue the conversation on the next request.
+                    response_session_uuid = await _persist_chat_turn_tx(
+                        db_manager,
+                        stored_session=stored_session,
+                        session_uuid=session_uuid,
+                        user_message=body.message,
+                        assistant_answer=final_answer,
+                    )
+                    metadata = dict(event.get("metadata") or {})
+                    metadata["session_id"] = str(response_session_uuid)
+                    event = {**event, "metadata": metadata}
                 yield f"data: {json.dumps(event, default=str)}\n\n"
         except asyncio.CancelledError:
             return
 
     return StreamingResponse(event_gen(), media_type="text/event-stream")
+
+
+async def _prepare_chat_session(
+    request: Request,
+    db_manager: Any,
+    body: ChatSearchRequest,
+) -> tuple[Any, uuid.UUID | None, dict[str, Any]]:
+    """Load the stored ChatSession (if any) and build the run session payload.
+
+    Shared by ``/search/chat`` and ``/search/chat/stream`` so both replay the
+    same compacted history. Returns ``(stored_session, session_uuid,
+    session_payload)``; persistence is silently skipped (and an empty payload
+    returned) when no DB is configured or no ``session_id`` is supplied.
+    """
+    stored_session: Any = None
+    session_uuid: uuid.UUID | None = None
+    session_payload = dict(body.session or {})
+
+    if db_manager is not None and body.session_id:
+        try:
+            async with db_manager.get_session() as db_session:
+                stored_session, session_uuid = await _load_chat_session(
+                    db_session, body.session_id
+                )
+        except Exception:
+            logger.exception("ChatSession lookup transaction failed")
+
+    if stored_session is not None:
+        history_messages = (stored_session.context or {}).get("messages")
+        if isinstance(history_messages, list) and "messages" not in session_payload:
+            compacted = await _compact_history(
+                request, stored_session, history_messages, body.max_tokens_budget
+            )
+            session_payload["messages"] = compacted[-_MAX_HISTORY_TURNS:]
+
+    return stored_session, session_uuid, session_payload
+
+
+async def _persist_chat_turn_tx(
+    db_manager: Any,
+    *,
+    stored_session: Any,
+    session_uuid: uuid.UUID | None,
+    user_message: str,
+    assistant_answer: str,
+) -> uuid.UUID:
+    """Persist one user+assistant turn in its own DB transaction; return its id.
+
+    Shared by both chat endpoints. When no DB is configured the turn is not
+    written but a fresh session id is still returned, so the response always
+    carries a usable session token. DB errors are logged, never raised.
+    """
+    response_session_uuid = session_uuid or uuid.uuid4()
+    if db_manager is None:
+        return response_session_uuid
+    try:
+        async with db_manager.get_session() as db_session:
+            response_session_uuid = await _persist_chat_turn(
+                db_session,
+                existing=stored_session,
+                session_id=response_session_uuid,
+                user_message=user_message,
+                assistant_answer=assistant_answer,
+            )
+    except Exception:
+        logger.exception("ChatSession persist transaction failed")
+    return response_session_uuid
 
 
 async def _load_chat_session(

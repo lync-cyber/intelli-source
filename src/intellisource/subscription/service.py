@@ -57,10 +57,17 @@ class SubscriptionService:
     # ------------------------------------------------------------------
 
     async def list_paginated(
-        self, limit: int = 20, cursor: str | None = None
+        self,
+        limit: int = 20,
+        cursor: str | None = None,
+        *,
+        channel: str | None = None,
+        status: str | None = None,
     ) -> dict[str, Any]:
-        """Paginated list of subscriptions (forwards to repository)."""
-        return await self._repo.list(limit=limit, cursor=cursor)
+        """Paginated list of subscriptions with optional channel/status filters."""
+        return await self._repo.list(
+            limit=limit, cursor=cursor, channel=channel, status=status
+        )
 
     async def get(self, sub_id: uuid.UUID) -> Subscription | None:
         """Fetch a single subscription by id (or None when absent)."""

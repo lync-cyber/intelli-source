@@ -68,6 +68,7 @@ from intellisource.pipeline.definition_service import (
 from intellisource.search.hybrid import HybridSearchEngine
 from intellisource.source.service import SourceConfigService
 from intellisource.subscription.service import SubscriptionService
+from intellisource.template.service import TemplateService
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -403,6 +404,17 @@ def _install_agent_runner(session_factory: Any, bundle: _DepsBundle) -> AgentRun
     """
     # Import here to avoid circular import via agent.factory.
     from intellisource.agent import factory as agent_factory
+    from intellisource.scheduler.celery_app import celery_app
+    from intellisource.scheduler.dispatch import send_task_with_trace
+    from intellisource.storage.repositories.task_chain import TaskChainRepository
+
+    def _dispatch_pipeline_run(name: str, params: dict[str, Any]) -> Any:
+        """Dispatch a ``run_pipeline`` task on the shared Celery app."""
+        return send_task_with_trace(
+            "run_pipeline",
+            kwargs={"pipeline_name": name, "params": params},
+            celery_instance=celery_app,
+        )
 
     runner = agent_factory.build_agent_runner(
         session_factory=session_factory,
@@ -413,9 +425,44 @@ def _install_agent_runner(session_factory: Any, bundle: _DepsBundle) -> AgentRun
         source_service_factory=lambda session: SourceConfigService(session),
         subscription_service_factory=lambda session: SubscriptionService(session),
         pipeline_service_factory=lambda session: PipelineDefinitionService(session),
+        template_service_factory=lambda session: TemplateService(session),
+        task_dispatcher=_dispatch_pipeline_run,
+        task_chain_repo_factory=lambda session: TaskChainRepository(session),
     )
     _global_agent_runner_holder.install(runner)
     return runner
+
+
+def hydrate_worker_template_registry(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Best-effort load of active custom templates into the digest registry.
+
+    Called from worker boot. Lives in the composition root (a layer above
+    ``distributor``) so the ``scheduler`` boot hook never needs a direct edge to
+    ``distributor`` — keeping the sibling-independence contract intact. Failures
+    (e.g. a not-yet-migrated DB) are logged and swallowed so the worker boots.
+    """
+    import asyncio
+
+    from intellisource.template.service import hydrate_template_registry
+
+    async def _run() -> int:
+        async with session_factory() as session:
+            return await hydrate_template_registry(session)
+
+    coro = _run()
+    try:
+        loop = asyncio.new_event_loop()
+        try:
+            count = loop.run_until_complete(coro)
+        finally:
+            loop.close()
+        if count:
+            _logger.info("hydrated %d custom template(s) into the registry", count)
+    except Exception as exc:
+        coro.close()
+        _logger.warning("template registry hydration skipped: %s", exc)
 
 
 def build_worker_composition(

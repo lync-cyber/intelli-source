@@ -14,6 +14,12 @@ class ToolDeps:
     constructed in the composition root. Management tools call them with an open
     session instead of importing the domain-service packages, so the agent layer
     keeps no static edge to source / subscription / pipeline services.
+
+    ``task_dispatcher`` is a ``Callable[[name, params], AsyncResult]`` that
+    dispatches a pipeline run onto the task queue, and ``task_chain_repo_factory``
+    is a ``Callable[[session], TaskChainRepository]``; together they back the
+    ``run_pipeline`` / ``get_task_status`` execution-control tools without the
+    agent layer importing scheduler or storage.
     """
 
     session_factory: Any
@@ -25,3 +31,6 @@ class ToolDeps:
     source_service_factory: Any = None
     subscription_service_factory: Any = None
     pipeline_service_factory: Any = None
+    template_service_factory: Any = None
+    task_dispatcher: Any = None
+    task_chain_repo_factory: Any = None

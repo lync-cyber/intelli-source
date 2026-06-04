@@ -27,8 +27,12 @@ from intellisource.distributor.channels.registry import (
     list_channel_descriptors,
 )
 from intellisource.distributor.templates import TEMPLATE_REGISTRY
+from intellisource.observability.logging import get_logger
 from intellisource.scheduler.dispatch import send_task_with_trace
 from intellisource.storage.repositories.push import PushRepository
+from intellisource.template.service import TemplateService
+
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["distribution"])
 
@@ -81,8 +85,14 @@ async def list_channels() -> dict[str, Any]:
 
 
 @router.get("/templates", response_model=TemplateListResponse)
-async def list_templates() -> dict[str, Any]:
-    """List every registered digest template and the formats it renders."""
+async def list_templates(
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    """List every resolvable digest template: built-ins + active custom (DB) ones.
+
+    The DB merge is best-effort — if the database is unreachable the built-in
+    catalog is still returned so the endpoint never hard-fails on a degraded DB.
+    """
     items = [
         TemplateInfo(
             name=template.name,
@@ -91,6 +101,22 @@ async def list_templates() -> dict[str, Any]:
         )
         for template in TEMPLATE_REGISTRY.values()
     ]
+    seen = {item.name for item in items}
+    try:
+        rows = await TemplateService(session).list_active()
+        for row in rows:
+            if row.name in seen:
+                continue
+            seen.add(row.name)
+            items.append(
+                TemplateInfo(
+                    name=row.name,
+                    formats=sorted(row.formats),
+                    default_format=row.default_format,
+                )
+            )
+    except Exception:
+        logger.debug("list_templates DB merge skipped", exc_info=True)
     return {"items": items}
 
 

@@ -15,6 +15,12 @@ from intellisource.distributor.templates.registry import (
     register_template,
 )
 
+# Snapshot of the built-in template names, captured right after the builtin
+# package import registers them (and before any DB template is hydrated in), so
+# it always reflects the built-ins only — used to validate a custom template's
+# ``base_template`` reference.
+BUILTIN_TEMPLATE_NAMES: frozenset[str] = frozenset(TEMPLATE_REGISTRY)
+
 
 def resolve_template_for(
     channel_config: dict[str, Any] | None,
@@ -33,6 +39,7 @@ def resolve_template_for(
 
 
 __all__ = [
+    "BUILTIN_TEMPLATE_NAMES",
     "TEMPLATE_REGISTRY",
     "DigestTemplate",
     "get_template",

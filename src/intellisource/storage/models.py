@@ -594,3 +594,26 @@ class PipelineStep(CreatedAtMixin, Base):
         UniqueConstraint("pipeline_id", "position", name="uq_pipeline_steps_position"),
         Index("ix_pipeline_steps_pipeline_id", "pipeline_id"),
     )
+
+
+class Template(TimestampMixin, Base):
+    """A user-defined digest template: per-format Jinja source + a built-in base."""
+
+    __tablename__ = "templates"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    name: Mapped[str] = mapped_column(VARCHAR(255), nullable=False, unique=True)
+    base_template: Mapped[str] = mapped_column(VARCHAR(100), nullable=False)
+    formats: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    default_format: Mapped[str] = mapped_column(VARCHAR(20), nullable=False)
+    jinja_source: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict
+    )
+    aggregate_config: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict
+    )
+    status: Mapped[str] = mapped_column(VARCHAR(20), nullable=False, default="active")
+
+    __table_args__ = (Index("ix_templates_status", "status"),)

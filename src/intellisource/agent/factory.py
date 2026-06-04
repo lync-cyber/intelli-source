@@ -77,13 +77,18 @@ def build_agent_runner(
     source_service_factory: Any = None,
     subscription_service_factory: Any = None,
     pipeline_service_factory: Any = None,
+    template_service_factory: Any = None,
+    task_dispatcher: Any = None,
+    task_chain_repo_factory: Any = None,
 ) -> AgentRunner:
     """Build a fully-wired AgentRunner.
 
     The five infrastructure dependencies are required keyword arguments; passing
     `None` raises CompositionError (also a ValueError) so wiring bugs fail loudly
     at composition time. The three ``*_service_factory`` arguments are optional
-    ``Callable[[session], Service]`` that back the management (CRUD) tools.
+    ``Callable[[session], Service]`` that back the management (CRUD) tools;
+    ``task_dispatcher`` and ``task_chain_repo_factory`` back the run-trigger /
+    run-status execution-control tools.
     """
     # Lazy import — composition imports build_agent_runner from this module.
     from intellisource.composition import CompositionError
@@ -123,6 +128,9 @@ def build_agent_runner(
         source_service_factory=source_service_factory,
         subscription_service_factory=subscription_service_factory,
         pipeline_service_factory=pipeline_service_factory,
+        template_service_factory=template_service_factory,
+        task_dispatcher=task_dispatcher,
+        task_chain_repo_factory=task_chain_repo_factory,
     )
 
     return AgentRunner(

@@ -77,6 +77,9 @@ def _pipeline_to_dict(config: PipelineConfig) -> dict[str, Any]:
         "tools_allowed": config.tools_allowed,
         "tools_denied": config.tools_denied,
         "system_prompt": config.system_prompt,
+        "agent_mode": config.agent_mode,
+        "max_tokens_budget": config.max_tokens_budget,
+        "tool_permissions": config.tool_permissions,
     }
 
 

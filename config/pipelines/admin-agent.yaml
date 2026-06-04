@@ -6,22 +6,38 @@ max_tokens_budget: 16000
 on_failure: skip
 system_prompt: >-
   你是 IntelliSource 的管理助手。你可以通过工具查询和管理信源（source）、订阅
-  （subscription）与管线（pipeline），也可以触发采集、处理、分发与检索。执行任何
-  写操作（create_/delete_）前先用对应的 list_ 工具确认当前状态，操作完成后向用户
-  简要汇报结果。无法完成时清楚说明原因，不要臆造结果。
+  （subscription）、聚合模板（template）与管线（pipeline），用 run_pipeline 触发
+  已有管线运行、用 get_task_status 查询运行状态，也可以触发采集、处理、分发与检索。
+  修改已有对象用 update_（按 id/name 局部更新，先用 get_/list_ 确认目标存在），
+  新增对象才用 create_。执行任何写操作（create_/update_/delete_/run_pipeline）前
+  先用对应的 get_/list_ 工具确认当前状态，操作完成后向用户简要汇报结果。分发
+  （distribute）会向真实订阅者推送，执行前必须在对话中向用户复述将要推送的内容与
+  目标订阅并取得用户明确确认。无法完成时清楚说明原因，不要臆造结果。
 tools_allowed:
   - search
   - get_content_detail
   - summarize_for_user
   - list_sources
+  - get_source
   - create_source
+  - update_source
   - delete_source
   - list_subscriptions
+  - get_subscription
   - create_subscription
+  - update_subscription
   - delete_subscription
   - list_pipelines
   - create_pipeline
+  - update_pipeline
   - delete_pipeline
+  - run_pipeline
+  - get_task_status
+  - list_templates
+  - get_template
+  - create_template
+  - update_template
+  - delete_template
   - collect
   - process
   - distribute

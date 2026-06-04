@@ -18,7 +18,10 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool
 
-from intellisource.composition import build_worker_composition
+from intellisource.composition import (
+    build_worker_composition,
+    hydrate_worker_template_registry,
+)
 from intellisource.core.settings import get_settings, load_provider_env
 from intellisource.observability.logging import get_logger, setup_logging
 
@@ -235,6 +238,10 @@ def worker_init_handler(**_: Any) -> None:
     setattr(_module_celery_app, "_celery_tasks_instance", _celery_tasks)
 
     _bootstrap_beat_schedule(factory)
+    # Hydration lives in the composition root (not here) so the
+    # scheduler→distributor sibling-independence contract stays intact; the
+    # boot→composition edge is the single allowed exception.
+    hydrate_worker_template_registry(factory)
 
 
 def _bootstrap_beat_schedule(factory: async_sessionmaker[AsyncSession]) -> None:
