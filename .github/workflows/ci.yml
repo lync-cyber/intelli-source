@@ -6,7 +6,8 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    # Nightly dependency graph snapshot (UTC 02:00).
+    # Nightly full-suite run (UTC 02:00) — drift detection on deps / containers.
+    # (The dependency-graph snapshot lives in its own arch-graph.yml workflow.)
     - cron: "0 2 * * *"
   workflow_dispatch:
 
@@ -222,40 +223,3 @@ jobs:
           -v ${{ github.workspace }}/docker/prometheus:/etc/prometheus
           prom/prometheus:v2.55.1
           check rules /etc/prometheus/alerts.yml
-
-  arch-graph:
-    name: Dependency Graph Snapshot
-    runs-on: ubuntu-latest
-    # Nightly + manual only; never on PRs (rendering is slow and the artifact
-    # is for human inspection, not for gating).
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install graphviz
-        run: sudo apt-get update && sudo apt-get install -y graphviz
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-        with:
-          version: "latest"
-
-      - name: Set up Python
-        run: uv python install 3.11
-
-      - name: Install dependencies
-        run: uv sync
-
-      - name: Render dependency graph
-        run: |
-          mkdir -p docs/arch
-          uv run pydeps src/intellisource \
-            --max-bacon=2 --cluster --noshow \
-            -o docs/arch/deps-graph.svg
-
-      - name: Upload graph artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: dependency-graph
-          path: docs/arch/deps-graph.svg
