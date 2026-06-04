@@ -17,6 +17,7 @@ from sqlalchemy.orm import selectinload
 from intellisource.distributor.digest import DigestAssembler
 from intellisource.distributor.digest_dispatch import DigestDispatcher, DispatchResult
 from intellisource.distributor.digest_enhance import DigestEnhancer
+from intellisource.distributor.frequency import FrequencyController
 from intellisource.observability.logging import get_logger
 from intellisource.storage.models import ProcessedContent, RawContent, Subscription
 from intellisource.storage.repositories.push import PushRepository
@@ -72,8 +73,14 @@ class PeriodicDigestRunner:
         self._session_factory = session_factory
         self._clock: _Clock = clock or _DefaultClock()
         enhancer = DigestEnhancer(llm_gateway) if llm_gateway is not None else None
+        # Share the one clock with the assembler's frequency gate so the
+        # due-check, the delivery window, and the last_sent_at watermark all
+        # agree on "now" (otherwise should_send_now silently uses wall-clock).
         self._dispatcher = DigestDispatcher(
-            assembler=DigestAssembler(enhancer=enhancer),
+            assembler=DigestAssembler(
+                frequency=FrequencyController(clock=self._clock),
+                enhancer=enhancer,
+            ),
             channels=channels,
             clock=self._clock,
         )
