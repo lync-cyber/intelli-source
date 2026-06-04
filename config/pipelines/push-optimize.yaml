@@ -1,6 +1,5 @@
 name: push-optimize
 mode: flexible
-system_prompt: push_optimize
 max_steps: 10
 on_failure: skip
 tools_allowed:
