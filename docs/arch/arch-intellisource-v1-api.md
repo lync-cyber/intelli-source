@@ -621,7 +621,7 @@ request:
     name: { type: string, required: true, desc: "订阅规则名称" }
     source_id: { type: string, required: false, desc: "关联信源 ID，为空则匹配全部信源" }
     channel: { type: string, required: true, desc: "推送渠道: wechat | wework | email" }
-    channel_config: { type: object, required: true, desc: "渠道配置（OpenID/CorpID/邮箱地址等）" }
+    channel_config: { type: object, required: true, desc: "渠道配置（渠道目标字段 + 可选 digest 模板/渲染策略，见下方子结构）" }
     match_rules:
       type: object
       required: true
@@ -649,6 +649,16 @@ response:
   400: { schema: "ErrorResponse", desc: "参数校验失败" }
   401: { schema: "ErrorResponse", desc: "认证失败" }
 ```
+
+**`channel_config` 子结构**：除各渠道目标字段（email `to_addr` / wework `user_id`·`msg_type` 等）外，可附加两个**周期 digest**字段（仅 `frequency=daily|weekly` 生效，realtime 逐条推送不读取）：
+
+| 字段 | 路径 | 取值 | 默认 |
+|------|------|------|------|
+| `template` | `channel_config.template` | `daily-brief` / `weekly-roundup` / `topic-deepdive` / `json-feed` | 按 frequency 自动 |
+| `render_mode` | `channel_config.template_config.render_mode` | `code` / `llm-assisted` / `llm-freeform` | `code` |
+| `render_budget_chars` | `channel_config.template_config.render_budget_chars` | 正整数（仅 `llm-freeform`） | 6000 |
+
+`render_mode` 的实际生效值落库为 `push_records.render_mode`（见 arch-*-data.md）——所需协作者缺失时自动降级为 `code`，记录降级后的值。非法 `render_mode` 在 `POST /subscriptions/reload` 由 SubscriptionValidator 报错，不静默降级。
 
 ### API-024: 更新订阅规则
 

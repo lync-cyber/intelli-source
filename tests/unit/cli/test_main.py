@@ -1000,3 +1000,173 @@ class TestDoctorCheckApi:
 
         assert result.exit_code == 1
         assert "starting up" in result.output
+
+
+# ===========================================================================
+# source show / update-fields / versions / diff
+# ===========================================================================
+
+
+class TestSourceShowVersionsDiff:
+    @patch("intellisource.cli.main.httpx")
+    def test_source_show_renders_detail(
+        self, mock_httpx: MagicMock, runner: Any
+    ) -> None:
+        _skip_if_missing()
+        mock_httpx.get.return_value = _mock_response(
+            json_data={
+                "id": "src-1",
+                "name": "hn",
+                "type": "rss",
+                "url": "https://example.com/feed",
+                "tags": ["ai", "tech"],
+            }
+        )
+        result = runner.invoke(app, ["source", "show", "src-1"])
+        assert result.exit_code == 0
+        assert mock_httpx.get.call_args.args[0].endswith("/api/v1/sources/src-1")
+        assert "name: hn" in result.output
+
+    @patch("intellisource.cli.main.httpx")
+    def test_source_show_404_exits_1(self, mock_httpx: MagicMock, runner: Any) -> None:
+        _skip_if_missing()
+        mock_httpx.get.return_value = _mock_response(status_code=404)
+        result = runner.invoke(app, ["source", "show", "missing"])
+        assert result.exit_code == 1
+        assert "Not found" in result.output
+
+    @patch("intellisource.cli.main.httpx")
+    def test_source_update_sends_url_type_tags_schedule(
+        self, mock_httpx: MagicMock, runner: Any
+    ) -> None:
+        _skip_if_missing()
+        mock_httpx.patch.return_value = _mock_response(
+            json_data={"id": "src-1", "name": "hn"}
+        )
+        result = runner.invoke(
+            app,
+            [
+                "source",
+                "update",
+                "src-1",
+                "--url",
+                "https://new.example.com/feed",
+                "--type",
+                "api",
+                "--tags",
+                "ai, security",
+                "--schedule-interval",
+                "1800",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        body = mock_httpx.patch.call_args.kwargs["json"]
+        assert body["url"] == "https://new.example.com/feed"
+        assert body["type"] == "api"
+        assert body["tags"] == ["ai", "security"]
+        assert body["schedule_interval"] == 1800
+
+    @patch("intellisource.cli.main.httpx")
+    def test_source_update_no_fields_exits_2(
+        self, mock_httpx: MagicMock, runner: Any
+    ) -> None:
+        _skip_if_missing()
+        result = runner.invoke(app, ["source", "update", "src-1"])
+        assert result.exit_code == 2
+        assert "Nothing to update" in result.output
+        mock_httpx.patch.assert_not_called()
+
+    @patch("intellisource.cli.main.httpx")
+    def test_source_versions_lists(self, mock_httpx: MagicMock, runner: Any) -> None:
+        _skip_if_missing()
+        mock_httpx.get.return_value = _mock_response(
+            json_data={"versions": [{"version": "1", "config_count": 2}]}
+        )
+        result = runner.invoke(app, ["source", "versions"])
+        assert result.exit_code == 0
+        assert "config/versions" in mock_httpx.get.call_args.args[0]
+        assert "config_count" in result.output
+
+    @patch("intellisource.cli.main.httpx")
+    def test_source_diff_marks_preserve(
+        self, mock_httpx: MagicMock, runner: Any
+    ) -> None:
+        _skip_if_missing()
+        mock_httpx.get.return_value = _mock_response(
+            json_data={
+                "yaml_only": ["fresh"],
+                "db_only": ["kept"],
+                "both": [],
+                "db_only_action": "preserve",
+            }
+        )
+        result = runner.invoke(app, ["source", "diff"])
+        assert result.exit_code == 0
+        assert "reload will PRESERVE" in result.output
+        assert "kept" in result.output
+
+
+# ===========================================================================
+# config status (aggregated yaml↔DB drift across both domains)
+# ===========================================================================
+
+
+class TestConfigStatus:
+    @patch("intellisource.cli.main.httpx")
+    def test_config_status_aggregates_both_domains(
+        self, mock_httpx: MagicMock, runner: Any
+    ) -> None:
+        _skip_if_missing()
+
+        def _get(url: str, **_: Any) -> MagicMock:
+            if "sources/config/diff" in url:
+                return _mock_response(
+                    json_data={
+                        "yaml_only": ["s1"],
+                        "db_only": ["s2"],
+                        "both": [],
+                        "db_only_action": "preserve",
+                    }
+                )
+            if "sources/config/versions" in url:
+                return _mock_response(json_data={"versions": [{"version": "3"}]})
+            if "subscriptions/config/diff" in url:
+                return _mock_response(
+                    json_data={
+                        "yaml_only": [],
+                        "db_only": ["sub-x"],
+                        "both": ["sub-y"],
+                        "db_only_action": "pause",
+                    }
+                )
+            if "subscriptions/config/versions" in url:
+                return _mock_response(json_data={"versions": [{"version": "5"}]})
+            return _mock_response(json_data={})
+
+        mock_httpx.get.side_effect = _get
+        result = runner.invoke(app, ["config", "status"])
+        assert result.exit_code == 0, result.output
+        out = result.output
+        assert "== sources (yaml ↔ DB) ==" in out
+        assert "latest recorded version: 3" in out
+        assert "reload will PRESERVE" in out
+        assert "== subscriptions (yaml ↔ DB) ==" in out
+        assert "latest recorded version: 5" in out
+        assert "reload will PAUSE" in out
+
+    @patch("intellisource.cli.main.httpx")
+    def test_config_status_handles_diff_error(
+        self, mock_httpx: MagicMock, runner: Any
+    ) -> None:
+        _skip_if_missing()
+
+        def _get(url: str, **_: Any) -> MagicMock:
+            if "config/diff" in url:
+                return _mock_response(status_code=400, json_data={"detail": "boom"})
+            return _mock_response(json_data={"versions": []})
+
+        mock_httpx.get.side_effect = _get
+        result = runner.invoke(app, ["config", "status"])
+        assert result.exit_code == 0
+        assert "diff unavailable" in result.output
+        assert "latest recorded version: (none)" in result.output

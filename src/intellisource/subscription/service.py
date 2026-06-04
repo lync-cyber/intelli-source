@@ -12,6 +12,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.config.loader import ConfigVersionManager
@@ -60,6 +61,32 @@ class SubscriptionService:
     ) -> dict[str, Any]:
         """Paginated list of subscriptions (forwards to repository)."""
         return await self._repo.list(limit=limit, cursor=cursor)
+
+    async def get(self, sub_id: uuid.UUID) -> Subscription | None:
+        """Fetch a single subscription by id (or None when absent)."""
+        return await self._repo.get_by_id(sub_id)
+
+    async def list_versions(self, *, limit: int = 20) -> list[dict[str, Any]]:
+        """List recorded config version snapshots, newest first."""
+        return await self._version_manager.list_versions(self._session, limit=limit)
+
+    async def diff_with_yaml(
+        self, yaml_configs: list[SubscriptionConfig]
+    ) -> dict[str, Any]:
+        """Diff the yaml SSOT against current DB state (what a reload would do).
+
+        Subscriptions reload is a full sync: names present in the DB but absent
+        from yaml are soft-deleted (paused), hence ``db_only_action='pause'``.
+        """
+        yaml_names = {c.name for c in yaml_configs}
+        result = await self._session.execute(select(Subscription.name))
+        db_names = {row[0] for row in result.all()}
+        return {
+            "yaml_only": sorted(yaml_names - db_names),
+            "db_only": sorted(db_names - yaml_names),
+            "both": sorted(yaml_names & db_names),
+            "db_only_action": "pause",
+        }
 
     # ------------------------------------------------------------------
     # Single-record CRUD (API / CLI hot edits — no version snapshot)

@@ -267,3 +267,107 @@ class TestCRUDShell:
         ) as client:
             response = await client.delete(f"/api/v1/subscriptions/{sub_id}")
         assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# GET /{id} + config/versions + config/diff (new read/inspect endpoints)
+# ---------------------------------------------------------------------------
+
+
+def _make_sub_obj() -> MagicMock:
+    obj = MagicMock()
+    obj.id = "11111111-1111-1111-1111-111111111111"
+    obj.name = "digest-sub"
+    obj.source_id = None
+    obj.channel = "email"
+    obj.channel_config = {
+        "to_addr": "u@x.com",
+        "template_config": {"render_mode": "code"},
+    }
+    obj.match_rules = {"tags": ["ai"]}
+    obj.frequency = "daily"
+    obj.quiet_hours = None
+    obj.timezone = "Asia/Shanghai"
+    obj.discipline_tags = []
+    obj.status = "active"
+    obj.created_at = "2026-01-01T00:00:00+00:00"
+    obj.updated_at = None
+    return obj
+
+
+class TestGetSubscriptionEndpoint:
+    async def test_get_returns_serialized_subscription(
+        self, app: FastAPI, mock_service: MagicMock
+    ) -> None:
+        mock_service.get = AsyncMock(return_value=_make_sub_obj())
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.get(
+                "/api/v1/subscriptions/11111111-1111-1111-1111-111111111111"
+            )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["name"] == "digest-sub"
+        assert body["channel_config"]["template_config"]["render_mode"] == "code"
+
+    async def test_get_missing_returns_404(
+        self, app: FastAPI, mock_service: MagicMock
+    ) -> None:
+        mock_service.get = AsyncMock(return_value=None)
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.get(
+                "/api/v1/subscriptions/22222222-2222-2222-2222-222222222222"
+            )
+        assert resp.status_code == 404
+
+
+class TestListVersionsEndpoint:
+    async def test_versions_returns_service_list(
+        self, app: FastAPI, mock_service: MagicMock
+    ) -> None:
+        mock_service.list_versions = AsyncMock(
+            return_value=[
+                {"version": "2", "author": None, "created_at": "t2", "config_count": 3},
+                {"version": "1", "author": "x", "created_at": "t1", "config_count": 1},
+            ]
+        )
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.get("/api/v1/subscriptions/config/versions")
+        assert resp.status_code == 200
+        versions = resp.json()["versions"]
+        assert [v["version"] for v in versions] == ["2", "1"]
+        assert versions[0]["config_count"] == 3
+
+
+class TestDiffEndpoint:
+    async def test_diff_returns_partitioned_names(
+        self, app: FastAPI, mock_service: MagicMock
+    ) -> None:
+        mock_service.diff_with_yaml = AsyncMock(
+            return_value={
+                "yaml_only": ["fresh"],
+                "db_only": ["gone"],
+                "both": ["keep"],
+                "db_only_action": "pause",
+            }
+        )
+        mock_loader = MagicMock()
+        mock_loader.load_subscription_configs = MagicMock(return_value=["c1"])
+        with patch(
+            "intellisource.api.routers.subscriptions.SubscriptionConfigLoader",
+            return_value=mock_loader,
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                resp = await client.get("/api/v1/subscriptions/config/diff")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["yaml_only"] == ["fresh"]
+        assert body["db_only_action"] == "pause"
+        mock_service.diff_with_yaml.assert_awaited_once()

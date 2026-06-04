@@ -128,6 +128,95 @@ class TestAdd:
         assert payload["channel_config"]["to_addr"] == "user@example.com"
 
     @patch("intellisource.cli.main.httpx")
+    def test_add_daily_folds_template_and_render_mode(
+        self, mock_httpx: MagicMock, runner: CliRunner
+    ) -> None:
+        mock_httpx.post.return_value = _mock_response(
+            status_code=201, json_data={"id": "x", "name": "d", "channel": "email"}
+        )
+        result = runner.invoke(
+            app,
+            [
+                "subscriptions",
+                "add",
+                "--name",
+                "d",
+                "--channel",
+                "email",
+                "--frequency",
+                "daily",
+                "--tags",
+                "ai",
+                "--template",
+                "daily-brief",
+                "--render-mode",
+                "llm-freeform",
+                "--json",
+            ],
+            input="a@b.com\n",  # to_addr prompt
+        )
+        assert result.exit_code == 0, result.stdout
+        cc = mock_httpx.post.call_args.kwargs["json"]["channel_config"]
+        assert cc.get("template") == "daily-brief"
+        assert cc.get("template_config", {}).get("render_mode") == "llm-freeform"
+
+    @patch("intellisource.cli.main.httpx")
+    def test_add_realtime_ignores_render_mode(
+        self, mock_httpx: MagicMock, runner: CliRunner
+    ) -> None:
+        mock_httpx.post.return_value = _mock_response(
+            status_code=201, json_data={"id": "r", "name": "r", "channel": "email"}
+        )
+        result = runner.invoke(
+            app,
+            [
+                "subscriptions",
+                "add",
+                "--name",
+                "r",
+                "--channel",
+                "email",
+                "--frequency",
+                "realtime",
+                "--tags",
+                "ai",
+                "--render-mode",
+                "llm-freeform",
+                "--json",
+            ],
+            input="a@b.com\n",
+        )
+        assert result.exit_code == 0, result.stdout
+        cc = mock_httpx.post.call_args.kwargs["json"]["channel_config"]
+        assert "template_config" not in cc
+
+    @patch("intellisource.cli.main.httpx")
+    def test_add_daily_invalid_render_mode_aborts_code_2(
+        self, mock_httpx: MagicMock, runner: CliRunner
+    ) -> None:
+        result = runner.invoke(
+            app,
+            [
+                "subscriptions",
+                "add",
+                "--name",
+                "d",
+                "--channel",
+                "email",
+                "--frequency",
+                "daily",
+                "--tags",
+                "ai",
+                "--render-mode",
+                "llm_freeform",  # underscore typo
+            ],
+            input="a@b.com\n",
+        )
+        assert result.exit_code == 2
+        assert "render_mode must be one of" in result.stdout
+        mock_httpx.post.assert_not_called()
+
+    @patch("intellisource.cli.main.httpx")
     def test_add_invalid_channel_aborts_with_code_2(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -262,3 +351,133 @@ class TestReloadAndRollback:
         result = runner.invoke(app, ["subscriptions", "rollback", "99"])
         assert result.exit_code == 1
         assert "not found" in result.stdout.lower()
+
+
+# ---------------------------------------------------------------------------
+# show / patch-digest / versions / diff
+# ---------------------------------------------------------------------------
+
+
+class TestShow:
+    @patch("intellisource.cli.main.httpx")
+    def test_show_renders_detail_and_render_mode(
+        self, mock_httpx: MagicMock, runner: CliRunner
+    ) -> None:
+        mock_httpx.get.return_value = _mock_response(
+            json_data={
+                "id": "abc",
+                "name": "d",
+                "channel": "email",
+                "frequency": "daily",
+                "channel_config": {
+                    "to_addr": "u@x.com",
+                    "template": "daily-brief",
+                    "template_config": {"render_mode": "llm-freeform"},
+                },
+            }
+        )
+        result = runner.invoke(app, ["subscriptions", "show", "abc"])
+        assert result.exit_code == 0
+        assert mock_httpx.get.call_args.args[0].endswith("/api/v1/subscriptions/abc")
+        # vertical detail + the digest annotation block
+        assert "render_mode (configured): llm-freeform" in result.stdout
+        assert "downgrades to 'code'" in result.stdout
+
+    @patch("intellisource.cli.main.httpx")
+    def test_show_404_exits_1(self, mock_httpx: MagicMock, runner: CliRunner) -> None:
+        mock_httpx.get.return_value = _mock_response(status_code=404)
+        result = runner.invoke(app, ["subscriptions", "show", "missing"])
+        assert result.exit_code == 1
+        assert "Not found" in result.stdout
+
+
+class TestPatchDigest:
+    @patch("intellisource.cli.main.httpx")
+    def test_patch_merges_render_mode_preserving_to_addr(
+        self, mock_httpx: MagicMock, runner: CliRunner
+    ) -> None:
+        # GET current config (has to_addr) then PATCH must keep it.
+        mock_httpx.get.return_value = _mock_response(
+            json_data={"id": "abc", "channel_config": {"to_addr": "keep@x.com"}}
+        )
+        mock_httpx.patch.return_value = _mock_response(json_data={"id": "abc"})
+        result = runner.invoke(
+            app,
+            [
+                "subscriptions",
+                "patch",
+                "abc",
+                "--render-mode",
+                "llm-freeform",
+                "--json",
+            ],
+        )
+        assert result.exit_code == 0, result.stdout
+        body = mock_httpx.patch.call_args.kwargs["json"]
+        cc = body["channel_config"]
+        assert cc["to_addr"] == "keep@x.com", "merge must not wipe existing keys"
+        assert cc["template_config"]["render_mode"] == "llm-freeform"
+
+    @patch("intellisource.cli.main.httpx")
+    def test_patch_invalid_render_mode_exits_2(
+        self, mock_httpx: MagicMock, runner: CliRunner
+    ) -> None:
+        mock_httpx.get.return_value = _mock_response(
+            json_data={"id": "abc", "channel_config": {"to_addr": "k@x.com"}}
+        )
+        result = runner.invoke(
+            app, ["subscriptions", "patch", "abc", "--render-mode", "llm_freeform"]
+        )
+        assert result.exit_code == 2
+        assert "render_mode must be one of" in result.stdout
+        mock_httpx.patch.assert_not_called()
+
+    @patch("intellisource.cli.main.httpx")
+    def test_patch_digest_404_on_get_exits_1(
+        self, mock_httpx: MagicMock, runner: CliRunner
+    ) -> None:
+        mock_httpx.get.return_value = _mock_response(status_code=404)
+        result = runner.invoke(
+            app, ["subscriptions", "patch", "missing", "--template", "daily-brief"]
+        )
+        assert result.exit_code == 1
+        assert "Not found" in result.stdout
+
+
+class TestVersionsAndDiff:
+    @patch("intellisource.cli.main.httpx")
+    def test_versions_lists_snapshots(
+        self, mock_httpx: MagicMock, runner: CliRunner
+    ) -> None:
+        mock_httpx.get.return_value = _mock_response(
+            json_data={
+                "versions": [
+                    {"version": "2", "author": None, "config_count": 3},
+                    {"version": "1", "author": "x", "config_count": 1},
+                ]
+            }
+        )
+        result = runner.invoke(app, ["subscriptions", "versions"])
+        assert result.exit_code == 0
+        assert (
+            "/api/v1/subscriptions/config/versions" in mock_httpx.get.call_args.args[0]
+        )
+        assert "version" in result.stdout
+        assert "config_count" in result.stdout
+
+    @patch("intellisource.cli.main.httpx")
+    def test_diff_renders_reload_preview(
+        self, mock_httpx: MagicMock, runner: CliRunner
+    ) -> None:
+        mock_httpx.get.return_value = _mock_response(
+            json_data={
+                "yaml_only": ["fresh"],
+                "db_only": ["gone"],
+                "both": ["keep"],
+                "db_only_action": "pause",
+            }
+        )
+        result = runner.invoke(app, ["subscriptions", "diff"])
+        assert result.exit_code == 0
+        assert "reload will PAUSE" in result.stdout
+        assert "fresh" in result.stdout

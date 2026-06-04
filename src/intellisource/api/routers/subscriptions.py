@@ -89,6 +89,42 @@ async def list_subscriptions(
     }
 
 
+@router.get("/subscriptions/config/versions")
+async def list_subscription_versions(
+    limit: int = 20,
+    service: SubscriptionService = Depends(_get_service),
+) -> dict[str, Any]:
+    """List recorded subscription config version snapshots (newest first)."""
+    limit = min(limit, 100)
+    return {"versions": await service.list_versions(limit=limit)}
+
+
+@router.get("/subscriptions/config/diff")
+async def diff_subscription_config(
+    service: SubscriptionService = Depends(_get_service),
+) -> dict[str, Any]:
+    """Diff the yaml SSOT against current DB state (what a reload would change)."""
+    loader = SubscriptionConfigLoader()
+    try:
+        configs = loader.load_subscription_configs()
+    except Exception as exc:
+        return JSONResponse(  # type: ignore[return-value]
+            status_code=400, content={"detail": f"failed to load yaml: {exc}"}
+        )
+    return await service.diff_with_yaml(configs)
+
+
+@router.get("/subscriptions/{id}")
+async def get_subscription(
+    id: uuid.UUID,
+    service: SubscriptionService = Depends(_get_service),
+) -> Any:
+    obj = await service.get(id)
+    if obj is None:
+        return JSONResponse(status_code=404, content={"detail": "not found"})
+    return _serialize(obj)
+
+
 @router.post("/subscriptions", status_code=status.HTTP_201_CREATED)
 async def create_subscription(
     body: SubscriptionConfig,

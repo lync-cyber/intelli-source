@@ -9,6 +9,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.config.loader import ConfigVersionManager
@@ -73,6 +74,30 @@ class SourceConfigService:
         return await self._repo.list(
             limit=limit, cursor=cursor, type=type, status=status, tag=tag
         )
+
+    async def get(self, source_id: uuid.UUID) -> Source | None:
+        """Fetch a single source by id (or None when absent)."""
+        return await self._repo.get_by_id(source_id)
+
+    async def list_versions(self, *, limit: int = 20) -> list[dict[str, Any]]:
+        """List recorded config version snapshots, newest first."""
+        return await self._version_manager.list_versions(self._session, limit=limit)
+
+    async def diff_with_yaml(self, yaml_configs: list[SourceConfig]) -> dict[str, Any]:
+        """Diff the yaml SSOT against current DB state (what a reload would do).
+
+        Sources reload is additive (bulk_upsert): names present in the DB but
+        absent from yaml are preserved, hence ``db_only_action='preserve'``.
+        """
+        yaml_names = {c.name for c in yaml_configs}
+        result = await self._session.execute(select(Source.name))
+        db_names = {row[0] for row in result.all()}
+        return {
+            "yaml_only": sorted(yaml_names - db_names),
+            "db_only": sorted(db_names - yaml_names),
+            "both": sorted(yaml_names & db_names),
+            "db_only_action": "preserve",
+        }
 
     # ------------------------------------------------------------------
     # Single-record CRUD (API / CLI hot edits — no version snapshot)

@@ -230,6 +230,43 @@ class ConfigVersionManager:
         self._current_version = version
         return list(self._versions[version])
 
+    async def list_versions(
+        self,
+        session: AsyncSession,
+        *,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """List recorded version snapshots, newest first.
+
+        Returns ``{version, author, created_at, config_count}`` per row;
+        ``config_count`` is derived by parsing the stored snapshot yaml.
+        """
+        result = await session.execute(
+            text(
+                f"SELECT version, author, created_at, snapshot_yaml"
+                f" FROM {self._table_name}"
+                " ORDER BY CAST(version AS INTEGER) DESC"
+                " LIMIT :limit"
+            ),
+            {"limit": limit},
+        )
+        versions: list[dict[str, Any]] = []
+        for version, author, created_at, snapshot_yaml in result.fetchall():
+            try:
+                parsed = yaml.safe_load(snapshot_yaml) or []
+                count = len(parsed) if isinstance(parsed, list) else 0
+            except Exception:
+                count = 0
+            versions.append(
+                {
+                    "version": version,
+                    "author": author,
+                    "created_at": str(created_at) if created_at is not None else None,
+                    "config_count": count,
+                }
+            )
+        return versions
+
     async def rollback_by_label(
         self,
         version_label: str,

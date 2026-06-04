@@ -138,3 +138,42 @@ class TestConfigVersionManagerRollbackByLabel:
         mgr = _make_manager()
         with pytest.raises(ValueError, match="not found"):
             await mgr.rollback_by_label("abc", session=mock_session)
+
+
+class TestConfigVersionManagerListVersions:
+    """list_versions returns per-snapshot metadata with derived config_count."""
+
+    async def test_list_versions_metadata_and_count(
+        self, sample_configs: list[SourceConfig]
+    ) -> None:
+        snap2 = yaml.dump([c.model_dump() for c in sample_configs])  # 2 configs
+        snap1 = yaml.dump([sample_configs[0].model_dump()])  # 1 config
+        mock_result = MagicMock()
+        mock_result.fetchall = MagicMock(
+            return_value=[
+                ("2", "alice", "2026-06-04T10:00:00", snap2),
+                ("1", None, "2026-06-04T09:00:00", snap1),
+            ]
+        )
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        mgr = _make_manager()
+        out = await mgr.list_versions(mock_session, limit=20)
+
+        assert [v["version"] for v in out] == ["2", "1"]
+        assert out[0]["config_count"] == 2
+        assert out[0]["author"] == "alice"
+        assert out[1]["config_count"] == 1
+        assert out[1]["author"] is None
+
+    async def test_list_versions_tolerates_bad_snapshot_yaml(self) -> None:
+        mock_result = MagicMock()
+        mock_result.fetchall = MagicMock(
+            return_value=[("1", None, "2026-06-04T09:00:00", "{not: [valid")]
+        )
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        out = await _make_manager().list_versions(mock_session)
+        assert out[0]["config_count"] == 0

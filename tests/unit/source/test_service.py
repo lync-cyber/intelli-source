@@ -402,3 +402,51 @@ class TestSourceConfigServiceRollbackToVersion:
             f"rollback to empty snapshot must set late-src status='paused'; "
             f"got '{late.status}'"
         )
+
+
+# ---------------------------------------------------------------------------
+# get / list_versions / diff_with_yaml
+# ---------------------------------------------------------------------------
+
+
+class TestSourceGet:
+    async def test_get_returns_source_by_id(self, session: AsyncSession) -> None:
+        svc = SourceConfigService(session)
+        created = await svc.create(_cfg("g"))
+        fetched = await svc.get(created.id)
+        assert fetched is not None
+        assert fetched.name == "g"
+
+    async def test_get_missing_id_returns_none(self, session: AsyncSession) -> None:
+        svc = SourceConfigService(session)
+        assert await svc.get(uuid.uuid4()) is None
+
+
+class TestSourceListVersions:
+    async def test_list_versions_newest_first_with_count(
+        self, session: AsyncSession
+    ) -> None:
+        svc = SourceConfigService(session)
+        await svc.bulk_sync_with_version([_cfg("a")])  # v1, 1 config
+        await svc.bulk_sync_with_version([_cfg("a"), _cfg("b")])  # v2, 2 configs
+
+        versions = await svc.list_versions(limit=10)
+        assert [v["version"] for v in versions] == ["2", "1"]
+        assert versions[0]["config_count"] == 2
+        assert versions[1]["config_count"] == 1
+
+
+class TestSourceDiffWithYaml:
+    async def test_diff_partitions_names_and_marks_preserve(
+        self, session: AsyncSession
+    ) -> None:
+        svc = SourceConfigService(session)
+        await svc.create(_cfg("keep"))
+        await svc.create(_cfg("gone"))
+
+        diff = await svc.diff_with_yaml([_cfg("keep"), _cfg("fresh")])
+        assert diff["yaml_only"] == ["fresh"]
+        assert diff["db_only"] == ["gone"]
+        assert diff["both"] == ["keep"]
+        # sources reload is additive (bulk_upsert) → db-only rows survive.
+        assert diff["db_only_action"] == "preserve"

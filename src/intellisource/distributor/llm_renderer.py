@@ -13,7 +13,9 @@ import hashlib
 import re
 from typing import Any
 
-import bleach  # type: ignore[import-untyped]
+# bleach ships no stubs; bare ignore is required because the coded form
+# (``[import-untyped]``) is mis-flagged as unused under ignore_missing_imports.
+import bleach  # type: ignore
 
 from intellisource.distributor.templates.renderers import JinjaRenderer, Renderer
 from intellisource.distributor.templates.schemas import DigestBundle, DigestItem

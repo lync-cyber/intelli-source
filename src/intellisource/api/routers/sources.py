@@ -89,6 +89,42 @@ async def list_sources(
     }
 
 
+@router.get("/sources/config/versions")
+async def list_source_versions(
+    limit: int = 20,
+    service: SourceConfigService = Depends(_get_service),
+) -> dict[str, Any]:
+    """List recorded source config version snapshots (newest first)."""
+    limit = min(limit, 100)
+    return {"versions": await service.list_versions(limit=limit)}
+
+
+@router.get("/sources/config/diff")
+async def diff_source_config(
+    service: SourceConfigService = Depends(_get_service),
+) -> dict[str, Any]:
+    """Diff the yaml SSOT against current DB state (what a reload would change)."""
+    loader = ConfigLoader()
+    try:
+        configs = loader.load_source_configs()
+    except Exception as exc:
+        return JSONResponse(  # type: ignore[return-value]
+            status_code=400, content={"detail": f"failed to load yaml: {exc}"}
+        )
+    return await service.diff_with_yaml(configs)
+
+
+@router.get("/sources/{id}")
+async def get_source(
+    id: uuid.UUID,
+    service: SourceConfigService = Depends(_get_service),
+) -> Any:
+    obj = await service.get(id)
+    if obj is None:
+        return JSONResponse(status_code=404, content={"detail": "not found"})
+    return _serialize_source(obj)
+
+
 @router.post("/sources", status_code=status.HTTP_201_CREATED)
 async def create_source(
     body: SourceConfig,

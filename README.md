@@ -40,6 +40,22 @@ Windows PowerShell / macOS / Linux 命令**完全一致**——`intellisource up
 
 > `intellisource init` 在**宿主机**运行（容器以只读挂载 `config`，容器内无法写）。任何"配置不生效"先跑 `uv run intellisource doctor` 自检。本地直接 `uv run uvicorn`/`celery` 时，进程会自动加载 `docker/.env` 中的 `IS_*` 与 LLM provider key。
 
+## 配置管理（查看 / 修改 / 回滚）
+
+配置是 **YAML 为准（SSOT）+ 运行时 DB** 双层模型：编辑 `config/**/*.yaml` 后 `reload` 生效并记录版本快照；API/CLI 的热编辑是临时态，下次 `reload` 会被 YAML 覆盖。
+
+| 操作 | 命令 |
+|------|------|
+| 查看单条详情 | `intellisource subscriptions show <id>` / `intellisource source show <id>` |
+| 改订阅（含 digest 模板/渲染模式） | `intellisource subscriptions patch <id> --render-mode llm-freeform` |
+| 改信源 | `intellisource source update <id> --url … --schedule-interval …` |
+| reload 前预览改动 | `intellisource subscriptions diff` / `intellisource source diff` |
+| 一览两域漂移 + 最新版本 | `intellisource config status` |
+| 列出版本快照 | `intellisource subscriptions versions` / `intellisource source versions` |
+| 回滚到某版本 | `intellisource subscriptions rollback <version>` |
+
+> `diff` / `config status` 的 reload 预览会区分两种语义：**subscriptions reload 是全量同步**（YAML 删掉的订阅被 PAUSE）；**sources reload 是加法 upsert**（YAML 没有的 DB 信源 PRESERVE 保留）。`subscriptions show` 额外标注 digest 的 **configured render_mode** 与"协作者缺失时降级 code"提示。
+
 ## 开发环境
 
 ```bash
