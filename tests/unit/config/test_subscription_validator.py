@@ -107,6 +107,62 @@ class TestWeChatChannelValidation:
 
 
 # ---------------------------------------------------------------------------
+# template_config (digest render policy) validation
+# ---------------------------------------------------------------------------
+
+
+class TestTemplateConfigValidation:
+    def _email(self, template_config: dict[str, object]) -> SubscriptionConfig:
+        return SubscriptionConfig(
+            name="digest",
+            channel="email",
+            channel_config={"to_addr": "u@x.com", "template_config": template_config},
+        )
+
+    def test_valid_render_mode_passes_through(self) -> None:
+        cfg = self._email({"render_mode": "llm-freeform"})
+        out = SubscriptionValidator().validate(cfg)
+        assert out.channel_config["template_config"]["render_mode"] == "llm-freeform"
+
+    def test_invalid_render_mode_rejected(self) -> None:
+        # underscore typo is the realistic mistake; must surface, not silently
+        # downgrade to "code" at assemble time.
+        with pytest.raises(SubscriptionValidationError, match="render_mode"):
+            SubscriptionValidator().validate(
+                self._email({"render_mode": "llm_freeform"})
+            )
+
+    def test_nonpositive_budget_rejected(self) -> None:
+        with pytest.raises(SubscriptionValidationError, match="render_budget_chars"):
+            SubscriptionValidator().validate(self._email({"render_budget_chars": 0}))
+
+    def test_bool_budget_rejected(self) -> None:
+        with pytest.raises(SubscriptionValidationError, match="render_budget_chars"):
+            SubscriptionValidator().validate(self._email({"render_budget_chars": True}))
+
+    def test_positive_budget_passes(self) -> None:
+        cfg = self._email({"render_mode": "llm-freeform", "render_budget_chars": 4000})
+        out = SubscriptionValidator().validate(cfg)
+        assert out.channel_config["template_config"]["render_budget_chars"] == 4000
+
+    def test_non_mapping_template_config_rejected(self) -> None:
+        cfg = SubscriptionConfig(
+            name="digest",
+            channel="email",
+            channel_config={"to_addr": "u@x.com", "template_config": "oops"},
+        )
+        with pytest.raises(SubscriptionValidationError, match="template_config"):
+            SubscriptionValidator().validate(cfg)
+
+    def test_absent_template_config_passes(self) -> None:
+        cfg = SubscriptionConfig(
+            name="digest", channel="email", channel_config={"to_addr": "u@x.com"}
+        )
+        out = SubscriptionValidator().validate(cfg)
+        assert out.channel == "email"
+
+
+# ---------------------------------------------------------------------------
 # Name validation
 # ---------------------------------------------------------------------------
 

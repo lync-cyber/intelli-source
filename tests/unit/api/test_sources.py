@@ -503,3 +503,70 @@ class TestOpenApiDocs:
         item_path = body["paths"].get("/api/v1/sources/{id}", {})
         assert "patch" in item_path
         assert "delete" in item_path
+
+
+# ===========================================================================
+# GET /{id} + config/versions + config/diff (new read/inspect endpoints)
+# ===========================================================================
+
+
+class TestGetSourceEndpoint:
+    @pytest.mark.asyncio
+    async def test_get_returns_serialized_source(
+        self, client: AsyncClient, mock_service: MagicMock
+    ) -> None:
+        mock_service.get = AsyncMock(return_value=_make_source_obj())
+        resp = await client.get(f"/api/v1/sources/{SOURCE_ID}")
+        assert resp.status_code == 200
+        assert resp.json()["name"] == "test-source"
+
+    @pytest.mark.asyncio
+    async def test_get_missing_returns_404(
+        self, client: AsyncClient, mock_service: MagicMock
+    ) -> None:
+        mock_service.get = AsyncMock(return_value=None)
+        resp = await client.get(f"/api/v1/sources/{SOURCE_ID_2}")
+        assert resp.status_code == 404
+
+
+class TestSourceVersionsEndpoint:
+    @pytest.mark.asyncio
+    async def test_versions_returns_service_list(
+        self, client: AsyncClient, mock_service: MagicMock
+    ) -> None:
+        mock_service.list_versions = AsyncMock(
+            return_value=[
+                {"version": "2", "author": None, "created_at": "t2", "config_count": 5},
+            ]
+        )
+        resp = await client.get("/api/v1/sources/config/versions")
+        assert resp.status_code == 200
+        versions = resp.json()["versions"]
+        assert versions[0]["version"] == "2"
+        assert versions[0]["config_count"] == 5
+
+
+class TestSourceDiffEndpoint:
+    @pytest.mark.asyncio
+    async def test_diff_marks_db_only_preserve(
+        self, client: AsyncClient, mock_service: MagicMock
+    ) -> None:
+        mock_service.diff_with_yaml = AsyncMock(
+            return_value={
+                "yaml_only": ["fresh"],
+                "db_only": ["kept"],
+                "both": [],
+                "db_only_action": "preserve",
+            }
+        )
+        mock_loader = MagicMock()
+        mock_loader.load_source_configs = MagicMock(return_value=["c1"])
+        with patch(
+            "intellisource.api.routers.sources.ConfigLoader",
+            return_value=mock_loader,
+        ):
+            resp = await client.get("/api/v1/sources/config/diff")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["db_only_action"] == "preserve"
+        assert body["db_only"] == ["kept"]

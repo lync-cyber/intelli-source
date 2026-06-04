@@ -23,6 +23,15 @@ subscriptions:
     channel: "email"
     channel_config:
       to_addr: "${IS_DIGEST_EMAIL_TO}"   # 从环境变量读取避免硬编码
+      # —— 周期 digest 专属（仅 frequency=daily/weekly 生效；realtime 逐条推送不读这些）——
+      template: "daily-brief"            # 省略=按 frequency 自动：daily→daily-brief / weekly→weekly-roundup
+      #                                   可选: daily-brief | weekly-roundup | topic-deepdive | json-feed
+      template_config:
+        render_mode: "code"             # 渲染模式三档（默认 code，零成本零风险）：
+        #   code         — 纯模板渲染，不调 LLM；确定性最高、零额外成本（默认）
+        #   llm-assisted — 模板骨架不变，LLM 仅补 intro / 每条"为什么重要"，正文结构受控
+        #   llm-freeform — LLM 整体生成正文，带护栏（契约校验 / HTML 消毒 / 敏感词复检 / 失败回退 code）
+        # render_budget_chars: 6000     # 仅 llm-freeform：喂给 LLM 的内容字符预算，超出截断
     match_rules:
       tags: ["tech"]
     frequency: "daily"

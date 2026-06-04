@@ -231,3 +231,52 @@ class TestRollbackToVersion:
         svc = SubscriptionService(session)
         with pytest.raises(ValueError, match="not found"):
             await svc.rollback_to_version("99")
+
+
+# ---------------------------------------------------------------------------
+# get / list_versions / diff_with_yaml
+# ---------------------------------------------------------------------------
+
+
+class TestGet:
+    async def test_get_returns_subscription_by_id(self, session: AsyncSession) -> None:
+        svc = SubscriptionService(session)
+        created = await svc.create(_cfg("g"))
+        fetched = await svc.get(created.id)
+        assert fetched is not None
+        assert fetched.name == "g"
+
+    async def test_get_missing_id_returns_none(self, session: AsyncSession) -> None:
+        svc = SubscriptionService(session)
+        assert await svc.get(uuid.uuid4()) is None
+
+
+class TestListVersions:
+    async def test_list_versions_newest_first_with_count(
+        self, session: AsyncSession
+    ) -> None:
+        svc = SubscriptionService(session)
+        await svc.bulk_sync_with_version([_cfg("a")])  # v1, 1 config
+        await svc.bulk_sync_with_version([_cfg("a"), _cfg("b")])  # v2, 2 configs
+
+        versions = await svc.list_versions(limit=10)
+        assert [v["version"] for v in versions] == ["2", "1"]
+        assert versions[0]["config_count"] == 2
+        assert versions[1]["config_count"] == 1
+
+
+class TestDiffWithYaml:
+    async def test_diff_partitions_names_and_marks_pause(
+        self, session: AsyncSession
+    ) -> None:
+        svc = SubscriptionService(session)
+        # DB has 'keep' (also in yaml) and 'gone' (yaml-removed).
+        await svc.create(_cfg("keep"))
+        await svc.create(_cfg("gone"))
+
+        diff = await svc.diff_with_yaml([_cfg("keep"), _cfg("fresh")])
+        assert diff["yaml_only"] == ["fresh"]
+        assert diff["db_only"] == ["gone"]
+        assert diff["both"] == ["keep"]
+        # subscriptions reload is a full sync → db-only rows get paused.
+        assert diff["db_only_action"] == "pause"

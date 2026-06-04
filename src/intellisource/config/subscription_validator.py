@@ -8,7 +8,7 @@ from typing import Any, Final, get_args
 import yaml
 from pydantic import ValidationError
 
-from intellisource.config.constants import MAX_NAME_LENGTH
+from intellisource.config.constants import MAX_NAME_LENGTH, RENDER_MODES
 from intellisource.config.subscription_models import SubscriptionConfig
 from intellisource.config.validator import _resolve_env_vars
 
@@ -19,6 +19,7 @@ _PATH_TRAVERSAL_CHARS: Final[frozenset[str]] = frozenset({"..", "/", "\\"})
 _ALLOWED_WEWORK_MSG_TYPES: Final[frozenset[str]] = frozenset(
     {"text", "markdown", "news"}
 )
+_ALLOWED_RENDER_MODES: Final[frozenset[str]] = frozenset(RENDER_MODES)
 
 
 class SubscriptionValidationError(ValueError):
@@ -58,6 +59,36 @@ def _validate_wechat_config(channel_config: dict[str, Any]) -> None:
     del channel_config  # noqa: F841 - explicit "no checks needed" marker
 
 
+def _validate_template_config(channel_config: dict[str, Any]) -> None:
+    """Validate the optional ``channel_config.template_config`` digest block.
+
+    Channel-independent: only the periodic digest path (daily/weekly) reads it,
+    but the keys are validated whenever present so a typo surfaces at reload
+    time instead of being silently downgraded to ``code`` at assemble time.
+    Template name keeps its runtime fallback and is not checked here.
+    """
+    tmpl_cfg = channel_config.get("template_config")
+    if tmpl_cfg is None:
+        return
+    if not isinstance(tmpl_cfg, dict):
+        raise SubscriptionValidationError(
+            "channel_config.template_config must be a mapping"
+        )
+    mode = tmpl_cfg.get("render_mode")
+    if mode is not None and mode not in _ALLOWED_RENDER_MODES:
+        raise SubscriptionValidationError(
+            f"template_config.render_mode {mode!r} must be one of "
+            f"{sorted(_ALLOWED_RENDER_MODES)}"
+        )
+    budget = tmpl_cfg.get("render_budget_chars")
+    if budget is not None and (
+        isinstance(budget, bool) or not isinstance(budget, int) or budget <= 0
+    ):
+        raise SubscriptionValidationError(
+            "template_config.render_budget_chars must be a positive integer"
+        )
+
+
 _CHANNEL_VALIDATORS = {
     "email": _validate_email_config,
     "wework": _validate_wework_config,
@@ -94,6 +125,8 @@ class SubscriptionValidator:
 
         channel_validator = _CHANNEL_VALIDATORS[config.channel]
         channel_validator(config.channel_config)
+
+        _validate_template_config(config.channel_config)
 
         return config
 

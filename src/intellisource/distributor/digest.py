@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from intellisource.config.constants import RENDER_MODES
 from intellisource.distributor.digest_enhance import DigestEnhancer
 from intellisource.distributor.frequency import FrequencyController
 from intellisource.distributor.matcher import SubscriptionMatcher
@@ -37,7 +38,7 @@ _FREQUENCY_TEMPLATE: dict[str, str] = {
 }
 
 # Per-subscription render policy (template_config["render_mode"]).
-_RENDER_MODES: frozenset[str] = frozenset({"code", "llm-assisted", "llm-freeform"})
+_RENDER_MODES: frozenset[str] = frozenset(RENDER_MODES)
 
 
 @dataclass

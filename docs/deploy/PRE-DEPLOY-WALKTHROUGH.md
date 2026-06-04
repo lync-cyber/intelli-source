@@ -699,6 +699,63 @@ curl -sX POST http://localhost:8000/api/v1/subscriptions \
 
 记下 → `$SUB_ID`。
 
+> **周期 digest 的模板与渲染模式（仅 daily/weekly 订阅生效；realtime 逐条推送不读取）**
+>
+> `channel_config` 可选两个 digest 字段，用于把"逐条推送"改成"周期汇总并控制渲染"：
+>
+> | 字段 | 位置 | 取值 | 默认 |
+> |------|------|------|------|
+> | `template` | `channel_config.template` | `daily-brief` / `weekly-roundup` / `topic-deepdive` / `json-feed` | 按 frequency 自动（daily→daily-brief / weekly→weekly-roundup） |
+> | `render_mode` | `channel_config.template_config.render_mode` | `code` / `llm-assisted` / `llm-freeform` | `code` |
+> | `render_budget_chars` | `channel_config.template_config.render_budget_chars` | 正整数（仅 `llm-freeform`） | 6000 |
+>
+> - **code**：纯模板渲染，不调 LLM，零额外成本与风险。
+> - **llm-assisted**：模板骨架不变，LLM 只补 intro / 每条 why_it_matters。
+> - **llm-freeform**：LLM 整体生成正文，带护栏（契约校验 + bleach HTML 消毒 + 敏感词复检 + 失败回退 code）。
+> - 落库：`push_records.render_mode` 记录**实际生效**模式——所需协作者缺失时（freeform 无 llm_renderer / assisted 无 enhancer）自动降级为 `code`，记录的就是降级后的值。
+> - 非法 `render_mode`（如下划线拼写 `llm_freeform`）在 `POST /subscriptions/reload` 时由 SubscriptionValidator 直接报错，不会静默降级。
+>
+> 示例（daily email + llm-freeform）：
+>
+> ```bash
+> curl -sX POST http://localhost:8000/api/v1/subscriptions \
+>   -H 'Content-Type: application/json' -H "X-API-Key: $IS_API_KEY" \
+>   -d '{
+>     "name":"tech-digest","channel":"email","frequency":"daily",
+>     "channel_config":{
+>       "to_addr":"test@example.com",
+>       "template":"daily-brief",
+>       "template_config":{"render_mode":"llm-freeform","render_budget_chars":6000}
+>     },
+>     "match_rules":{"tags":["tech"]}
+>   }' | jq -r .id
+> # CLI 等价：intellisource subscriptions add --name tech-digest --channel email \
+> #            --frequency daily --tags tech --template daily-brief --render-mode llm-freeform
+> ```
+
+**配置查看 / 修改 / 回滚（部署后运维常用）**
+
+```bash
+# 查看单条完整配置（纵向展开；订阅含 configured render_mode + 降级提示）
+intellisource subscriptions show "$SUB_ID"
+intellisource source show "$SOURCE_ID"
+
+# 修改：订阅热改 digest 渲染（合并进现有 channel_config，不会抹掉 to_addr）；信源改字段
+intellisource subscriptions patch "$SUB_ID" --render-mode llm-freeform
+intellisource source update "$SOURCE_ID" --schedule-interval 1800 --tags ai,tech
+
+# reload 前预览 YAML↔DB 漂移（subscriptions 全量同步 → 多余订阅 PAUSE；sources 加法 → PRESERVE）
+intellisource subscriptions diff
+intellisource source diff
+intellisource config status            # 两域漂移 + 各自最新版本一览
+
+# 版本快照 + 回滚（先列版本再回滚，避免盲打）
+intellisource subscriptions versions
+intellisource subscriptions rollback <version>
+```
+
+> 心智模型：**YAML 为准（reload 落版本快照）+ API/CLI 热编辑（临时，下次 reload 被覆盖）**。热改后想固化，写回对应 `config/**/*.yaml` 再 `reload`。
+
 **触发 — 走完整 collect→process→distribute 链路**
 
 ```bash

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -64,10 +65,11 @@ def test_read_text_decodes_utf8_bytes(tmp_path: Path) -> None:
     assert read_text(target) == "简体中文"
 
 
-def test_enforce_reconfigures_stdout_and_stderr_to_utf8(
+def test_enforce_reconfigures_streams_to_utf8(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     out, err = _FakeStream(), _FakeStream()
+    monkeypatch.setattr(sys, "stdin", _NoReconfigureStream())
     monkeypatch.setattr(sys, "stdout", out)
     monkeypatch.setattr(sys, "stderr", err)
 
@@ -79,6 +81,7 @@ def test_enforce_reconfigures_stdout_and_stderr_to_utf8(
 
 def test_enforce_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
     out = _FakeStream()
+    monkeypatch.setattr(sys, "stdin", _NoReconfigureStream())
     monkeypatch.setattr(sys, "stdout", out)
     monkeypatch.setattr(sys, "stderr", _FakeStream())
 
@@ -92,6 +95,7 @@ def test_enforce_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_enforce_noops_when_stream_lacks_reconfigure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(sys, "stdin", _NoReconfigureStream())
     monkeypatch.setattr(sys, "stdout", _NoReconfigureStream())
     monkeypatch.setattr(sys, "stderr", _NoReconfigureStream())
 
@@ -103,10 +107,88 @@ def test_enforce_noops_when_stream_lacks_reconfigure(
 def test_enforce_swallows_reconfigure_errors(
     monkeypatch: pytest.MonkeyPatch, error: Exception
 ) -> None:
+    monkeypatch.setattr(sys, "stdin", _NoReconfigureStream())
     monkeypatch.setattr(sys, "stdout", _FakeStream(reconfigure_error=error))
     monkeypatch.setattr(sys, "stderr", _FakeStream(reconfigure_error=error))
 
     enforce_utf8_runtime()  # detached/closed stream is a no-op, not a crash
+
+
+def test_utf8_mode_active_reflects_interpreter_flag() -> None:
+    assert encoding._utf8_mode_active() is bool(sys.flags.utf8_mode)
+
+
+def test_reexec_relaunches_with_pythonutf8_when_mode_inactive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(encoding, "_utf8_mode_active", lambda: False)
+    monkeypatch.setattr(encoding.sys, "orig_argv", ["py", "-m", "intellisource", "x"])
+    monkeypatch.setattr(encoding.sys, "executable", "py")
+    monkeypatch.delenv(encoding._REEXEC_SENTINEL, raising=False)
+
+    captured: dict[str, object] = {}
+
+    def fake_run(argv: list[str], *, env: dict[str, str], check: bool) -> object:
+        captured["argv"] = argv
+        captured["env"] = env
+        captured["check"] = check
+        return subprocess.CompletedProcess(argv, 7)
+
+    monkeypatch.setattr(encoding.subprocess, "run", fake_run)
+
+    with pytest.raises(SystemExit) as exc:
+        encoding.reexec_in_utf8_mode_if_needed()
+
+    assert exc.value.code == 7
+    assert captured["argv"] == ["py", "-m", "intellisource", "x"]
+    assert captured["check"] is False
+    env = captured["env"]
+    assert isinstance(env, dict)
+    assert env["PYTHONUTF8"] == "1"
+    assert env["PYTHONIOENCODING"] == "utf-8"
+    assert env[encoding._REEXEC_SENTINEL] == "1"
+
+
+def test_reexec_noops_when_mode_already_active(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(encoding, "_utf8_mode_active", lambda: True)
+
+    def fail_run(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("must not re-exec when already in UTF-8 mode")
+
+    monkeypatch.setattr(encoding.subprocess, "run", fail_run)
+
+    encoding.reexec_in_utf8_mode_if_needed()  # returns without relaunching
+
+
+def test_reexec_skips_when_already_relaunched(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(encoding, "_utf8_mode_active", lambda: False)
+    monkeypatch.setenv(encoding._REEXEC_SENTINEL, "1")
+
+    def fail_run(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("must not re-exec once the sentinel is set")
+
+    monkeypatch.setattr(encoding.subprocess, "run", fail_run)
+
+    encoding.reexec_in_utf8_mode_if_needed()  # sentinel set → no second relaunch
+
+
+def test_reexec_skips_when_orig_argv_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(encoding, "_utf8_mode_active", lambda: False)
+    monkeypatch.delenv(encoding._REEXEC_SENTINEL, raising=False)
+    monkeypatch.setattr(encoding.sys, "orig_argv", [])
+
+    def fail_run(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("must not re-exec without a known original argv")
+
+    monkeypatch.setattr(encoding.subprocess, "run", fail_run)
+
+    encoding.reexec_in_utf8_mode_if_needed()  # no argv to relaunch → no-op
 
 
 @pytest.mark.parametrize(

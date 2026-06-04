@@ -14,7 +14,12 @@ from typing import Any
 import httpx
 import typer
 
-from intellisource.core.encoding import enforce_utf8_runtime, read_text, write_text
+from intellisource.core.encoding import (
+    enforce_utf8_runtime,
+    read_text,
+    reexec_in_utf8_mode_if_needed,
+    write_text,
+)
 from intellisource.core.paths import project_root
 from intellisource.core.settings import (
     PROVIDER_ENV_KEYS,
@@ -28,12 +33,25 @@ task_app = typer.Typer()
 pipeline_app = typer.Typer()
 subscriptions_app = typer.Typer()
 topic_app = typer.Typer()
+config_app = typer.Typer()
 
 app.add_typer(source_app, name="source")
 app.add_typer(task_app, name="task")
 app.add_typer(pipeline_app, name="pipeline")
 app.add_typer(subscriptions_app, name="subscriptions")
 app.add_typer(topic_app, name="topic")
+app.add_typer(config_app, name="config")
+
+
+def run() -> None:
+    """Console-script entrypoint: enter UTF-8 mode (re-exec if needed) then dispatch.
+
+    Runs before typer parses argv so help text and parse errors are emitted in
+    UTF-8 too. Tests drive ``app`` directly via ``CliRunner`` and never hit this,
+    so the re-exec can only fire on a genuine standalone launch.
+    """
+    reexec_in_utf8_mode_if_needed()
+    app()
 
 
 # ---------------------------------------------------------------------------
@@ -113,6 +131,56 @@ def _format_table(data: dict[str, Any] | list[dict[str, Any]]) -> str:
         row = "  ".join(f"{str(item.get(k, '')):<20}" for k in keys)
         lines.append(row)
     return "\n".join(lines)
+
+
+def _format_detail(data: dict[str, Any]) -> str:
+    """Vertical ``key: value`` view; nested dict/list rendered indented JSON."""
+    lines: list[str] = []
+    for key, value in data.items():
+        if isinstance(value, (dict, list)) and value:
+            lines.append(f"{key}:")
+            rendered = json.dumps(value, ensure_ascii=False, indent=2)
+            lines.extend(f"  {rline}" for rline in rendered.splitlines())
+        else:
+            lines.append(f"{key}: {value}")
+    return "\n".join(lines)
+
+
+def _format_diff(data: dict[str, Any]) -> str:
+    """Render a yaml↔DB config diff (what a reload would change)."""
+    action = str(data.get("db_only_action", "change")).upper()
+    return "\n".join(
+        [
+            f"yaml-only (reload will CREATE): {data.get('yaml_only', [])}",
+            f"db-only   (reload will {action}): {data.get('db_only', [])}",
+            f"in-both   (reload will UPDATE): {data.get('both', [])}",
+        ]
+    )
+
+
+def _domain_config_status(domain: str) -> dict[str, Any]:
+    """Fetch yaml↔DB diff + latest recorded version for one config *domain*.
+
+    *domain* is ``"sources"`` or ``"subscriptions"``. Errors are folded into the
+    returned dict (never raised) so one domain failing does not hide the other.
+    """
+    base = f"{_base_url()}/api/v1/{domain}/config"
+    diff_resp = _http(lambda: httpx.get(f"{base}/diff", headers=_get_headers()))
+    versions_resp = _http(
+        lambda: httpx.get(f"{base}/versions?limit=1", headers=_get_headers())
+    )
+    diff: dict[str, Any]
+    if diff_resp.status_code >= 400:
+        diff = {"error": diff_resp.text}
+    else:
+        diff = diff_resp.json()
+    versions = (
+        versions_resp.json().get("versions", [])
+        if versions_resp.status_code < 400
+        else []
+    )
+    latest = versions[0]["version"] if versions else None
+    return {"diff": diff, "latest_version": latest}
 
 
 @app.callback(invoke_without_command=True)
@@ -225,6 +293,24 @@ def source_list(
     _emit(resp.json(), json_output=json_output)
 
 
+@source_app.command("show")
+def source_show(
+    source_id: str = typer.Argument(..., help="Source ID"),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    """Show a single source's full config (vertical detail view)."""
+    url = f"{_base_url()}/api/v1/sources/{source_id}"
+    resp = _http(lambda: httpx.get(url, headers=_get_headers()))
+    if resp.status_code == 404:
+        typer.echo("Not found")
+        raise typer.Exit(code=1)
+    data = resp.json()
+    if json_output:
+        typer.echo(json.dumps(data))
+    else:
+        typer.echo(_format_detail(data))
+
+
 @source_app.command("add")
 def source_add(
     name: str = typer.Option(..., "--name", help="Source name"),
@@ -243,14 +329,42 @@ def source_add(
 def source_update(
     source_id: str = typer.Argument(..., help="Source ID"),
     name: str | None = typer.Option(None, "--name", help="New source name"),
+    url: str | None = typer.Option(None, "--url", help="New source URL"),
+    source_type: str | None = typer.Option(None, "--type", help="New source type"),
+    tags: str | None = typer.Option(
+        None, "--tags", help="Comma-separated tags (replaces existing)"
+    ),
+    schedule_interval: int | None = typer.Option(
+        None, "--schedule-interval", help="Collection interval (seconds)"
+    ),
+    status: str | None = typer.Option(None, "--status", help="active / paused"),
     json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
 ) -> None:
-    """Update an existing source."""
-    url = f"{_base_url()}/api/v1/sources/{source_id}"
+    """Update an existing source (partial — only passed fields change)."""
     payload: dict[str, Any] = {}
     if name is not None:
         payload["name"] = name
-    resp = _http(lambda: httpx.patch(url, json=payload, headers=_get_headers()))
+    if url is not None:
+        payload["url"] = url
+    if source_type is not None:
+        payload["type"] = source_type
+    if tags is not None:
+        payload["tags"] = [t.strip() for t in tags.split(",") if t.strip()]
+    if schedule_interval is not None:
+        payload["schedule_interval"] = schedule_interval
+    if status is not None:
+        payload["status"] = status
+    if not payload:
+        typer.echo(
+            "Nothing to update — pass at least one of "
+            "--name/--url/--type/--tags/--schedule-interval/--status"
+        )
+        raise typer.Exit(code=2)
+    url_path = f"{_base_url()}/api/v1/sources/{source_id}"
+    resp = _http(lambda: httpx.patch(url_path, json=payload, headers=_get_headers()))
+    if resp.status_code >= 400:
+        typer.echo(f"Error ({resp.status_code}): {resp.text}")
+        raise typer.Exit(code=1)
     _emit(resp.json(), json_output=json_output)
 
 
@@ -262,6 +376,38 @@ def source_delete(
     url = f"{_base_url()}/api/v1/sources/{source_id}"
     _http(lambda: httpx.delete(url, headers=_get_headers()))
     typer.echo("Deleted.")
+
+
+@source_app.command("versions")
+def source_versions(
+    limit: int = typer.Option(20, "--limit", help="Max versions to list"),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    """List recorded source config version snapshots (for rollback)."""
+    url = f"{_base_url()}/api/v1/sources/config/versions?limit={limit}"
+    resp = _http(lambda: httpx.get(url, headers=_get_headers()))
+    data = resp.json()
+    if json_output:
+        typer.echo(json.dumps(data))
+    else:
+        typer.echo(_format_table({"items": data.get("versions", [])}))
+
+
+@source_app.command("diff")
+def source_diff(
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    """Diff the sources yaml SSOT against current DB state (reload preview)."""
+    url = f"{_base_url()}/api/v1/sources/config/diff"
+    resp = _http(lambda: httpx.get(url, headers=_get_headers()))
+    if resp.status_code >= 400:
+        typer.echo(f"Error ({resp.status_code}): {resp.text}")
+        raise typer.Exit(code=1)
+    data = resp.json()
+    if json_output:
+        typer.echo(json.dumps(data))
+    else:
+        typer.echo(_format_diff(data))
 
 
 # ---------------------------------------------------------------------------
@@ -906,6 +1052,14 @@ def init(
     typer.echo("  uv run intellisource topic enable <id> --channel wework")
     typer.echo("  uv run intellisource subscriptions reload      # load subscriptions")
     typer.echo("  uv run intellisource task trigger <source-id>  # first collection")
+    typer.echo(
+        "\nTip: daily/weekly subscriptions support a digest `template` +"
+        " `render_mode` (code | llm-assisted | llm-freeform)."
+    )
+    typer.echo(
+        "     See config/subscriptions/subscriptions.yaml comments or"
+        " `subscriptions add --help`."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -917,6 +1071,99 @@ def _post_json(path: str, payload: dict[str, Any]) -> httpx.Response:
     return _http(
         lambda: httpx.post(f"{_base_url()}{path}", json=payload, headers=_get_headers())
     )
+
+
+_RENDER_MODE_CHOICES = ("code", "llm-assisted", "llm-freeform")
+
+
+def _set_digest_fields(
+    channel_config: dict[str, Any],
+    *,
+    template: str | None,
+    render_mode: str | None,
+    render_budget_chars: int | None,
+) -> None:
+    """Merge digest template/render fields into *channel_config* in place.
+
+    Validates render_mode (CLI-side, since PATCH bypasses the reload validator)
+    and a positive budget; aborts with exit 2 on invalid input.
+    """
+    if template:
+        channel_config["template"] = template
+    tmpl_cfg = dict(channel_config.get("template_config") or {})
+    if render_mode is not None:
+        if render_mode not in _RENDER_MODE_CHOICES:
+            typer.echo(
+                f"Error: render_mode must be one of {list(_RENDER_MODE_CHOICES)}"
+            )
+            raise typer.Exit(code=2)
+        tmpl_cfg["render_mode"] = render_mode
+    if render_budget_chars is not None:
+        if render_budget_chars <= 0:
+            typer.echo("Error: --render-budget-chars must be a positive integer")
+            raise typer.Exit(code=2)
+        tmpl_cfg["render_budget_chars"] = render_budget_chars
+    if tmpl_cfg:
+        channel_config["template_config"] = tmpl_cfg
+
+
+def _apply_digest_options(
+    channel_config: dict[str, Any],
+    frequency: str,
+    template: str | None,
+    render_mode: str | None,
+) -> None:
+    """Fold digest template / render_mode into channel_config for periodic subs.
+
+    No-op for realtime: per-item push does not read template_config. Prompts
+    interactively for render_mode only when the flag is absent and the
+    frequency is periodic (daily/weekly).
+    """
+    if frequency not in ("daily", "weekly"):
+        if template or render_mode:
+            typer.echo(
+                "  note: --template/--render-mode only apply to daily/weekly "
+                f"digests; ignored for frequency={frequency!r}"
+            )
+        return
+    if render_mode is None:
+        render_mode = typer.prompt(
+            "  render_mode (code / llm-assisted / llm-freeform)", default="code"
+        )
+    _set_digest_fields(
+        channel_config,
+        template=template,
+        render_mode=render_mode,
+        render_budget_chars=None,
+    )
+
+
+def _render_mode_annotation(sub: dict[str, Any]) -> str:
+    """Explain the configured + effective digest render mode for a subscription."""
+    channel_config = sub.get("channel_config") or {}
+    tmpl_cfg = channel_config.get("template_config") or {}
+    mode = tmpl_cfg.get("render_mode") or (
+        "llm-assisted" if tmpl_cfg.get("enhance") else "code"
+    )
+    template = channel_config.get("template") or "(auto by frequency)"
+    frequency = sub.get("frequency")
+    lines = [
+        "",
+        "digest (daily/weekly only):",
+        f"  template: {template}",
+        f"  render_mode (configured): {mode}",
+    ]
+    if frequency not in ("daily", "weekly"):
+        lines.append(
+            f"  note: frequency={frequency} → per-item push; digest fields unused"
+        )
+    elif mode != "code":
+        lines.append(
+            "  note: effective mode downgrades to 'code' when the worker lacks the"
+            " llm_renderer (freeform) / enhancer (assisted); the mode actually used"
+            " is persisted to push_records.render_mode"
+        )
+    return "\n".join(lines)
 
 
 def _channel_config_prompt(channel: str) -> dict[str, Any]:
@@ -946,6 +1193,25 @@ def subscriptions_list(
     _emit(resp.json(), json_output=json_output)
 
 
+@subscriptions_app.command("show")
+def subscriptions_show(
+    sub_id: str = typer.Argument(..., help="Subscription id (uuid)"),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    """Show one subscription's full config + the effective digest render mode."""
+    url = f"{_base_url()}/api/v1/subscriptions/{sub_id}"
+    resp = _http(lambda: httpx.get(url, headers=_get_headers()))
+    if resp.status_code == 404:
+        typer.echo("Not found")
+        raise typer.Exit(code=1)
+    data = resp.json()
+    if json_output:
+        typer.echo(json.dumps(data))
+    else:
+        typer.echo(_format_detail(data))
+        typer.echo(_render_mode_annotation(data))
+
+
 @subscriptions_app.command("add")
 def subscriptions_add(
     name: str = typer.Option(None, "--name", help="Subscription name"),
@@ -954,6 +1220,17 @@ def subscriptions_add(
         "", "--tags", help="Comma-separated match_rules.tags (e.g. 'ai,security')"
     ),
     frequency: str = typer.Option("realtime", "--frequency", help="realtime/daily/..."),
+    template: str = typer.Option(
+        None,
+        "--template",
+        help="Digest template (daily/weekly only): daily-brief|weekly-roundup|"
+        "topic-deepdive|json-feed. Omit = auto by frequency.",
+    ),
+    render_mode: str = typer.Option(
+        None,
+        "--render-mode",
+        help="Digest render (daily/weekly only): code|llm-assisted|llm-freeform.",
+    ),
     json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
 ) -> None:
     """Interactively create a subscription. Falls back to prompts for missing flags."""
@@ -966,6 +1243,7 @@ def subscriptions_add(
         raise typer.Exit(code=2)
 
     channel_config = _channel_config_prompt(channel)
+    _apply_digest_options(channel_config, frequency, template, render_mode)
     tag_list = [t.strip() for t in tags.split(",") if t.strip()]
     if not tag_list:
         prompt_tags = typer.prompt(
@@ -997,9 +1275,24 @@ def subscriptions_patch(
     name: str | None = typer.Option(None, "--name"),
     frequency: str | None = typer.Option(None, "--frequency"),
     status: str | None = typer.Option(None, "--status", help="active / paused"),
+    template: str | None = typer.Option(
+        None, "--template", help="Digest template (daily/weekly only)"
+    ),
+    render_mode: str | None = typer.Option(
+        None, "--render-mode", help="code|llm-assisted|llm-freeform (daily/weekly only)"
+    ),
+    render_budget_chars: int | None = typer.Option(
+        None, "--render-budget-chars", help="LLM input budget (llm-freeform only)"
+    ),
     json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
 ) -> None:
-    """Partial-update a subscription by id."""
+    """Partial-update a subscription by id.
+
+    Digest fields (--template/--render-mode/--render-budget-chars) merge into
+    the existing channel_config — fetched first so other keys (to_addr etc.)
+    survive — since PATCH replaces channel_config wholesale.
+    """
+    base = f"{_base_url()}/api/v1/subscriptions/{sub_id}"
     body: dict[str, Any] = {}
     if name is not None:
         body["name"] = name
@@ -1007,13 +1300,32 @@ def subscriptions_patch(
         body["frequency"] = frequency
     if status is not None:
         body["status"] = status
+
+    if (
+        template is not None
+        or render_mode is not None
+        or render_budget_chars is not None
+    ):
+        current = _http(lambda: httpx.get(base, headers=_get_headers()))
+        if current.status_code == 404:
+            typer.echo("Not found")
+            raise typer.Exit(code=1)
+        channel_config = dict(current.json().get("channel_config") or {})
+        _set_digest_fields(
+            channel_config,
+            template=template,
+            render_mode=render_mode,
+            render_budget_chars=render_budget_chars,
+        )
+        body["channel_config"] = channel_config
+
     if not body:
         typer.echo(
-            "Nothing to patch — pass at least one of --name/--frequency/--status"
+            "Nothing to patch — pass at least one of --name/--frequency/--status/"
+            "--template/--render-mode/--render-budget-chars"
         )
         raise typer.Exit(code=2)
-    url = f"{_base_url()}/api/v1/subscriptions/{sub_id}"
-    resp = _http(lambda: httpx.patch(url, json=body, headers=_get_headers()))
+    resp = _http(lambda: httpx.patch(base, json=body, headers=_get_headers()))
     if resp.status_code >= 400:
         typer.echo(f"Error ({resp.status_code}): {resp.text}")
         raise typer.Exit(code=1)
@@ -1053,6 +1365,64 @@ def subscriptions_rollback(
         typer.echo(f"Version {version!r} not found")
         raise typer.Exit(code=1)
     _emit(resp.json(), json_output=json_output)
+
+
+@subscriptions_app.command("versions")
+def subscriptions_versions(
+    limit: int = typer.Option(20, "--limit", help="Max versions to list"),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    """List recorded subscription config version snapshots (for rollback)."""
+    url = f"{_base_url()}/api/v1/subscriptions/config/versions?limit={limit}"
+    resp = _http(lambda: httpx.get(url, headers=_get_headers()))
+    data = resp.json()
+    if json_output:
+        typer.echo(json.dumps(data))
+    else:
+        typer.echo(_format_table({"items": data.get("versions", [])}))
+
+
+@subscriptions_app.command("diff")
+def subscriptions_diff(
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    """Diff the subscriptions yaml SSOT against DB state (reload preview)."""
+    url = f"{_base_url()}/api/v1/subscriptions/config/diff"
+    resp = _http(lambda: httpx.get(url, headers=_get_headers()))
+    if resp.status_code >= 400:
+        typer.echo(f"Error ({resp.status_code}): {resp.text}")
+        raise typer.Exit(code=1)
+    data = resp.json()
+    if json_output:
+        typer.echo(json.dumps(data))
+    else:
+        typer.echo(_format_diff(data))
+
+
+@config_app.command("status")
+def config_status(
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    """Aggregate yaml↔DB drift + latest version for sources and subscriptions.
+
+    One reload preview across both config domains: what a reload would CREATE /
+    UPDATE, and (per domain) whether db-only entries are PAUSED (subscriptions,
+    full sync) or PRESERVED (sources, additive upsert).
+    """
+    result = {d: _domain_config_status(d) for d in ("sources", "subscriptions")}
+    if json_output:
+        typer.echo(json.dumps(result))
+        return
+    for domain in ("sources", "subscriptions"):
+        info = result[domain]
+        typer.echo(f"== {domain} (yaml ↔ DB) ==")
+        typer.echo(f"latest recorded version: {info['latest_version'] or '(none)'}")
+        diff = info["diff"]
+        if "error" in diff:
+            typer.echo(f"  diff unavailable: {diff['error']}")
+        else:
+            typer.echo(_format_diff(diff))
+        typer.echo("")
 
 
 @topic_app.command("list")
