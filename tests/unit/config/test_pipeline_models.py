@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from intellisource.agent.pipeline import PipelineConfig
+from intellisource.config.pipeline_models import PipelineConfig
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -178,7 +178,7 @@ class TestUpdatedPipelineConfigs:
 
     def test_scheduled_collect_uses_atomic_tools(self) -> None:
         """AC-T055-1: scheduled-collect tools_allowed includes atomic tools."""
-        from intellisource.agent.tools import load_pipeline_config
+        from intellisource.pipeline.definition_service import load_pipeline_config
 
         config = load_pipeline_config("scheduled-collect")
         allowed = set(config.tools_allowed)
@@ -189,7 +189,7 @@ class TestUpdatedPipelineConfigs:
 
     def test_instant_search_includes_atomic_tools(self) -> None:
         """AC-T055-2: instant-search tools_allowed includes atomic tools."""
-        from intellisource.agent.tools import load_pipeline_config
+        from intellisource.pipeline.definition_service import load_pipeline_config
 
         config = load_pipeline_config("instant-search")
         allowed = set(config.tools_allowed)
@@ -201,7 +201,7 @@ class TestUpdatedPipelineConfigs:
 
     def test_existing_pipeline_configs_parse(self) -> None:
         """AC-T055-4: All pipeline configs parse without error."""
-        from intellisource.agent.tools import load_pipeline_config
+        from intellisource.pipeline.definition_service import load_pipeline_config
 
         for name in [
             "scheduled-collect",

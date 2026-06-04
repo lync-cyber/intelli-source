@@ -21,6 +21,8 @@ from typing import Any
 
 import pytest
 
+from intellisource.pipeline.definition_service import load_pipeline_config
+
 # ------------------------------------------------------------------
 # Lazy import helper (RED phase: expect ModuleNotFoundError)
 # ------------------------------------------------------------------
@@ -279,28 +281,28 @@ class TestRegistryAPI:
 class TestScheduledCollectPipeline:
     """Verify scheduled-collect pipeline YAML correctness."""
 
-    def test_scheduled_collect_yaml_exists(self, tools_mod: Any) -> None:
+    def test_scheduled_collect_yaml_exists(self) -> None:
         """AC-T036-7: scheduled-collect.yaml can be loaded."""
-        config = tools_mod.load_pipeline_config("scheduled-collect")
+        config = load_pipeline_config("scheduled-collect")
         assert config.name == "scheduled-collect"
 
-    def test_scheduled_collect_mode_is_strict(self, tools_mod: Any) -> None:
+    def test_scheduled_collect_mode_is_strict(self) -> None:
         """AC-T036-7: scheduled-collect mode must be strict."""
-        config = tools_mod.load_pipeline_config("scheduled-collect")
+        config = load_pipeline_config("scheduled-collect")
         assert config.mode == "strict"
 
-    def test_scheduled_collect_tools_allowed(self, tools_mod: Any) -> None:
+    def test_scheduled_collect_tools_allowed(self) -> None:
         """AC-T036-7: tools_allowed includes collect, distribute, and atomic tools."""
-        config = tools_mod.load_pipeline_config("scheduled-collect")
+        config = load_pipeline_config("scheduled-collect")
         allowed = set(config.tools_allowed)
         assert "collect" in allowed
         assert "process" in allowed
         assert "distribute" in allowed
         assert "regex_extract" in allowed
 
-    def test_scheduled_collect_has_steps(self, tools_mod: Any) -> None:
+    def test_scheduled_collect_has_steps(self) -> None:
         """AC-T036-7: scheduled-collect defines at least 1 step."""
-        config = tools_mod.load_pipeline_config("scheduled-collect")
+        config = load_pipeline_config("scheduled-collect")
         assert len(config.steps) >= 1
 
 
@@ -312,28 +314,28 @@ class TestScheduledCollectPipeline:
 class TestInstantSearchPipeline:
     """Verify instant-search pipeline YAML correctness."""
 
-    def test_instant_search_yaml_exists(self, tools_mod: Any) -> None:
+    def test_instant_search_yaml_exists(self) -> None:
         """AC-T036-8: instant-search.yaml can be loaded."""
-        config = tools_mod.load_pipeline_config("instant-search")
+        config = load_pipeline_config("instant-search")
         assert config.name == "instant-search"
 
-    def test_instant_search_mode_is_flexible(self, tools_mod: Any) -> None:
+    def test_instant_search_mode_is_flexible(self) -> None:
         """AC-T036-8: instant-search mode must be flexible."""
-        config = tools_mod.load_pipeline_config("instant-search")
+        config = load_pipeline_config("instant-search")
         assert config.mode == "flexible"
 
-    def test_instant_search_tools_allowed(self, tools_mod: Any) -> None:
+    def test_instant_search_tools_allowed(self) -> None:
         """AC-T036-8: tools_allowed includes search, get_content_detail,
         summarize_for_user, and atomic tools."""
-        config = tools_mod.load_pipeline_config("instant-search")
+        config = load_pipeline_config("instant-search")
         allowed = set(config.tools_allowed)
         assert "search" in allowed
         assert "get_content_detail" in allowed
         assert "summarize_for_user" in allowed
 
-    def test_instant_search_has_steps(self, tools_mod: Any) -> None:
+    def test_instant_search_has_steps(self) -> None:
         """AC-T036-8: instant-search defines at least 1 step."""
-        config = tools_mod.load_pipeline_config("instant-search")
+        config = load_pipeline_config("instant-search")
         assert len(config.steps) >= 1
 
 
@@ -345,14 +347,14 @@ class TestInstantSearchPipeline:
 class TestPipelineToolConstraints:
     """Cross-cutting checks on pipeline config tool constraints."""
 
-    def test_strict_pipeline_does_not_allow_search(self, tools_mod: Any) -> None:
+    def test_strict_pipeline_does_not_allow_search(self) -> None:
         """AC-066: scheduled-collect (strict) must NOT allow search."""
-        config = tools_mod.load_pipeline_config("scheduled-collect")
+        config = load_pipeline_config("scheduled-collect")
         assert "search" not in config.tools_allowed
 
-    def test_flexible_pipeline_does_not_allow_collect(self, tools_mod: Any) -> None:
+    def test_flexible_pipeline_does_not_allow_collect(self) -> None:
         """AC-066: instant-search (flexible) must NOT allow collect."""
-        config = tools_mod.load_pipeline_config("instant-search")
+        config = load_pipeline_config("instant-search")
         assert "collect" not in config.tools_allowed
 
 

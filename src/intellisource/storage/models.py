@@ -1,6 +1,6 @@
 """ORM model definitions for all entities (T-003).
 
-Defines 11 SQLAlchemy 2.0 mapped models corresponding to E-001 through E-011.
+Defines the SQLAlchemy 2.0 mapped models for every persisted entity.
 """
 
 from __future__ import annotations
@@ -528,4 +528,69 @@ class ChatSession(CreatedAtMixin, Base):
     __table_args__ = (
         Index("ix_chat_sessions_user", "channel", "channel_user_id"),
         Index("ix_chat_sessions_last_active_at", "last_active_at"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# E-013: Pipeline definition (header) + ordered steps
+# ---------------------------------------------------------------------------
+
+
+class Pipeline(TimestampMixin, Base):
+    __tablename__ = "pipelines"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    name: Mapped[str] = mapped_column(VARCHAR(100), nullable=False, unique=True)
+    mode: Mapped[str] = mapped_column(VARCHAR(20), nullable=False)
+    max_steps: Mapped[int] = mapped_column(Integer, nullable=False, default=50)
+    on_failure: Mapped[str] = mapped_column(
+        VARCHAR(20), nullable=False, default="abort"
+    )
+    agent_mode: Mapped[str] = mapped_column(
+        VARCHAR(20), nullable=False, default="process"
+    )
+    system_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    max_tokens_budget: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    tools_allowed: Mapped[list[Any]] = mapped_column(
+        JSONB, nullable=False, default=list
+    )
+    tools_denied: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list)
+    tool_permissions: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict
+    )
+    status: Mapped[str] = mapped_column(VARCHAR(20), nullable=False, default="active")
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
+    steps: Mapped[list["PipelineStep"]] = relationship(
+        back_populates="pipeline",
+        cascade="all, delete-orphan",
+        order_by="PipelineStep.position",
+    )
+
+    __table_args__ = (Index("ix_pipelines_status", "status"),)
+
+
+class PipelineStep(CreatedAtMixin, Base):
+    __tablename__ = "pipeline_steps"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    pipeline_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("pipelines.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    definition: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict
+    )
+
+    pipeline: Mapped["Pipeline"] = relationship(back_populates="steps")
+
+    __table_args__ = (
+        UniqueConstraint("pipeline_id", "position", name="uq_pipeline_steps_position"),
+        Index("ix_pipeline_steps_pipeline_id", "pipeline_id"),
     )

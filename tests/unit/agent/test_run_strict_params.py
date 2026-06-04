@@ -6,9 +6,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from intellisource.agent.pipeline import PipelineConfig
 from intellisource.agent.runner import AgentRunner
 from intellisource.agent.step_params import build_step_params, merge_step_output
+from intellisource.config.pipeline_models import PipelineConfig
 
 
 class TestStepParamsHelpers:

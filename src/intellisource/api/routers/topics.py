@@ -10,6 +10,8 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session
+from intellisource.api.schemas.common import OperationResult
+from intellisource.api.schemas.topics import TopicDetail, TopicListResponse
 from intellisource.config.subscription_models import ChannelType
 from intellisource.config.subscription_validator import SubscriptionValidationError
 from intellisource.config.validator import ConfigValidationError
@@ -69,14 +71,14 @@ def _serialize_topic(topic: Topic, *, detail: bool = False) -> dict[str, Any]:
     return data
 
 
-@router.get("/topics")
+@router.get("/topics", response_model=TopicListResponse)
 def list_topics(
     service: TopicService = Depends(_get_service),
 ) -> dict[str, Any]:
     return {"items": [_serialize_topic(t) for t in service.list_topics()]}
 
 
-@router.get("/topics/{topic_id}")
+@router.get("/topics/{topic_id}", response_model=TopicDetail)
 def get_topic(
     topic_id: str,
     service: TopicService = Depends(_get_service),
@@ -87,7 +89,7 @@ def get_topic(
     return _serialize_topic(topic, detail=True)
 
 
-@router.post("/topics/{topic_id}/enable")
+@router.post("/topics/{topic_id}/enable", response_model=OperationResult)
 async def enable_topic(
     topic_id: str,
     body: TopicEnableRequest,

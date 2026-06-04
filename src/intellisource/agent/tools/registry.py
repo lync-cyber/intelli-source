@@ -23,6 +23,17 @@ from typing import Any, Callable, Coroutine
 from intellisource.agent.tools.executes.collect import _collect_execute
 from intellisource.agent.tools.executes.distribute import _distribute_execute
 from intellisource.agent.tools.executes.llm import _llm_complete_execute
+from intellisource.agent.tools.executes.manage import (
+    _create_pipeline_execute,
+    _create_source_execute,
+    _create_subscription_execute,
+    _delete_pipeline_execute,
+    _delete_source_execute,
+    _delete_subscription_execute,
+    _list_pipelines_execute,
+    _list_sources_execute,
+    _list_subscriptions_execute,
+)
 from intellisource.agent.tools.executes.process import _process_execute
 from intellisource.agent.tools.executes.search_and_content import (
     _get_content_detail_execute,
@@ -128,6 +139,16 @@ class AgentToolRegistry:
         """Register all 10 atomic processing tools + llm_complete meta-tool."""
         defs = _atomic_tool_defs()
         for defn in defs:
+            self._tools[defn.name] = defn
+
+    def register_management_tools(self) -> None:
+        """Register CRUD control-plane tools (sources / subscriptions / pipelines).
+
+        Gated by each pipeline's ``tools_allowed`` — only elevated definitions
+        such as ``admin-agent`` expose them; ``analyze`` agent mode auto-denies
+        the mutating ones via ``mutates_external_state``.
+        """
+        for defn in _management_tool_defs():
             self._tools[defn.name] = defn
 
     def filter(
@@ -449,5 +470,134 @@ def _default_tool_defs() -> list[ToolDefinition]:
                 },
             },
             execute=_summarize_for_user_execute,
+        ),
+    ]
+
+
+def _management_tool_defs() -> list[ToolDefinition]:
+    """CRUD control-plane tools for sources / subscriptions / pipelines."""
+    return [
+        ToolDefinition(
+            name="create_source",
+            description="Create or update a data source (rss/api/web) by name.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "type": {"type": "string", "enum": ["rss", "api", "web"]},
+                    "url": {"type": "string"},
+                    "tags": {"type": "array", "items": {"type": "string"}},
+                    "discipline_tags": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                },
+                "required": ["name", "type", "url"],
+            },
+            execute=_create_source_execute,
+            mutates_external_state=True,
+        ),
+        ToolDefinition(
+            name="list_sources",
+            description="List configured data sources.",
+            parameters={
+                "type": "object",
+                "properties": {"limit": {"type": "integer"}},
+            },
+            execute=_list_sources_execute,
+        ),
+        ToolDefinition(
+            name="delete_source",
+            description="Soft-delete (pause) a data source by id.",
+            parameters={
+                "type": "object",
+                "properties": {"source_id": {"type": "string"}},
+                "required": ["source_id"],
+            },
+            execute=_delete_source_execute,
+            mutates_external_state=True,
+        ),
+        ToolDefinition(
+            name="create_subscription",
+            description="Create a subscription on a channel (email/wechat/wework).",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "channel": {
+                        "type": "string",
+                        "enum": ["email", "wechat", "wework"],
+                    },
+                    "channel_config": {"type": "object"},
+                    "match_rules": {"type": "object"},
+                    "frequency": {"type": "string"},
+                },
+                "required": ["name", "channel"],
+            },
+            execute=_create_subscription_execute,
+            mutates_external_state=True,
+        ),
+        ToolDefinition(
+            name="list_subscriptions",
+            description="List configured subscriptions.",
+            parameters={
+                "type": "object",
+                "properties": {"limit": {"type": "integer"}},
+            },
+            execute=_list_subscriptions_execute,
+        ),
+        ToolDefinition(
+            name="delete_subscription",
+            description="Soft-delete (pause) a subscription by id.",
+            parameters={
+                "type": "object",
+                "properties": {"subscription_id": {"type": "string"}},
+                "required": ["subscription_id"],
+            },
+            execute=_delete_subscription_execute,
+            mutates_external_state=True,
+        ),
+        ToolDefinition(
+            name="create_pipeline",
+            description="Create or update a pipeline definition by name.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "mode": {
+                        "type": "string",
+                        "enum": ["strict", "flexible", "batch"],
+                    },
+                    "steps": {"type": "array", "items": {"type": "object"}},
+                    "max_steps": {"type": "integer"},
+                    "on_failure": {
+                        "type": "string",
+                        "enum": ["abort", "skip", "retry"],
+                    },
+                    "tools_allowed": {"type": "array", "items": {"type": "string"}},
+                    "tools_denied": {"type": "array", "items": {"type": "string"}},
+                    "system_prompt": {"type": "string"},
+                },
+                "required": ["name", "mode"],
+            },
+            execute=_create_pipeline_execute,
+            mutates_external_state=True,
+        ),
+        ToolDefinition(
+            name="list_pipelines",
+            description="List persisted pipeline definitions.",
+            parameters={"type": "object", "properties": {}},
+            execute=_list_pipelines_execute,
+        ),
+        ToolDefinition(
+            name="delete_pipeline",
+            description="Delete a pipeline definition by name.",
+            parameters={
+                "type": "object",
+                "properties": {"name": {"type": "string"}},
+                "required": ["name"],
+            },
+            execute=_delete_pipeline_execute,
+            mutates_external_state=True,
         ),
     ]

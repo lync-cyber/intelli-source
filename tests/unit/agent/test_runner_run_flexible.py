@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
 
-from intellisource.agent.pipeline import PipelineConfig
 from intellisource.agent.runner import AgentRunner
+from intellisource.config.pipeline_models import PipelineConfig
 from intellisource.llm.gateway import LLMResult
 
 # ---------------------------------------------------------------------------

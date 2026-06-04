@@ -11,6 +11,11 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session
+from intellisource.api.schemas.common import OperationResult
+from intellisource.api.schemas.subscriptions import (
+    SubscriptionItem,
+    SubscriptionListResponse,
+)
 from intellisource.config.subscription_loader import SubscriptionConfigLoader
 from intellisource.config.subscription_models import SubscriptionConfig
 from intellisource.config.subscription_validator import SubscriptionValidationError
@@ -74,7 +79,7 @@ def _get_service(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/subscriptions")
+@router.get("/subscriptions", response_model=SubscriptionListResponse)
 async def list_subscriptions(
     limit: int = 20,
     cursor: str | None = None,
@@ -89,7 +94,7 @@ async def list_subscriptions(
     }
 
 
-@router.get("/subscriptions/config/versions")
+@router.get("/subscriptions/config/versions", response_model=OperationResult)
 async def list_subscription_versions(
     limit: int = 20,
     service: SubscriptionService = Depends(_get_service),
@@ -99,7 +104,7 @@ async def list_subscription_versions(
     return {"versions": await service.list_versions(limit=limit)}
 
 
-@router.get("/subscriptions/config/diff")
+@router.get("/subscriptions/config/diff", response_model=OperationResult)
 async def diff_subscription_config(
     service: SubscriptionService = Depends(_get_service),
 ) -> dict[str, Any]:
@@ -114,7 +119,7 @@ async def diff_subscription_config(
     return await service.diff_with_yaml(configs)
 
 
-@router.get("/subscriptions/{id}")
+@router.get("/subscriptions/{id}", response_model=SubscriptionItem)
 async def get_subscription(
     id: uuid.UUID,
     service: SubscriptionService = Depends(_get_service),
@@ -125,7 +130,11 @@ async def get_subscription(
     return _serialize(obj)
 
 
-@router.post("/subscriptions", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/subscriptions",
+    status_code=status.HTTP_201_CREATED,
+    response_model=SubscriptionItem,
+)
 async def create_subscription(
     body: SubscriptionConfig,
     service: SubscriptionService = Depends(_get_service),
@@ -137,7 +146,7 @@ async def create_subscription(
     return _serialize(created)
 
 
-@router.patch("/subscriptions/{id}")
+@router.patch("/subscriptions/{id}", response_model=SubscriptionItem)
 async def update_subscription(
     id: uuid.UUID,
     body: SubscriptionPatchRequest,
@@ -166,7 +175,7 @@ async def delete_subscription(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/subscriptions/reload")
+@router.post("/subscriptions/reload", response_model=OperationResult)
 async def reload_subscriptions(
     service: SubscriptionService = Depends(_get_service),
 ) -> dict[str, Any]:
@@ -187,7 +196,7 @@ async def reload_subscriptions(
     return result
 
 
-@router.post("/subscriptions/config/rollback/{version}")
+@router.post("/subscriptions/config/rollback/{version}", response_model=OperationResult)
 async def rollback_subscription_config(
     version: str,
     service: SubscriptionService = Depends(_get_service),

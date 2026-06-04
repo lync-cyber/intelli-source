@@ -31,6 +31,8 @@ Public surface:
 
 from __future__ import annotations
 
+import asyncio
+import concurrent.futures
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -39,9 +41,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
 )
 
-from intellisource.agent.pipeline import PipelineConfig
 from intellisource.agent.runner import AgentRunner
-from intellisource.agent.tools import load_pipeline_config
 from intellisource.collector.adapters.api import APICollector
 from intellisource.collector.adapters.rss import RSSCollector
 from intellisource.collector.adapters.web import WebCollector
@@ -49,6 +49,7 @@ from intellisource.collector.adaptive import AdaptiveScheduler
 from intellisource.collector.proxy import ProxyManager
 from intellisource.collector.rate_limiter import RateLimiter
 from intellisource.collector.registry import CollectorRegistry
+from intellisource.config.pipeline_models import PipelineConfig
 from intellisource.core.errors import ErrorCategory, IntelliSourceError
 from intellisource.core.settings import get_settings
 from intellisource.distributor.channels.email import EmailDistributor
@@ -60,7 +61,13 @@ from intellisource.llm.circuit_breaker import CircuitBreaker
 from intellisource.llm.gateway import LLMGateway
 from intellisource.llm.priority_queue import PriorityQueue
 from intellisource.observability.logging import get_logger
+from intellisource.pipeline.definition_service import (
+    PipelineDefinitionService,
+    load_pipeline_config,
+)
 from intellisource.search.hybrid import HybridSearchEngine
+from intellisource.source.service import SourceConfigService
+from intellisource.subscription.service import SubscriptionService
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -295,19 +302,60 @@ def get_agent_runner_holder() -> AgentRunnerHolder:
 # ---------------------------------------------------------------------------
 
 
+def _run_coro_sync(coro: Any) -> Any:
+    """Run *coro* to completion from a synchronous caller (e.g. a Celery task).
+
+    Mirrors ``scheduler.tasks._run_sync``: uses a worker thread when an event
+    loop is already running so the sync ``PipelineLoader.load`` is safe to call
+    from either a plain worker process or (defensively) an async context.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    if loop and loop.is_running():
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            return pool.submit(asyncio.run, coro).result()
+    return asyncio.run(coro)
+
+
 class PipelineLoader:
-    """Resolve a pipeline yaml name to a `PipelineConfig` instance.
+    """Resolve a pipeline name to a `PipelineConfig`, database-first.
+
+    The database is the system of record. When a name is absent from the DB
+    (or the DB is unreachable), falls back to the YAML seed file so the worker
+    can still resolve the shipped pipelines before/without a seed pass.
 
     Holds a stable, mockable dependency so `CeleryTasks.run_pipeline` can be
     injected with it instead of a free function.
     """
 
+    def __init__(self, session_factory: Any) -> None:
+        self._session_factory = session_factory
+
     def load(self, name: str) -> PipelineConfig:
+        config: PipelineConfig | None = _run_coro_sync(self._load_from_db(name))
+        if config is not None:
+            return config
         return load_pipeline_config(name)
 
+    async def _load_from_db(self, name: str) -> PipelineConfig | None:
+        if self._session_factory is None:
+            return None
+        try:
+            async with self._session_factory() as session:
+                return await PipelineDefinitionService(session).load(name)
+        except Exception as exc:  # noqa: BLE001 — fall back to YAML on any DB error
+            _logger.warning(
+                "DB pipeline load failed for %r; falling back to yaml seed: %s",
+                name,
+                exc,
+            )
+            return None
 
-def build_pipeline_loader() -> PipelineLoader:
-    return PipelineLoader()
+
+def build_pipeline_loader(session_factory: Any) -> PipelineLoader:
+    return PipelineLoader(session_factory)
 
 
 @dataclass
@@ -362,6 +410,9 @@ def _install_agent_runner(session_factory: Any, bundle: _DepsBundle) -> AgentRun
         collector_registry=bundle.collector_registry,
         distributor=bundle.distributor,
         search_engine_factory=bundle.search_engine_factory,
+        source_service_factory=lambda session: SourceConfigService(session),
+        subscription_service_factory=lambda session: SubscriptionService(session),
+        pipeline_service_factory=lambda session: PipelineDefinitionService(session),
     )
     _global_agent_runner_holder.install(runner)
     return runner
@@ -394,7 +445,7 @@ def build_worker_composition(
         session_factory, redis_client, celery_app=_worker_celery_app
     )
     agent_runner = _install_agent_runner(session_factory, bundle)
-    pipeline_loader = build_pipeline_loader()
+    pipeline_loader = build_pipeline_loader(session_factory)
 
     # Wire the periodic-digest runner onto the shared Celery app so the
     # ``assemble_daily_weekly_digests`` beat task can reach it. It reuses the
@@ -455,7 +506,7 @@ def build_api_composition(
         session_factory, redis_client, celery_app=_api_celery_app
     )
     agent_runner = _install_agent_runner(session_factory, bundle)
-    pipeline_loader = build_pipeline_loader()
+    pipeline_loader = build_pipeline_loader(session_factory)
 
     app.state.llm_gateway = bundle.llm_gateway
     app.state.pipeline_loader = pipeline_loader

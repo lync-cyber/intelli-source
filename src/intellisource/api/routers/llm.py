@@ -9,6 +9,8 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session, require_api_key
+from intellisource.api.schemas.common import OperationResult
+from intellisource.api.schemas.observability import LLMStatusResponse
 from intellisource.observability.logging import get_logger
 from intellisource.storage.repositories.llm_call_log import LLMCallLogRepository
 
@@ -17,7 +19,7 @@ logger = get_logger(__name__)
 router = APIRouter(tags=["llm"])
 
 
-@router.get("/llm/stats")
+@router.get("/llm/stats", response_model=OperationResult)
 async def llm_stats(
     period: str = "day",
     model: str | None = None,
@@ -73,7 +75,7 @@ async def get_llm_gateway_status(request: Request) -> dict[str, Any]:
     }
 
 
-@router.get("/llm/status")
+@router.get("/llm/status", response_model=LLMStatusResponse)
 async def llm_status(
     request: Request,
     _: str = Depends(require_api_key),

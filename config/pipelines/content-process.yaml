@@ -1,6 +1,5 @@
 name: content-process
 mode: batch
-system_prompt: content_process
 max_steps: 20
 on_failure: skip
 tools_allowed:

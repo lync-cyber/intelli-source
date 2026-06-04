@@ -13,14 +13,17 @@ from fastapi import FastAPI, Request
 from fastapi.responses import PlainTextResponse
 from starlette.types import Receive, Scope, Send
 
+from intellisource.api.errors import install_exception_handlers
 from intellisource.api.middleware import (
     AuthMiddleware,
     RequestLoggerMiddleware,
     TracingMiddleware,
 )
+from intellisource.api.openapi import install_openapi
 from intellisource.api.routers import (
     clusters,
     contents,
+    distribution,
     llm,
     pipelines,
     search,
@@ -31,11 +34,13 @@ from intellisource.api.routers import (
     topics,
     webhooks,
 )
+from intellisource.api.schemas.observability import HealthResponse
 from intellisource.composition import build_api_composition
 from intellisource.config.loader import ConfigLoader, ConfigWatcher
 from intellisource.config.validator import ConfigValidator
 from intellisource.core.settings import get_settings, load_provider_env
 from intellisource.observability.logging import get_logger, setup_logging
+from intellisource.pipeline.definition_service import PipelineDefinitionService
 from intellisource.storage.database import DatabaseManager
 from intellisource.storage.repositories.source import SourceRepository
 
@@ -186,6 +191,22 @@ def _collect_startup_warnings() -> list[str]:
     return warnings
 
 
+async def _seed_pipeline_definitions(db: DatabaseManager) -> None:
+    """Import YAML pipeline seeds into the DB (system of record) on startup.
+
+    Idempotent and non-destructive (see ``PipelineDefinitionService.seed_from_yaml``).
+    A failure here must not abort startup — the worker run path falls back to
+    the YAML seed files when a definition is absent from the database.
+    """
+    try:
+        async with db.get_session() as session:
+            created = await PipelineDefinitionService(session).seed_from_yaml()
+        if created:
+            logger.info("seeded %d pipeline definition(s) from yaml", created)
+    except Exception:
+        logger.exception("pipeline seed_from_yaml failed; continuing startup")
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[dict[str, Any]]:
     """Manage application startup and shutdown."""
@@ -221,6 +242,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[dict[str, Any]]:
         # .pipeline_loader, and .agent_runner.
         build_api_composition(app, db, _redis_client)
         _config_version_manager = getattr(app.state, "config_version_manager", None)
+        await _seed_pipeline_definitions(db)
         yield {}
     finally:
         await watcher.stop()
@@ -292,6 +314,11 @@ def create_app() -> FastAPI:
         lifespan=_lifespan,
     )
 
+    # Standard error envelope for domain + unhandled errors; X-API-Key surfaced
+    # as an OpenAPI security scheme (enforcement stays in AuthMiddleware).
+    install_exception_handlers(app)
+    install_openapi(app)
+
     # Register middleware (order matters: last added = outermost)
     app.add_middleware(TracingMiddleware)
     app.add_middleware(RequestLoggerMiddleware)
@@ -309,13 +336,14 @@ def create_app() -> FastAPI:
     app.include_router(webhooks.router, prefix="/api/v1")
     app.include_router(pipelines.router, prefix="/api/v1")
     app.include_router(topics.router, prefix="/api/v1")
+    app.include_router(distribution.router, prefix="/api/v1")
 
     # Health endpoints (root-level + API-versioned per AC-T042-6)
-    @app.get("/health")
+    @app.get("/health", response_model=HealthResponse)
     async def health_root(request: Request) -> dict[str, Any]:
         return await system.health_payload(request)
 
-    @app.get("/api/v1/health")
+    @app.get("/api/v1/health", response_model=HealthResponse)
     async def health_v1(request: Request) -> dict[str, Any]:
         return await system.health_payload(request)
 

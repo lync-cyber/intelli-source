@@ -894,9 +894,9 @@ class TestRunFlexibleForwardsToolDeps:
     async def test_run_flexible_forwards_tool_deps_to_execute(self) -> None:
         """tool_deps passed to run_flexible must reach the tool execute function."""
         from intellisource.agent.deps import ToolDeps
-        from intellisource.agent.pipeline import PipelineConfig
         from intellisource.agent.runner import AgentRunner
         from intellisource.agent.tools import AgentToolRegistry
+        from intellisource.config.pipeline_models import PipelineConfig
         from intellisource.llm.gateway import LLMResult
 
         captured_deps: list[Any] = []
@@ -984,9 +984,9 @@ class TestRunFlexibleForwardsToolDeps:
     async def test_run_flexible_uses_instance_tool_deps_as_fallback(self) -> None:
         """When run_flexible is called without tool_deps, self._tool_deps is used."""
         from intellisource.agent.deps import ToolDeps
-        from intellisource.agent.pipeline import PipelineConfig
         from intellisource.agent.runner import AgentRunner
         from intellisource.agent.tools import AgentToolRegistry
+        from intellisource.config.pipeline_models import PipelineConfig
         from intellisource.llm.gateway import LLMResult
 
         captured_deps: list[Any] = []

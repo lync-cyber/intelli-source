@@ -1,0 +1,44 @@
+name: Arch Graph
+
+# Standalone from ci.yml so it never registers as a pull_request check: pydeps
+# rendering is slow and the SVG is a human-inspection artifact, not a merge gate.
+on:
+  schedule:
+    # Nightly dependency graph snapshot (UTC 02:00).
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  arch-graph:
+    name: Dependency Graph Snapshot
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install graphviz
+        run: sudo apt-get update && sudo apt-get install -y graphviz
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Render dependency graph
+        run: |
+          mkdir -p docs/arch
+          uv run pydeps src/intellisource \
+            --max-bacon=2 --cluster --noshow \
+            -o docs/arch/deps-graph.svg
+
+      - name: Upload graph artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-graph
+          path: docs/arch/deps-graph.svg

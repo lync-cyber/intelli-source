@@ -1,7 +1,10 @@
-"""Pipeline configuration for agent execution.
+"""PipelineConfig value object for agent pipeline execution.
 
-Parses YAML/dict pipeline configs with mode, steps,
-tools_allowed/denied, max_steps, and on_failure strategy.
+Parses YAML/dict pipeline definitions with mode, steps,
+tools_allowed/denied, max_steps, and on_failure strategy. Lives in the
+cross-cutting ``config`` layer so storage repositories, domain services,
+agent execution and API adapters can all reference one canonical type
+without any layer depending upward.
 """
 
 from __future__ import annotations

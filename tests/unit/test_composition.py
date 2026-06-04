@@ -100,7 +100,7 @@ class TestPipelineLoader:
         """AC-2: PipelineLoader instance has a load() method."""
         from intellisource.composition import PipelineLoader  # type: ignore[import]
 
-        loader = PipelineLoader()
+        loader = PipelineLoader(None)
         assert hasattr(loader, "load")
         assert callable(loader.load)
 
@@ -110,15 +110,15 @@ class TestPipelineLoader:
         Patch the name bound in `composition` (it imports load_pipeline_config
         at module load), not the origin in agent.tools.
         """
-        from intellisource.agent.pipeline import PipelineConfig
         from intellisource.composition import PipelineLoader  # type: ignore[import]
+        from intellisource.config.pipeline_models import PipelineConfig
 
         mock_config = MagicMock(spec=PipelineConfig)
         with patch(
             "intellisource.composition.load_pipeline_config",
             return_value=mock_config,
         ) as mock_fn:
-            loader = PipelineLoader()
+            loader = PipelineLoader(None)
             result = loader.load("scheduled-collect")
 
         mock_fn.assert_called_once_with("scheduled-collect")
@@ -126,10 +126,10 @@ class TestPipelineLoader:
 
     def test_pipeline_loader_load_returns_pipeline_config(self) -> None:
         """AC-2: PipelineLoader.load('scheduled-collect') returns a PipelineConfig."""
-        from intellisource.agent.pipeline import PipelineConfig
         from intellisource.composition import PipelineLoader  # type: ignore[import]
+        from intellisource.config.pipeline_models import PipelineConfig
 
-        loader = PipelineLoader()
+        loader = PipelineLoader(None)
         result = loader.load("scheduled-collect")
 
         assert isinstance(result, PipelineConfig), (
@@ -137,13 +137,13 @@ class TestPipelineLoader:
         )
 
     def test_build_pipeline_loader_returns_pipeline_loader_instance(self) -> None:
-        """AC-2: build_pipeline_loader() returns a PipelineLoader instance."""
+        """AC-2: build_pipeline_loader(None) returns a PipelineLoader instance."""
         from intellisource.composition import (  # type: ignore[import]
             PipelineLoader,
             build_pipeline_loader,
         )
 
-        loader = build_pipeline_loader()
+        loader = build_pipeline_loader(None)
         assert isinstance(loader, PipelineLoader)
 
 
@@ -516,7 +516,7 @@ class TestRunPipelineNoAttributeError:
         from intellisource.composition import PipelineLoader  # type: ignore[import]
         from intellisource.scheduler.tasks import CeleryTasks
 
-        loader = PipelineLoader()
+        loader = PipelineLoader(None)
         mock_runner = MagicMock()
         mock_runner.execute.return_value = {"status": "ok"}
 
@@ -548,7 +548,7 @@ class TestRunPipelineNoAttributeError:
         """AC-7: tasks.py reads config.mode (attribute), not config.get(...)."""
         from intellisource.composition import PipelineLoader  # type: ignore[import]
 
-        loader = PipelineLoader()
+        loader = PipelineLoader(None)
         config = loader.load("scheduled-collect")
 
         # Verify config.mode is accessible as an attribute (not .get())
@@ -561,7 +561,7 @@ class TestRunPipelineNoAttributeError:
         """AC-7: tasks.py uses config.steps (attribute), not config.get('steps')."""
         from intellisource.composition import PipelineLoader  # type: ignore[import]
 
-        loader = PipelineLoader()
+        loader = PipelineLoader(None)
         config = loader.load("scheduled-collect")
 
         assert hasattr(config, "steps"), "PipelineConfig must have .steps property"

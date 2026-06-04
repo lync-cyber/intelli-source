@@ -1,50 +1,33 @@
-"""Pipelines API router (AC-T099-1/2/3): list, detail, run."""
+"""Pipelines API router: list / detail / run — thin shell over the service."""
 
 from __future__ import annotations
 
-import re
-from pathlib import Path
 from typing import Any
 
-import yaml
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from intellisource.agent.pipeline import PipelineConfig
-from intellisource.agent.tools import _PIPELINES_DIR as _SHARED_PIPELINES_DIR
-from intellisource.agent.tools import load_pipeline_config
-from intellisource.core.encoding import read_text
+from intellisource.api.deps import get_db_session
+from intellisource.api.schemas.pipelines import (
+    PipelineDetail,
+    PipelineRunResponse,
+    PipelineSummary,
+)
+from intellisource.config.pipeline_models import PipelineConfig
 from intellisource.observability.logging import get_logger
+from intellisource.pipeline.definition_service import PipelineDefinitionService
 from intellisource.scheduler.dispatch import send_task_with_trace
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/pipelines", tags=["pipelines"])
 
-_PIPELINES_DIR: Path = _SHARED_PIPELINES_DIR
-_PIPELINES_ROOT: Path = _PIPELINES_DIR.resolve()
-_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 
-
-def _resolve_pipeline_path(name: str) -> Path:
-    """Resolve a pipeline name to its YAML path or raise 404.
-
-    Rejects any name containing path-traversal characters, then verifies
-    the resolved path stays under `_PIPELINES_DIR`. The 404 response is
-    intentionally indistinguishable from "file not found" so the endpoint
-    does not leak whether a sibling directory exists.
-    """
-    if not _NAME_PATTERN.fullmatch(name):
-        raise HTTPException(status_code=404, detail=f"pipeline '{name}' not found")
-    candidate = (_PIPELINES_DIR / f"{name}.yaml").resolve()
-    try:
-        under_root = candidate.is_relative_to(_PIPELINES_ROOT)
-    except AttributeError:
-        # Python < 3.9 fallback (project requires 3.11+, kept for clarity)
-        under_root = str(candidate).startswith(str(_PIPELINES_ROOT))
-    if not candidate.is_file() or not under_root:
-        raise HTTPException(status_code=404, detail=f"pipeline '{name}' not found")
-    return candidate
+def _get_service(
+    session: AsyncSession = Depends(get_db_session),
+) -> PipelineDefinitionService:
+    return PipelineDefinitionService(session)
 
 
 class PipelineRunRequest(BaseModel):
@@ -53,36 +36,35 @@ class PipelineRunRequest(BaseModel):
     params: dict[str, Any] | None = None
 
 
-def _config_summary(name: str, raw: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "name": name,
-        "mode": raw.get("mode", "strict"),
-        "max_steps": raw.get("max_steps", 0),
-        "tools_allowed": raw.get("tools_allowed", []),
-    }
+class PipelineWriteRequest(BaseModel):
+    """Create/replace body for POST /pipelines (idempotent upsert by name)."""
+
+    name: str
+    mode: str = "flexible"
+    steps: list[dict[str, Any]] = []
+    max_steps: int = 50
+    on_failure: str = "abort"
+    tools_allowed: list[str] = []
+    tools_denied: list[str] = []
+    system_prompt: str | None = None
+    max_tokens_budget: int | None = None
+    agent_mode: str = "process"
+    tool_permissions: dict[str, str] = {}
 
 
-def _list_pipeline_files() -> list[Path]:
-    if not _PIPELINES_DIR.is_dir():
-        return []
-    return sorted(_PIPELINES_DIR.glob("*.yaml"))
+class PipelinePatchRequest(BaseModel):
+    """Partial-update body for PATCH /pipelines/{name} (name is immutable)."""
 
-
-@router.get("")
-async def list_pipelines() -> list[dict[str, Any]]:
-    """Return summary of every YAML in config/pipelines/."""
-    summaries: list[dict[str, Any]] = []
-    for path in _list_pipeline_files():
-        try:
-            raw = yaml.safe_load(read_text(path)) or {}
-        except yaml.YAMLError:
-            logger.warning("Skipping malformed pipeline YAML: %s", path)
-            continue
-        if not isinstance(raw, dict):
-            logger.warning("Skipping pipeline YAML with non-mapping root: %s", path)
-            continue
-        summaries.append(_config_summary(path.stem, raw))
-    return summaries
+    mode: str | None = None
+    steps: list[dict[str, Any]] | None = None
+    max_steps: int | None = None
+    on_failure: str | None = None
+    tools_allowed: list[str] | None = None
+    tools_denied: list[str] | None = None
+    system_prompt: str | None = None
+    max_tokens_budget: int | None = None
+    agent_mode: str | None = None
+    tool_permissions: dict[str, str] | None = None
 
 
 def _pipeline_to_dict(config: PipelineConfig) -> dict[str, Any]:
@@ -98,20 +80,40 @@ def _pipeline_to_dict(config: PipelineConfig) -> dict[str, Any]:
     }
 
 
-@router.get("/{name}")
-async def get_pipeline(name: str) -> dict[str, Any]:
+@router.get("", response_model=list[PipelineSummary])
+async def list_pipelines(
+    service: PipelineDefinitionService = Depends(_get_service),
+) -> list[dict[str, Any]]:
+    """Return a summary of every persisted pipeline definition."""
+    return await service.list_summaries()
+
+
+@router.get("/{name}", response_model=PipelineDetail)
+async def get_pipeline(
+    name: str,
+    service: PipelineDefinitionService = Depends(_get_service),
+) -> dict[str, Any]:
     """Return the parsed PipelineConfig for *name* or 404 if absent."""
-    _resolve_pipeline_path(name)
-    config = load_pipeline_config(name)
+    config = await service.get(name)
+    if config is None:
+        raise HTTPException(status_code=404, detail=f"pipeline '{name}' not found")
     return _pipeline_to_dict(config)
 
 
-@router.post("/{name}/run")
+@router.post("/{name}/run", response_model=PipelineRunResponse)
 async def run_pipeline(
-    name: str, body: PipelineRunRequest, request: Request
+    name: str,
+    body: PipelineRunRequest,
+    request: Request,
+    service: PipelineDefinitionService = Depends(_get_service),
 ) -> dict[str, Any]:
-    """Trigger a Celery `run_pipeline` task for the named pipeline."""
-    _resolve_pipeline_path(name)
+    """Trigger a Celery `run_pipeline` task for the named pipeline.
+
+    The pipeline must exist (DB-backed) before dispatch, so an unknown or
+    path-traversal name is rejected with 404 and never reaches the broker.
+    """
+    if await service.get(name) is None:
+        raise HTTPException(status_code=404, detail=f"pipeline '{name}' not found")
 
     celery_instance = getattr(request.app.state, "celery_app", None)
     if celery_instance is None:
@@ -123,3 +125,44 @@ async def run_pipeline(
         celery_instance=celery_instance,
     )
     return {"task_id": str(getattr(result, "id", result))}
+
+
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=PipelineDetail)
+async def create_pipeline(
+    body: PipelineWriteRequest,
+    service: PipelineDefinitionService = Depends(_get_service),
+) -> dict[str, Any]:
+    """Create or replace a pipeline definition (idempotent upsert by name)."""
+    try:
+        config = PipelineConfig.from_dict(body.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _pipeline_to_dict(await service.create(config))
+
+
+@router.patch("/{name}", response_model=PipelineDetail)
+async def update_pipeline(
+    name: str,
+    body: PipelinePatchRequest,
+    service: PipelineDefinitionService = Depends(_get_service),
+) -> dict[str, Any]:
+    """Partial-update a pipeline definition; 404 if absent, 422 if invalid."""
+    fields = body.model_dump(exclude_unset=True)
+    try:
+        updated = await service.update(name, fields)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if updated is None:
+        raise HTTPException(status_code=404, detail=f"pipeline '{name}' not found")
+    return _pipeline_to_dict(updated)
+
+
+@router.delete("/{name}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_pipeline(
+    name: str,
+    service: PipelineDefinitionService = Depends(_get_service),
+) -> Response:
+    """Delete a pipeline definition; 404 if absent."""
+    if not await service.delete(name):
+        raise HTTPException(status_code=404, detail=f"pipeline '{name}' not found")
+    return Response(status_code=204)

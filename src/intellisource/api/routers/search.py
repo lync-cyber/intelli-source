@@ -15,7 +15,6 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.agent.response_utils import extract_answer
-from intellisource.agent.tools import load_pipeline_config
 from intellisource.api.deps import get_db_session
 from intellisource.api.schemas.search import (
     ChatSearchRequest,
@@ -23,6 +22,8 @@ from intellisource.api.schemas.search import (
     ChatSource,
 )
 from intellisource.observability.logging import get_logger
+from intellisource.pipeline.definition_service import load_pipeline_config
+from intellisource.search.chat_session import ChatSessionManager
 from intellisource.search.hybrid import HybridSearchEngine, SearchResponse
 
 logger = get_logger(__name__)
@@ -31,6 +32,7 @@ router = APIRouter(tags=["search"])
 
 _CHAT_CHANNEL_API: str = "api"
 _MAX_HISTORY_TURNS: int = 10
+_CHAT_COMPACT_TOKEN_BUDGET: int = 6000
 
 
 # ---------------------------------------------------------------------------
@@ -127,7 +129,7 @@ def _extract_sources(flex_result: dict[str, Any]) -> list[ChatSource]:
     return sources
 
 
-@router.post("/search/chat")
+@router.post("/search/chat", response_model=ChatSearchResponse)
 async def chat_search(
     request: Request,
     body: ChatSearchRequest,
@@ -166,7 +168,10 @@ async def chat_search(
     if stored_session is not None:
         history_messages = (stored_session.context or {}).get("messages")
         if isinstance(history_messages, list) and "messages" not in session_payload:
-            session_payload["messages"] = history_messages[-_MAX_HISTORY_TURNS:]
+            compacted = await _compact_history(
+                request, stored_session, history_messages, body.max_tokens_budget
+            )
+            session_payload["messages"] = compacted[-_MAX_HISTORY_TURNS:]
 
     config = load_pipeline_config("instant-search")
     start = time.monotonic()
@@ -329,3 +334,28 @@ async def _persist_chat_turn(
         except Exception:
             logger.exception("ChatSession rollback also failed")
     return session_id
+
+
+async def _compact_history(
+    request: Request,
+    stored_session: Any,
+    history_messages: list[dict[str, Any]],
+    max_tokens_budget: int | None,
+) -> list[dict[str, Any]]:
+    """Compact stored chat history via ChatSessionManager before replay.
+
+    A history over the token budget is LLM-summarized (or truncated when no
+    gateway is configured) instead of hard-sliced, so older context survives.
+    Returns the (possibly compacted) message list; falls back to the raw history
+    on any error.
+    """
+    budget = max_tokens_budget or _CHAT_COMPACT_TOKEN_BUDGET
+    gateway = getattr(request.app.state, "llm_gateway", None)
+    manager = ChatSessionManager(session=None, llm_gateway=gateway)
+    try:
+        await manager.maybe_compact(stored_session, max_tokens=budget)
+    except Exception:
+        logger.exception("chat history compaction failed; using raw history")
+        return history_messages
+    compacted = (stored_session.context or {}).get("messages")
+    return compacted if isinstance(compacted, list) else history_messages

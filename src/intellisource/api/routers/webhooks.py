@@ -11,9 +11,9 @@ from fastapi import APIRouter, Request, Response
 from fastapi.responses import PlainTextResponse
 
 from intellisource.agent.response_utils import extract_answer
-from intellisource.agent.tools import load_pipeline_config
 from intellisource.api.webhook_crypto import WeComCrypto, WeComCryptoError
 from intellisource.observability.logging import get_logger
+from intellisource.pipeline.definition_service import load_pipeline_config
 
 logger = get_logger(__name__)
 
