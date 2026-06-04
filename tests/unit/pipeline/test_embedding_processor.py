@@ -146,7 +146,7 @@ class TestFactoryInjectsLLMGateway:
         from intellisource.agent.factory import (  # noqa: PLC0415
             _build_processors_from_config,
         )
-        from intellisource.agent.pipeline import PipelineConfig  # noqa: PLC0415
+        from intellisource.config.pipeline_models import PipelineConfig  # noqa: PLC0415
         from intellisource.pipeline.processors.embedder import (  # noqa: PLC0415
             EmbeddingProcessor,
         )
@@ -169,7 +169,7 @@ class TestFactoryInjectsLLMGateway:
         from intellisource.agent.factory import (  # noqa: PLC0415
             _build_processors_from_config,
         )
-        from intellisource.agent.pipeline import PipelineConfig  # noqa: PLC0415
+        from intellisource.config.pipeline_models import PipelineConfig  # noqa: PLC0415
         from intellisource.pipeline.processors.embedder import (  # noqa: PLC0415
             EmbeddingProcessor,
         )

@@ -18,8 +18,8 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 from intellisource.agent.events import PipelineEventLogger
-from intellisource.agent.pipeline import PipelineConfig
 from intellisource.agent.runner import AgentRunner
+from intellisource.config.pipeline_models import PipelineConfig
 from intellisource.llm.gateway import LLMResult
 
 

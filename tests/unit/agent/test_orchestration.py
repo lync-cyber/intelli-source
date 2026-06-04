@@ -14,9 +14,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from intellisource.agent.pipeline import PipelineConfig
 from intellisource.agent.runner import AgentRunner
 from intellisource.agent.tools import AgentToolRegistry
+from intellisource.config.pipeline_models import PipelineConfig
 from intellisource.llm.gateway import LLMResult
 
 # ---------------------------------------------------------------------------

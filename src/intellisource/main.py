@@ -36,6 +36,7 @@ from intellisource.config.loader import ConfigLoader, ConfigWatcher
 from intellisource.config.validator import ConfigValidator
 from intellisource.core.settings import get_settings, load_provider_env
 from intellisource.observability.logging import get_logger, setup_logging
+from intellisource.pipeline.definition_service import PipelineDefinitionService
 from intellisource.storage.database import DatabaseManager
 from intellisource.storage.repositories.source import SourceRepository
 
@@ -186,6 +187,22 @@ def _collect_startup_warnings() -> list[str]:
     return warnings
 
 
+async def _seed_pipeline_definitions(db: DatabaseManager) -> None:
+    """Import YAML pipeline seeds into the DB (system of record) on startup.
+
+    Idempotent and non-destructive (see ``PipelineDefinitionService.seed_from_yaml``).
+    A failure here must not abort startup — the worker run path falls back to
+    the YAML seed files when a definition is absent from the database.
+    """
+    try:
+        async with db.get_session() as session:
+            created = await PipelineDefinitionService(session).seed_from_yaml()
+        if created:
+            logger.info("seeded %d pipeline definition(s) from yaml", created)
+    except Exception:
+        logger.exception("pipeline seed_from_yaml failed; continuing startup")
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[dict[str, Any]]:
     """Manage application startup and shutdown."""
@@ -221,6 +238,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[dict[str, Any]]:
         # .pipeline_loader, and .agent_runner.
         build_api_composition(app, db, _redis_client)
         _config_version_manager = getattr(app.state, "config_version_manager", None)
+        await _seed_pipeline_definitions(db)
         yield {}
     finally:
         await watcher.stop()

@@ -13,9 +13,9 @@ from typing import TYPE_CHECKING, Any, Callable
 
 import intellisource.pipeline.engine as _engine_mod
 from intellisource.agent.deps import ToolDeps
-from intellisource.agent.pipeline import PipelineConfig
 from intellisource.agent.runner import AgentRunner
 from intellisource.agent.tools import AgentToolRegistry
+from intellisource.config.pipeline_models import PipelineConfig
 from intellisource.pipeline.base import BaseProcessor
 from intellisource.pipeline.registry import get_processor
 

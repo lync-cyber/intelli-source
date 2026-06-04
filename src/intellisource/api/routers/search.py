@@ -15,7 +15,6 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.agent.response_utils import extract_answer
-from intellisource.agent.tools import load_pipeline_config
 from intellisource.api.deps import get_db_session
 from intellisource.api.schemas.search import (
     ChatSearchRequest,
@@ -23,6 +22,7 @@ from intellisource.api.schemas.search import (
     ChatSource,
 )
 from intellisource.observability.logging import get_logger
+from intellisource.pipeline.definition_service import load_pipeline_config
 from intellisource.search.hybrid import HybridSearchEngine, SearchResponse
 
 logger = get_logger(__name__)

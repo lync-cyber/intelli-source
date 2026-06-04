@@ -16,8 +16,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from intellisource.agent.pipeline import PipelineConfig
 from intellisource.agent.runner import AgentRunner, ToolDegradedError
+from intellisource.config.pipeline_models import PipelineConfig
 from intellisource.llm.gateway import LLMResult
 
 # ---------------------------------------------------------------------------

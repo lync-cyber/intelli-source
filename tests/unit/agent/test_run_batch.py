@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from intellisource.agent.pipeline import PipelineConfig
 from intellisource.agent.runner import AgentRunner
+from intellisource.config.pipeline_models import PipelineConfig
 
 
 class TestRunBatchMode:

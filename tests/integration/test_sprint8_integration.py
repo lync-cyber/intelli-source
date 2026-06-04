@@ -25,7 +25,7 @@ def _flexible_config_with_mode_and_perms(
     agent_mode: str,
     tool_permissions: dict[str, str],
 ) -> Any:
-    from intellisource.agent.pipeline import PipelineConfig
+    from intellisource.config.pipeline_models import PipelineConfig
 
     return PipelineConfig.from_dict(
         {
@@ -231,8 +231,8 @@ class TestPipelineEventsInFlexibleMode:
     @pytest.mark.asyncio
     async def test_events_written_for_tool_call_cycle(self, tmp_path: Path) -> None:
         from intellisource.agent.events import PipelineEventLogger
-        from intellisource.agent.pipeline import PipelineConfig
         from intellisource.agent.runner import AgentRunner
+        from intellisource.config.pipeline_models import PipelineConfig
 
         event_path = tmp_path / "events.jsonl"
         logger = PipelineEventLogger(event_path)

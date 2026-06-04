@@ -391,3 +391,15 @@ forbidden_modules = [
     "intellisource.llm",
 ]
 allow_indirect_imports = true
+
+# Contract 10: Transport adapters stay thin — API routers must not reach into
+# the agent tool-execute functions directly. Both are sibling adapters over the
+# same domain services; sharing logic must go through a service, not a direct
+# router -> tool-execute import. allow_indirect_imports=true flags only DIRECT
+# edges so the legitimate api -> agent (response_utils, runner) chain is allowed.
+[[tool.importlinter.contracts]]
+name = "API routers must not import agent tool-execute functions directly"
+type = "forbidden"
+source_modules = ["intellisource.api.routers"]
+forbidden_modules = ["intellisource.agent.tools.executes"]
+allow_indirect_imports = true

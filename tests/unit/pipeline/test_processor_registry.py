@@ -119,7 +119,7 @@ class TestBuildProcessorsFromConfig:
         from intellisource.agent.factory import (
             _build_processors_from_config,  # noqa: PLC0415
         )
-        from intellisource.agent.pipeline import PipelineConfig  # noqa: PLC0415
+        from intellisource.config.pipeline_models import PipelineConfig  # noqa: PLC0415
         from intellisource.pipeline.processors.parser import HTMLParser  # noqa: PLC0415
 
         # Build a minimal PipelineConfig with one known step
@@ -151,7 +151,7 @@ class TestBuildProcessorsFromConfig:
         from intellisource.agent.factory import (
             _build_processors_from_config,  # noqa: PLC0415
         )
-        from intellisource.agent.pipeline import PipelineConfig  # noqa: PLC0415
+        from intellisource.config.pipeline_models import PipelineConfig  # noqa: PLC0415
 
         config = PipelineConfig(
             name="bad-pipe",

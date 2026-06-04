@@ -25,7 +25,10 @@ PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[3]
 ALEMBIC_DIR = PROJECT_ROOT / "alembic"
 VERSIONS_DIR = ALEMBIC_DIR / "versions"
 
-# All 11 ORM table names from models.py (E-001 through E-011)
+# Initial-schema ORM table names (E-001 through E-011). This structural test
+# guards the initial migration's create/downgrade symmetry; later entities
+# (e.g. pipelines / pipeline_steps) are verified by real-DB ORM round-trip
+# tests in test_pipeline_repository.py instead.
 EXPECTED_TABLES = [
     "sources",  # E-001
     "task_chains",  # E-008
