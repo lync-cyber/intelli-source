@@ -2,7 +2,7 @@
 
 Covers:
 - Token-based retention strategy using estimate_tokens
-- Structured summary template (compaction_summary.txt)
+- Structured summary template (compaction_summary.prompt.md)
 - Tool output priority pruning (protect last 3 tool messages)
 - Auto-trigger threshold: estimated_tokens >
   min(context_window * 0.8, context_token_budget)
@@ -104,12 +104,12 @@ class TestTokenBasedRetention:
 
 
 # ---------------------------------------------------------------------------
-# AC-T058-2: Structured summary template compaction_summary.txt
+# AC-T058-2: Structured summary template compaction_summary.prompt.md
 # ---------------------------------------------------------------------------
 
 
 class TestStructuredSummaryTemplate:
-    """compact_messages uses compaction_summary.txt (5-section template)."""
+    """compact_messages uses compaction_summary.prompt.md (5-section template)."""
 
     @pytest.mark.asyncio
     async def test_compaction_summary_template_loaded(self) -> None:
@@ -130,8 +130,8 @@ class TestStructuredSummaryTemplate:
             )
         mock_builder_cls.assert_called_once_with("compaction_summary")
 
-    def test_compaction_summary_txt_exists(self) -> None:
-        """The template file compaction_summary.txt must exist on disk."""
+    def test_compaction_summary_template_exists(self) -> None:
+        """The template file compaction_summary.prompt.md must exist on disk."""
         from pathlib import Path
 
         template_path = (
@@ -140,12 +140,12 @@ class TestStructuredSummaryTemplate:
             / "intellisource"
             / "llm"
             / "prompts"
-            / "compaction_summary.txt"
+            / "compaction_summary.prompt.md"
         )
         assert template_path.exists(), f"Template not found: {template_path}"
 
-    def test_compaction_summary_txt_has_five_sections(self) -> None:
-        """Template must have 5 section headings and {conversation_history}."""
+    def test_compaction_summary_template_has_five_sections(self) -> None:
+        """Template must have 5 section headings and {{ conversation_history }}."""
         from pathlib import Path
 
         template_path = (
@@ -154,15 +154,16 @@ class TestStructuredSummaryTemplate:
             / "intellisource"
             / "llm"
             / "prompts"
-            / "compaction_summary.txt"
+            / "compaction_summary.prompt.md"
         )
         content = template_path.read_text(encoding="utf-8")
         for section in ("goal", "context", "changes", "state", "next steps"):
             assert section in content.lower(), (
-                f"Section '{section}' missing from compaction_summary.txt"
+                f"Section '{section}' missing from compaction_summary.prompt.md"
             )
-        assert "{conversation_history}" in content, (
-            "Placeholder '{conversation_history}' missing from compaction_summary.txt"
+        assert "{{ conversation_history }}" in content, (
+            "Placeholder '{{ conversation_history }}' missing from "
+            "compaction_summary.prompt.md"
         )
 
 

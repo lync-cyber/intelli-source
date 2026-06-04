@@ -198,24 +198,27 @@ class TestPromptBuilderModelProfile:
     ModelProfile."""
 
     def test_prompt_builder_loads_base_template(self) -> None:
-        """PromptBuilder('extraction') loads the base extraction.txt template."""
+        """PromptBuilder('extraction') loads the base extraction.prompt.md template."""
         from intellisource.llm.prompt_builder import PromptBuilder
 
         pb = PromptBuilder("extraction", model="gpt-4o-mini")
+        pb.add_context("schema", "{}").add_context("body_text", "sample text")
         prompt = pb.build()
 
         assert isinstance(prompt, str)
-        assert len(prompt) > 0
+        assert "sample text" in prompt
 
     def test_prompt_builder_loads_structured_variant(self) -> None:
         """PromptBuilder with prompt_style='structured' loads
-        extraction.structured.txt."""
+        extraction.structured.prompt.md."""
         from intellisource.llm.prompt_builder import PromptBuilder
 
         pb_base = PromptBuilder("extraction", model="gpt-4o-mini")
+        pb_base.add_context("schema", "{}").add_context("body_text", "x")
         pb_variant = PromptBuilder(
             "extraction", model="gpt-4o-mini", prompt_style="structured"
         )
+        pb_variant.add_context("schema", "{}").add_context("body_text", "x")
 
         # Variant template is distinct from base template
         assert pb_base.build() != pb_variant.build()
@@ -253,6 +256,7 @@ class TestPromptBuilderModelProfile:
         from intellisource.llm.prompt_builder import PromptBuilder
 
         pb = PromptBuilder("summarizer", model="gpt-4o-mini", system_prompt="Be brief.")
+        pb.add_context("docs_text", "some clustered docs")
         messages = pb.build_messages()
 
         roles = [m["role"] for m in messages]

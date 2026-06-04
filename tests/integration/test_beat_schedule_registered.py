@@ -52,10 +52,22 @@ class TestBootstrapBeatSchedule:
             boot_mod._module_celery_app = original  # type: ignore[assignment]
 
         beat_schedule = celery_stub.conf.beat_schedule
-        assert len(beat_schedule) == 2, f"expected 2 beat entries, got {beat_schedule}"
-        for entry in beat_schedule.values():
-            assert entry["task"] == "run_pipeline"
+        # Source rows project onto one run_pipeline entry each.
+        source_entries = {
+            k: v for k, v in beat_schedule.items() if v["task"] == "run_pipeline"
+        }
+        assert len(source_entries) == 2, (
+            f"expected 2 source-derived entries, got {beat_schedule}"
+        )
+        for entry in source_entries.values():
             assert "pipeline_name" in entry["kwargs"]
+        # The periodic-digest assembler is a static system task, always scheduled
+        # alongside the DB-projected source pipelines.
+        assert "assemble_daily_weekly_digests" in beat_schedule
+        assert (
+            beat_schedule["assemble_daily_weekly_digests"]["task"]
+            == "assemble_daily_weekly_digests"
+        )
 
     def test_empty_sources_table_logs_warning(self) -> None:
         from structlog.testing import capture_logs
@@ -85,7 +97,11 @@ class TestBootstrapBeatSchedule:
         finally:
             boot_mod._module_celery_app = original  # type: ignore[assignment]
 
-        assert celery_stub.conf.beat_schedule == {}
+        # No source rows → no run_pipeline entries, but the static periodic-digest
+        # task is still scheduled.
+        beat_schedule = celery_stub.conf.beat_schedule
+        assert all(v["task"] != "run_pipeline" for v in beat_schedule.values())
+        assert "assemble_daily_weekly_digests" in beat_schedule
         warnings = [e["event"] for e in logs]
         assert any("zero scheduled tasks" in w or "empty" in w for w in warnings)
 

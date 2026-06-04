@@ -13,7 +13,7 @@ from typing import Any
 
 import litellm
 
-from intellisource.llm.prompts import _TEMPLATE_DIR, _read_template
+from intellisource.llm.prompts import _TEMPLATE_DIR, load_prompt, read_prompt_source
 from intellisource.observability.logging import get_logger
 
 logger = get_logger(__name__)
@@ -27,12 +27,12 @@ _VERSION_CACHE: dict[tuple[str, int], str] = {}
 
 
 def _resolve_template_path(call_type: str, style: str | None) -> Path:
-    """Resolve the on-disk template path matching `_read_template` lookup."""
+    """Resolve the on-disk ``.prompt.md`` path, preferring variant over base."""
     if style is not None:
-        variant = _TEMPLATE_DIR / f"{call_type}.{style}.txt"
+        variant = _TEMPLATE_DIR / f"{call_type}.{style}.prompt.md"
         if variant.exists():
             return variant
-    return _TEMPLATE_DIR / f"{call_type}.txt"
+    return _TEMPLATE_DIR / f"{call_type}.prompt.md"
 
 
 def _compute_prompt_version(path: Path) -> str:
@@ -77,23 +77,20 @@ class PromptBuilder:
         """Load template for call_type from prompts/ directory.
 
         Args:
-            call_type: Template name (without .txt extension).
+            call_type: Template name (without extension).
             model: Model identifier for token counting. Defaults to gpt-4o-mini.
             system_prompt: Optional system prompt override for build_messages().
-                If None, tries to load a sibling '{call_type}.system.txt'
+                If None, tries to load a sibling '{call_type}.system.prompt.md'
                 template; falls back to a generic default when absent.
             prompt_style: Optional variant style (e.g. ``"structured"``,
                 ``"concise"``). When provided, tries
-                ``{call_type}.{prompt_style}.txt`` first and falls back to
-                ``{call_type}.txt`` when the variant is absent.
+                ``{call_type}.{prompt_style}.prompt.md`` first and falls back to
+                ``{call_type}.prompt.md`` when the variant is absent.
 
         Raises:
             FileNotFoundError: If the base template file does not exist.
         """
-        try:
-            self._template: str = _read_template(call_type, prompt_style)
-        except FileNotFoundError:
-            raise
+        self._template: str = read_prompt_source(call_type, prompt_style)
         self._call_type: str = call_type
         self._prompt_style: str | None = prompt_style
         self._template_path: Path = _resolve_template_path(call_type, prompt_style)
@@ -123,7 +120,7 @@ class PromptBuilder:
         if override is not None:
             return override
         try:
-            return _read_template(f"{call_type}.system")
+            return read_prompt_source(f"{call_type}.system")
         except FileNotFoundError:
             return _DEFAULT_SYSTEM_PROMPT
 
@@ -173,12 +170,14 @@ class PromptBuilder:
     def build(self) -> str:
         """Build the final prompt string with all substitutions applied.
 
+        Renders through the same Jinja engine as :func:`load_prompt`, so the
+        builder and the free function produce identical output for identical
+        inputs.
+
         Returns:
-            The formatted prompt string.
+            The rendered prompt string.
         """
-        if self._context:
-            return self._template.format_map(self._context)
-        return self._template
+        return load_prompt(self._call_type, style=self._prompt_style, **self._context)
 
     def build_messages(self) -> list[dict[str, str]]:
         """Build as messages list (system + user) for chat-style calls.

@@ -1,6 +1,0 @@
-Analyze the following content and return a JSON array of relevant tags.
-If the content cannot be classified, return ["未分类"].
-{library_hint}
-
-Title: {title}
-Content: {body_text}

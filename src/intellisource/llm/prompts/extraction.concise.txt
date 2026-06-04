@@ -1,5 +1,0 @@
-Extract data from the text as JSON. Schema: {schema}
-
-Text: {body_text}
-
-JSON only, no explanation.

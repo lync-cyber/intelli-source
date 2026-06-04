@@ -5,7 +5,8 @@ required_vars:
   - title
   - summary
 ---
-你是一位资深科技 newsletter 编辑。下面是一条收录内容：
+{% include "_fragments/editor_persona.md" %}
+下面是一条收录内容：
 标题：{{ title }}
 摘要：{{ summary }}
 
