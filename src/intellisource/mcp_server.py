@@ -18,10 +18,12 @@ from mcp.server.fastmcp import FastMCP
 
 from intellisource.config.models import SourceConfig
 from intellisource.config.pipeline_models import PipelineConfig
+from intellisource.config.template_models import TemplateConfig, TemplateValidationError
 from intellisource.observability.logging import get_logger
 from intellisource.pipeline.definition_service import PipelineDefinitionService
 from intellisource.source.service import SourceConfigService
 from intellisource.subscription.service import SubscriptionService
+from intellisource.template.service import TemplateService
 
 logger = get_logger(__name__)
 
@@ -195,6 +197,87 @@ def build_mcp_server(session_factory: SessionFactory | None = None) -> FastMCP:
         except Exception as exc:
             return {"error": "dispatch_failed", "reason": str(exc)}
         return {"task_id": str(getattr(result, "id", result))}
+
+    @mcp.tool(name="list_templates", description="List custom digest templates.")
+    async def list_templates(limit: int = 20) -> list[dict[str, Any]]:
+        async with session_cm() as session:
+            result = await TemplateService(session).list_paginated(
+                limit=min(limit, 100)
+            )
+            return [
+                {
+                    "name": t.name,
+                    "base_template": t.base_template,
+                    "default_format": t.default_format,
+                    "status": t.status,
+                }
+                for t in result["items"]
+            ]
+
+    @mcp.tool(name="get_template", description="Get a custom digest template by name.")
+    async def get_template(name: str) -> dict[str, Any]:
+        async with session_cm() as session:
+            row = await TemplateService(session).get_by_name(name)
+        if row is None:
+            return {"error": "not_found", "name": name}
+        return {
+            "name": row.name,
+            "base_template": row.base_template,
+            "formats": list(row.formats),
+            "default_format": row.default_format,
+            "jinja_source": dict(row.jinja_source),
+            "aggregate_config": dict(row.aggregate_config),
+            "status": row.status,
+        }
+
+    @mcp.tool(
+        name="create_template",
+        description="Create or replace a custom digest template (upsert by name).",
+    )
+    async def create_template(
+        name: str,
+        base_template: str,
+        formats: list[str],
+        default_format: str,
+        jinja_source: dict[str, str] | None = None,
+        aggregate_config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        try:
+            cfg = TemplateConfig(
+                name=name,
+                base_template=base_template,
+                formats=formats,
+                default_format=default_format,
+                jinja_source=jinja_source or {},
+                aggregate_config=aggregate_config or {},
+            )
+        except Exception as exc:
+            return {"error": "invalid_input", "reason": str(exc)}
+        try:
+            async with session_cm() as session:
+                created = await TemplateService(session).create(cfg)
+                payload = {
+                    "name": created.name,
+                    "base_template": created.base_template,
+                    "status": created.status,
+                }
+                await session.commit()
+        except TemplateValidationError as exc:
+            return {"error": "invalid_input", "reason": str(exc)}
+        return payload
+
+    @mcp.tool(
+        name="delete_template", description="Delete a custom digest template by name."
+    )
+    async def delete_template(name: str) -> dict[str, Any]:
+        async with session_cm() as session:
+            service = TemplateService(session)
+            row = await service.get_by_name(name)
+            if row is None:
+                return {"deleted": False, "name": name}
+            await service.delete(row.id)
+            await session.commit()
+        return {"deleted": True, "name": name}
 
     return mcp
 

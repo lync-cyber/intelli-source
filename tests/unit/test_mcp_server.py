@@ -78,6 +78,10 @@ def test_registers_expected_tools() -> None:
         "create_source",
         "list_subscriptions",
         "trigger_pipeline",
+        "list_templates",
+        "get_template",
+        "create_template",
+        "delete_template",
     }
     assert expected.issubset(names)
 
@@ -119,6 +123,54 @@ async def test_create_source_invalid_url(session_factory: Any) -> None:
         await mcp.call_tool(
             "create_source",
             {"name": "bad", "type": "rss", "url": "not-a-url"},
+        )
+    )
+    assert payload["error"] == "invalid_input"
+
+
+@pytest.mark.asyncio
+async def test_create_then_get_and_delete_template(session_factory: Any) -> None:
+    mcp = build_mcp_server(session_factory=session_factory)
+    created = _parse(
+        await mcp.call_tool(
+            "create_template",
+            {
+                "name": "mcp-brief",
+                "base_template": "daily-brief",
+                "formats": ["markdown"],
+                "default_format": "markdown",
+                "jinja_source": {"markdown": "# {{ bundle.title }}"},
+            },
+        )
+    )
+    assert created["name"] == "mcp-brief"
+    assert created["base_template"] == "daily-brief"
+
+    got = _parse(await mcp.call_tool("get_template", {"name": "mcp-brief"}))
+    assert got["jinja_source"]["markdown"] == "# {{ bundle.title }}"
+
+    listed = _parse(await mcp.call_tool("list_templates", {}))
+    assert "mcp-brief" in {t["name"] for t in listed}
+
+    deleted = _parse(await mcp.call_tool("delete_template", {"name": "mcp-brief"}))
+    assert deleted["deleted"] is True
+    gone = _parse(await mcp.call_tool("get_template", {"name": "mcp-brief"}))
+    assert gone["error"] == "not_found"
+
+
+@pytest.mark.asyncio
+async def test_create_template_unknown_base_returns_error(session_factory: Any) -> None:
+    mcp = build_mcp_server(session_factory=session_factory)
+    payload = _parse(
+        await mcp.call_tool(
+            "create_template",
+            {
+                "name": "bad-tpl",
+                "base_template": "ghost",
+                "formats": ["markdown"],
+                "default_format": "markdown",
+                "jinja_source": {"markdown": "x"},
+            },
         )
     )
     assert payload["error"] == "invalid_input"

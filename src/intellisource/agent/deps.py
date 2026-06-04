@@ -31,5 +31,6 @@ class ToolDeps:
     source_service_factory: Any = None
     subscription_service_factory: Any = None
     pipeline_service_factory: Any = None
+    template_service_factory: Any = None
     task_dispatcher: Any = None
     task_chain_repo_factory: Any = None

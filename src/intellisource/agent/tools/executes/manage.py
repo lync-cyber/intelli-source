@@ -16,6 +16,7 @@ from intellisource.agent.tools.results import tool_error, tool_ok
 from intellisource.config.models import SourceConfig
 from intellisource.config.pipeline_models import PipelineConfig
 from intellisource.config.subscription_models import SubscriptionConfig
+from intellisource.config.template_models import TemplateConfig, TemplateValidationError
 from intellisource.observability.logging import get_logger
 
 logger = get_logger(__name__)
@@ -55,6 +56,15 @@ _PIPELINE_FIELDS = (
     "max_tokens_budget",
     "agent_mode",
     "tool_permissions",
+)
+_TEMPLATE_FIELDS = (
+    "name",
+    "base_template",
+    "formats",
+    "default_format",
+    "jinja_source",
+    "aggregate_config",
+    "status",
 )
 
 
@@ -316,3 +326,88 @@ async def _delete_pipeline_execute(
     except Exception as exc:
         logger.warning("delete_pipeline failed: %s", exc)
         return tool_error("delete_pipeline", str(exc), code="error")
+
+
+# ---------------------------------------------------------------------------
+# Templates (aggregation / digest templates)
+# ---------------------------------------------------------------------------
+
+
+async def _create_template_execute(
+    tool_deps: Any = None, **kwargs: Any
+) -> dict[str, Any]:
+    """Create (idempotent upsert) a custom digest template from LLM-supplied fields."""
+    factory, session_factory = _wiring(tool_deps, "template_service_factory")
+    if factory is None or session_factory is None:
+        return tool_error("create_template", "tool_deps not injected", code="not_wired")
+    try:
+        cfg = TemplateConfig(**_pick(kwargs, _TEMPLATE_FIELDS))
+    except Exception as exc:
+        return tool_error("create_template", str(exc), code="invalid_input")
+    try:
+        async with session_factory() as session:
+            created = await factory(session).create(cfg)
+            payload = {
+                "id": str(created.id),
+                "name": created.name,
+                "base_template": created.base_template,
+                "status": created.status,
+            }
+            await session.commit()
+        return tool_ok("create_template", template=payload)
+    except TemplateValidationError as exc:
+        return tool_error("create_template", str(exc), code="invalid_input")
+    except Exception as exc:
+        logger.warning("create_template failed: %s", exc)
+        return tool_error("create_template", str(exc), code="error")
+
+
+async def _list_templates_execute(
+    tool_deps: Any = None, limit: int = 20, **kwargs: Any
+) -> dict[str, Any]:
+    """List custom templates (id / name / base_template / default_format / status)."""
+    factory, session_factory = _wiring(tool_deps, "template_service_factory")
+    if factory is None or session_factory is None:
+        return tool_error("list_templates", "tool_deps not injected", code="not_wired")
+    try:
+        async with session_factory() as session:
+            result = await factory(session).list_paginated(limit=min(int(limit), 100))
+            items = [
+                {
+                    "id": str(t.id),
+                    "name": t.name,
+                    "base_template": t.base_template,
+                    "default_format": t.default_format,
+                    "status": t.status,
+                }
+                for t in result["items"]
+            ]
+        return tool_ok("list_templates", items=items, count=len(items))
+    except Exception as exc:
+        logger.warning("list_templates failed: %s", exc)
+        return tool_error("list_templates", str(exc), code="error")
+
+
+async def _delete_template_execute(
+    tool_deps: Any = None, name: str = "", **kwargs: Any
+) -> dict[str, Any]:
+    """Delete a custom template by name."""
+    factory, session_factory = _wiring(tool_deps, "template_service_factory")
+    if factory is None or session_factory is None:
+        return tool_error("delete_template", "tool_deps not injected", code="not_wired")
+    if not name:
+        return tool_error("delete_template", "name is required", code="invalid_input")
+    try:
+        async with session_factory() as session:
+            service = factory(session)
+            row = await service.get_by_name(name)
+            if row is None:
+                return tool_error(
+                    "delete_template", "template not found", code="not_found"
+                )
+            await service.delete(row.id)
+            await session.commit()
+        return tool_ok("delete_template", name=name)
+    except Exception as exc:
+        logger.warning("delete_template failed: %s", exc)
+        return tool_error("delete_template", str(exc), code="error")

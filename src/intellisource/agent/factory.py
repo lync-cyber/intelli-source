@@ -77,6 +77,7 @@ def build_agent_runner(
     source_service_factory: Any = None,
     subscription_service_factory: Any = None,
     pipeline_service_factory: Any = None,
+    template_service_factory: Any = None,
     task_dispatcher: Any = None,
     task_chain_repo_factory: Any = None,
 ) -> AgentRunner:
@@ -127,6 +128,7 @@ def build_agent_runner(
         source_service_factory=source_service_factory,
         subscription_service_factory=subscription_service_factory,
         pipeline_service_factory=pipeline_service_factory,
+        template_service_factory=template_service_factory,
         task_dispatcher=task_dispatcher,
         task_chain_repo_factory=task_chain_repo_factory,
     )

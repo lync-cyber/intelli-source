@@ -32,6 +32,7 @@ from intellisource.api.routers import (
     subscriptions,
     system,
     tasks,
+    templates,
     topics,
     webhooks,
 )
@@ -208,6 +209,23 @@ async def _seed_pipeline_definitions(db: DatabaseManager) -> None:
         logger.exception("pipeline seed_from_yaml failed; continuing startup")
 
 
+async def _hydrate_templates(db: DatabaseManager) -> None:
+    """Load active custom templates into the digest registry on startup.
+
+    Best-effort: a failure (e.g. templates table absent on a not-yet-migrated DB)
+    must not abort startup — built-in templates remain resolvable regardless.
+    """
+    from intellisource.template.service import hydrate_template_registry
+
+    try:
+        async with db.get_session() as session:
+            count = await hydrate_template_registry(session)
+        if count:
+            logger.info("hydrated %d custom template(s) into the registry", count)
+    except Exception:
+        logger.exception("template registry hydration failed; continuing startup")
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[dict[str, Any]]:
     """Manage application startup and shutdown."""
@@ -244,6 +262,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[dict[str, Any]]:
         build_api_composition(app, db, _redis_client)
         _config_version_manager = getattr(app.state, "config_version_manager", None)
         await _seed_pipeline_definitions(db)
+        await _hydrate_templates(db)
         yield {}
     finally:
         await watcher.stop()
@@ -338,6 +357,7 @@ def create_app() -> FastAPI:
     app.include_router(pipelines.router, prefix="/api/v1")
     app.include_router(topics.router, prefix="/api/v1")
     app.include_router(distribution.router, prefix="/api/v1")
+    app.include_router(templates.router, prefix="/api/v1")
     app.include_router(agent.router, prefix="/api/v1")
 
     # Health endpoints (root-level + API-versioned per AC-T042-6)

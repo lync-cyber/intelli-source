@@ -34,6 +34,7 @@ pipeline_app = typer.Typer()
 subscriptions_app = typer.Typer()
 topic_app = typer.Typer()
 config_app = typer.Typer()
+template_app = typer.Typer()
 
 app.add_typer(source_app, name="source")
 app.add_typer(task_app, name="task")
@@ -41,6 +42,7 @@ app.add_typer(pipeline_app, name="pipeline")
 app.add_typer(subscriptions_app, name="subscriptions")
 app.add_typer(topic_app, name="topic")
 app.add_typer(config_app, name="config")
+app.add_typer(template_app, name="template")
 
 
 def run() -> None:
@@ -1071,6 +1073,93 @@ def _post_json(path: str, payload: dict[str, Any]) -> httpx.Response:
     return _http(
         lambda: httpx.post(f"{_base_url()}{path}", json=payload, headers=_get_headers())
     )
+
+
+# ---------------------------------------------------------------------------
+# template command group (custom digest templates)
+# ---------------------------------------------------------------------------
+
+
+@template_app.command("list")
+def template_list(
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    """List digest templates (built-in + custom)."""
+    url = f"{_base_url()}/api/v1/templates"
+    resp = _http(lambda: httpx.get(url, headers=_get_headers()))
+    _emit(resp.json(), json_output=json_output)
+
+
+@template_app.command("show")
+def template_show(
+    name: str = typer.Argument(..., help="Template name"),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    """Show a template's detail by name (built-in or custom)."""
+    url = f"{_base_url()}/api/v1/templates/{name}"
+    resp = _http(lambda: httpx.get(url, headers=_get_headers()))
+    if resp.status_code == 404:
+        typer.echo("Not found")
+        raise typer.Exit(code=1)
+    _emit(resp.json(), json_output=json_output)
+
+
+@template_app.command("add")
+def template_add(
+    name: str = typer.Option(..., "--name", help="Template name"),
+    base_template: str = typer.Option(
+        ..., "--base", help="Built-in base template (e.g. daily-brief, push-card)"
+    ),
+    formats: str = typer.Option(
+        ..., "--formats", help="Comma-separated formats (e.g. markdown,text)"
+    ),
+    default_format: str = typer.Option(..., "--default-format", help="Default format"),
+    source: str | None = typer.Option(
+        None, "--source", help="Jinja source applied to the default format"
+    ),
+    title: str | None = typer.Option(
+        None, "--title", help="aggregate_config.title override"
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    """Create or replace a custom digest template."""
+    fmt_list = [f.strip() for f in formats.split(",") if f.strip()]
+    jinja_source: dict[str, str] = {}
+    if source is not None:
+        jinja_source[default_format] = source
+    aggregate_config: dict[str, Any] = {}
+    if title is not None:
+        aggregate_config["title"] = title
+    payload: dict[str, Any] = {
+        "name": name,
+        "base_template": base_template,
+        "formats": fmt_list,
+        "default_format": default_format,
+        "jinja_source": jinja_source,
+        "aggregate_config": aggregate_config,
+    }
+    resp = _post_json("/api/v1/templates", payload)
+    if resp.status_code >= 400:
+        try:
+            detail = resp.json().get("detail", "")
+        except Exception:
+            detail = resp.text
+        typer.echo(f"Error ({resp.status_code}): {detail}")
+        raise typer.Exit(code=1)
+    _emit(resp.json(), json_output=json_output)
+
+
+@template_app.command("rm")
+def template_rm(
+    name: str = typer.Argument(..., help="Template name"),
+) -> None:
+    """Delete a custom template by name."""
+    url = f"{_base_url()}/api/v1/templates/{name}"
+    resp = _http(lambda: httpx.delete(url, headers=_get_headers()))
+    if resp.status_code == 404:
+        typer.echo("Not found")
+        raise typer.Exit(code=1)
+    typer.echo("Deleted.")
 
 
 _RENDER_MODE_CHOICES = ("code", "llm-assisted", "llm-freeform")

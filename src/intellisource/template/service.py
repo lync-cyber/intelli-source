@@ -35,6 +35,16 @@ def _validate_base_template(name: str) -> None:
         )
 
 
+def _reject_builtin_name(name: str) -> None:
+    """Forbid a custom template name that would shadow a built-in template."""
+    from intellisource.distributor.templates import BUILTIN_TEMPLATE_NAMES
+
+    if name in BUILTIN_TEMPLATE_NAMES:
+        raise TemplateValidationError(
+            f"name {name!r} collides with a built-in template; choose another name"
+        )
+
+
 class TemplateService:
     """Business-logic facade over :class:`TemplateRepository`."""
 
@@ -59,6 +69,7 @@ class TemplateService:
     async def create(self, cfg: TemplateConfig) -> Template:
         """Validate then upsert (by name). Raises TemplateValidationError."""
         _validate_base_template(cfg.base_template)
+        _reject_builtin_name(cfg.name)
         return await self._repo.upsert(cfg)
 
     async def patch(
@@ -72,3 +83,16 @@ class TemplateService:
     async def delete(self, template_id: uuid.UUID) -> bool:
         """Hard-delete a template by id (no inbound FK; safe to remove)."""
         return await self._repo.delete(template_id)
+
+
+async def hydrate_template_registry(session: AsyncSession) -> int:
+    """Load active custom templates into the in-process digest template registry.
+
+    Called once at process startup (API lifespan + worker boot) so DB-backed
+    templates are resolvable by the synchronous distribution render path
+    alongside the built-ins. Returns the number of templates registered.
+    """
+    from intellisource.distributor.templates.db_template import register_db_templates
+
+    rows = await TemplateService(session).list_active()
+    return register_db_templates(rows)

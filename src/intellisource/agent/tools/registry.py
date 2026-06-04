@@ -27,12 +27,15 @@ from intellisource.agent.tools.executes.manage import (
     _create_pipeline_execute,
     _create_source_execute,
     _create_subscription_execute,
+    _create_template_execute,
     _delete_pipeline_execute,
     _delete_source_execute,
     _delete_subscription_execute,
+    _delete_template_execute,
     _list_pipelines_execute,
     _list_sources_execute,
     _list_subscriptions_execute,
+    _list_templates_execute,
 )
 from intellisource.agent.tools.executes.process import _process_execute
 from intellisource.agent.tools.executes.run import (
@@ -681,5 +684,57 @@ def _management_tool_defs() -> list[ToolDefinition]:
                 "required": ["task_chain_id"],
             },
             execute=_get_task_status_execute,
+        ),
+        ToolDefinition(
+            name="create_template",
+            description=(
+                "Create or update a custom digest template by name. Reuses a"
+                " built-in base_template's aggregation and supplies per-format"
+                " Jinja source."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "base_template": {
+                        "type": "string",
+                        "description": (
+                            "Built-in template to reuse aggregation from"
+                            " (e.g. daily-brief, weekly-roundup, push-card)."
+                        ),
+                    },
+                    "formats": {"type": "array", "items": {"type": "string"}},
+                    "default_format": {"type": "string"},
+                    "jinja_source": {
+                        "type": "object",
+                        "description": "Map of format -> Jinja source string.",
+                    },
+                    "aggregate_config": {"type": "object"},
+                    "status": {"type": "string", "enum": ["active", "archived"]},
+                },
+                "required": ["name", "base_template", "formats", "default_format"],
+            },
+            execute=_create_template_execute,
+            mutates_external_state=True,
+        ),
+        ToolDefinition(
+            name="list_templates",
+            description="List custom digest templates.",
+            parameters={
+                "type": "object",
+                "properties": {"limit": {"type": "integer"}},
+            },
+            execute=_list_templates_execute,
+        ),
+        ToolDefinition(
+            name="delete_template",
+            description="Delete a custom digest template by name.",
+            parameters={
+                "type": "object",
+                "properties": {"name": {"type": "string"}},
+                "required": ["name"],
+            },
+            execute=_delete_template_execute,
+            mutates_external_state=True,
         ),
     ]
