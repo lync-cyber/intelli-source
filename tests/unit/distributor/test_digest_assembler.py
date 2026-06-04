@@ -174,3 +174,78 @@ class TestEnhanceHook:
         assert enhancer.called is False
         assert result is not None
         assert "ENHANCED-INTRO" not in result.body
+
+
+class _StubRenderer:
+    """A stub freeform renderer returning a recognizable body."""
+
+    async def render(self, **kwargs: Any) -> str:
+        return "LLM-FREEFORM-BODY"
+
+
+class TestRenderMode:
+    async def test_default_mode_is_code(self) -> None:
+        result = await _assembler().assemble(
+            StubSubscription(frequency="daily"), [StubContent(id="c1", title="AI 速览")]
+        )
+        assert result is not None
+        assert result.render_mode == "code"
+        # code body comes from the Jinja template, not the freeform renderer.
+        assert "LLM-FREEFORM-BODY" not in result.body
+
+    async def test_llm_freeform_uses_renderer_and_labels_mode(self) -> None:
+        assembler = DigestAssembler(
+            frequency=FrequencyController(clock=_FixedClock()),
+            llm_renderer=_StubRenderer(),  # type: ignore[arg-type]
+        )
+        sub = StubSubscription(
+            channel="email",
+            frequency="daily",
+            channel_config={
+                "to_addr": "u@x.io",
+                "template_config": {"render_mode": "llm-freeform"},
+            },
+        )
+        result = await assembler.assemble(sub, [StubContent(id="c1", title="AI 速览")])
+        assert result is not None
+        assert result.body == "LLM-FREEFORM-BODY"
+        assert result.render_mode == "llm-freeform"
+
+    async def test_freeform_without_renderer_downgrades_to_code(self) -> None:
+        # render_mode requests freeform but no llm_renderer is wired.
+        assembler = DigestAssembler(frequency=FrequencyController(clock=_FixedClock()))
+        sub = StubSubscription(
+            channel="email",
+            frequency="daily",
+            channel_config={
+                "to_addr": "u@x.io",
+                "template_config": {"render_mode": "llm-freeform"},
+            },
+        )
+        result = await assembler.assemble(sub, [StubContent(id="c1", title="AI 速览")])
+        assert result is not None
+        assert result.render_mode == "code"
+        assert "AI 速览" in result.body
+
+    async def test_llm_assisted_enhances_then_code_renders(self) -> None:
+        enhancer = _StubEnhancer()
+        assembler = DigestAssembler(
+            frequency=FrequencyController(clock=_FixedClock()),
+            enhancer=enhancer,  # type: ignore[arg-type]
+            llm_renderer=_StubRenderer(),  # type: ignore[arg-type]
+        )
+        sub = StubSubscription(
+            channel="email",
+            frequency="daily",
+            channel_config={
+                "to_addr": "u@x.io",
+                "template_config": {"render_mode": "llm-assisted"},
+            },
+        )
+        result = await assembler.assemble(sub, [StubContent(id="c1", title="AI")])
+        assert result is not None
+        assert enhancer.called is True
+        assert result.render_mode == "llm-assisted"
+        # assisted = enhance the bundle, then code-render (not the freeform body).
+        assert result.body != "LLM-FREEFORM-BODY"
+        assert "ENHANCED-INTRO" in result.body

@@ -269,6 +269,19 @@ class TestDispatch:
         assert result.reason == "channel_unsupported"
         assert push.created == []
 
+    async def test_push_records_carry_render_mode(self) -> None:
+        """_record stamps each PushRecord with the payload's render_mode."""
+        channel = _StubChannel()
+        payload = _payload()
+        payload.render_mode = "llm-freeform"
+        disp = _dispatcher(_StubAssembler(payload), channel)
+        push, subs = _StubPushRepo(), _StubSubRepo()
+
+        await disp.dispatch(_Sub(), [object()], push_repo=push, subscription_repo=subs)
+
+        assert len(push.created) == 2
+        assert all(c.get("render_mode") == "llm-freeform" for c in push.created)
+
     async def test_channel_not_configured_marks_skipped(self) -> None:
         disp = DigestDispatcher(
             assembler=_StubAssembler(_payload(channel="wechat")),  # type: ignore[arg-type]

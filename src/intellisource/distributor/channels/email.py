@@ -120,7 +120,7 @@ class EmailDistributor(BaseDistributor):
             subscription.channel_config, default="topic-deepdive"
         )
         bundle = template.aggregate([content], tmpl_cfg)
-        rendered = template.render(bundle, "html")
+        rendered = await template.render(bundle, "html")
         html_body = rendered if isinstance(rendered, str) else str(rendered)
 
         async def attempt_fn(

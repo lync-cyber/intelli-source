@@ -83,7 +83,7 @@ class TestRegistry:
 
 
 class TestTopicDeepDive:
-    def test_html_contains_title_summary_and_source_link(self) -> None:
+    async def test_html_contains_title_summary_and_source_link(self) -> None:
         tmpl = get_template("topic-deepdive")
         bundle = tmpl.aggregate(
             [
@@ -95,24 +95,24 @@ class TestTopicDeepDive:
             ],
             {},
         )
-        html = tmpl.render(bundle, "html")
+        html = await tmpl.render(bundle, "html")
         assert "Breaking News" in html
         assert "Important summary text" in html
         assert "https://example.com/article/42" in html
         assert "href=" in html.lower()
         assert "<html" in html.lower()
 
-    def test_html_autoescapes_content(self) -> None:
+    async def test_html_autoescapes_content(self) -> None:
         tmpl = get_template("topic-deepdive")
         bundle = tmpl.aggregate([_content(title="<script>alert(1)</script>")], {})
-        html = tmpl.render(bundle, "html")
+        html = await tmpl.render(bundle, "html")
         assert "<script>alert(1)</script>" not in html
         assert "&lt;script&gt;" in html
 
-    def test_markdown_contains_title(self) -> None:
+    async def test_markdown_contains_title(self) -> None:
         tmpl = get_template("topic-deepdive")
         bundle = tmpl.aggregate([_content(title="Deep Title", summary="S")], {})
-        md = tmpl.render(bundle, "markdown")
+        md = await tmpl.render(bundle, "markdown")
         assert "Deep Title" in md
         assert isinstance(md, str)
 
@@ -123,24 +123,24 @@ class TestTopicDeepDive:
 
 
 class TestPushCard:
-    def test_markdown_contains_title_and_body(self) -> None:
+    async def test_markdown_contains_title_and_body(self) -> None:
         tmpl = get_template("push-card")
         bundle = tmpl.aggregate(
             [_content(title="Test", summary="Summary", body_text="Body")], {}
         )
-        result = tmpl.render(bundle, "markdown")
+        result = await tmpl.render(bundle, "markdown")
         assert isinstance(result, str)
         assert "Test" in result
         assert "Body" in result
 
-    def test_text_returns_string(self) -> None:
+    async def test_text_returns_string(self) -> None:
         tmpl = get_template("push-card")
         bundle = tmpl.aggregate([_content(title="Test", summary="Summary")], {})
-        result = tmpl.render(bundle, "text")
+        result = await tmpl.render(bundle, "text")
         assert isinstance(result, str)
         assert "Test" in result
 
-    def test_news_returns_list_of_articles(self) -> None:
+    async def test_news_returns_list_of_articles(self) -> None:
         tmpl = get_template("push-card")
         bundle = tmpl.aggregate(
             [
@@ -150,7 +150,7 @@ class TestPushCard:
             ],
             {},
         )
-        result = tmpl.render(bundle, "news")
+        result = await tmpl.render(bundle, "news")
         assert isinstance(result, list)
         assert len(result) >= 1
         assert result[0]["title"] == "Test"
@@ -188,13 +188,13 @@ class TestDailyBrief:
         ai_section = next(s for s in bundle.sections if s.heading == "ai")
         assert len(ai_section.items) == 3
 
-    def test_html_renders_title_and_items(self) -> None:
+    async def test_html_renders_title_and_items(self) -> None:
         tmpl = get_template("daily-brief")
         bundle = tmpl.aggregate(
             [_content(title="Item One", summary="sum", tags=["ai"])],
             {"title": "今日速览"},
         )
-        html = tmpl.render(bundle, "html")
+        html = await tmpl.render(bundle, "html")
         assert "今日速览" in html
         assert "Item One" in html
         assert "ai" in html
@@ -206,7 +206,7 @@ class TestDailyBrief:
 
 
 class TestWeeklyRoundupAndJsonFeed:
-    def test_weekly_top_picks_and_sections(self) -> None:
+    async def test_weekly_top_picks_and_sections(self) -> None:
         tmpl = get_template("weekly-roundup")
         bundle = tmpl.aggregate(
             [
@@ -217,17 +217,17 @@ class TestWeeklyRoundupAndJsonFeed:
             {"top_n": 2},
         )
         assert [i.title for i in bundle.top_picks] == ["Top1", "Top2"]
-        html = tmpl.render(bundle, "html")
+        html = await tmpl.render(bundle, "html")
         assert "Top1" in html
         assert "Rest1" in html
 
-    def test_json_feed_returns_dict_payload(self) -> None:
+    async def test_json_feed_returns_dict_payload(self) -> None:
         tmpl = get_template("json-feed")
         bundle = tmpl.aggregate(
             [_content(title="Machine", summary="readable")],
             {"title": "feed"},
         )
-        payload = tmpl.render(bundle, "json")
+        payload = await tmpl.render(bundle, "json")
         assert isinstance(payload, dict)
         assert payload["title"] == "feed"
         assert payload["sections"][0]["items"][0]["title"] == "Machine"

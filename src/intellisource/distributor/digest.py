@@ -16,6 +16,7 @@ from intellisource.distributor.digest_enhance import DigestEnhancer
 from intellisource.distributor.frequency import FrequencyController
 from intellisource.distributor.matcher import SubscriptionMatcher
 from intellisource.distributor.templates import resolve_template_for
+from intellisource.distributor.templates.renderers import Renderer
 from intellisource.observability.logging import get_logger
 
 _logger = get_logger(__name__)
@@ -35,6 +36,9 @@ _FREQUENCY_TEMPLATE: dict[str, str] = {
     "weekly": "weekly-roundup",
 }
 
+# Per-subscription render policy (template_config["render_mode"]).
+_RENDER_MODES: frozenset[str] = frozenset({"code", "llm-assisted", "llm-freeform"})
+
 
 @dataclass
 class DigestPayload:
@@ -46,6 +50,7 @@ class DigestPayload:
     body: str
     fmt: str
     content_ids: list[str] = field(default_factory=list)
+    render_mode: str = "code"
 
 
 class DigestAssembler:
@@ -57,10 +62,12 @@ class DigestAssembler:
         matcher: SubscriptionMatcher | None = None,
         frequency: FrequencyController | None = None,
         enhancer: DigestEnhancer | None = None,
+        llm_renderer: Renderer | None = None,
     ) -> None:
         self._matcher = matcher or SubscriptionMatcher()
         self._frequency = frequency or FrequencyController()
         self._enhancer = enhancer
+        self._llm_renderer = llm_renderer
 
     async def assemble(
         self, subscription: Any, contents: list[Any]
@@ -88,17 +95,25 @@ class DigestAssembler:
             default=default_template,
         )
         bundle = template.aggregate(matched, tmpl_cfg)
-        if self._enhancer is not None and tmpl_cfg.get("enhance"):
+        render_mode = self._effective_render_mode(tmpl_cfg)
+        if (
+            render_mode in ("llm-assisted", "llm-freeform")
+            and self._enhancer is not None
+        ):
             await self._enhancer.enhance(bundle)
         fmt: str = _CHANNEL_FORMAT.get(channel) or template.default_format
-        rendered = template.render(bundle, fmt)
+        renderer = self._llm_renderer if render_mode == "llm-freeform" else None
+        rendered = await template.render(
+            bundle, fmt, renderer=renderer, config=tmpl_cfg
+        )
         body = rendered if isinstance(rendered, str) else str(rendered)
 
         _logger.info(
-            "assembled digest sub=%s channel=%s template=%s items=%d",
+            "assembled digest sub=%s channel=%s template=%s mode=%s items=%d",
             getattr(subscription, "id", ""),
             channel,
             template.name,
+            render_mode,
             len(matched),
         )
         return DigestPayload(
@@ -108,7 +123,27 @@ class DigestAssembler:
             body=body,
             fmt=fmt,
             content_ids=[str(getattr(c, "id", "")) for c in matched],
+            render_mode=render_mode,
         )
+
+    def _effective_render_mode(self, tmpl_cfg: dict[str, Any]) -> str:
+        """Resolve the render mode actually applied, given wired collaborators.
+
+        Reads ``template_config['render_mode']`` (legacy ``enhance`` truthy maps
+        to ``llm-assisted``) and downgrades to ``code`` when the collaborator the
+        requested mode needs is absent — so the recorded mode never overstates
+        what produced the body.
+        """
+        requested = tmpl_cfg.get("render_mode")
+        if not requested:
+            requested = "llm-assisted" if tmpl_cfg.get("enhance") else "code"
+        if requested not in _RENDER_MODES:
+            return "code"
+        if requested == "llm-freeform" and self._llm_renderer is None:
+            return "code"
+        if requested == "llm-assisted" and self._enhancer is None:
+            return "code"
+        return requested
 
     def _matched_contents(self, subscription: Any, contents: list[Any]) -> list[Any]:
         """Filter + dedup contents matching the subscription's rules.

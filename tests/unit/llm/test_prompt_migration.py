@@ -31,6 +31,9 @@ PROMPTS: list[tuple[str, str | None, dict[str, str]]] = [
     ("tagger", None, {"title": "T", "body_text": "B", "library_hint": ""}),
     ("digest_intro", None, {"title": "T", "items": "- a"}),
     ("digest_why", None, {"title": "T", "summary": "S"}),
+    ("render", "html", {"title": "T", "items": "- a"}),
+    ("render", "markdown", {"title": "T", "items": "- a"}),
+    ("render", "text", {"title": "T", "items": "- a"}),
 ]
 
 

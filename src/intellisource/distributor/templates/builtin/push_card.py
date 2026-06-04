@@ -22,7 +22,14 @@ class PushCardTemplate(DigestTemplate):
             sections=[DigestSection(heading="", items=items)] if items else [],
         )
 
-    def render(self, bundle: DigestBundle, fmt: str | None = None) -> Any:
+    async def render(
+        self,
+        bundle: DigestBundle,
+        fmt: str | None = None,
+        *,
+        renderer: Any = None,
+        config: dict[str, Any] | None = None,
+    ) -> Any:
         chosen = (
             fmt if (fmt is not None and fmt in self.formats) else self.default_format
         )
@@ -36,4 +43,4 @@ class PushCardTemplate(DigestTemplate):
                 }
                 for item in items
             ]
-        return super().render(bundle, chosen)
+        return await super().render(bundle, chosen, renderer=renderer, config=config)

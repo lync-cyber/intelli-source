@@ -43,7 +43,9 @@ class _StubChannel:
     async def send_rendered(
         self, subscription: Any, *, title: str, body: str, fmt: str
     ) -> dict[str, Any]:
-        self.calls.append({"sub_id": str(subscription.id), "title": title, "fmt": fmt})
+        self.calls.append(
+            {"sub_id": str(subscription.id), "title": title, "body": body, "fmt": fmt}
+        )
         return {"status": "sent", "channel": "email"}
 
 
@@ -188,6 +190,8 @@ class TestPeriodicDigestRunnerRealDB:
                     ids["weekly"],
                 }
                 assert all(r.status == "sent" for r in rows)
+                # render_mode defaults to "code" (no LLM render configured).
+                assert all(r.render_mode == "code" for r in rows)
 
                 # _dispatch advanced last_sent_at to clock-now for dispatched subs.
                 for sub_id in (ids["daily"], ids["weekly"]):
@@ -209,5 +213,115 @@ class TestPeriodicDigestRunnerRealDB:
                     )
                 ).one()
                 assert old_pushes == 0
+        finally:
+            await engine.dispose()
+
+
+class _StubGateway:
+    """A stub LLM gateway whose complete() returns a fixed faithful body."""
+
+    async def complete(self, *, prompt: str, **kwargs: Any) -> Any:
+        # Includes the seeded item title so the faithfulness guard passes.
+        return type(
+            "R", (), {"content": "<p>AI 重大突破：本期最值得关注的进展。</p>"}
+        )()
+
+
+async def _seed_freeform(
+    factory: async_sessionmaker[AsyncSession],
+) -> dict[str, uuid.UUID]:
+    """One source + one fresh content + one due daily sub configured llm-freeform."""
+    ids = {
+        "source": uuid.uuid4(),
+        "raw": uuid.uuid4(),
+        "content": uuid.uuid4(),
+        "sub": uuid.uuid4(),
+    }
+    async with factory() as s:
+        s.add(
+            Source(
+                id=ids["source"],
+                name=f"src-{uuid.uuid4().hex[:8]}",
+                type="rss",
+                url="https://example.com/feed",
+                tags=[],
+                status="active",
+                schedule_interval=3600,
+                schedule_adaptive=False,
+            )
+        )
+        s.add(
+            RawContent(
+                id=ids["raw"],
+                source_id=ids["source"],
+                title="raw",
+                body_html="<p>x</p>",
+                source_url=f"https://example.com/{uuid.uuid4().hex}",
+                fingerprint=uuid.uuid4().hex,
+                raw_metadata={},
+            )
+        )
+        s.add(
+            ProcessedContent(
+                id=ids["content"],
+                raw_content_id=ids["raw"],
+                title="AI 重大突破",
+                body_text="body",
+                tags=["AI"],
+                source_name="HN",
+                created_at=NOW - timedelta(hours=1),
+            )
+        )
+        s.add(
+            Subscription(
+                id=ids["sub"],
+                name=f"sub-{ids['sub'].hex[:8]}",
+                channel="email",
+                channel_config={
+                    "to_addr": "u@example.com",
+                    "template_config": {"render_mode": "llm-freeform"},
+                },
+                match_rules={"tags": ["AI"]},
+                frequency="daily",
+                status="active",
+                last_sent_at=NOW - timedelta(hours=30),
+            )
+        )
+        await s.commit()
+    return ids
+
+
+class TestPeriodicDigestRunnerFreeform:
+    @pytest.mark.asyncio
+    async def test_freeform_render_flows_to_channel_and_persists_mode(
+        self, pg_container: str, pg_truncate: None
+    ) -> None:
+        engine = create_async_engine(pg_container, poolclass=NullPool)
+        try:
+            factory = async_sessionmaker(
+                bind=engine, class_=AsyncSession, expire_on_commit=False
+            )
+            ids = await _seed_freeform(factory)
+
+            channel = _StubChannel()
+            runner = PeriodicDigestRunner(
+                session_factory=factory,
+                channels={"email": channel},
+                llm_gateway=_StubGateway(),
+                clock=_FixedClock(),
+            )
+
+            summary = await runner.run()
+
+            assert summary["sent"] == 1
+            # The LLM-rendered body reached the channel (not the Jinja template).
+            assert len(channel.calls) == 1
+            assert "本期最值得关注的进展" in channel.calls[0]["body"]
+
+            async with factory() as v:
+                rows = (await v.scalars(select(PushRecord))).all()
+                assert len(rows) == 1
+                assert rows[0].content_id == ids["content"]
+                assert rows[0].render_mode == "llm-freeform"
         finally:
             await engine.dispose()

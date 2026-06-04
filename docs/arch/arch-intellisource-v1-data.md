@@ -246,6 +246,8 @@ erDiagram
 | error_message | TEXT | NULL | 错误信息 |
 | sent_at | TIMESTAMP WITH TZ | NULL | 发送时间 |
 | delivered_at | TIMESTAMP WITH TZ | NULL | 送达时间 |
+| recipient_id | VARCHAR(255) | NULL | 收件人标识（PII 脱敏后） |
+| render_mode | VARCHAR(20) | NULL | digest 渲染模式（code \| llm-assisted \| llm-freeform）；逐条推送为 NULL |
 | created_at | TIMESTAMP WITH TZ | NOT NULL, DEFAULT NOW() | 创建时间 |
 
 **索引**: `idx_push_record_subscription` (subscription_id), `idx_push_record_content` (content_id), `idx_push_record_dedup` (subscription_id, content_id, channel, UNIQUE) -- 去重约束

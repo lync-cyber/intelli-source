@@ -136,6 +136,7 @@ class DigestDispatcher:
                 content_id=content_uuid,
                 channel=channel_name,
                 status="sent",
+                render_mode=payload.render_mode,
             )
             recorded += 1
         return recorded

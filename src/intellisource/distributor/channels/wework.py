@@ -116,7 +116,7 @@ class WeWorkDistributor(BaseDistributor):
         user_id: str = cfg.get("user_id", "@all")
         template, tmpl_cfg = resolve_template_for(cfg, default="push-card")
         bundle = template.aggregate([content], tmpl_cfg)
-        formatted = template.render(bundle, msg_type)
+        formatted = await template.render(bundle, msg_type)
 
         async def attempt_fn(
             _attempt: int, is_last: bool
