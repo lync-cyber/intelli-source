@@ -99,6 +99,33 @@ class PipelineDefinitionService:
             raise RuntimeError(f"pipeline {config.name!r} missing after upsert")
         return self.to_config(orm)
 
+    async def update(self, name: str, fields: dict[str, Any]) -> PipelineConfig | None:
+        """Partial-update the named definition; ``None`` if it does not exist.
+
+        Loads the current config, overlays *fields* (``name`` is immutable — the
+        path key wins), re-validates via :meth:`PipelineConfig.from_dict`, and
+        upserts. A validation error propagates as ``ValueError``.
+        """
+        existing = await self.get(name)
+        if existing is None:
+            return None
+        merged: dict[str, Any] = {
+            "name": existing.name,
+            "mode": existing.mode,
+            "steps": existing.steps,
+            "max_steps": existing.max_steps,
+            "on_failure": existing.on_failure,
+            "tools_allowed": existing.tools_allowed,
+            "tools_denied": existing.tools_denied,
+            "system_prompt": existing.system_prompt,
+            "max_tokens_budget": existing.max_tokens_budget,
+            "agent_mode": existing.agent_mode,
+            "tool_permissions": existing.tool_permissions,
+        }
+        merged.update(fields)
+        merged["name"] = name
+        return await self.create(PipelineConfig.from_dict(merged))
+
     async def delete(self, name: str) -> bool:
         return await self._repo.delete_by_name(name)
 

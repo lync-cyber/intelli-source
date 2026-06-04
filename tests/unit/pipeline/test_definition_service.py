@@ -121,6 +121,42 @@ class TestCreateAndRead:
         assert all("mode" in s and "max_steps" in s for s in summaries)
 
 
+class TestUpdate:
+    async def test_update_merges_partial_fields_and_persists(
+        self, session: AsyncSession
+    ) -> None:
+        svc = PipelineDefinitionService(session)
+        await svc.create(_config("p"))  # mode=flexible, max_steps=5
+
+        updated = await svc.update("p", {"max_steps": 9})
+        assert updated is not None
+        assert updated.max_steps == 9
+        assert updated.mode == "flexible"  # untouched field preserved
+
+        reloaded = await svc.get("p")
+        assert reloaded is not None
+        assert reloaded.max_steps == 9
+        assert reloaded.tools_allowed == ["search", "summarize_for_user"]
+
+    async def test_update_absent_returns_none(self, session: AsyncSession) -> None:
+        svc = PipelineDefinitionService(session)
+        assert await svc.update("ghost", {"max_steps": 1}) is None
+
+    async def test_update_rejects_invalid_mode(self, session: AsyncSession) -> None:
+        svc = PipelineDefinitionService(session)
+        await svc.create(_config("p"))
+        with pytest.raises(ValueError):
+            await svc.update("p", {"mode": "bogus"})
+
+    async def test_update_ignores_name_field(self, session: AsyncSession) -> None:
+        svc = PipelineDefinitionService(session)
+        await svc.create(_config("p"))
+        updated = await svc.update("p", {"name": "renamed", "max_steps": 7})
+        assert updated is not None
+        assert updated.name == "p"  # the path key wins; name is immutable
+        assert updated.max_steps == 7
+
+
 class TestDelete:
     async def test_delete_existing(self, session: AsyncSession) -> None:
         svc = PipelineDefinitionService(session)

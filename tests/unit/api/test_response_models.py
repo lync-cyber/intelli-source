@@ -31,6 +31,8 @@ _TYPED_ENDPOINTS = [
     ("/api/v1/push-records", "get"),
     ("/api/v1/tasks/chains/{id}", "get"),
     ("/api/v1/distributions/assemble", "post"),
+    ("/api/v1/pipelines", "post"),
+    ("/api/v1/pipelines/{name}", "patch"),
 ]
 
 

@@ -216,6 +216,101 @@ class TestPathTraversalGuard:
         )
 
 
+class TestCreatePipeline:
+    async def test_create_then_get_roundtrip(
+        self, seeded_session: AsyncSession
+    ) -> None:
+        app = _make_app(seeded_session)
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.post(
+                "/api/v1/pipelines",
+                json={
+                    "name": "new-pipe",
+                    "mode": "flexible",
+                    "steps": [{"tool": "search", "params": {}}],
+                    "tools_allowed": ["search"],
+                },
+            )
+            assert resp.status_code == 201, resp.text
+            assert resp.json()["name"] == "new-pipe"
+
+            got = await client.get("/api/v1/pipelines/new-pipe")
+            assert got.status_code == 200
+            assert got.json()["tools_allowed"] == ["search"]
+
+    async def test_create_invalid_mode_returns_422(
+        self, seeded_session: AsyncSession
+    ) -> None:
+        app = _make_app(seeded_session)
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.post(
+                "/api/v1/pipelines",
+                json={"name": "bad", "mode": "bogus", "steps": []},
+            )
+        assert resp.status_code == 422
+
+
+class TestPatchPipeline:
+    async def test_patch_updates_single_field(
+        self, seeded_session: AsyncSession
+    ) -> None:
+        app = _make_app(seeded_session)
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.patch(
+                "/api/v1/pipelines/instant-search", json={"max_steps": 99}
+            )
+            assert resp.status_code == 200, resp.text
+            assert resp.json()["max_steps"] == 99
+
+            got = await client.get("/api/v1/pipelines/instant-search")
+            assert got.json()["max_steps"] == 99
+
+    async def test_patch_unknown_returns_404(
+        self, seeded_session: AsyncSession
+    ) -> None:
+        app = _make_app(seeded_session)
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.patch(
+                "/api/v1/pipelines/does-not-exist", json={"max_steps": 1}
+            )
+        assert resp.status_code == 404
+
+
+class TestDeletePipeline:
+    async def test_delete_then_gone(self, seeded_session: AsyncSession) -> None:
+        app = _make_app(seeded_session)
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            await client.post(
+                "/api/v1/pipelines",
+                json={"name": "doomed", "mode": "flexible", "steps": []},
+            )
+            resp = await client.delete("/api/v1/pipelines/doomed")
+            assert resp.status_code == 204
+
+            got = await client.get("/api/v1/pipelines/doomed")
+            assert got.status_code == 404
+
+    async def test_delete_absent_returns_404(
+        self, seeded_session: AsyncSession
+    ) -> None:
+        app = _make_app(seeded_session)
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.delete("/api/v1/pipelines/ghost")
+        assert resp.status_code == 404
+
+
 @pytest.mark.asyncio
 async def test_router_registered_in_main_app(
     main_openapi_paths: dict[str, Any],

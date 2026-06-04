@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,6 +34,37 @@ class PipelineRunRequest(BaseModel):
     """POST body for /pipelines/{name}/run."""
 
     params: dict[str, Any] | None = None
+
+
+class PipelineWriteRequest(BaseModel):
+    """Create/replace body for POST /pipelines (idempotent upsert by name)."""
+
+    name: str
+    mode: str = "flexible"
+    steps: list[dict[str, Any]] = []
+    max_steps: int = 50
+    on_failure: str = "abort"
+    tools_allowed: list[str] = []
+    tools_denied: list[str] = []
+    system_prompt: str | None = None
+    max_tokens_budget: int | None = None
+    agent_mode: str = "process"
+    tool_permissions: dict[str, str] = {}
+
+
+class PipelinePatchRequest(BaseModel):
+    """Partial-update body for PATCH /pipelines/{name} (name is immutable)."""
+
+    mode: str | None = None
+    steps: list[dict[str, Any]] | None = None
+    max_steps: int | None = None
+    on_failure: str | None = None
+    tools_allowed: list[str] | None = None
+    tools_denied: list[str] | None = None
+    system_prompt: str | None = None
+    max_tokens_budget: int | None = None
+    agent_mode: str | None = None
+    tool_permissions: dict[str, str] | None = None
 
 
 def _pipeline_to_dict(config: PipelineConfig) -> dict[str, Any]:
@@ -94,3 +125,44 @@ async def run_pipeline(
         celery_instance=celery_instance,
     )
     return {"task_id": str(getattr(result, "id", result))}
+
+
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=PipelineDetail)
+async def create_pipeline(
+    body: PipelineWriteRequest,
+    service: PipelineDefinitionService = Depends(_get_service),
+) -> dict[str, Any]:
+    """Create or replace a pipeline definition (idempotent upsert by name)."""
+    try:
+        config = PipelineConfig.from_dict(body.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _pipeline_to_dict(await service.create(config))
+
+
+@router.patch("/{name}", response_model=PipelineDetail)
+async def update_pipeline(
+    name: str,
+    body: PipelinePatchRequest,
+    service: PipelineDefinitionService = Depends(_get_service),
+) -> dict[str, Any]:
+    """Partial-update a pipeline definition; 404 if absent, 422 if invalid."""
+    fields = body.model_dump(exclude_unset=True)
+    try:
+        updated = await service.update(name, fields)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if updated is None:
+        raise HTTPException(status_code=404, detail=f"pipeline '{name}' not found")
+    return _pipeline_to_dict(updated)
+
+
+@router.delete("/{name}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_pipeline(
+    name: str,
+    service: PipelineDefinitionService = Depends(_get_service),
+) -> Response:
+    """Delete a pipeline definition; 404 if absent."""
+    if not await service.delete(name):
+        raise HTTPException(status_code=404, detail=f"pipeline '{name}' not found")
+    return Response(status_code=204)
