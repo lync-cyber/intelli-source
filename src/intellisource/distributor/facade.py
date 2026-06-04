@@ -96,6 +96,11 @@ class DistributorFacade:
         so callers can distinguish a missing content from a content with
         zero matched subscriptions.
         """
+        # Step 0: refresh DB-backed templates into the process-local registry so
+        # a custom template created after this worker booted renders without a
+        # restart (the render path resolves names from the in-memory registry).
+        await self._hydrate_db_templates()
+
         # Step 1: load ProcessedContent from DB
         # Step 2: resolve subscriptions — both in one session to minimise round-trips
         content, subscriptions = await self._load_content_and_subscriptions(
@@ -209,6 +214,28 @@ class DistributorFacade:
             "skipped": skipped,
             "errors": errors,
         }
+
+    async def _hydrate_db_templates(self) -> None:
+        """Register active DB templates into the in-memory digest registry.
+
+        Best-effort: a templates-table error (e.g. an unmigrated DB) must never
+        block delivery — built-in templates remain resolvable regardless. Built
+        from ``storage`` + ``distributor.templates`` only, so the distributor
+        stays below the template service in the layer graph.
+        """
+        from intellisource.distributor.templates.db_template import (
+            register_db_templates,
+        )
+        from intellisource.storage.repositories.template import TemplateRepository
+
+        try:
+            async with self._session_factory() as session:
+                rows = await TemplateRepository(session).list_active()
+            register_db_templates(rows)
+        except Exception:
+            _logger.exception(
+                "db template hydration failed; using in-memory registry only"
+            )
 
     async def _prepare_push_content(self, content: Any, subscription: Any) -> Any:
         """Optimize content for push when enabled; degrade to original on failure."""

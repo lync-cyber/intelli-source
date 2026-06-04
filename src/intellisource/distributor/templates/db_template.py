@@ -86,9 +86,9 @@ def db_template_from_row(row: Any) -> DbDigestTemplate:
 def register_db_templates(rows: Iterable[Any]) -> int:
     """Register DB-backed templates into the shared registry (last write wins).
 
-    Returns the number of templates registered. Called at process startup to
-    make custom templates resolvable by the synchronous distribution render path
-    (``get_template`` / ``resolve_template_for``) alongside the built-ins.
+    Returns the number of templates registered. Makes custom templates resolvable
+    by the synchronous distribution render path (``get_template`` /
+    ``resolve_template_for``) alongside the built-ins.
     """
     count = 0
     for row in rows:
