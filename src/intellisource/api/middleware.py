@@ -7,11 +7,11 @@ import time
 import uuid
 
 from fastapi import Request
-from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
 from starlette.types import ASGIApp
 
+from intellisource.api.errors import error_json
 from intellisource.core.settings import get_settings
 from intellisource.observability.trace_context import trace_id_ctx
 
@@ -108,17 +108,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
             production = _is_production()
             self._warn_missing_key_once(production)
             if production:
-                return JSONResponse(
-                    status_code=503,
-                    content={"detail": "server API key not configured"},
-                )
+                return error_json(503, "server API key not configured")
             return await call_next(request)
 
         request_key = request.headers.get("x-api-key", "")
         if request_key != api_key:
-            return JSONResponse(
-                status_code=401, content={"detail": "Invalid or missing API key"}
-            )
+            return error_json(401, "Invalid or missing API key")
 
         return await call_next(request)
 

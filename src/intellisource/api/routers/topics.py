@@ -5,11 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session
+from intellisource.api.errors import error_json
 from intellisource.api.schemas.common import OperationResult
 from intellisource.api.schemas.topics import TopicDetail, TopicListResponse
 from intellisource.config.subscription_models import ChannelType
@@ -85,7 +85,7 @@ def get_topic(
 ) -> Any:
     topic = service.get_topic(topic_id)
     if topic is None:
-        return JSONResponse(status_code=404, content={"detail": "topic not found"})
+        return error_json(404, "topic not found")
     return _serialize_topic(topic, detail=True)
 
 
@@ -105,6 +105,6 @@ async def enable_topic(
             subscription_name=body.subscription_name,
         )
     except TopicNotFoundError:
-        return JSONResponse(status_code=404, content={"detail": "topic not found"})
+        return error_json(404, "topic not found")
     except (ConfigValidationError, SubscriptionValidationError) as exc:
-        return JSONResponse(status_code=400, content={"detail": str(exc)})
+        return error_json(400, str(exc))

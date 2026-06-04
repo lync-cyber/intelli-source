@@ -166,8 +166,8 @@ class TestInvalidPeriod:
 
         assert resp.status_code == 400
         body = resp.json()
-        assert "detail" in body
-        assert "invalid" in body["detail"]
+        assert "error" in body
+        assert "invalid" in body["error"]["message"]
 
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,6 @@
 name: content-process
 mode: batch
 max_steps: 20
-on_failure: skip
 tools_allowed:
   - regex_extract
   - fingerprint_generate

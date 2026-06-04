@@ -69,6 +69,12 @@ class PipelineConfig:
 
     @property
     def on_failure(self) -> str:
+        """Step-failure strategy (abort/skip/retry) consulted by strict mode only.
+
+        Flexible mode feeds tool errors back to the LLM, which decides how to
+        proceed; batch mode raises. The field is parsed for all modes (default
+        ``abort``) but has no effect outside strict execution.
+        """
         return self._on_failure
 
     @property

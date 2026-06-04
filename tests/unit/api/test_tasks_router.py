@@ -455,7 +455,7 @@ class TestCollectInvalidSourceIds:
 
         assert resp.status_code == 400
         body = resp.json()
-        assert "invalid source_ids" in body["detail"]
+        assert "invalid source_ids" in body["error"]["message"]
 
     @pytest.mark.asyncio
     async def test_mixed_valid_invalid_returns_400(

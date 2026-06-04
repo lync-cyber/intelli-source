@@ -32,6 +32,7 @@ from intellisource.agent.tools.executes.manage import (
     _delete_source_execute,
     _delete_subscription_execute,
     _delete_template_execute,
+    _get_pipeline_execute,
     _get_source_execute,
     _get_subscription_execute,
     _get_template_execute,
@@ -753,6 +754,26 @@ def _management_tool_defs() -> list[ToolDefinition]:
             description="List persisted pipeline definitions.",
             parameters={"type": "object", "properties": {}},
             execute=_list_pipelines_execute,
+        ),
+        ToolDefinition(
+            name="get_pipeline",
+            description=(
+                "Fetch one pipeline definition's full config by name (mode, steps,"
+                " max_steps, on_failure, tools_allowed/denied, system_prompt,"
+                " agent_mode, max_tokens_budget, tool_permissions). Call before"
+                " update_pipeline to edit from the current definition."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the pipeline to fetch.",
+                    }
+                },
+                "required": ["name"],
+            },
+            execute=_get_pipeline_execute,
         ),
         ToolDefinition(
             name="update_pipeline",

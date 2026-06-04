@@ -11,11 +11,11 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, Response, status
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session
+from intellisource.api.errors import error_json
 from intellisource.api.schemas.templates import TemplateDetail
 from intellisource.config.template_models import TemplateConfig, TemplateValidationError
 from intellisource.distributor.templates import (
@@ -77,7 +77,7 @@ async def get_template_detail(
             "formats": sorted(builtin.formats),
             "default_format": builtin.default_format,
         }
-    return JSONResponse(status_code=404, content={"detail": "not found"})
+    return error_json(404, "not found")
 
 
 @router.post(
@@ -91,7 +91,7 @@ async def create_template(
     try:
         created = await service.create(body)
     except TemplateValidationError as exc:
-        return JSONResponse(status_code=422, content={"detail": str(exc)})
+        return error_json(422, str(exc))
     return _serialize_row(created)
 
 
@@ -104,14 +104,14 @@ async def update_template(
     """Partial-update a custom template; 404 if absent, 422 if invalid."""
     row = await service.get_by_name(name)
     if row is None:
-        return JSONResponse(status_code=404, content={"detail": "not found"})
+        return error_json(404, "not found")
     fields = body.model_dump(exclude_unset=True)
     try:
         updated = await service.patch(row.id, fields)
     except TemplateValidationError as exc:
-        return JSONResponse(status_code=422, content={"detail": str(exc)})
+        return error_json(422, str(exc))
     if updated is None:
-        return JSONResponse(status_code=404, content={"detail": "not found"})
+        return error_json(404, "not found")
     return _serialize_row(updated)
 
 
@@ -123,6 +123,6 @@ async def delete_template(
     """Delete a custom template by name; 404 if absent (built-ins are immutable)."""
     row = await service.get_by_name(name)
     if row is None:
-        return JSONResponse(status_code=404, content={"detail": "not found"})
+        return error_json(404, "not found")
     await service.delete(row.id)
     return Response(status_code=204)

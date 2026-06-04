@@ -123,4 +123,4 @@ class TestEnableTopic:
             json={"channel": "email", "channel_config": {}},
         )
         assert resp.status_code == 400
-        assert "to_addr" in resp.json()["detail"]
+        assert "to_addr" in resp.json()["error"]["message"]

@@ -106,7 +106,7 @@ async def test_agent_chat_503_when_runner_absent() -> None:
     resp = await _post(app, {"message": "hi"})
 
     assert resp.status_code == 503
-    assert "agent_runner" in resp.json()["detail"]
+    assert "agent_runner" in resp.json()["error"]["message"]
 
 
 @pytest.mark.asyncio

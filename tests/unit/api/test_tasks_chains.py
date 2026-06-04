@@ -97,4 +97,4 @@ async def test_get_task_chain_404_when_absent() -> None:
             resp = await client.get(f"/api/v1/tasks/chains/{CHAIN_ID}")
 
     assert resp.status_code == 404
-    assert resp.json()["detail"] == "not found"
+    assert resp.json()["error"]["message"] == "not found"

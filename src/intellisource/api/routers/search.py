@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +21,7 @@ from intellisource.api.chat_sessions import (
     prepare_session,
 )
 from intellisource.api.deps import get_db_session
+from intellisource.api.errors import error_json
 from intellisource.api.schemas.search import (
     ChatSearchRequest,
     ChatSearchResponse,
@@ -145,10 +146,7 @@ async def chat_search(
     """
     runner = getattr(request.app.state, "agent_runner", None)
     if runner is None:
-        return JSONResponse(
-            status_code=503,
-            content={"detail": "agent_runner not initialised"},
-        )
+        return error_json(503, "agent_runner not initialised")
 
     db_manager = getattr(request.app.state, "db", None)
     stored_session, session_uuid, session_payload = await _prepare_chat_session(

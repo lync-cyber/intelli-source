@@ -169,7 +169,7 @@ class TestRollbackShell:
         ) as client:
             response = await client.post("/api/v1/subscriptions/config/rollback/99")
         assert response.status_code == 404
-        assert "not found" in response.json()["detail"]
+        assert "not found" in response.json()["error"]["message"]
 
 
 # ---------------------------------------------------------------------------
@@ -243,7 +243,7 @@ class TestCRUDShell:
         ) as client:
             response = await client.post("/api/v1/subscriptions", json=payload)
         assert response.status_code == 422
-        assert "to_addr" in response.json()["detail"]
+        assert "to_addr" in response.json()["error"]["message"]
 
     async def test_delete_calls_service_returns_204(
         self, app: FastAPI, mock_service: MagicMock

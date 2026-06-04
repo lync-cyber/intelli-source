@@ -1,7 +1,6 @@
 name: push-optimize
 mode: flexible
 max_steps: 10
-on_failure: skip
 tools_allowed:
   - truncate_for_push
   - filter_sensitive

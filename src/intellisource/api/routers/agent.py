@@ -27,12 +27,13 @@ import json
 from typing import Any
 
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from intellisource.agent.response_utils import extract_answer
 from intellisource.api.chat_sessions import persist_turn, prepare_session
 from intellisource.api.confirm_token import mint_confirm_token, parse_confirm_token
+from intellisource.api.errors import error_json
 from intellisource.observability.logging import get_logger
 from intellisource.pipeline.definition_service import load_pipeline_config
 
@@ -100,15 +101,9 @@ async def agent_chat(request: Request, body: AgentChatRequest) -> Any:
     """Run a conversational agent turn against a whitelisted internal pipeline."""
     runner = getattr(request.app.state, "agent_runner", None)
     if runner is None:
-        return JSONResponse(
-            status_code=503,
-            content={"detail": "agent_runner not initialised"},
-        )
+        return error_json(503, "agent_runner not initialised")
     if body.pipeline not in _ALLOWED_PIPELINES:
-        return JSONResponse(
-            status_code=400,
-            content={"detail": f"unknown agent pipeline: {body.pipeline!r}"},
-        )
+        return error_json(400, f"unknown agent pipeline: {body.pipeline!r}")
 
     db_manager = getattr(request.app.state, "db", None)
     llm_gateway = getattr(request.app.state, "llm_gateway", None)
