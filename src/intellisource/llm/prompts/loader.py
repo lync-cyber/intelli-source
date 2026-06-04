@@ -32,7 +32,7 @@ class _FragmentLoader(BaseLoader):
     """
 
     def get_source(
-        self, environment: Environment, template: str
+        self, _environment: Environment, template: str
     ) -> tuple[str, str, Callable[[], bool]]:
         path = _TEMPLATE_DIR / template
         if not path.exists():
