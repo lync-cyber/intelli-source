@@ -32,10 +32,15 @@ from intellisource.agent.tools.executes.manage import (
     _delete_source_execute,
     _delete_subscription_execute,
     _delete_template_execute,
+    _get_source_execute,
+    _get_subscription_execute,
     _list_pipelines_execute,
     _list_sources_execute,
     _list_subscriptions_execute,
     _list_templates_execute,
+    _update_pipeline_execute,
+    _update_source_execute,
+    _update_subscription_execute,
 )
 from intellisource.agent.tools.executes.process import _process_execute
 from intellisource.agent.tools.executes.run import (
@@ -552,6 +557,57 @@ def _management_tool_defs() -> list[ToolDefinition]:
             execute=_list_sources_execute,
         ),
         ToolDefinition(
+            name="get_source",
+            description=(
+                "Fetch a single data source by id, returning its full"
+                " configuration (name/type/url/status/tags/schedule)."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "source_id": {
+                        "type": "string",
+                        "description": "UUID of the source to fetch.",
+                    }
+                },
+                "required": ["source_id"],
+            },
+            execute=_get_source_execute,
+        ),
+        ToolDefinition(
+            name="update_source",
+            description=(
+                "Partially update an EXISTING data source by id. Only the fields"
+                " you supply change; the source must already exist (use"
+                " create_source to add a new one). Call get_source / list_sources"
+                " first to confirm the id and current values."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "source_id": {
+                        "type": "string",
+                        "description": "UUID of the source to update.",
+                    },
+                    "name": {"type": "string"},
+                    "url": {"type": "string"},
+                    "tags": {"type": "array", "items": {"type": "string"}},
+                    "discipline_tags": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                    "schedule_interval": {"type": "integer"},
+                    "status": {
+                        "type": "string",
+                        "enum": ["active", "paused"],
+                    },
+                },
+                "required": ["source_id"],
+            },
+            execute=_update_source_execute,
+            mutates_external_state=True,
+        ),
+        ToolDefinition(
             name="delete_source",
             description="Soft-delete (pause) a data source by id.",
             parameters={
@@ -590,6 +646,55 @@ def _management_tool_defs() -> list[ToolDefinition]:
                 "properties": {"limit": {"type": "integer"}},
             },
             execute=_list_subscriptions_execute,
+        ),
+        ToolDefinition(
+            name="get_subscription",
+            description=(
+                "Fetch a single subscription by id, returning its channel,"
+                " status, frequency and match rules."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "subscription_id": {
+                        "type": "string",
+                        "description": "UUID of the subscription to fetch.",
+                    }
+                },
+                "required": ["subscription_id"],
+            },
+            execute=_get_subscription_execute,
+        ),
+        ToolDefinition(
+            name="update_subscription",
+            description=(
+                "Partially update an EXISTING subscription by id. Only supplied"
+                " fields change; the subscription must already exist (use"
+                " create_subscription to add a new one). Call get_subscription /"
+                " list_subscriptions first to confirm the id."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "subscription_id": {
+                        "type": "string",
+                        "description": "UUID of the subscription to update.",
+                    },
+                    "name": {"type": "string"},
+                    "channel_config": {"type": "object"},
+                    "match_rules": {"type": "object"},
+                    "frequency": {"type": "string"},
+                    "quiet_hours": {"type": "object"},
+                    "timezone": {"type": "string"},
+                    "status": {
+                        "type": "string",
+                        "enum": ["active", "paused"],
+                    },
+                },
+                "required": ["subscription_id"],
+            },
+            execute=_update_subscription_execute,
+            mutates_external_state=True,
         ),
         ToolDefinition(
             name="delete_subscription",
@@ -633,6 +738,43 @@ def _management_tool_defs() -> list[ToolDefinition]:
             description="List persisted pipeline definitions.",
             parameters={"type": "object", "properties": {}},
             execute=_list_pipelines_execute,
+        ),
+        ToolDefinition(
+            name="update_pipeline",
+            description=(
+                "Partially update an EXISTING pipeline definition by name. Only"
+                " the supplied fields change; the pipeline must already exist"
+                " (use create_pipeline to add a new one). The name is the"
+                " immutable identifier and cannot be renamed here."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the pipeline to update.",
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": ["strict", "flexible", "batch"],
+                    },
+                    "steps": {"type": "array", "items": {"type": "object"}},
+                    "max_steps": {"type": "integer"},
+                    "on_failure": {
+                        "type": "string",
+                        "enum": ["abort", "skip", "retry"],
+                    },
+                    "tools_allowed": {"type": "array", "items": {"type": "string"}},
+                    "tools_denied": {"type": "array", "items": {"type": "string"}},
+                    "system_prompt": {"type": "string"},
+                    "max_tokens_budget": {"type": "integer"},
+                    "agent_mode": {"type": "string"},
+                    "tool_permissions": {"type": "object"},
+                },
+                "required": ["name"],
+            },
+            execute=_update_pipeline_execute,
+            mutates_external_state=True,
         ),
         ToolDefinition(
             name="delete_pipeline",
