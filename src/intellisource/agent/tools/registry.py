@@ -35,6 +35,10 @@ from intellisource.agent.tools.executes.manage import (
     _list_subscriptions_execute,
 )
 from intellisource.agent.tools.executes.process import _process_execute
+from intellisource.agent.tools.executes.run import (
+    _get_task_status_execute,
+    _run_pipeline_execute,
+)
 from intellisource.agent.tools.executes.search_and_content import (
     _get_content_detail_execute,
     _search_execute,
@@ -142,7 +146,9 @@ class AgentToolRegistry:
             self._tools[defn.name] = defn
 
     def register_management_tools(self) -> None:
-        """Register CRUD control-plane tools (sources / subscriptions / pipelines).
+        """Register control-plane tools: CRUD for sources / subscriptions /
+        pipelines plus pipeline run-trigger (``run_pipeline``) and run-status
+        (``get_task_status``).
 
         Gated by each pipeline's ``tools_allowed`` — only elevated definitions
         such as ``admin-agent`` expose them; ``analyze`` agent mode auto-denies
@@ -397,12 +403,21 @@ def _default_tool_defs() -> list[ToolDefinition]:
     return [
         ToolDefinition(
             name="collect",
-            description="Collect content from configured sources (RSS, web, etc.)",
+            description="Collect content from a configured source (RSS, web, etc.)",
             parameters={
                 "type": "object",
                 "properties": {
-                    "source_type": {"type": "string"},
-                    "source_id": {"type": "string"},
+                    "source_id": {
+                        "type": "string",
+                        "description": "UUID of the source to collect from.",
+                    },
+                    "source_type": {
+                        "type": "string",
+                        "description": (
+                            "Source adapter type (rss/web/api); inferred from the"
+                            " source row when omitted."
+                        ),
+                    },
                 },
             },
             execute=_collect_execute,
@@ -413,8 +428,18 @@ def _default_tool_defs() -> list[ToolDefinition]:
             parameters={
                 "type": "object",
                 "properties": {
-                    "pipeline": {"type": "string"},
-                    "content_id": {"type": "string"},
+                    "content_id": {
+                        "type": "string",
+                        "description": "Single raw content UUID to process.",
+                    },
+                    "raw_content_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "Batch of raw content UUIDs; takes precedence over"
+                            " content_id when provided."
+                        ),
+                    },
                 },
             },
             execute=_process_execute,
@@ -428,8 +453,25 @@ def _default_tool_defs() -> list[ToolDefinition]:
             parameters={
                 "type": "object",
                 "properties": {
-                    "channels": {"type": "string"},
-                    "content_id": {"type": "string"},
+                    "content_id": {
+                        "type": "string",
+                        "description": "Single processed content UUID to distribute.",
+                    },
+                    "processed_content_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "Batch of processed content UUIDs; takes precedence over"
+                            " content_id when provided."
+                        ),
+                    },
+                    "subscription_id": {
+                        "type": "string",
+                        "description": (
+                            "Target subscription UUID; when omitted, fans out to all"
+                            " active subscriptions matching the content."
+                        ),
+                    },
                 },
             },
             execute=_distribute_execute,
@@ -599,5 +641,45 @@ def _management_tool_defs() -> list[ToolDefinition]:
             },
             execute=_delete_pipeline_execute,
             mutates_external_state=True,
+        ),
+        ToolDefinition(
+            name="run_pipeline",
+            description=(
+                "Trigger a run of a persisted pipeline by name via the task queue."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the persisted pipeline to run.",
+                    },
+                    "params": {
+                        "type": "object",
+                        "description": "Optional runtime params passed to the run.",
+                    },
+                },
+                "required": ["name"],
+            },
+            execute=_run_pipeline_execute,
+            mutates_external_state=True,
+        ),
+        ToolDefinition(
+            name="get_task_status",
+            description=(
+                "Get the status of a pipeline run by its task_chain_id"
+                " (e.g. the id returned by run_pipeline's run record)."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "task_chain_id": {
+                        "type": "string",
+                        "description": "TaskChain UUID to poll.",
+                    }
+                },
+                "required": ["task_chain_id"],
+            },
+            execute=_get_task_status_execute,
         ),
     ]

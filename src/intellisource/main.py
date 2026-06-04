@@ -21,6 +21,7 @@ from intellisource.api.middleware import (
 )
 from intellisource.api.openapi import install_openapi
 from intellisource.api.routers import (
+    agent,
     clusters,
     contents,
     distribution,
@@ -337,6 +338,7 @@ def create_app() -> FastAPI:
     app.include_router(pipelines.router, prefix="/api/v1")
     app.include_router(topics.router, prefix="/api/v1")
     app.include_router(distribution.router, prefix="/api/v1")
+    app.include_router(agent.router, prefix="/api/v1")
 
     # Health endpoints (root-level + API-versioned per AC-T042-6)
     @app.get("/health", response_model=HealthResponse)

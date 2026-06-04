@@ -403,6 +403,17 @@ def _install_agent_runner(session_factory: Any, bundle: _DepsBundle) -> AgentRun
     """
     # Import here to avoid circular import via agent.factory.
     from intellisource.agent import factory as agent_factory
+    from intellisource.scheduler.celery_app import celery_app
+    from intellisource.scheduler.dispatch import send_task_with_trace
+    from intellisource.storage.repositories.task_chain import TaskChainRepository
+
+    def _dispatch_pipeline_run(name: str, params: dict[str, Any]) -> Any:
+        """Dispatch a ``run_pipeline`` task on the shared Celery app."""
+        return send_task_with_trace(
+            "run_pipeline",
+            kwargs={"pipeline_name": name, "params": params},
+            celery_instance=celery_app,
+        )
 
     runner = agent_factory.build_agent_runner(
         session_factory=session_factory,
@@ -413,6 +424,8 @@ def _install_agent_runner(session_factory: Any, bundle: _DepsBundle) -> AgentRun
         source_service_factory=lambda session: SourceConfigService(session),
         subscription_service_factory=lambda session: SubscriptionService(session),
         pipeline_service_factory=lambda session: PipelineDefinitionService(session),
+        task_dispatcher=_dispatch_pipeline_run,
+        task_chain_repo_factory=lambda session: TaskChainRepository(session),
     )
     _global_agent_runner_holder.install(runner)
     return runner
