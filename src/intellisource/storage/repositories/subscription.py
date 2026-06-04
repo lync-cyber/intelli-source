@@ -40,8 +40,15 @@ class SubscriptionRepository(BaseRepository[Subscription]):
         self,
         limit: int = 20,
         cursor: str | None = None,
+        *,
+        channel: str | None = None,
+        status: str | None = None,
     ) -> dict[str, Any]:
         stmt = select(Subscription)
+        if channel is not None:
+            stmt = stmt.where(Subscription.channel == channel)
+        if status is not None:
+            stmt = stmt.where(Subscription.status == status)
         return await self._paginate(stmt, limit=limit, cursor=cursor)
 
     async def upsert(self, config: SubscriptionConfig) -> Subscription:

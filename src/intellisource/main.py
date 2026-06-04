@@ -373,4 +373,10 @@ def create_app() -> FastAPI:
     async def metrics_v1(request: Request) -> PlainTextResponse:
         return system.metrics_response(request)
 
+    # Root-level Prometheus scrape path (the scraper default), mirroring the
+    # versioned endpoint so a stock prometheus.yml `metrics_path: /metrics` works.
+    @app.get("/metrics")
+    async def metrics_root(request: Request) -> PlainTextResponse:
+        return system.metrics_response(request)
+
     return app

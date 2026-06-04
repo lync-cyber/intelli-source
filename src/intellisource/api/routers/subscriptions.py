@@ -83,10 +83,14 @@ def _get_service(
 async def list_subscriptions(
     limit: int = 20,
     cursor: str | None = None,
+    channel: str | None = None,
+    status: str | None = None,
     service: SubscriptionService = Depends(_get_service),
 ) -> dict[str, Any]:
     limit = min(limit, 100)
-    result = await service.list_paginated(limit=limit, cursor=cursor)
+    result = await service.list_paginated(
+        limit=limit, cursor=cursor, channel=channel, status=status
+    )
     return {
         "items": [_serialize(s) for s in result["items"]],
         "next_cursor": result["next_cursor"],

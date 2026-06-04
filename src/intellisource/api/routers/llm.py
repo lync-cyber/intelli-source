@@ -19,6 +19,26 @@ logger = get_logger(__name__)
 router = APIRouter(tags=["llm"])
 
 
+async def compute_llm_stats(
+    session: AsyncSession,
+    *,
+    period: str = "day",
+    model: str | None = None,
+    call_type: str | None = None,
+) -> Any:
+    """Single source of truth for LLM usage stats.
+
+    Shared by ``GET /llm/stats`` and the ``GET /system/llm-stats`` alias so the
+    two endpoints can never diverge. Returns the stats payload, or a 400
+    JSONResponse when ``period`` (or another argument) is invalid.
+    """
+    repo = LLMCallLogRepository(session)
+    try:
+        return await repo.get_stats(period=period, model=model, call_type=call_type)
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+
 @router.get("/llm/stats", response_model=OperationResult)
 async def llm_stats(
     period: str = "day",
@@ -26,15 +46,9 @@ async def llm_stats(
     call_type: str | None = None,
     session: AsyncSession = Depends(get_db_session),
 ) -> Any:
-    repo = LLMCallLogRepository(session)
-    try:
-        return await repo.get_stats(
-            period=period,
-            model=model,
-            call_type=call_type,
-        )
-    except ValueError as exc:
-        return JSONResponse(status_code=400, content={"detail": str(exc)})
+    return await compute_llm_stats(
+        session, period=period, model=model, call_type=call_type
+    )
 
 
 async def get_llm_gateway_status(request: Request) -> dict[str, Any]:

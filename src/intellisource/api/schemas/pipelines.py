@@ -27,6 +27,9 @@ class PipelineDetail(APIModel):
     tools_allowed: list[str] = []
     tools_denied: list[str] = []
     system_prompt: str | None = None
+    agent_mode: str | None = None
+    max_tokens_budget: int | None = None
+    tool_permissions: dict[str, str] = {}
 
 
 class PipelineRunResponse(APIModel):

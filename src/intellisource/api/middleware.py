@@ -28,6 +28,12 @@ PUBLIC_EXACT_PATHS = frozenset(
         "/api/v1/metrics",
         "/api/v1/system/metrics",
         "/metrics",
+        # Interactive API docs: the schema lists the surface but every operation
+        # still requires X-API-Key, so exposing the docs aids integration without
+        # weakening enforcement.
+        "/docs",
+        "/redoc",
+        "/openapi.json",
     }
 )
 PUBLIC_PATH_PREFIXES = ("/api/v1/webhooks",)
@@ -42,31 +48,71 @@ __all__ = [
 ]
 
 
+_PRODUCTION_ENVS = frozenset({"production", "prod"})
+
+
+def _is_production() -> bool:
+    """True when the deployment env is production (rejects an unset API key)."""
+    return get_settings().env.strip().lower() in _PRODUCTION_ENVS
+
+
 class AuthMiddleware(BaseHTTPMiddleware):
     """Validate X-API-Key header against IS_API_KEY environment variable.
 
     Probe / observability endpoints are exempt so external uptime monitors,
     container orchestrators (k8s liveness/readiness), and Prometheus scrapers
     can reach them without holding a shared production API key.
+
+    When ``IS_API_KEY`` is unset the behaviour depends on ``ENV``: in production
+    every authenticated path is rejected with 503 (fail closed — never silently
+    serve an unauthenticated control plane), while in non-production it is
+    allowed through with a one-time WARN so local development stays frictionless.
     """
 
     _EXEMPT_EXACT = PUBLIC_EXACT_PATHS
     _EXEMPT_PREFIXES = PUBLIC_PATH_PREFIXES
 
+    def __init__(self, app: ASGIApp) -> None:
+        super().__init__(app)
+        self._warned_missing_key = False
+
+    def _is_exempt(self, path: str) -> bool:
+        if path in self._EXEMPT_EXACT:
+            return True
+        return any(path.startswith(prefix) for prefix in self._EXEMPT_PREFIXES)
+
+    def _warn_missing_key_once(self, production: bool) -> None:
+        if self._warned_missing_key:
+            return
+        self._warned_missing_key = True
+        if production:
+            logger.warning(
+                "IS_API_KEY is not set while ENV is production — rejecting all"
+                " authenticated requests with 503 until a key is configured"
+            )
+        else:
+            logger.warning(
+                "IS_API_KEY is not set — API authentication is DISABLED (dev only);"
+                " set IS_API_KEY to enforce X-API-Key"
+            )
+
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
-        api_key = get_settings().api_key
-
-        if not api_key:
-            return await call_next(request)
-
         path = request.url.path
-        if path in self._EXEMPT_EXACT:
+        if self._is_exempt(path):
             return await call_next(request)
-        for prefix in self._EXEMPT_PREFIXES:
-            if path.startswith(prefix):
-                return await call_next(request)
+
+        api_key = get_settings().api_key
+        if not api_key:
+            production = _is_production()
+            self._warn_missing_key_once(production)
+            if production:
+                return JSONResponse(
+                    status_code=503,
+                    content={"detail": "server API key not configured"},
+                )
+            return await call_next(request)
 
         request_key = request.headers.get("x-api-key", "")
         if request_key != api_key:

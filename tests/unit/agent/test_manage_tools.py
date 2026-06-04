@@ -259,3 +259,22 @@ def test_admin_agent_yaml_is_valid_and_grants_management_tools() -> None:
     assert cfg.mode == "flexible"
     for tool in ("create_source", "create_pipeline", "create_subscription"):
         assert tool in cfg.tools_allowed
+
+
+def test_admin_agent_prompt_requires_distribute_confirmation() -> None:
+    """P3 confirm-HITL: the prompt must demand explicit user sign-off before a
+    real push, since distribute fans out to live subscribers."""
+    from pathlib import Path
+
+    from intellisource.config.pipeline_models import PipelineConfig
+
+    path = (
+        Path(__file__).resolve().parents[3]
+        / "config"
+        / "pipelines"
+        / "admin-agent.yaml"
+    )
+    cfg = PipelineConfig.from_yaml(str(path))
+    prompt = cfg.system_prompt or ""
+    assert "distribute" in prompt
+    assert "确认" in prompt

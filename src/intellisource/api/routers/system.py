@@ -10,14 +10,14 @@ from fastapi import (
     Depends,
     Request,
 )
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session
+from intellisource.api.routers.llm import compute_llm_stats
 from intellisource.api.schemas.common import OperationResult
 from intellisource.api.schemas.observability import HealthResponse
 from intellisource.observability.logging import get_logger
-from intellisource.storage.repositories.llm_call_log import LLMCallLogRepository
 
 logger = get_logger(__name__)
 
@@ -142,13 +142,11 @@ async def system_llm_stats(
     call_type: str | None = None,
     session: AsyncSession = Depends(get_db_session),
 ) -> Any:
-    """Return LLM usage statistics under the system namespace."""
-    repo = LLMCallLogRepository(session)
-    try:
-        return await repo.get_stats(
-            period=period,
-            model=model,
-            call_type=call_type,
-        )
-    except ValueError as exc:
-        return JSONResponse(status_code=400, content={"detail": str(exc)})
+    """LLM usage statistics under the system namespace.
+
+    Alias of ``GET /llm/stats`` — delegates to the same ``compute_llm_stats``
+    implementation so the two endpoints stay behaviourally identical.
+    """
+    return await compute_llm_stats(
+        session, period=period, model=model, call_type=call_type
+    )
