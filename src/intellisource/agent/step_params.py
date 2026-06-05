@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from intellisource.config.pipeline_models import StepSpec
+
 
 def merge_step_output(
     tool_name: str, output: Any, step_context: dict[str, Any]
@@ -48,7 +50,7 @@ def merge_step_output(
 
 
 def build_step_params(
-    step: dict[str, Any],
+    step: StepSpec,
     *,
     runtime_params: dict[str, Any],
     step_context: dict[str, Any],
