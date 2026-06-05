@@ -242,7 +242,7 @@ async def compact_messages_for_chat(
 ) -> list[dict[str, Any]]:
     """Compact chat session messages without requiring a ModelProfile.
 
-    Convenience wrapper for callers (e.g. ``search/chat_session.py``) that
+    Convenience wrapper for callers (e.g. ``api/chat_sessions.py``) that
     do not own a ModelProfile but need the same token-aware pruning and
     LLM-summarization pipeline as ``compact_messages``. A synthetic
     ModelProfile is constructed from ``max_tokens`` so the existing pipeline

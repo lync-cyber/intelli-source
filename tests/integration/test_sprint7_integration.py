@@ -277,7 +277,7 @@ class TestAgentRunnerCompaction:
     async def test_compact_messages_triggers_when_over_threshold(self) -> None:
         """compact_messages() returns a shorter list when total tokens exceed
         threshold."""
-        from intellisource.agent.compaction import compact_messages
+        from intellisource.llm.compaction import compact_messages
         from intellisource.llm.model_config import ModelProfile
 
         # Profile with tiny context window to force compaction
@@ -323,7 +323,7 @@ class TestAgentRunnerCompaction:
     async def test_compact_messages_no_op_when_under_threshold(self) -> None:
         """compact_messages() returns messages unchanged when total tokens are
         under threshold."""
-        from intellisource.agent.compaction import compact_messages
+        from intellisource.llm.compaction import compact_messages
         from intellisource.llm.model_config import ModelProfile
 
         profile = ModelProfile(
