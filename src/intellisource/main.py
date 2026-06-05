@@ -41,6 +41,7 @@ from intellisource.composition import build_api_composition
 from intellisource.config.loader import ConfigLoader, ConfigWatcher
 from intellisource.config.validator import ConfigValidator
 from intellisource.core.settings import get_settings, load_provider_env
+from intellisource.core.version import get_version
 from intellisource.observability.logging import get_logger, setup_logging
 from intellisource.pipeline.definition_service import PipelineDefinitionService
 from intellisource.storage.database import DatabaseManager
@@ -330,7 +331,7 @@ def create_app() -> FastAPI:
     app = _AutoLifespanApp(
         title="IntelliSource",
         description=_DESCRIPTION,
-        version="0.1.0",
+        version=get_version(),
         lifespan=_lifespan,
     )
 

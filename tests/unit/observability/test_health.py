@@ -127,13 +127,14 @@ class TestHealthCheckerAllHealthy:
 
     @pytest.mark.asyncio
     async def test_result_has_version(self) -> None:
-        """HealthResult must include a version string."""
+        """HealthResult.version is sourced from installed package metadata (SSOT)."""
+        from importlib import metadata
+
         from intellisource.observability.health import HealthChecker
 
         checker = HealthChecker()
         result = await checker.check_health()
-        assert isinstance(result.version, str)
-        assert len(result.version) > 0
+        assert result.version == metadata.version("intellisource")
 
     @pytest.mark.asyncio
     async def test_result_has_uptime_seconds(self) -> None:
