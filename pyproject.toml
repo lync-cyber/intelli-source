@@ -271,6 +271,9 @@ dev = [
 [tool.importlinter]
 root_packages = ["intellisource"]
 include_external_packages = false
+# TYPE_CHECKING-only imports carry no runtime coupling; contracts police real
+# dependency edges, so type-annotation imports are excluded from the graph.
+exclude_type_checking_imports = true
 
 # Contract 1: Top-down layered architecture.
 # Siblings on the same row (' | ') are forbidden from importing each other.
@@ -415,3 +418,35 @@ forbidden_modules = [
     "intellisource.agent.tools.executes",
 ]
 allow_indirect_imports = true
+
+# Contract 12: storage.models is the ORM boundary. Only storage itself and the
+# cost_tracker read-path may import it directly; every other package goes through
+# storage.repositories. allow_indirect_imports=true flags only DIRECT edges so the
+# legitimate package -> repository -> models chain stays allowed. The cost_tracker
+# edge (LLMCallLog aggregation read path) is the one sanctioned exception.
+[[tool.importlinter.contracts]]
+name = "Only storage + cost_tracker may import storage.models directly"
+type = "forbidden"
+source_modules = [
+    "intellisource.agent",
+    "intellisource.pipeline",
+    "intellisource.collector",
+    "intellisource.search",
+    "intellisource.distributor",
+    "intellisource.scheduler",
+    "intellisource.template",
+    "intellisource.source",
+    "intellisource.subscription",
+    "intellisource.topic",
+    "intellisource.composition",
+    "intellisource.api",
+    "intellisource.main",
+    "intellisource.cli",
+    "intellisource.mcp_server",
+    "intellisource.llm",
+]
+forbidden_modules = ["intellisource.storage.models"]
+allow_indirect_imports = true
+ignore_imports = [
+    "intellisource.llm.cost_tracker -> intellisource.storage.models",
+]

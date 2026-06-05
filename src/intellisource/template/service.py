@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,8 +18,10 @@ from intellisource.config.template_models import (
     TemplateConfig,
     TemplateValidationError,
 )
-from intellisource.storage.models import Template
 from intellisource.storage.repositories.template import TemplateRepository
+
+if TYPE_CHECKING:
+    from intellisource.storage.models import Template
 
 
 def _validate_base_template(name: str) -> None:

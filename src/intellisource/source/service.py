@@ -7,16 +7,17 @@ version snapshot recording, and rollback are centralized here.
 from __future__ import annotations
 
 import uuid
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.config.loader import ConfigVersionManager
 from intellisource.config.models import SourceConfig
 from intellisource.config.validator import ConfigValidator
-from intellisource.storage.models import Source
 from intellisource.storage.repositories.source import SourceRepository
+
+if TYPE_CHECKING:
+    from intellisource.storage.models import Source
 
 
 def build_source_version_manager() -> ConfigVersionManager:
@@ -90,8 +91,7 @@ class SourceConfigService:
         absent from yaml are preserved, hence ``db_only_action='preserve'``.
         """
         yaml_names = {c.name for c in yaml_configs}
-        result = await self._session.execute(select(Source.name))
-        db_names = {row[0] for row in result.all()}
+        db_names = await self._repo.list_names()
         return {
             "yaml_only": sorted(yaml_names - db_names),
             "db_only": sorted(db_names - yaml_names),

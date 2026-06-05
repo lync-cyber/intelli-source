@@ -18,7 +18,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from intellisource.core.pipeline_loader import PipelineLoader
 from intellisource.scheduler.celery_app import celery_app
 from intellisource.scheduler.queues import PRIORITY_QUEUES, TRIGGER_TYPE_QUEUES
-from intellisource.storage.models import TaskChain
 from intellisource.storage.repositories.task_chain import TaskChainRepository
 
 MAX_RETRIES: int = 3
@@ -138,15 +137,30 @@ class CeleryTasks:
         finally:
             await session.close()
 
-    def _create_chain(self, task_chain: TaskChain) -> uuid.UUID | None:
+    def _create_chain(
+        self,
+        *,
+        pipeline_name: str,
+        trigger_type: str,
+        execution_mode: str,
+        total_steps: int,
+    ) -> uuid.UUID | None:
         """Persist a new TaskChain record and return its assigned ID."""
         if self._session_factory is None:
             return None
 
         async def _do() -> uuid.UUID:
             async with self._chain_repo_session() as repo:
-                await repo.create(task_chain)
-                return task_chain.id
+                created = await repo.create(
+                    pipeline_name=pipeline_name,
+                    status="pending",
+                    trigger_type=trigger_type,
+                    execution_mode=execution_mode,
+                    total_steps=total_steps,
+                    completed_steps=0,
+                )
+                chain_uuid: uuid.UUID = created.id
+                return chain_uuid
 
         result: uuid.UUID = _run_sync(_do())
         return result
@@ -184,18 +198,18 @@ class CeleryTasks:
         async def _do() -> uuid.UUID:
             async with self._chain_repo_session() as repo:
                 row_id = chain_id if await repo.get(str(chain_id)) is None else None
-                task_chain = TaskChain(
-                    pipeline_name=pipeline_name,
-                    status="pending",
-                    trigger_type=trigger_type,
-                    execution_mode=execution_mode,
-                    total_steps=total_steps,
-                    completed_steps=0,
-                )
+                fields: dict[str, Any] = {
+                    "pipeline_name": pipeline_name,
+                    "status": "pending",
+                    "trigger_type": trigger_type,
+                    "execution_mode": execution_mode,
+                    "total_steps": total_steps,
+                    "completed_steps": 0,
+                }
                 if row_id is not None:
-                    task_chain.id = row_id
-                await repo.create(task_chain)
-                created_id: uuid.UUID = task_chain.id
+                    fields["id"] = row_id
+                created = await repo.create(**fields)
+                created_id: uuid.UUID = created.id
                 return created_id
 
         result: uuid.UUID = _run_sync(_do())
@@ -255,15 +269,12 @@ class CeleryTasks:
                         total_steps=total_steps,
                     )
                 else:
-                    task_chain = TaskChain(
+                    chain_id = self._create_chain(
                         pipeline_name=pipeline_name,
-                        status="pending",
                         trigger_type=trigger_type,
                         execution_mode=execution_mode,
                         total_steps=total_steps,
-                        completed_steps=0,
                     )
-                    chain_id = self._create_chain(task_chain)
 
             last_error: Exception | None = None
             for attempt in range(1 + MAX_RETRIES):

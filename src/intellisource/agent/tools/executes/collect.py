@@ -39,11 +39,13 @@ async def _collect_execute(
 
     if tool_deps.session_factory is not None and source_id:
         try:
-            from intellisource.storage.models import Source  # noqa: PLC0415
+            from intellisource.storage.repositories.source import (  # noqa: PLC0415
+                SourceRepository,
+            )
 
             source_uuid = _uuid.UUID(source_id)
             async with tool_deps.session_factory() as session:
-                source_row = await session.get(Source, source_uuid)
+                source_row = await SourceRepository(session).get_by_id(source_uuid)
             if source_row is not None:
                 if not source_type:
                     source_type = str(source_row.type or "")

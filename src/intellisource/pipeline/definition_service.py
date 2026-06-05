@@ -12,13 +12,15 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.config.pipeline_models import PipelineConfig, StepSpec
-from intellisource.storage.models import Pipeline
 from intellisource.storage.repositories.pipeline import PipelineRepository
+
+if TYPE_CHECKING:
+    from intellisource.storage.models import Pipeline
 
 _DEFAULT_PIPELINES_DIR = Path(__file__).resolve().parents[3] / "config" / "pipelines"
 

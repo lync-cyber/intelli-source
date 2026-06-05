@@ -5,8 +5,6 @@ from __future__ import annotations
 import uuid
 from typing import TYPE_CHECKING, Any
 
-from intellisource.storage.models import TaskChain
-
 if TYPE_CHECKING:
     from intellisource.agent.events import PipelineEventLogger
     from intellisource.storage.repositories.task_chain import TaskChainRepository
@@ -38,7 +36,7 @@ class TaskChainPersister:
         if task_chain_id is not None:
             chain_id = task_chain_id
         elif repo is not None:
-            task_chain = TaskChain(
+            persisted = await repo.create(
                 id=uuid.uuid4(),
                 pipeline_name=pipeline_name,
                 status=status,
@@ -47,7 +45,6 @@ class TaskChainPersister:
                 total_steps=steps_executed,
                 completed_steps=steps_executed,
             )
-            persisted = await repo.create(task_chain)
             chain_id = str(persisted.id)
         else:
             raise ValueError(

@@ -174,3 +174,24 @@ class ContentRepository(BaseRepository[ProcessedContent]):
         row.processed_at = datetime.now(tz=timezone.utc)
         await self._session.flush()
         return True
+
+    async def list_since_with_source(
+        self, window_start: datetime, *, limit: int
+    ) -> builtins.list[ProcessedContent]:
+        """Return ProcessedContent created since *window_start*, oldest first.
+
+        ``raw_content.source`` is eager-loaded so SubscriptionMatcher can read
+        source_names without a lazy load on the detached rows (periodic digest).
+        """
+        stmt = (
+            select(ProcessedContent)
+            .where(ProcessedContent.created_at >= window_start)
+            .options(
+                selectinload(ProcessedContent.raw_content).selectinload(
+                    RawContent.source
+                )
+            )
+            .order_by(ProcessedContent.created_at)
+            .limit(limit)
+        )
+        return list((await self._session.scalars(stmt)).all())
