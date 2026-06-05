@@ -9,7 +9,7 @@ without any layer depending upward.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TypedDict
 
 from intellisource.core.encoding import read_text
 
@@ -17,6 +17,23 @@ _VALID_MODES = ("strict", "flexible", "batch")
 _VALID_ON_FAILURE = ("abort", "skip", "retry")
 _VALID_AGENT_MODES = ("process", "analyze", "preview")
 _VALID_PERMISSION_LEVELS = ("auto", "confirm", "deny")
+
+
+class StepSpec(TypedDict, total=False):
+    """One pipeline step. Keys are mode-dependent and all optional:
+
+    - agent / strict steps carry ``tool``;
+    - processor / batch steps carry ``processor`` or ``name``;
+    - ``params`` is the shared keyword payload merged into the call.
+
+    ``total=False`` keeps the shape open (steps originate from user/LLM YAML or
+    the DB) while still typing the known keys so a misspelt key is caught.
+    """
+
+    tool: str
+    processor: str
+    name: str
+    params: dict[str, Any]
 
 
 class PipelineConfig:
@@ -27,7 +44,7 @@ class PipelineConfig:
         *,
         name: str,
         mode: str,
-        steps: list[dict[str, Any]],
+        steps: list[StepSpec],
         max_steps: int,
         on_failure: str,
         tools_allowed: list[str] | None = None,
@@ -60,7 +77,7 @@ class PipelineConfig:
         return self._mode
 
     @property
-    def steps(self) -> list[dict[str, Any]]:
+    def steps(self) -> list[StepSpec]:
         return self._steps
 
     @property

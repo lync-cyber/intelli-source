@@ -12,6 +12,7 @@ from __future__ import annotations
 import uuid as _uuid
 from typing import Any
 
+from intellisource.agent.tools.executes._deps import resolve_factories
 from intellisource.agent.tools.results import tool_error, tool_ok
 from intellisource.config.models import SourceConfig
 from intellisource.config.pipeline_models import PipelineConfig
@@ -78,15 +79,6 @@ def _pick(kwargs: dict[str, Any], fields: tuple[str, ...]) -> dict[str, Any]:
     return {k: kwargs[k] for k in fields if k in kwargs}
 
 
-def _wiring(tool_deps: Any, factory_attr: str) -> tuple[Any, Any]:
-    """Return (service_factory, session_factory) or (None, None) when unwired."""
-    if tool_deps is None:
-        return None, None
-    return getattr(tool_deps, factory_attr, None), getattr(
-        tool_deps, "session_factory", None
-    )
-
-
 def _serialize_source(s: Any) -> dict[str, Any]:
     return {
         "id": str(s.id),
@@ -131,7 +123,7 @@ async def _create_source_execute(
     tool_deps: Any = None, **kwargs: Any
 ) -> dict[str, Any]:
     """Create (idempotent upsert) a source from LLM-supplied fields."""
-    factory, session_factory = _wiring(tool_deps, "source_service_factory")
+    factory, session_factory = resolve_factories(tool_deps, "source_service_factory")
     if factory is None or session_factory is None:
         return tool_error("create_source", "tool_deps not injected", code="not_wired")
     try:
@@ -158,7 +150,7 @@ async def _list_sources_execute(
     tool_deps: Any = None, limit: int = 20, **kwargs: Any
 ) -> dict[str, Any]:
     """List sources (id / name / type / url / status)."""
-    factory, session_factory = _wiring(tool_deps, "source_service_factory")
+    factory, session_factory = resolve_factories(tool_deps, "source_service_factory")
     if factory is None or session_factory is None:
         return tool_error("list_sources", "tool_deps not injected", code="not_wired")
     try:
@@ -184,7 +176,7 @@ async def _get_source_execute(
     tool_deps: Any = None, source_id: str = "", **kwargs: Any
 ) -> dict[str, Any]:
     """Fetch a single source by id."""
-    factory, session_factory = _wiring(tool_deps, "source_service_factory")
+    factory, session_factory = resolve_factories(tool_deps, "source_service_factory")
     if factory is None or session_factory is None:
         return tool_error("get_source", "tool_deps not injected", code="not_wired")
     try:
@@ -208,7 +200,7 @@ async def _update_source_execute(
     tool_deps: Any = None, source_id: str = "", **kwargs: Any
 ) -> dict[str, Any]:
     """Partial-update an existing source by id (real patch, not create-upsert)."""
-    factory, session_factory = _wiring(tool_deps, "source_service_factory")
+    factory, session_factory = resolve_factories(tool_deps, "source_service_factory")
     if factory is None or session_factory is None:
         return tool_error("update_source", "tool_deps not injected", code="not_wired")
     try:
@@ -237,7 +229,7 @@ async def _delete_source_execute(
     tool_deps: Any = None, source_id: str = "", **kwargs: Any
 ) -> dict[str, Any]:
     """Soft-delete a source by id (status='paused')."""
-    factory, session_factory = _wiring(tool_deps, "source_service_factory")
+    factory, session_factory = resolve_factories(tool_deps, "source_service_factory")
     if factory is None or session_factory is None:
         return tool_error("delete_source", "tool_deps not injected", code="not_wired")
     try:
@@ -267,7 +259,9 @@ async def _create_subscription_execute(
     tool_deps: Any = None, **kwargs: Any
 ) -> dict[str, Any]:
     """Create a subscription from LLM-supplied fields."""
-    factory, session_factory = _wiring(tool_deps, "subscription_service_factory")
+    factory, session_factory = resolve_factories(
+        tool_deps, "subscription_service_factory"
+    )
     if factory is None or session_factory is None:
         return tool_error(
             "create_subscription", "tool_deps not injected", code="not_wired"
@@ -296,7 +290,9 @@ async def _list_subscriptions_execute(
     tool_deps: Any = None, limit: int = 20, **kwargs: Any
 ) -> dict[str, Any]:
     """List subscriptions (id / name / channel / status)."""
-    factory, session_factory = _wiring(tool_deps, "subscription_service_factory")
+    factory, session_factory = resolve_factories(
+        tool_deps, "subscription_service_factory"
+    )
     if factory is None or session_factory is None:
         return tool_error(
             "list_subscriptions", "tool_deps not injected", code="not_wired"
@@ -323,7 +319,9 @@ async def _get_subscription_execute(
     tool_deps: Any = None, subscription_id: str = "", **kwargs: Any
 ) -> dict[str, Any]:
     """Fetch a single subscription by id."""
-    factory, session_factory = _wiring(tool_deps, "subscription_service_factory")
+    factory, session_factory = resolve_factories(
+        tool_deps, "subscription_service_factory"
+    )
     if factory is None or session_factory is None:
         return tool_error(
             "get_subscription", "tool_deps not injected", code="not_wired"
@@ -353,7 +351,9 @@ async def _update_subscription_execute(
     tool_deps: Any = None, subscription_id: str = "", **kwargs: Any
 ) -> dict[str, Any]:
     """Partial-update an existing subscription by id (real patch)."""
-    factory, session_factory = _wiring(tool_deps, "subscription_service_factory")
+    factory, session_factory = resolve_factories(
+        tool_deps, "subscription_service_factory"
+    )
     if factory is None or session_factory is None:
         return tool_error(
             "update_subscription", "tool_deps not injected", code="not_wired"
@@ -390,7 +390,9 @@ async def _delete_subscription_execute(
     tool_deps: Any = None, subscription_id: str = "", **kwargs: Any
 ) -> dict[str, Any]:
     """Soft-delete a subscription by id (status='paused')."""
-    factory, session_factory = _wiring(tool_deps, "subscription_service_factory")
+    factory, session_factory = resolve_factories(
+        tool_deps, "subscription_service_factory"
+    )
     if factory is None or session_factory is None:
         return tool_error(
             "delete_subscription", "tool_deps not injected", code="not_wired"
@@ -443,7 +445,7 @@ async def _get_pipeline_execute(
     tool_deps: Any = None, name: str = "", **kwargs: Any
 ) -> dict[str, Any]:
     """Fetch one pipeline definition's full config by name (get-before-update)."""
-    factory, session_factory = _wiring(tool_deps, "pipeline_service_factory")
+    factory, session_factory = resolve_factories(tool_deps, "pipeline_service_factory")
     if factory is None or session_factory is None:
         return tool_error("get_pipeline", "tool_deps not injected", code="not_wired")
     if not name:
@@ -463,7 +465,7 @@ async def _create_pipeline_execute(
     tool_deps: Any = None, **kwargs: Any
 ) -> dict[str, Any]:
     """Create (idempotent upsert) a pipeline definition from LLM-supplied fields."""
-    factory, session_factory = _wiring(tool_deps, "pipeline_service_factory")
+    factory, session_factory = resolve_factories(tool_deps, "pipeline_service_factory")
     if factory is None or session_factory is None:
         return tool_error("create_pipeline", "tool_deps not injected", code="not_wired")
     payload = _pick(kwargs, _PIPELINE_FIELDS)
@@ -493,7 +495,7 @@ async def _list_pipelines_execute(
     tool_deps: Any = None, **kwargs: Any
 ) -> dict[str, Any]:
     """List pipeline definitions (name / mode / max_steps / tools_allowed)."""
-    factory, session_factory = _wiring(tool_deps, "pipeline_service_factory")
+    factory, session_factory = resolve_factories(tool_deps, "pipeline_service_factory")
     if factory is None or session_factory is None:
         return tool_error("list_pipelines", "tool_deps not injected", code="not_wired")
     try:
@@ -514,7 +516,7 @@ async def _update_pipeline_execute(
     the persisted definition and returns ``not_found`` when the name is absent,
     rather than minting a new definition from defaults.
     """
-    factory, session_factory = _wiring(tool_deps, "pipeline_service_factory")
+    factory, session_factory = resolve_factories(tool_deps, "pipeline_service_factory")
     if factory is None or session_factory is None:
         return tool_error("update_pipeline", "tool_deps not injected", code="not_wired")
     if not name:
@@ -548,7 +550,7 @@ async def _delete_pipeline_execute(
     tool_deps: Any = None, name: str = "", **kwargs: Any
 ) -> dict[str, Any]:
     """Delete a pipeline definition by name."""
-    factory, session_factory = _wiring(tool_deps, "pipeline_service_factory")
+    factory, session_factory = resolve_factories(tool_deps, "pipeline_service_factory")
     if factory is None or session_factory is None:
         return tool_error("delete_pipeline", "tool_deps not injected", code="not_wired")
     if not name:
@@ -574,7 +576,7 @@ async def _create_template_execute(
     tool_deps: Any = None, **kwargs: Any
 ) -> dict[str, Any]:
     """Create (idempotent upsert) a custom digest template from LLM-supplied fields."""
-    factory, session_factory = _wiring(tool_deps, "template_service_factory")
+    factory, session_factory = resolve_factories(tool_deps, "template_service_factory")
     if factory is None or session_factory is None:
         return tool_error("create_template", "tool_deps not injected", code="not_wired")
     try:
@@ -603,7 +605,7 @@ async def _get_template_execute(
     tool_deps: Any = None, name: str = "", **kwargs: Any
 ) -> dict[str, Any]:
     """Fetch a single custom template by name."""
-    factory, session_factory = _wiring(tool_deps, "template_service_factory")
+    factory, session_factory = resolve_factories(tool_deps, "template_service_factory")
     if factory is None or session_factory is None:
         return tool_error("get_template", "tool_deps not injected", code="not_wired")
     if not name:
@@ -623,7 +625,7 @@ async def _update_template_execute(
     tool_deps: Any = None, name: str = "", **kwargs: Any
 ) -> dict[str, Any]:
     """Partial-update an existing custom template by name (real patch)."""
-    factory, session_factory = _wiring(tool_deps, "template_service_factory")
+    factory, session_factory = resolve_factories(tool_deps, "template_service_factory")
     if factory is None or session_factory is None:
         return tool_error("update_template", "tool_deps not injected", code="not_wired")
     if not name:
@@ -661,7 +663,7 @@ async def _list_templates_execute(
     tool_deps: Any = None, limit: int = 20, **kwargs: Any
 ) -> dict[str, Any]:
     """List custom templates (id / name / base_template / default_format / status)."""
-    factory, session_factory = _wiring(tool_deps, "template_service_factory")
+    factory, session_factory = resolve_factories(tool_deps, "template_service_factory")
     if factory is None or session_factory is None:
         return tool_error("list_templates", "tool_deps not injected", code="not_wired")
     try:
@@ -687,7 +689,7 @@ async def _delete_template_execute(
     tool_deps: Any = None, name: str = "", **kwargs: Any
 ) -> dict[str, Any]:
     """Delete a custom template by name."""
-    factory, session_factory = _wiring(tool_deps, "template_service_factory")
+    factory, session_factory = resolve_factories(tool_deps, "template_service_factory")
     if factory is None or session_factory is None:
         return tool_error("delete_template", "tool_deps not injected", code="not_wired")
     if not name:

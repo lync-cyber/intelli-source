@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import builtins
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
-from intellisource.storage.models import ProcessedContent, RawContent
+from intellisource.storage.models import ProcessedContent, RawContent, Subscription
 from intellisource.storage.repositories.base import TEXT_TYPE, BaseRepository
 
 
@@ -120,3 +122,76 @@ class ContentRepository(BaseRepository[ProcessedContent]):
             stmt = stmt.where(ProcessedContent.published_at < published_before)
 
         return await self._paginate(stmt, limit=limit, cursor=cursor)
+
+    async def get_with_source_and_subscriptions(
+        self,
+        *,
+        content_id: uuid.UUID,
+        subscription_id: uuid.UUID | None,
+    ) -> tuple[ProcessedContent | None, builtins.list[Subscription]]:
+        """Load a ProcessedContent plus the subscriptions to distribute it to.
+
+        ``raw_content.source`` is eager-loaded so SubscriptionMatcher can read
+        ``content.raw_content.source.name`` (``match_rules.source_names``, B-057)
+        without a lazy load outside the session. ``subscription_id`` None resolves
+        to every active subscription; a concrete id resolves to that single row.
+        """
+        content_stmt = (
+            select(ProcessedContent)
+            .where(ProcessedContent.id == content_id)
+            .options(
+                selectinload(ProcessedContent.raw_content).selectinload(
+                    RawContent.source
+                )
+            )
+        )
+        content = (await self._session.scalars(content_stmt)).one_or_none()
+
+        if subscription_id is None:
+            sub_stmt = select(Subscription).where(Subscription.status == "active")
+        else:
+            sub_stmt = select(Subscription).where(Subscription.id == subscription_id)
+        subscriptions: list[Subscription] = list(
+            (await self._session.scalars(sub_stmt)).all()
+        )
+        return content, subscriptions
+
+    async def mark_processed(self, raw_id: uuid.UUID) -> bool:
+        """Set a RawContent row's status to 'processed' with processed_at now.
+
+        Returns True when a row matched and was updated, False when no row has
+        the given id. Flushes within the caller's session; commit stays the
+        caller's responsibility.
+        """
+        row = (
+            await self._session.execute(
+                select(RawContent).where(RawContent.id == raw_id).limit(1)
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            return False
+        row.status = "processed"
+        row.processed_at = datetime.now(tz=timezone.utc)
+        await self._session.flush()
+        return True
+
+    async def list_since_with_source(
+        self, window_start: datetime, *, limit: int
+    ) -> builtins.list[ProcessedContent]:
+        """Return ProcessedContent created since *window_start*, oldest first.
+
+        ``raw_content.source`` is eager-loaded so SubscriptionMatcher can read
+        source_names without a lazy load on the detached rows (periodic digest).
+        """
+        stmt = (
+            select(ProcessedContent)
+            .where(ProcessedContent.created_at >= window_start)
+            .options(
+                selectinload(ProcessedContent.raw_content).selectinload(
+                    RawContent.source
+                )
+            )
+            .order_by(ProcessedContent.created_at)
+            .limit(limit)
+        )
+        return list((await self._session.scalars(stmt)).all())

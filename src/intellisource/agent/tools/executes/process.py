@@ -6,6 +6,7 @@ import asyncio
 import uuid as _uuid
 from typing import Any
 
+from intellisource.agent.tools.results import tool_degraded
 from intellisource.observability.logging import get_logger
 
 logger = get_logger(__name__)
@@ -25,35 +26,22 @@ async def _process_execute(
     """
     if tool_deps is None or tool_deps.pipeline_engine is None:
         logger.warning("tool_deps not injected for process, returning placeholder")
-        return {
-            "status": "degraded",
-            "tool": "process",
-            "reason": "tool_deps not injected",
-            "content_id": content_id,
-        }
+        return tool_degraded("process", "tool_deps not injected", content_id=content_id)
 
     if tool_deps.session_factory is None:
         logger.warning(
             "session_factory not injected for process, returning placeholder"
         )
-        return {
-            "status": "degraded",
-            "tool": "process",
-            "reason": "session_factory not injected",
-            "content_id": content_id,
-        }
+        return tool_degraded(
+            "process", "session_factory not injected", content_id=content_id
+        )
 
     ids_to_process: list[str] = (
         raw_content_ids if raw_content_ids else ([content_id] if content_id else [])
     )
 
     if not ids_to_process:
-        return {
-            "status": "degraded",
-            "tool": "process",
-            "reason": "no content_id provided",
-            "content_id": content_id,
-        }
+        return tool_degraded("process", "no content_id provided", content_id=content_id)
 
     from datetime import datetime, timezone  # noqa: PLC0415
 

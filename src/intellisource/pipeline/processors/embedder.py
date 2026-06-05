@@ -14,11 +14,10 @@ key configured).
 
 from __future__ import annotations
 
-import asyncio
-import concurrent.futures
 from typing import Any
 
 from intellisource.observability.logging import get_logger
+from intellisource.pipeline._async_bridge import run_coro
 from intellisource.pipeline.base import BaseProcessor, PipelineContext
 
 logger = get_logger(__name__)
@@ -45,7 +44,7 @@ class EmbeddingProcessor(BaseProcessor):
             return context
 
         try:
-            vec = _run_coro(self._llm_gateway.embed(text))
+            vec = run_coro(self._llm_gateway.embed(text))
         except Exception:
             logger.warning(
                 "EmbeddingProcessor call failed; leaving embedding NULL",
@@ -60,18 +59,3 @@ class EmbeddingProcessor(BaseProcessor):
 
         context.set("embedding", vec)
         return context
-
-
-def _run_coro(coro: Any) -> Any:
-    """Run an async coroutine from sync code.
-
-    Handles the no-loop case (worker offloads pipeline execute via
-    ``asyncio.to_thread`` — ``asyncio.run`` works) and the running-loop
-    case (executor-stream callers) by deferring to a fresh thread."""
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coro)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(asyncio.run, coro)
-        return future.result()

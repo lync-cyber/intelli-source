@@ -161,6 +161,14 @@ class ConfigWatcher:
             )
 
 
+# Physical tables a ConfigVersionManager may target. The table name is
+# f-string-interpolated into version SQL, so pinning it to a fixed set at
+# construction keeps that interpolation injection-safe regardless of caller.
+_ALLOWED_VERSION_TABLES: frozenset[str] = frozenset(
+    {"config_versions", "subscription_config_versions"}
+)
+
+
 class ConfigVersionManager:
     """Version tracking and rollback for Pydantic-model-backed config snapshots.
 
@@ -179,6 +187,11 @@ class ConfigVersionManager:
         table_name: str,
         config_cls: type[BaseModel],
     ) -> None:
+        if table_name not in _ALLOWED_VERSION_TABLES:
+            raise ValueError(
+                f"table_name {table_name!r} is not an allowed version table; "
+                f"must be one of {sorted(_ALLOWED_VERSION_TABLES)}"
+            )
         self._versions: dict[int, list[BaseModel]] = {}
         self._current_version: int = 0
         self._table_name = table_name

@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid as _uuid
 from typing import Any
 
+from intellisource.agent.tools.results import tool_degraded
 from intellisource.observability.logging import get_logger
 
 logger = get_logger(__name__)
@@ -19,13 +20,12 @@ async def _collect_execute(
     """Collect from source, persist RawContent rows, return ids for downstream steps."""
     if tool_deps is None or tool_deps.collector_registry is None:
         logger.warning("tool_deps not injected for collect, returning placeholder")
-        return {
-            "status": "degraded",
-            "tool": "collect",
-            "reason": "tool_deps not injected",
-            "collected": [],
-            "source_id": source_id,
-        }
+        return tool_degraded(
+            "collect",
+            "tool_deps not injected",
+            collected=[],
+            source_id=source_id,
+        )
 
     source_config: dict[str, Any] = {}
     source_uuid: _uuid.UUID | None = None
@@ -39,11 +39,13 @@ async def _collect_execute(
 
     if tool_deps.session_factory is not None and source_id:
         try:
-            from intellisource.storage.models import Source  # noqa: PLC0415
+            from intellisource.storage.repositories.source import (  # noqa: PLC0415
+                SourceRepository,
+            )
 
             source_uuid = _uuid.UUID(source_id)
             async with tool_deps.session_factory() as session:
-                source_row = await session.get(Source, source_uuid)
+                source_row = await SourceRepository(session).get_by_id(source_uuid)
             if source_row is not None:
                 if not source_type:
                     source_type = str(source_row.type or "")
@@ -81,13 +83,12 @@ async def _collect_execute(
     try:
         collector = tool_deps.collector_registry.get(source_type)
     except CollectorError:
-        return {
-            "status": "degraded",
-            "tool": "collect",
-            "reason": f"unknown source_type: {source_type}",
-            "collected": [],
-            "source_id": source_id,
-        }
+        return tool_degraded(
+            "collect",
+            f"unknown source_type: {source_type}",
+            collected=[],
+            source_id=source_id,
+        )
 
     collected_items: list[CollectedRawContent] = await collector.collect(
         source_config=source_config

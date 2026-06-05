@@ -1,10 +1,11 @@
-"""Tests for AgentRunner._persist parameterization (T-075 AC-T075-3).
+"""Tests for TaskChainPersister.persist parameterization (T-075 AC-T075-3).
 
+AgentRunner delegates persistence to ``self._persister`` (TaskChainPersister).
 Verifies that:
-- _persist accepts trigger_type and execution_mode keyword parameters and
+- persist accepts trigger_type and execution_mode keyword parameters and
   forwards them to the TaskChain it constructs.
-- run_strict passes execution_mode="strict" when calling _persist.
-- run_flexible passes execution_mode="flexible" when calling _persist.
+- run_strict drives persist with execution_mode="strict".
+- run_flexible drives persist with execution_mode="flexible".
 """
 
 from __future__ import annotations
@@ -18,7 +19,6 @@ import pytest
 from intellisource.agent.runner import AgentRunner
 from intellisource.config.pipeline_models import PipelineConfig
 from intellisource.llm.gateway import LLMResult
-from intellisource.storage.models import TaskChain
 
 # ---------------------------------------------------------------------------
 # Helpers / shared fixtures
@@ -33,12 +33,12 @@ def _make_runner() -> AgentRunner:
 
 
 def _make_mock_repo() -> AsyncMock:
-    """Create a TaskChainRepository mock that captures create() arguments."""
+    """Create a TaskChainRepository mock that captures create() kwargs."""
     mock_repo = AsyncMock()
 
-    async def _fake_create(chain: TaskChain) -> TaskChain:
-        if not chain.id:
-            chain.id = uuid.uuid4()
+    async def _fake_create(**kwargs: Any) -> Any:
+        chain = MagicMock()
+        chain.id = kwargs.get("id") or uuid.uuid4()
         return chain
 
     mock_repo.create = AsyncMock(side_effect=_fake_create)
@@ -88,7 +88,7 @@ class TestPersistDefaultParameters:
         runner = _make_runner()
         mock_repo = _make_mock_repo()
 
-        await runner._persist(
+        await runner._persister.persist(
             status="success",
             steps_executed=0,
             results=[],
@@ -97,12 +97,12 @@ class TestPersistDefaultParameters:
         )
 
         mock_repo.create.assert_awaited_once()
-        chain: TaskChain = mock_repo.create.call_args.args[0]
-        assert chain.trigger_type == "manual", (
-            f"Expected trigger_type='manual' (default), got '{chain.trigger_type}'"
+        kwargs = mock_repo.create.call_args.kwargs
+        assert kwargs["trigger_type"] == "manual", (
+            f"Expected trigger_type='manual', got '{kwargs['trigger_type']}'"
         )
-        assert chain.execution_mode == "strict", (
-            f"Expected execution_mode='strict' (default), got '{chain.execution_mode}'"
+        assert kwargs["execution_mode"] == "strict", (
+            f"Expected execution_mode='strict', got '{kwargs['execution_mode']}'"
         )
 
 
@@ -123,7 +123,7 @@ class TestPersistExplicitParameters:
         runner = _make_runner()
         mock_repo = _make_mock_repo()
 
-        await runner._persist(
+        await runner._persister.persist(
             status="success",
             steps_executed=2,
             results=[],
@@ -134,12 +134,12 @@ class TestPersistExplicitParameters:
         )
 
         mock_repo.create.assert_awaited_once()
-        chain: TaskChain = mock_repo.create.call_args.args[0]
-        assert chain.trigger_type == "scheduled", (
-            f"Expected trigger_type='scheduled', got '{chain.trigger_type}'"
+        kwargs = mock_repo.create.call_args.kwargs
+        assert kwargs["trigger_type"] == "scheduled", (
+            f"Expected trigger_type='scheduled', got '{kwargs['trigger_type']}'"
         )
-        assert chain.execution_mode == "flexible", (
-            f"Expected execution_mode='flexible', got '{chain.execution_mode}'"
+        assert kwargs["execution_mode"] == "flexible", (
+            f"Expected execution_mode='flexible', got '{kwargs['execution_mode']}'"
         )
 
 
@@ -161,13 +161,13 @@ class TestRunStrictPassesExecutionMode:
 
         captured_kwargs: list[dict[str, Any]] = []
 
-        original_persist = runner._persist
+        original_persist = runner._persister.persist
 
         async def _spy_persist(**kwargs: Any) -> dict[str, Any]:
             captured_kwargs.append(dict(kwargs))
             return await original_persist(**kwargs)
 
-        monkeypatch.setattr(runner, "_persist", _spy_persist)
+        monkeypatch.setattr(runner._persister, "persist", _spy_persist)
 
         await runner.run_strict(config, params={})
 
@@ -207,13 +207,13 @@ class TestRunFlexiblePassesExecutionMode:
 
         captured_kwargs: list[dict[str, Any]] = []
 
-        original_persist = runner._persist
+        original_persist = runner._persister.persist
 
         async def _spy_persist(**kwargs: Any) -> dict[str, Any]:
             captured_kwargs.append(dict(kwargs))
             return await original_persist(**kwargs)
 
-        monkeypatch.setattr(runner, "_persist", _spy_persist)
+        monkeypatch.setattr(runner._persister, "persist", _spy_persist)
 
         await runner.run_flexible(config, user_message="test", session={})
 

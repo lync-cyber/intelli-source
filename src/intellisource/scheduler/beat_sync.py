@@ -110,15 +110,12 @@ async def populate_scheduler_from_sources(
     composition-level ``SOURCE_TYPE_TO_PIPELINE`` mapping. Returns the
     number of schedules registered.
     """
-    from sqlalchemy import select
-
     from intellisource.composition import SOURCE_TYPE_TO_PIPELINE
-    from intellisource.storage.models import Source
+    from intellisource.storage.repositories.source import SourceRepository
 
     registered = 0
     async with session_factory() as session:
-        result = await session.execute(select(Source))
-        sources = list(result.scalars().all())
+        sources = list(await SourceRepository(session).list_all())
 
     for source in sources:
         interval = getattr(source, "schedule_interval", None)

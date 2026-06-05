@@ -260,9 +260,7 @@ class TestTaskChainPersistence:
     def test_task_chain_contains_pipeline_name(
         self, mock_agent_runner, mock_pipeline_config
     ):
-        """TaskChain passed to create() must carry pipeline_name."""
-        from intellisource.storage.models import TaskChain
-
+        """create() must carry pipeline_name in its kwargs."""
         mock_repo = AsyncMock()
         mock_session = AsyncMock()
         mock_session.close = AsyncMock()
@@ -279,19 +277,12 @@ class TestTaskChainPersistence:
             )
             tasks.run_pipeline("news_collect", params={})
 
-        call_args = mock_repo.create.call_args
-        chain_arg = call_args.args[0]
-        assert isinstance(chain_arg, TaskChain), (
-            f"create() must receive a TaskChain instance, got {type(chain_arg)}"
-        )
-        assert chain_arg.pipeline_name == "news_collect"
+        assert mock_repo.create.call_args.kwargs["pipeline_name"] == "news_collect"
 
     def test_task_chain_contains_execution_mode(
         self, mock_agent_runner, mock_pipeline_config
     ):
-        """TaskChain passed to create() must carry execution_mode from config."""
-        from intellisource.storage.models import TaskChain
-
+        """create() must carry execution_mode from config in its kwargs."""
         mock_repo = AsyncMock()
         mock_session = AsyncMock()
         mock_session.close = AsyncMock()
@@ -308,12 +299,7 @@ class TestTaskChainPersistence:
             )
             tasks.run_pipeline("news_collect", params={})
 
-        call_args = mock_repo.create.call_args
-        chain_arg = call_args.args[0]
-        assert isinstance(chain_arg, TaskChain), (
-            f"create() must receive a TaskChain instance, got {type(chain_arg)}"
-        )
-        assert chain_arg.execution_mode == "strict"
+        assert mock_repo.create.call_args.kwargs["execution_mode"] == "strict"
 
     def test_task_chain_status_updated_on_completion(
         self, mock_agent_runner, mock_pipeline_config
@@ -324,10 +310,8 @@ class TestTaskChainPersistence:
         mock_repo = AsyncMock()
         persisted_id = uuid.uuid4()
 
-        # Simulate create() setting the id on the TaskChain object
-        async def fake_create(task_chain):
-            task_chain.id = persisted_id
-            return task_chain
+        async def fake_create(**kwargs):
+            return SimpleNamespace(id=kwargs.get("id") or persisted_id)
 
         mock_repo.create = AsyncMock(side_effect=fake_create)
 
@@ -362,9 +346,8 @@ class TestTaskChainPersistence:
         mock_repo = AsyncMock()
         persisted_id = uuid.uuid4()
 
-        async def fake_create(task_chain):
-            task_chain.id = persisted_id
-            return task_chain
+        async def fake_create(**kwargs):
+            return SimpleNamespace(id=kwargs.get("id") or persisted_id)
 
         mock_repo.create = AsyncMock(side_effect=fake_create)
 
@@ -401,11 +384,14 @@ class TestTaskChainPersistence:
         """
         import uuid
 
-        from intellisource.storage.models import TaskChain
-
         chain_id = str(uuid.uuid4())
         mock_repo = AsyncMock()
         mock_repo.get = AsyncMock(return_value=None)  # row does not pre-exist
+
+        async def fake_create(**kwargs):
+            return SimpleNamespace(id=kwargs.get("id") or uuid.uuid4())
+
+        mock_repo.create = AsyncMock(side_effect=fake_create)
         mock_session = AsyncMock()
         mock_session.close = AsyncMock()
 
@@ -421,9 +407,7 @@ class TestTaskChainPersistence:
             )
             tasks.run_pipeline("news_collect", params={"task_chain_id": chain_id})
 
-        chain_arg = mock_repo.create.call_args.args[0]
-        assert isinstance(chain_arg, TaskChain)
-        assert str(chain_arg.id) == chain_id
+        assert str(mock_repo.create.call_args.kwargs["id"]) == chain_id
         # completion status is written against that same id
         update_calls = mock_repo.update_status.call_args_list
         assert any(chain_id in str(c) and "success" in str(c) for c in update_calls)
@@ -436,16 +420,14 @@ class TestTaskChainPersistence:
         the parent's status."""
         import uuid
 
-        from intellisource.storage.models import TaskChain
-
         parent_id = str(uuid.uuid4())
         existing = SimpleNamespace(id=uuid.UUID(parent_id))
         child_id = uuid.uuid4()
 
-        async def fake_create(chain: TaskChain) -> TaskChain:
-            # the parent id is free of the child INSERT; flush assigns a fresh id
-            chain.id = child_id
-            return chain
+        async def fake_create(**kwargs):
+            # parent id is already owned, so the child INSERT carries no id and
+            # the repo assigns a fresh one.
+            return SimpleNamespace(id=kwargs.get("id") or child_id)
 
         mock_repo = AsyncMock()
         mock_repo.get = AsyncMock(return_value=existing)
@@ -466,8 +448,7 @@ class TestTaskChainPersistence:
             tasks.run_pipeline("news_collect", params={"task_chain_id": parent_id})
 
         # a separate child row was inserted without adopting the parent id
-        chain_arg = mock_repo.create.call_args.args[0]
-        assert chain_arg.id != uuid.UUID(parent_id)
+        assert "id" not in mock_repo.create.call_args.kwargs
         # the parent's status is never touched by this child run
         update_calls = mock_repo.update_status.call_args_list
         assert not any(parent_id in str(c) for c in update_calls)

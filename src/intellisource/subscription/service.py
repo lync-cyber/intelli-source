@@ -10,16 +10,17 @@ behaviourally identical.
 from __future__ import annotations
 
 import uuid
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.config.loader import ConfigVersionManager
 from intellisource.config.subscription_models import SubscriptionConfig
 from intellisource.config.subscription_validator import SubscriptionValidator
-from intellisource.storage.models import Subscription
 from intellisource.storage.repositories.subscription import SubscriptionRepository
+
+if TYPE_CHECKING:
+    from intellisource.storage.models import Subscription
 
 
 def build_subscription_version_manager() -> ConfigVersionManager:
@@ -86,8 +87,7 @@ class SubscriptionService:
         from yaml are soft-deleted (paused), hence ``db_only_action='pause'``.
         """
         yaml_names = {c.name for c in yaml_configs}
-        result = await self._session.execute(select(Subscription.name))
-        db_names = {row[0] for row in result.all()}
+        db_names = await self._repo.list_names()
         return {
             "yaml_only": sorted(yaml_names - db_names),
             "db_only": sorted(db_names - yaml_names),
@@ -121,12 +121,8 @@ class SubscriptionService:
 
     async def delete(self, sub_id: uuid.UUID) -> bool:
         """Soft delete: mark status='paused' to preserve push_records FK history."""
-        existing = await self._repo.get_by_id(sub_id)
-        if existing is None:
-            return False
-        existing.status = "paused"
-        await self._session.flush()
-        return True
+        updated = await self._repo.update(sub_id, status="paused")
+        return updated is not None
 
     # ------------------------------------------------------------------
     # Bulk operations (yaml reload / rollback — write version snapshot)

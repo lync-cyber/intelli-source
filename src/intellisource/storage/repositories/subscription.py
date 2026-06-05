@@ -51,6 +51,21 @@ class SubscriptionRepository(BaseRepository[Subscription]):
             stmt = stmt.where(Subscription.status == status)
         return await self._paginate(stmt, limit=limit, cursor=cursor)
 
+    async def list_names(self) -> set[str]:
+        """Return the set of all subscription names (config diff)."""
+        result = await self._session.execute(select(Subscription.name))
+        return {row[0] for row in result.all()}
+
+    async def list_active_by_frequencies(
+        self, frequencies: Sequence[str]
+    ) -> Sequence[Subscription]:
+        """Return active subscriptions whose frequency is in *frequencies*."""
+        stmt = select(Subscription).where(
+            Subscription.status == "active",
+            Subscription.frequency.in_(frequencies),
+        )
+        return list((await self._session.scalars(stmt)).all())
+
     async def upsert(self, config: SubscriptionConfig) -> Subscription:
         """Create or update a Subscription from a SubscriptionConfig (by name).
 

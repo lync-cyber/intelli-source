@@ -129,6 +129,16 @@ class SourceRepository(BaseRepository[Source]):
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
+    async def list_all(self) -> Sequence[Source]:
+        """Return all Source rows unpaginated (Beat schedule sync)."""
+        result = await self._session.execute(select(Source))
+        return result.scalars().all()
+
+    async def list_names(self) -> set[str]:
+        """Return the set of all source names (config diff)."""
+        result = await self._session.execute(select(Source.name))
+        return {row[0] for row in result.all()}
+
     async def get_types_by_ids(self, ids: list[uuid.UUID]) -> dict[uuid.UUID, str]:
         """Return a {source_id: type} mapping for the given source IDs.
 

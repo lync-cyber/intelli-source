@@ -429,6 +429,97 @@ class TestContentRepositoryCRUD:
         assert result is True
         assert await repo.get_by_id(content.id) is None
 
+    @pytest.mark.asyncio
+    async def test_mark_processed_sets_status_and_timestamp(
+        self, session: AsyncSession
+    ) -> None:
+        """mark_processed flips RawContent.status to 'processed' with a timestamp."""
+        from intellisource.storage.repositories.content import ContentRepository
+
+        repo = ContentRepository(session)
+        src = _make_source()
+        session.add(src)
+        raw = _make_raw_content(src.id, status="pending")
+        session.add(raw)
+        await session.flush()
+
+        assert await repo.mark_processed(raw.id) is True
+        refetched = await repo.get_raw_by_id(raw.id)
+        assert refetched is not None
+        assert refetched.status == "processed"
+        assert refetched.processed_at is not None
+
+    @pytest.mark.asyncio
+    async def test_mark_processed_missing_returns_false(
+        self, session: AsyncSession
+    ) -> None:
+        """mark_processed returns False when no RawContent matches the id."""
+        from intellisource.storage.repositories.content import ContentRepository
+
+        repo = ContentRepository(session)
+        assert await repo.mark_processed(uuid.uuid4()) is False
+
+    @pytest.mark.asyncio
+    async def test_get_with_subscriptions_none_resolves_active_only(
+        self, session: AsyncSession
+    ) -> None:
+        """subscription_id=None resolves to active subscriptions only (B-061),
+        with raw_content.source eager-loaded for source_names matching (B-057)."""
+        from intellisource.storage.repositories.content import ContentRepository
+
+        repo = ContentRepository(session)
+        src = _make_source()
+        session.add(src)
+        raw = _make_raw_content(src.id)
+        session.add(raw)
+        await session.flush()
+        processed = _make_processed_content(raw.id)
+        session.add(processed)
+        session.add(_make_subscription(src.id, status="active"))
+        session.add(_make_subscription(src.id, status="active"))
+        session.add(_make_subscription(src.id, status="paused"))
+        await session.flush()
+
+        content, subs = await repo.get_with_source_and_subscriptions(
+            content_id=processed.id, subscription_id=None
+        )
+        assert content is not None
+        assert content.raw_content.source.name == src.name
+        assert len(subs) == 2
+        assert all(s.status == "active" for s in subs)
+
+    @pytest.mark.asyncio
+    async def test_get_with_subscriptions_specific_id_and_missing_content(
+        self, session: AsyncSession
+    ) -> None:
+        """A concrete subscription_id resolves that single row; a missing
+        content_id yields (None, ...) without raising."""
+        from intellisource.storage.repositories.content import ContentRepository
+
+        repo = ContentRepository(session)
+        src = _make_source()
+        session.add(src)
+        raw = _make_raw_content(src.id)
+        session.add(raw)
+        await session.flush()
+        processed = _make_processed_content(raw.id)
+        session.add(processed)
+        sub = _make_subscription(src.id, status="active")
+        session.add(sub)
+        await session.flush()
+
+        content, subs = await repo.get_with_source_and_subscriptions(
+            content_id=processed.id, subscription_id=sub.id
+        )
+        assert content is not None
+        assert len(subs) == 1
+        assert subs[0].id == sub.id
+
+        missing, _ = await repo.get_with_source_and_subscriptions(
+            content_id=uuid.uuid4(), subscription_id=None
+        )
+        assert missing is None
+
 
 class TestTaskRepositoryCRUD:
     """AC-054: TaskRepository CRUD operations on CollectTask."""

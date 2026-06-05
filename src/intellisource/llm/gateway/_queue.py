@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from intellisource.llm.priority_queue import PriorityLevel, PriorityQueue, QueuedRequest
+
+if TYPE_CHECKING:
+    from intellisource.llm.gateway._proto import _GatewayProto
 
 
 class _QueueMixin:
@@ -14,7 +17,7 @@ class _QueueMixin:
     _INTERACTIVE_TASK_TYPES: frozenset[str]
 
     async def enqueue_request(
-        self: Any,
+        self: _GatewayProto,
         prompt: str,
         model: str,
         task_type: str | None = None,
@@ -35,7 +38,7 @@ class _QueueMixin:
         req = QueuedRequest(prompt=prompt, model=model, priority=priority)
         await self._priority_queue.enqueue(req)
 
-    async def process_queue_item(self: Any) -> Any:
+    async def process_queue_item(self: _GatewayProto) -> Any:
         """Dequeue one request from the priority queue and execute it via litellm.
 
         Returns the LLM response or None if no queue is configured.

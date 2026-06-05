@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from intellisource.agent.tools.results import tool_degraded
 from intellisource.observability.logging import get_logger
 
 logger = get_logger(__name__)
@@ -26,12 +27,9 @@ async def _llm_complete_execute(
     gateway = tool_deps.llm_gateway if tool_deps is not None else None
     if gateway is None:
         logger.warning("tool_deps not injected for llm_complete, returning placeholder")
-        return {
-            "status": "degraded",
-            "tool": "llm_complete",
-            "reason": "tool_deps not injected",
-            "call_type": call_type,
-        }
+        return tool_degraded(
+            "llm_complete", "tool_deps not injected", call_type=call_type
+        )
     result = await gateway.complete(prompt=prompt, task_type=call_type or None)
     return {
         "content": result.content,

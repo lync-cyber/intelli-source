@@ -12,13 +12,15 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from intellisource.config.pipeline_models import PipelineConfig
-from intellisource.storage.models import Pipeline
+from intellisource.config.pipeline_models import PipelineConfig, StepSpec
 from intellisource.storage.repositories.pipeline import PipelineRepository
+
+if TYPE_CHECKING:
+    from intellisource.storage.models import Pipeline
 
 _DEFAULT_PIPELINES_DIR = Path(__file__).resolve().parents[3] / "config" / "pipelines"
 
@@ -60,7 +62,7 @@ class PipelineDefinitionService:
         return PipelineConfig(
             name=orm.name,
             mode=orm.mode,
-            steps=[dict(step.definition) for step in orm.steps],
+            steps=[cast(StepSpec, dict(step.definition)) for step in orm.steps],
             max_steps=orm.max_steps,
             on_failure=orm.on_failure,
             tools_allowed=list(orm.tools_allowed),

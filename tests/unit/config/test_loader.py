@@ -378,6 +378,16 @@ class TestConfigVersionManager:
 
         assert isinstance(ConfigVersionManager, type)
 
+    def test_rejects_table_name_outside_whitelist(self) -> None:
+        """ConfigVersionManager refuses a table_name outside the allowed set,
+        keeping the f-string-interpolated version SQL injection-safe."""
+        from intellisource.config.loader import ConfigVersionManager
+
+        with pytest.raises(ValueError, match="not an allowed version table"):
+            ConfigVersionManager(
+                table_name="config_versions; DROP TABLE x", config_cls=SourceConfig
+            )
+
     def test_record_version_increments(self) -> None:
         """record_version() increments the version number."""
         from intellisource.config.loader import ConfigVersionManager

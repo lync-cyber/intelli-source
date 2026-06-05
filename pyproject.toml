@@ -26,9 +26,7 @@ dependencies = [
     "pgvector>=0.2",
     "beautifulsoup4>=4.12",
     "lxml>=5.0",
-    "opentelemetry-api>=1.20",
     "watchfiles>=1.1.1",
-    "aioredis>=2.0.1",
     "regex>=2024.5.10",
     "aiosmtplib>=5.1.0",
     "jinja2>=3.1",
@@ -229,9 +227,6 @@ DEP002 = [
     "psycopg",                   # sync PG driver alternative; tests use it for DDL
     "pgvector",                  # registers SQLAlchemy types side-effectfully
     "alembic",                   # CLI tool, not imported at runtime by intellisource.*
-    "aioredis",                  # alias of redis.asyncio in older code paths
-    "regex",                     # imported by litellm internals; pinned for compatibility
-    "opentelemetry-api",         # imported only when OTEL_*_ENABLED env vars are set
     "lxml",                      # parser backend for beautifulsoup4
     "uvicorn",                   # ASGI server invoked as CLI in docker compose; never `import uvicorn`
 ]
@@ -276,6 +271,9 @@ dev = [
 [tool.importlinter]
 root_packages = ["intellisource"]
 include_external_packages = false
+# TYPE_CHECKING-only imports carry no runtime coupling; contracts police real
+# dependency edges, so type-annotation imports are excluded from the graph.
+exclude_type_checking_imports = true
 
 # Contract 1: Top-down layered architecture.
 # Siblings on the same row (' | ') are forbidden from importing each other.
@@ -420,3 +418,35 @@ forbidden_modules = [
     "intellisource.agent.tools.executes",
 ]
 allow_indirect_imports = true
+
+# Contract 12: storage.models is the ORM boundary. Only storage itself and the
+# cost_tracker read-path may import it directly; every other package goes through
+# storage.repositories. allow_indirect_imports=true flags only DIRECT edges so the
+# legitimate package -> repository -> models chain stays allowed. The cost_tracker
+# edge (LLMCallLog aggregation read path) is the one sanctioned exception.
+[[tool.importlinter.contracts]]
+name = "Only storage + cost_tracker may import storage.models directly"
+type = "forbidden"
+source_modules = [
+    "intellisource.agent",
+    "intellisource.pipeline",
+    "intellisource.collector",
+    "intellisource.search",
+    "intellisource.distributor",
+    "intellisource.scheduler",
+    "intellisource.template",
+    "intellisource.source",
+    "intellisource.subscription",
+    "intellisource.topic",
+    "intellisource.composition",
+    "intellisource.api",
+    "intellisource.main",
+    "intellisource.cli",
+    "intellisource.mcp_server",
+    "intellisource.llm",
+]
+forbidden_modules = ["intellisource.storage.models"]
+allow_indirect_imports = true
+ignore_imports = [
+    "intellisource.llm.cost_tracker -> intellisource.storage.models",
+]

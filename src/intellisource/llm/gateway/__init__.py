@@ -62,7 +62,7 @@ class LLMGateway(
         "claude-3-haiku-20240307": 200000,
         "claude-sonnet-4-20250514": 200000,
     }
-    _DEFAULT_CONTEXT_WINDOW = 128000
+    _DEFAULT_CONTEXT_WINDOW: int = 128000
 
     _INTERACTIVE_TASK_TYPES: frozenset[str] = frozenset(
         ["search", "chat", "interactive", "query"]

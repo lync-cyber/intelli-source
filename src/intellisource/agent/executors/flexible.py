@@ -8,15 +8,12 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, AsyncGenerator, Callable, Coroutine
 
+from intellisource.agent.tool_gating import ToolPermissionResolver, _is_preview_mode
 from intellisource.agent.tools import PermissionLevel, ToolDefinition
 from intellisource.core.errors import ErrorCategory, IntelliSourceError
 from intellisource.observability.logging import get_logger
 
 logger = get_logger(__name__)
-
-# Fallback set for callers that register tools without the
-# `ToolDefinition.mutates_external_state` flag.
-_ANALYZE_DENIED_TOOLS: frozenset[str] = frozenset({"distribute", "process"})
 
 
 class FlexibleLoop:
@@ -42,6 +39,7 @@ class FlexibleLoop:
         self._emit_llm_call = emit_llm_call
         self._emit_pipeline_error = emit_pipeline_error
         self._persist = persist
+        self._tool_perms = ToolPermissionResolver(tool_registry)
 
     async def run(
         self,
@@ -64,8 +62,8 @@ class FlexibleLoop:
         chain_id = str(uuid.uuid4())
         await self._emit_pipeline_start(config.name, chain_id, "flexible")
 
-        available_tools = self._filter_tools(config, agent_mode=agent_mode)
-        tool_descriptors = self._build_tool_descriptors(available_tools)
+        available_tools = self._tool_perms.filter_tools(config, agent_mode)
+        tool_descriptors = self._tool_perms.build_tool_descriptors(available_tools)
         effective_budget = (
             max_tokens_budget
             if max_tokens_budget is not None
@@ -190,7 +188,7 @@ class FlexibleLoop:
                     )
                     continue
 
-                if self._is_analyze_denied(tc_name, agent_mode):
+                if self._tool_perms.is_analyze_denied(tc_name, agent_mode):
                     messages.append(
                         {
                             "role": "tool",
@@ -385,8 +383,8 @@ class FlexibleLoop:
         chain_id = str(uuid.uuid4())
         await self._emit_pipeline_start(config.name, chain_id, "flexible-stream")
 
-        available_tools = self._filter_tools(config, agent_mode=agent_mode)
-        tool_descriptors = self._build_tool_descriptors(available_tools)
+        available_tools = self._tool_perms.filter_tools(config, agent_mode)
+        tool_descriptors = self._tool_perms.build_tool_descriptors(available_tools)
         effective_budget = (
             max_tokens_budget
             if max_tokens_budget is not None
@@ -521,7 +519,7 @@ class FlexibleLoop:
                     )
                     continue
 
-                if self._is_analyze_denied(tc_name, agent_mode):
+                if self._tool_perms.is_analyze_denied(tc_name, agent_mode):
                     messages.append(
                         {
                             "role": "tool",
@@ -748,7 +746,7 @@ class FlexibleLoop:
                 if effective_perm is PermissionLevel.deny
                 else (
                     "denied_by_analyze_mode"
-                    if self._is_analyze_denied(tc_name, agent_mode)
+                    if self._tool_perms.is_analyze_denied(tc_name, agent_mode)
                     else None
                 )
             )
@@ -843,99 +841,12 @@ class FlexibleLoop:
                     "error": str(exc),
                 }
 
-    def _filter_tools(
-        self,
-        config: Any,
-        agent_mode: Any,
-    ) -> list[str]:
-        """Build available tool list respecting config filters and permission levels."""
-        all_tools: list[str] = self._tool_registry.list_tools()
-        denied = set(config.tools_denied)
-        allowed = set(config.tools_allowed)
-
-        if _is_analyze_mode(agent_mode):
-            denied = denied | self._analyze_denied_tools(all_tools)
-
-        if allowed:
-            tools = [t for t in all_tools if t in allowed]
-        else:
-            tools = list(all_tools)
-
-        pipeline_perms: dict[str, str] = getattr(config, "tool_permissions", {}) or {}
-        permission_denied: set[str] = set()
-        for t in tools:
-            override = pipeline_perms.get(t)
-            if override is not None:
-                effective = PermissionLevel(override)
-            else:
-                tool_def = self._tool_registry.get(t)
-                effective = (
-                    tool_def.permission_level
-                    if isinstance(tool_def, ToolDefinition)
-                    else PermissionLevel.auto
-                )
-            if effective is PermissionLevel.deny:
-                permission_denied.add(t)
-
-        return [t for t in tools if t not in denied and t not in permission_denied]
-
-    def _analyze_denied_tools(self, candidate_names: list[str]) -> set[str]:
-        return {n for n in candidate_names if self._is_analyze_denied_name(n)}
-
-    def _is_analyze_denied_name(self, name: str) -> bool:
-        tool_def = self._tool_registry.get(name)
-        if isinstance(tool_def, ToolDefinition) and tool_def.mutates_external_state:
-            return True
-        return name in _ANALYZE_DENIED_TOOLS
-
-    def _is_analyze_denied(self, name: str, agent_mode: Any) -> bool:
-        """Return True when name is denied under analyze mode."""
-        if not _is_analyze_mode(agent_mode):
-            return False
-        return self._is_analyze_denied_name(name)
-
-    def _build_tool_descriptors(self, tool_names: list[str]) -> list[dict[str, Any]]:
-        """Build OpenAI-style function tool descriptors."""
-        descriptors: list[dict[str, Any]] = []
-        for name in tool_names:
-            tool = self._tool_registry.get(name)
-            if isinstance(tool, ToolDefinition):
-                description = tool.description
-                parameters = tool.parameters
-            else:
-                description = ""
-                parameters = {"type": "object", "properties": {}}
-            descriptors.append(
-                {
-                    "type": "function",
-                    "function": {
-                        "name": name,
-                        "description": description,
-                        "parameters": parameters,
-                    },
-                }
-            )
-        return descriptors
-
 
 def _resolve_callable(tool: Any) -> Any:
     """Unwrap ToolDefinition to its execute callable if needed."""
     if isinstance(tool, ToolDefinition):
         return tool.execute
     return tool
-
-
-def _is_analyze_mode(agent_mode: Any) -> bool:
-    """Return True when agent_mode represents analyze."""
-    # AgentMode is str-enum; .value works for enum instances and raw strings.
-    val = agent_mode.value if hasattr(agent_mode, "value") else str(agent_mode)
-    return val == "analyze"
-
-
-def _is_preview_mode(agent_mode: Any) -> bool:
-    """Return True when agent_mode represents preview."""
-    val = agent_mode.value if hasattr(agent_mode, "value") else str(agent_mode)
-    return val == "preview"
 
 
 def _serialize_tool_call(tool_call: Any) -> dict[str, Any]:

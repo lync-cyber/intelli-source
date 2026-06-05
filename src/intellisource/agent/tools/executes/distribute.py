@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from intellisource.agent.tools.results import tool_degraded
 from intellisource.observability.logging import get_logger
 
 logger = get_logger(__name__)
@@ -24,12 +25,9 @@ async def _distribute_execute(
     """
     if tool_deps is None or tool_deps.distributor is None:
         logger.warning("tool_deps not injected for distribute, returning placeholder")
-        return {
-            "status": "degraded",
-            "tool": "distribute",
-            "reason": "tool_deps not injected",
-            "content_id": content_id,
-        }
+        return tool_degraded(
+            "distribute", "tool_deps not injected", content_id=content_id
+        )
 
     ids_to_distribute: list[str] = (
         processed_content_ids
@@ -38,12 +36,9 @@ async def _distribute_execute(
     )
 
     if not ids_to_distribute:
-        return {
-            "status": "degraded",
-            "tool": "distribute",
-            "reason": "no content_id provided",
-            "content_id": content_id,
-        }
+        return tool_degraded(
+            "distribute", "no content_id provided", content_id=content_id
+        )
 
     results: list[Any] = []
     for cid in ids_to_distribute:

@@ -9,6 +9,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
+from intellisource.core.version import get_version
+
 if TYPE_CHECKING:
     from intellisource.observability.metrics import MetricsCollector
 
@@ -54,11 +56,13 @@ class HealthChecker:
         *,
         check_timeout_seconds: float = DEFAULT_CHECK_TIMEOUT_SECONDS,
         metrics_collector: MetricsCollector | None = None,
+        version: str | None = None,
     ) -> None:
         self._checks: dict[str, Callable[[], Coroutine[Any, Any, bool]]] = {}
         self._start_time: float = time.monotonic()
         self._check_timeout_seconds: float = check_timeout_seconds
         self._metrics_collector = metrics_collector
+        self._version: str = version if version is not None else get_version()
         if metrics_collector is not None:
             metrics_collector.register_labeled_gauge(
                 HEALTH_GAUGE_NAME,
@@ -96,7 +100,7 @@ class HealthChecker:
         if not self._checks:
             return HealthResult(
                 status="healthy",
-                version="0.3.0",
+                version=self._version,
                 uptime_seconds=time.monotonic() - self._start_time,
                 checks={},
                 timestamp=now,
@@ -138,7 +142,7 @@ class HealthChecker:
 
         return HealthResult(
             status=status,
-            version="0.3.0",
+            version=self._version,
             uptime_seconds=time.monotonic() - self._start_time,
             checks=checks,
             timestamp=now,

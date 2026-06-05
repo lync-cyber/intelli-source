@@ -13,19 +13,11 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from intellisource.agent.tools.executes._deps import resolve_factories
 from intellisource.agent.tools.results import tool_error, tool_ok
 from intellisource.observability.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-def _wiring(tool_deps: Any, factory_attr: str) -> tuple[Any, Any]:
-    """Return (injected_factory, session_factory) or (None, None) when unwired."""
-    if tool_deps is None:
-        return None, None
-    return getattr(tool_deps, factory_attr, None), getattr(
-        tool_deps, "session_factory", None
-    )
 
 
 async def _run_pipeline_execute(
@@ -38,7 +30,9 @@ async def _run_pipeline_execute(
     if not name:
         return tool_error("run_pipeline", "name is required", code="invalid_input")
     dispatcher = getattr(tool_deps, "task_dispatcher", None)
-    service_factory, session_factory = _wiring(tool_deps, "pipeline_service_factory")
+    service_factory, session_factory = resolve_factories(
+        tool_deps, "pipeline_service_factory"
+    )
     if dispatcher is None or service_factory is None or session_factory is None:
         return tool_error("run_pipeline", "tool_deps not injected", code="not_wired")
     # Confirm the pipeline exists before hitting the broker so an unknown or
@@ -78,7 +72,7 @@ async def _get_task_status_execute(
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Return the status of a TaskChain by id (nested under ``task``)."""
-    factory, session_factory = _wiring(tool_deps, "task_chain_repo_factory")
+    factory, session_factory = resolve_factories(tool_deps, "task_chain_repo_factory")
     if factory is None or session_factory is None:
         return tool_error("get_task_status", "tool_deps not injected", code="not_wired")
     if not task_chain_id:

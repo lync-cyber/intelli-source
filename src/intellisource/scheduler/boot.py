@@ -9,7 +9,6 @@ from __future__ import annotations
 from typing import Any
 
 from celery.signals import beat_init, worker_process_init, worker_process_shutdown
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -44,9 +43,6 @@ from intellisource.scheduler.idempotency import (  # noqa: E402 — defer until 
 from intellisource.scheduler.tasks import (  # noqa: E402 — defer until celery_app re-export is bound
     CeleryTasks,
 )
-from intellisource.storage.models import (  # noqa: E402 — defer until celery_app re-export is bound
-    RawContent,
-)
 
 logger = get_logger(__name__)
 
@@ -69,13 +65,13 @@ class _RawContentFingerprintRepo:
         self._session_factory = session_factory
 
     async def exists_by_fingerprint(self, fingerprint: str) -> bool:
+        from intellisource.storage.repositories.content import (  # noqa: PLC0415
+            ContentRepository,
+        )
+
         async with self._session_factory() as session:
-            result = await session.execute(
-                select(RawContent.id)
-                .where(RawContent.fingerprint == fingerprint)
-                .limit(1)
-            )
-            return result.first() is not None
+            row = await ContentRepository(session).get_raw_by_fingerprint(fingerprint)
+            return row is not None
 
     async def record_fingerprint(self, fingerprint: str, content_id: Any) -> None:
         # No-op by design: see class docstring + arch M-002 fingerprint protocol.
@@ -102,18 +98,15 @@ class _RawContentResultRepo:
             return result
         try:
             import uuid as _uuid_mod  # noqa: PLC0415
-            from datetime import datetime, timezone  # noqa: PLC0415
+
+            from intellisource.storage.repositories.content import (  # noqa: PLC0415
+                ContentRepository,
+            )
 
             raw_id = _uuid_mod.UUID(str(content_id_val))
             async with self._session_factory() as session:
-                row = (
-                    await session.execute(
-                        select(RawContent).where(RawContent.id == raw_id).limit(1)
-                    )
-                ).scalar_one_or_none()
-                if row is not None:
-                    row.status = "processed"
-                    row.processed_at = datetime.now(tz=timezone.utc)
+                repo = ContentRepository(session)
+                if await repo.mark_processed(raw_id):
                     await session.commit()
         except Exception as exc:
             logger.warning(

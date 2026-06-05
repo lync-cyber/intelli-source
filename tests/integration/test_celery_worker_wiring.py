@@ -212,14 +212,12 @@ class TestRunPipelineEndToEndWithSessionFactory:
         """With a mock session_factory injected, run_pipeline('manual-collect', {})
         calls repo.create exactly once."""
         from intellisource.scheduler.tasks import CeleryTasks  # noqa: PLC0415
-        from intellisource.storage.models import TaskChain  # noqa: PLC0415
 
         mock_repo = AsyncMock()
 
-        # repo.create returns the TaskChain back (mirrors real implementation)
-        async def _fake_create(chain: TaskChain) -> TaskChain:
-            chain.id = uuid.uuid4()
-            return chain
+        # repo.create returns a row carrying an id (mirrors real implementation)
+        async def _fake_create(**kwargs: object) -> object:
+            return MagicMock(id=uuid.uuid4())
 
         mock_repo.create = AsyncMock(side_effect=_fake_create)
 
@@ -261,15 +259,13 @@ class TestRunPipelineEndToEndWithSessionFactory:
         """The TaskChain passed to repo.create carries the trigger_type from
         params and the pipeline_name passed to run_pipeline."""
         from intellisource.scheduler.tasks import CeleryTasks  # noqa: PLC0415
-        from intellisource.storage.models import TaskChain  # noqa: PLC0415
 
-        captured_chains: list[TaskChain] = []
+        captured_kwargs: list[dict[str, object]] = []
         mock_repo = AsyncMock()
 
-        async def _capture_create(chain: TaskChain) -> TaskChain:
-            captured_chains.append(chain)
-            chain.id = uuid.uuid4()
-            return chain
+        async def _capture_create(**kwargs: object) -> object:
+            captured_kwargs.append(kwargs)
+            return MagicMock(id=uuid.uuid4())
 
         mock_repo.create = AsyncMock(side_effect=_capture_create)
 
@@ -300,13 +296,13 @@ class TestRunPipelineEndToEndWithSessionFactory:
             )
             tasks.run_pipeline("manual-collect", {"trigger_type": "manual"})
 
-        assert len(captured_chains) == 1
-        chain = captured_chains[0]
-        assert chain.pipeline_name == "manual-collect", (
-            f"Expected pipeline_name='manual-collect', got '{chain.pipeline_name}'"
+        assert len(captured_kwargs) == 1
+        kwargs = captured_kwargs[0]
+        assert kwargs["pipeline_name"] == "manual-collect", (
+            f"Expected pipeline_name='manual-collect', got '{kwargs['pipeline_name']}'"
         )
-        assert chain.trigger_type == "manual", (
-            f"Expected trigger_type='manual', got '{chain.trigger_type}'"
+        assert kwargs["trigger_type"] == "manual", (
+            f"Expected trigger_type='manual', got '{kwargs['trigger_type']}'"
         )
 
 

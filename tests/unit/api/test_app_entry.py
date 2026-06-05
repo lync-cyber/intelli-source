@@ -95,6 +95,25 @@ class TestOpenAPIDocs:
         assert "paths" in body
         assert len(body["paths"]) > 0, "OpenAPI spec should contain at least one path"
 
+    @pytest.mark.asyncio
+    async def test_openapi_version_matches_package_metadata(self) -> None:
+        """The OpenAPI ``info.version`` is sourced from installed package metadata.
+
+        Guards against the version SSOT regressing back to a hand-edited literal
+        (previously 0.1.0) that drifts from ``pyproject.toml``.
+        """
+        from importlib import metadata
+
+        if _MODULE_MISSING:
+            pytest.fail(_SKIP_REASON)
+        expected = metadata.version("intellisource")
+        app = create_app()
+        assert app.version == expected
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/openapi.json")
+        assert resp.json()["info"]["version"] == expected
+
 
 # ===========================================================================
 # AC-T045-1: Route groups and middleware registration
