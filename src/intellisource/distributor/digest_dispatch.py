@@ -13,22 +13,13 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Protocol
+from typing import Any
 
+from intellisource.distributor.clock import Clock, DefaultClock
 from intellisource.distributor.digest import DigestAssembler, DigestPayload
 from intellisource.observability.logging import get_logger
 
 _logger = get_logger(__name__)
-
-
-class _Clock(Protocol):
-    def now(self) -> datetime: ...
-
-
-class _DefaultClock:
-    def now(self) -> datetime:
-        return datetime.now(timezone.utc)
 
 
 @dataclass
@@ -49,11 +40,11 @@ class DigestDispatcher:
         *,
         assembler: DigestAssembler,
         channels: dict[str, Any],
-        clock: _Clock | None = None,
+        clock: Clock | None = None,
     ) -> None:
         self._assembler = assembler
         self._channels = channels
-        self._clock: _Clock = clock or _DefaultClock()
+        self._clock: Clock = clock or DefaultClock()
 
     async def dispatch(
         self,

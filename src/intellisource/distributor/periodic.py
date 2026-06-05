@@ -8,12 +8,13 @@ that landed in it, then assemble + dispatch one digest per subscription
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Any, Protocol
+from datetime import datetime, timedelta
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from intellisource.distributor.clock import Clock, DefaultClock
 from intellisource.distributor.digest import DigestAssembler
 from intellisource.distributor.digest_dispatch import DigestDispatcher, DispatchResult
 from intellisource.distributor.digest_enhance import DigestEnhancer
@@ -34,15 +35,6 @@ _WINDOW_INTERVALS: dict[str, timedelta] = {
 }
 
 _WINDOW_CONTENT_LIMIT = 200
-
-
-class _Clock(Protocol):
-    def now(self) -> datetime: ...
-
-
-class _DefaultClock:
-    def now(self) -> datetime:
-        return datetime.now(timezone.utc)
 
 
 def digest_window_start(subscription: Any, now: datetime) -> datetime:
@@ -69,10 +61,10 @@ class PeriodicDigestRunner:
         session_factory: Any,
         channels: dict[str, Any],
         llm_gateway: Any = None,
-        clock: _Clock | None = None,
+        clock: Clock | None = None,
     ) -> None:
         self._session_factory = session_factory
-        self._clock: _Clock = clock or _DefaultClock()
+        self._clock: Clock = clock or DefaultClock()
         enhancer = DigestEnhancer(llm_gateway) if llm_gateway is not None else None
         llm_renderer = LLMRenderer(llm_gateway) if llm_gateway is not None else None
         # Share the one clock with the assembler's frequency gate so the

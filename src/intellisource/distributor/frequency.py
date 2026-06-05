@@ -6,11 +6,12 @@ quiet hours enforcement, and content aggregation for batch delivery.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Any, Protocol
+from datetime import datetime, timedelta
+from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from intellisource.distributor.clock import Clock, DefaultClock
 from intellisource.observability.logging import get_logger
 
 _logger = get_logger(__name__)
@@ -29,15 +30,6 @@ _FREQUENCY_INTERVALS: dict[str, timedelta] = {
 }
 
 
-class _Clock(Protocol):
-    def now(self) -> datetime: ...
-
-
-class _DefaultClock:
-    def now(self) -> datetime:
-        return datetime.now(timezone.utc)
-
-
 def _parse_time(time_str: str) -> tuple[int, int]:
     """Parse 'HH:MM' to (hour, minute)."""
     parts = time_str.split(":")
@@ -49,9 +41,9 @@ class FrequencyController:
 
     def __init__(
         self,
-        clock: _Clock | None = None,
+        clock: Clock | None = None,
     ) -> None:
-        self._clock: _Clock = clock or _DefaultClock()
+        self._clock: Clock = clock or DefaultClock()
 
     def should_send_now(self, subscription: Any) -> bool:
         """Check if a push should be sent now."""
