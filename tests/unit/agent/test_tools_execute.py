@@ -284,7 +284,8 @@ class TestProcessExecuteReal:
             result = await _process_execute(content_id=str(raw_id), tool_deps=deps)
 
         assert result.get("status") == "ok"
-        inner = result.get("result", {})
+        results = result.get("results", [])
+        inner = results[0] if results else {}
         assert inner.get("content_id") == str(mock_processed.id)
         assert inner.get("raw_content_id") == str(raw_id)
 

@@ -165,11 +165,11 @@ class AgentRunner:
             execution_mode="batch",
             task_chain_id=chain_id,
         )
-        inner_result = output.get("result")
-        inner: dict[str, Any] = inner_result if isinstance(inner_result, dict) else {}
-        raw_id = inner.get("raw_content_id") or content_id
+        results_list = output.get("results") or []
+        first: dict[str, Any] = results_list[0] if results_list else {}
+        raw_id = first.get("raw_content_id") or content_id
         persist_result["content_id"] = raw_id
-        processed_id = inner.get("content_id")
+        processed_id = first.get("content_id")
         if processed_id:
             persist_result["processed_content_id"] = processed_id
         return persist_result

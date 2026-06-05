@@ -48,10 +48,12 @@ class TestRunBatchMode:
         )
         process_output = {
             "status": "ok",
-            "result": {
-                "content_id": "processed-1",
-                "raw_content_id": "raw-1",
-            },
+            "results": [
+                {
+                    "content_id": "processed-1",
+                    "raw_content_id": "raw-1",
+                }
+            ],
         }
 
         with patch(

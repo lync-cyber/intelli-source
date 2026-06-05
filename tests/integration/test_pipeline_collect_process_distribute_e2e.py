@@ -143,7 +143,7 @@ async def test_collect_process_distribute_persists_push_record(
 
     process_result = await _process_execute(content_id=str(raw_id), tool_deps=deps)
     assert process_result["status"] == "ok"
-    processed_id = uuid.UUID(str(process_result["result"]["content_id"]))
+    processed_id = uuid.UUID(str(process_result["results"][0]["content_id"]))
 
     processed = await pg_session.get(ProcessedContent, processed_id)
     assert processed is not None

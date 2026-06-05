@@ -119,7 +119,7 @@ async def test_process_persists_processed_content(pg_session: AsyncSession) -> N
     result = await _process_execute(content_id=str(raw.id), tool_deps=deps)
     assert result["status"] == "ok"
 
-    inner = result["result"]
+    inner = result["results"][0]
     processed_id = uuid.UUID(str(inner["content_id"]))
     assert processed_id != raw.id
 

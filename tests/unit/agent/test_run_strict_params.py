@@ -29,10 +29,12 @@ class TestStepParamsHelpers:
         merge_step_output(
             "process",
             {
-                "result": {
-                    "content_id": "processed-999",
-                    "raw_content_id": "raw-old",
-                }
+                "results": [
+                    {
+                        "content_id": "processed-999",
+                        "raw_content_id": "raw-old",
+                    }
+                ]
             },
             ctx,
         )
@@ -40,9 +42,9 @@ class TestStepParamsHelpers:
         assert ctx["raw_content_id"] == "raw-old"
 
     def test_merge_step_output_process_multi_fans_out_processed_ids(self) -> None:
-        # When process handles several contents ``result`` is a list, so the
-        # processed ids must be read from the top-level keys — otherwise the
-        # stale collect-stage raw id leaks into distribute (content_not_found).
+        # ``results`` is always a list; the processed ids must be read from the
+        # top-level keys — otherwise the stale collect-stage raw id leaks into
+        # distribute (content_not_found).
         ctx: dict[str, object] = {
             "content_id": "raw-old",
             "raw_content_ids": ["raw-old", "raw-2"],
@@ -51,7 +53,7 @@ class TestStepParamsHelpers:
             "process",
             {
                 "status": "ok",
-                "result": [
+                "results": [
                     {"content_id": "pc-1", "raw_content_id": "raw-old"},
                     {"content_id": "pc-2", "raw_content_id": "raw-2"},
                 ],
@@ -78,7 +80,7 @@ class TestRunStrictRuntimeParams:
         process_fn = AsyncMock(
             return_value={
                 "status": "ok",
-                "result": {"content_id": "pc-1", "raw_content_id": "raw-1"},
+                "results": [{"content_id": "pc-1", "raw_content_id": "raw-1"}],
             }
         )
         distribute_fn = AsyncMock(return_value={"status": "ok", "result": {}})
@@ -136,11 +138,11 @@ class TestRunStrictRuntimeParams:
                 "content_id": "raw-1",
             }
         )
-        # multi-content process: result is a list, processed ids at top level
+        # multi-content process: results is a list, processed ids at top level
         process_fn = AsyncMock(
             return_value={
                 "status": "ok",
-                "result": [
+                "results": [
                     {"content_id": "pc-1", "raw_content_id": "raw-1"},
                     {"content_id": "pc-2", "raw_content_id": "raw-2"},
                 ],

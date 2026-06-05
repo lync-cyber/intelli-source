@@ -7,6 +7,7 @@ import uuid as _uuid
 from typing import Any
 
 from intellisource.agent.deps import ToolDeps
+from intellisource.agent.tool_results import ProcessItemResult
 from intellisource.agent.tools.results import tool_degraded
 from intellisource.observability.logging import get_logger
 
@@ -55,7 +56,7 @@ async def _process_execute(
     )
 
     processed_content_ids: list[str] = []
-    results: list[dict[str, Any]] = []
+    results: list[ProcessItemResult] = []
 
     for cid in ids_to_process:
         try:
@@ -153,11 +154,10 @@ async def _process_execute(
     first_processed_id = (
         processed_content_ids[0] if processed_content_ids else content_id
     )
-    single_result = results[0] if len(results) == 1 else results
     return {
         "status": "ok",
         "tool": "process",
-        "result": single_result,
+        "results": results,
         "processed_content_ids": processed_content_ids,
         "content_id": first_processed_id,
     }
