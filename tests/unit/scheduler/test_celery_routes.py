@@ -319,7 +319,7 @@ class TestGetAgentRunnerSingletonExists:
         zero-arg signature; we just guard TypeError specifically.
         """
         import intellisource.agent.factory as factory_mod
-        from intellisource.composition import get_agent_runner_holder
+        from intellisource.agent.runner import get_agent_runner_holder
 
         holder = get_agent_runner_holder()
         original = holder._runner

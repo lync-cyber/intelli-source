@@ -188,7 +188,7 @@ class TestToolDepsWiring:
         and is now removed.
         """
         import intellisource.agent.factory as factory_mod
-        from intellisource.composition import get_agent_runner_holder
+        from intellisource.agent.runner import get_agent_runner_holder
 
         holder = get_agent_runner_holder()
         original = holder._runner
@@ -203,7 +203,7 @@ class TestToolDepsWiring:
         """After install, get_agent_runner() returns the same instance."""
         import intellisource.agent.factory as factory_mod
         from intellisource.agent.factory import build_agent_runner
-        from intellisource.composition import get_agent_runner_holder
+        from intellisource.agent.runner import get_agent_runner_holder
 
         holder = get_agent_runner_holder()
         original = holder._runner

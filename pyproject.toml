@@ -293,10 +293,12 @@ layers = [
 ]
 containers = ["intellisource"]
 exhaustive = false
+# Celery's worker_process_init fires inside scheduler.boot, which must invoke
+# the composition root to assemble the worker graph — an inherent reverse edge
+# the layered stack cannot express. This is the sole sanctioned exception;
+# shared constants/holders live in their proper layers (core / config / agent).
 ignore_imports = [
     "intellisource.scheduler.boot -> intellisource.composition",
-    "intellisource.scheduler.beat_sync -> intellisource.composition",
-    "intellisource.agent.factory -> intellisource.composition",
 ]
 
 # Contract 2: Sprint 6 red line -- pipeline must NOT call LLM directly.

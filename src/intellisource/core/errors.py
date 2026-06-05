@@ -103,3 +103,41 @@ class StorageError(IntelliSourceError):
         recovery_hint: str = "",
     ) -> None:
         super().__init__(message, category=category, recovery_hint=recovery_hint)
+
+
+class CompositionError(IntelliSourceError, ValueError):
+    """Raised when the composition root receives invalid dependencies.
+
+    Multiple inheritance keeps `isinstance(exc, ValueError)` true so callers
+    that catch the built-in `ValueError` (and existing tests) still match.
+    """
+
+    def __init__(self, message: str) -> None:
+        IntelliSourceError.__init__(
+            self,
+            message,
+            category=ErrorCategory.UNRECOVERABLE,
+            recovery_hint=(
+                "Wire dependencies via build_worker_composition() or "
+                "build_api_composition()"
+            ),
+        )
+
+
+class CompositionNotInitialisedError(IntelliSourceError, RuntimeError):
+    """Raised when a process-wide singleton is read before composition root ran.
+
+    Multiple inheritance preserves `isinstance(exc, RuntimeError)` for callers
+    catching the built-in.
+    """
+
+    def __init__(self, message: str) -> None:
+        IntelliSourceError.__init__(
+            self,
+            message,
+            category=ErrorCategory.UNRECOVERABLE,
+            recovery_hint=(
+                "Call build_worker_composition() (Worker) or "
+                "build_api_composition() (API) before reaching this code path"
+            ),
+        )

@@ -486,16 +486,12 @@ deps: []
 - **成本**：~5 行
 - **验证**：`lint-imports` V7 消失；现有 chat session 单测仍 PASS
 
-### B-023 拆分 `composition.py` 解耦 wiring root 与共享常量 ✅
-- **关联**：CODE-SCAN-arch V2 + V3 + V4
-- **现状**：[`composition.py`](../src/intellisource/composition.py) 同时承担 wiring root（依赖一切）和共享常量提供者（`SOURCE_TYPE_TO_PIPELINE`、`CompositionError`、`get_agent_runner_holder`），导致 scheduler.{boot,tasks,beat_sync}（3 处顶层 import）+ agent.factory（lazy import）反向依赖
-- **修复方向**：拆为 `composition/` 包：
-  - `composition/constants.py` — `SOURCE_TYPE_TO_PIPELINE` / `CompositionError` / `get_agent_runner_holder`（最底层）
-  - `composition/api.py` — `build_api_composition`（顶层，仅被 `main` import）
-  - `composition/worker.py` — `build_worker_composition`（顶层，仅被 `scheduler.boot` import）
-  - 顺带把 `WeComCrypto` (l.515) 抽到 `intellisource.tools.wecom_crypto`（V3）
-- **影响范围**：composition / agent.factory / scheduler.{boot,tasks,beat_sync} / api.routers.tasks
-- **验证**：`lint-imports` V2/V3/V4 全部消失；现有装配测试 PASS
+### B-023 拆分 `composition.py` 解耦 wiring root 与共享常量 🔶（反向边已消除；包拆分待办）
+- **关联**：CODE-SCAN-arch V2 + V3 + V4；CODE-SCAN-arch-20260605-r1 G2
+- **现状**：共享符号已下沉到正确层——`AgentRunnerHolder` / `get_agent_runner_holder` → `agent.runner`，`CompositionError` / `CompositionNotInitialisedError` → `core.errors`，`SOURCE_TYPE_TO_PIPELINE` → `config.constants`。agent.factory 与 scheduler.beat_sync 的反向边消除，`ignore_imports` 由 3 条降为 1 条（仅 `scheduler.boot -> composition`，Celery `worker_process_init` 固有反向边，唯一合法例外）。`composition.py` 仍为单文件，拆为 `composition/` 包（builders / api / worker）待办。
+- **剩余**：`composition.py` → `composition/` 包（`builders.py` / `api.py` / `worker.py`），调用点直引子模块
+- **影响范围**：composition / agent.runner / core.errors / config.constants / api.routers.tasks / scheduler.beat_sync
+- **验证**：`lint-imports` 12 KEPT（移除 agent.factory + beat_sync 两条 ignore 后契约仍全覆盖）；3509 unit + 19 composition/worker 集成 PASS
 
 ### B-024 `config.loader` 返回 `SourceConfig` 而非 `Source` ORM ✅
 - **关联**：CODE-SCAN-arch V8

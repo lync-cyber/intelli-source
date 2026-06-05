@@ -19,6 +19,7 @@ from intellisource.agent.executors.strict import (
     ToolDegradedError,
     _retry_step,
 )
+from intellisource.core.errors import CompositionNotInitialisedError
 from intellisource.observability.logging import get_logger
 
 if TYPE_CHECKING:
@@ -30,7 +31,9 @@ logger = get_logger(__name__)
 __all__ = [
     "AgentMode",
     "AgentRunner",
+    "AgentRunnerHolder",
     "ToolDegradedError",
+    "get_agent_runner_holder",
 ]
 
 
@@ -340,3 +343,44 @@ class AgentRunner:
     ) -> dict[str, Any]:
         """Retry a failed step up to _MAX_RETRIES times."""
         return await _retry_step(tool_fn, params, tool_name, self._MAX_RETRIES)
+
+
+class AgentRunnerHolder:
+    """Mutable single-slot container for the process-wide AgentRunner.
+
+    Owned by the composition root: `install()` puts the assembled runner in
+    (composition → agent, a forward edge); `get()` reads it (raising
+    CompositionNotInitialisedError when empty); `reset()` clears the slot
+    (test fixture support only). Lives beside AgentRunner so reads stay
+    intra-agent and the agent layer keeps no reverse edge to composition.
+    """
+
+    def __init__(self) -> None:
+        self._runner: AgentRunner | None = None
+
+    def install(self, runner: AgentRunner) -> None:
+        self._runner = runner
+
+    def get(self) -> AgentRunner:
+        if self._runner is None:
+            raise CompositionNotInitialisedError(
+                "AgentRunner not initialised; call build_worker_composition() "
+                "or build_api_composition() first"
+            )
+        return self._runner
+
+    def reset(self) -> None:
+        self._runner = None
+
+    @property
+    def installed(self) -> bool:
+        return self._runner is not None
+
+
+_global_agent_runner_holder = AgentRunnerHolder()
+"""Process-wide AgentRunner holder. Read via get_agent_runner_holder()."""
+
+
+def get_agent_runner_holder() -> AgentRunnerHolder:
+    """Return the process-wide AgentRunnerHolder singleton."""
+    return _global_agent_runner_holder

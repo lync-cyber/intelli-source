@@ -72,7 +72,7 @@ def test_worker_init_handler_assembles_complete_tool_deps(env_for_worker: None) 
         # Reload boot to clear any module-level cache picked up before patches.
         # Reset agent factory singleton
         import intellisource.scheduler.boot as boot_mod
-        from intellisource.composition import get_agent_runner_holder
+        from intellisource.agent.runner import get_agent_runner_holder
 
         get_agent_runner_holder().reset()
 
@@ -118,7 +118,7 @@ def test_run_pipeline_does_not_raise_attribute_error(
         ),
     ):
         import intellisource.scheduler.boot as boot_mod
-        from intellisource.composition import get_agent_runner_holder
+        from intellisource.agent.runner import get_agent_runner_holder
 
         get_agent_runner_holder().reset()
 

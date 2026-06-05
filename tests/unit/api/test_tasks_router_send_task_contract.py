@@ -257,7 +257,7 @@ async def test_send_task_pipeline_name_routes_by_source_type(
     """r2 R-001: when SOURCE_TYPE_TO_PIPELINE has differentiated entries,
     /tasks/collect must look up Source.type via SourceRepository.get_types_by_ids
     and route to the matching pipeline — not silently fall back to "rss"."""
-    from intellisource.composition import SOURCE_TYPE_TO_PIPELINE
+    from intellisource.config.constants import SOURCE_TYPE_TO_PIPELINE
 
     # Inject a differentiated mapping so "web" routes to a distinct pipeline.
     monkeypatch.setitem(SOURCE_TYPE_TO_PIPELINE, "web", "web-collect")
