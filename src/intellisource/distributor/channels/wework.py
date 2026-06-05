@@ -180,8 +180,12 @@ class WeWorkDistributor(BaseDistributor):
         token: str = data["access_token"]
         expires_in: int = data.get("expires_in", 7200)
 
-        await self.redis.set(TOKEN_CACHE_KEY, token)
-        await self.redis.expire(TOKEN_CACHE_KEY, expires_in - TOKEN_EXPIRE_BUFFER)
+        # Atomic SET with TTL so a crash can never leave a never-expiring token.
+        # The WeWork CS client (base_cs_client) writes the same
+        # ``wework:access_token`` key the same way.
+        await self.redis.set(
+            TOKEN_CACHE_KEY, token, ex=expires_in - TOKEN_EXPIRE_BUFFER
+        )
         return token
 
     # ------------------------------------------------------------------

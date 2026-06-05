@@ -213,19 +213,25 @@ class TestAccessTokenManagement:
     async def test_token_stored_in_redis_with_expiry(
         self, distributor: Any, mock_redis: AsyncMock
     ) -> None:
-        """After fetching from API, token is cached in Redis with buffer."""
+        """Token is cached via a single atomic SET ex=expires_in-buffer.
+
+        Pins the atomic write (no separate set + expire) so a crash between the
+        two calls can never leave a never-expiring token on the shared
+        ``wework:access_token`` key.
+        """
         from intellisource.distributor.channels.wework import (
             TOKEN_CACHE_KEY,
+            TOKEN_EXPIRE_BUFFER,
         )
 
         mock_redis.get.return_value = None
         await distributor.get_access_token()
 
         mock_redis.set.assert_called_once()
+        mock_redis.expire.assert_not_called()
         call_args = mock_redis.set.call_args
-        assert call_args[0][0] == TOKEN_CACHE_KEY or (
-            call_args[1].get("name") == TOKEN_CACHE_KEY if call_args[1] else False
-        )
+        assert call_args[0][0] == TOKEN_CACHE_KEY
+        assert call_args.kwargs["ex"] == 7200 - TOKEN_EXPIRE_BUFFER
 
     @pytest.mark.asyncio
     async def test_token_cache_key_constant(self) -> None:
