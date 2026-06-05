@@ -26,9 +26,7 @@ dependencies = [
     "pgvector>=0.2",
     "beautifulsoup4>=4.12",
     "lxml>=5.0",
-    "opentelemetry-api>=1.20",
     "watchfiles>=1.1.1",
-    "aioredis>=2.0.1",
     "regex>=2024.5.10",
     "aiosmtplib>=5.1.0",
     "jinja2>=3.1",
@@ -229,9 +227,6 @@ DEP002 = [
     "psycopg",                   # sync PG driver alternative; tests use it for DDL
     "pgvector",                  # registers SQLAlchemy types side-effectfully
     "alembic",                   # CLI tool, not imported at runtime by intellisource.*
-    "aioredis",                  # alias of redis.asyncio in older code paths
-    "regex",                     # imported by litellm internals; pinned for compatibility
-    "opentelemetry-api",         # imported only when OTEL_*_ENABLED env vars are set
     "lxml",                      # parser backend for beautifulsoup4
     "uvicorn",                   # ASGI server invoked as CLI in docker compose; never `import uvicorn`
 ]

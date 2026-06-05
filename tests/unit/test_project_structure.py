@@ -44,7 +44,6 @@ CORE_DEPENDENCIES = [
     "pgvector",
     "beautifulsoup4",
     "lxml",
-    "opentelemetry-api",
 ]
 
 # All sub-packages that must contain __init__.py according to arch#§6
