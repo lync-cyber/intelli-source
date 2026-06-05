@@ -5,12 +5,14 @@ from __future__ import annotations
 from intellisource.pipeline.base import BaseProcessor
 from intellisource.pipeline.processors.dedup import ContentDedup
 from intellisource.pipeline.processors.embedder import EmbeddingProcessor
+from intellisource.pipeline.processors.formatter import FormatConverter
 from intellisource.pipeline.processors.parser import HTMLParser
 from intellisource.pipeline.processors.summarizer import LLMSummarizer
 from intellisource.pipeline.processors.tagger import KeywordTagger
 
 PROCESSOR_REGISTRY: dict[str, type[BaseProcessor]] = {
     "HTMLParser": HTMLParser,
+    "FormatConverter": FormatConverter,
     "ContentDedup": ContentDedup,
     "KeywordTagger": KeywordTagger,
     "LLMSummarizer": LLMSummarizer,
