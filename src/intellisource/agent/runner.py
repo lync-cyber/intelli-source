@@ -12,23 +12,14 @@ import uuid
 from typing import TYPE_CHECKING, Any, AsyncGenerator
 
 from intellisource.agent.events import PipelineEventLogger
-from intellisource.agent.executors.flexible import (
-    _ANALYZE_DENIED_TOOLS,
-    FlexibleLoop,
-    _parse_tool_call,
-    _resolve_callable,
-    _serialize_tool_call,
-    _session_messages,
-)
+from intellisource.agent.executors.flexible import FlexibleLoop
+from intellisource.agent.executors.persistence import TaskChainPersister
 from intellisource.agent.executors.strict import (
     StrictExecutor,
     ToolDegradedError,
     _retry_step,
 )
-from intellisource.agent.tools import PermissionLevel, ToolDefinition
 from intellisource.observability.logging import get_logger
-from intellisource.storage.models import TaskChain
-from intellisource.storage.repositories.task_chain import TaskChainRepository
 
 if TYPE_CHECKING:
     from intellisource.agent.deps import ToolDeps
@@ -40,7 +31,6 @@ __all__ = [
     "AgentMode",
     "AgentRunner",
     "ToolDegradedError",
-    "_ANALYZE_DENIED_TOOLS",
 ]
 
 
@@ -71,6 +61,7 @@ class AgentRunner:
         self._pipeline_engine = pipeline_engine
         self._tool_deps = tool_deps
         self._event_logger = event_logger
+        self._persister = TaskChainPersister(event_logger)
 
     # -- public API --------------------------------------------------
 
@@ -112,7 +103,7 @@ class AgentRunner:
             emit_pipeline_start=self._emit_pipeline_start,
             emit_tool_call=self._emit_tool_call,
             emit_pipeline_error=self._emit_pipeline_error,
-            persist=self._persist,
+            persist=self._persister.persist,
         )
         return await executor.run(config, params, tool_deps=effective_deps)
 
@@ -129,7 +120,7 @@ class AgentRunner:
         await self._emit_pipeline_start(config.name, chain_id, "batch")
         content_id = str(params.get("content_id") or "")
         if not content_id:
-            return await self._persist(
+            return await self._persister.persist(
                 status="failed",
                 steps_executed=0,
                 results=[],
@@ -166,7 +157,7 @@ class AgentRunner:
             raise
         tool_results = [{"tool": "process", "output": output}]
         status = "success" if output.get("status") == "ok" else "failed"
-        persist_result = await self._persist(
+        persist_result = await self._persister.persist(
             status=status,
             steps_executed=max(len(config.steps), 1),
             results=tool_results,
@@ -220,7 +211,7 @@ class AgentRunner:
             emit_tool_call=self._emit_tool_call,
             emit_llm_call=self._emit_llm_call,
             emit_pipeline_error=self._emit_pipeline_error,
-            persist=self._persist,
+            persist=self._persister.persist,
         )
         return await loop.run(
             config,
@@ -262,7 +253,7 @@ class AgentRunner:
             emit_tool_call=self._emit_tool_call,
             emit_llm_call=self._emit_llm_call,
             emit_pipeline_error=self._emit_pipeline_error,
-            persist=self._persist,
+            persist=self._persister.persist,
         )
         async for event in loop.run_stream(
             config,
@@ -328,22 +319,6 @@ class AgentRunner:
             latency_ms=latency_ms,
         )
 
-    async def _emit_pipeline_complete(
-        self,
-        pipeline_name: str,
-        chain_id: str,
-        status: str,
-        steps_executed: int,
-    ) -> None:
-        if self._event_logger is None:
-            return
-        await self._event_logger.pipeline_complete(
-            pipeline_name=pipeline_name,
-            task_chain_id=chain_id,
-            status=status,
-            steps_executed=steps_executed,
-        )
-
     async def _emit_pipeline_error(
         self, pipeline_name: str, chain_id: str, error: str
     ) -> None:
@@ -357,11 +332,6 @@ class AgentRunner:
 
     # -- private helpers ---------------------------------------------
 
-    @staticmethod
-    def _resolve_callable(tool: Any) -> Any:
-        """Unwrap ToolDefinition to its execute callable if needed."""
-        return _resolve_callable(tool)
-
     async def _retry_step(
         self,
         tool_fn: Any,
@@ -370,144 +340,3 @@ class AgentRunner:
     ) -> dict[str, Any]:
         """Retry a failed step up to _MAX_RETRIES times."""
         return await _retry_step(tool_fn, params, tool_name, self._MAX_RETRIES)
-
-    def _filter_tools(
-        self,
-        config: Any,
-        agent_mode: AgentMode = AgentMode.process,
-    ) -> list[str]:
-        """Build available tool list respecting config filters and permission levels."""
-        all_tools: list[str] = self._tool_registry.list_tools()
-        denied = set(config.tools_denied)
-        allowed = set(config.tools_allowed)
-
-        if agent_mode is AgentMode.analyze:
-            denied = denied | self._analyze_denied_tools(all_tools)
-
-        if allowed:
-            tools = [t for t in all_tools if t in allowed]
-        else:
-            tools = list(all_tools)
-
-        # Resolve effective permission per tool (pipeline override > tool default)
-        pipeline_perms: dict[str, str] = getattr(config, "tool_permissions", {}) or {}
-        permission_denied: set[str] = set()
-        for t in tools:
-            override = pipeline_perms.get(t)
-            if override is not None:
-                effective = PermissionLevel(override)
-            else:
-                tool_def = self._tool_registry.get(t)
-                effective = (
-                    tool_def.permission_level
-                    if isinstance(tool_def, ToolDefinition)
-                    else PermissionLevel.auto
-                )
-            if effective is PermissionLevel.deny:
-                permission_denied.add(t)
-
-        return [t for t in tools if t not in denied and t not in permission_denied]
-
-    def _analyze_denied_tools(self, candidate_names: list[str]) -> set[str]:
-        """Resolve which tools are denied under analyze mode."""
-        return {n for n in candidate_names if self._is_analyze_denied(n)}
-
-    def _is_analyze_denied(self, name: str) -> bool:
-        """Return True when ``name`` is denied under analyze mode."""
-        tool_def = self._tool_registry.get(name)
-        if isinstance(tool_def, ToolDefinition) and tool_def.mutates_external_state:
-            return True
-        return name in _ANALYZE_DENIED_TOOLS
-
-    def _build_tool_descriptors(self, tool_names: list[str]) -> list[dict[str, Any]]:
-        """Build OpenAI-style function tool descriptors for LLMGateway.chat()."""
-        descriptors: list[dict[str, Any]] = []
-        for name in tool_names:
-            tool = self._tool_registry.get(name)
-            if isinstance(tool, ToolDefinition):
-                description = tool.description
-                parameters = tool.parameters
-            else:
-                description = ""
-                parameters = {"type": "object", "properties": {}}
-            descriptors.append(
-                {
-                    "type": "function",
-                    "function": {
-                        "name": name,
-                        "description": description,
-                        "parameters": parameters,
-                    },
-                }
-            )
-        return descriptors
-
-    @staticmethod
-    def _serialize_tool_call(tool_call: Any) -> dict[str, Any]:
-        """Return an assistant-message tool_call payload for LLM continuity."""
-        return _serialize_tool_call(tool_call)
-
-    @staticmethod
-    def _parse_tool_call(tool_call: Any) -> tuple[str, str, dict[str, Any]]:
-        """Extract (name, id, arguments) from SDK-style or dict tool calls."""
-        return _parse_tool_call(tool_call)
-
-    @staticmethod
-    def _session_messages(session: dict[str, Any]) -> list[dict[str, Any]]:
-        """Return valid prior conversation messages from a session payload."""
-        return _session_messages(session)
-
-    async def _persist(
-        self,
-        *,
-        status: str,
-        steps_executed: int,
-        results: list[dict[str, Any]],
-        pipeline_name: str,
-        task_chain_id: str | None = None,
-        repo: TaskChainRepository | None = None,
-        trigger_type: str = "manual",
-        execution_mode: str = "strict",
-    ) -> dict[str, Any]:
-        """Persist result and return with task_chain_id.
-
-        Args:
-            task_chain_id: If provided by the caller (e.g. CeleryTasks),
-                use it to correlate with the TaskChain DB record.
-            repo: When provided and task_chain_id is absent, a new TaskChain
-                record is written via repo.create().
-            trigger_type: How the pipeline was triggered (e.g. 'manual', 'scheduled').
-            execution_mode: Pipeline execution mode (e.g. 'strict', 'flexible').
-        """
-        if task_chain_id is not None:
-            chain_id = task_chain_id
-        elif repo is not None:
-            task_chain = TaskChain(
-                id=uuid.uuid4(),
-                pipeline_name=pipeline_name,
-                status=status,
-                trigger_type=trigger_type,
-                execution_mode=execution_mode,
-                total_steps=steps_executed,
-                completed_steps=steps_executed,
-            )
-            persisted = await repo.create(task_chain)
-            chain_id = str(persisted.id)
-        else:
-            raise ValueError(
-                "_persist requires either task_chain_id or repo; both were None. "
-                "Internal run_strict/run_batch/run_flexible always pre-generate "
-                "chain_id, so this indicates an unexpected external caller."
-            )
-
-        await self._emit_pipeline_complete(
-            pipeline_name, chain_id, status, steps_executed
-        )
-
-        return {
-            "status": status,
-            "steps_executed": steps_executed,
-            "results": results,
-            "pipeline_name": pipeline_name,
-            "task_chain_id": chain_id,
-        }

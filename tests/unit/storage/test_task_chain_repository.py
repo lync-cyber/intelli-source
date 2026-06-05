@@ -335,7 +335,7 @@ class TestAgentRunnerPersistCallsRepo:
         runner = AgentRunner(tool_registry=tool_registry, llm_gateway=None)
 
         # Inject the repo — the new contract requires _persist to accept/use it
-        await runner._persist(
+        await runner._persister.persist(
             status="success",
             steps_executed=1,
             results=[],
@@ -356,7 +356,7 @@ class TestAgentRunnerPersistCallsRepo:
         tool_registry = MagicMock()
         runner = AgentRunner(tool_registry=tool_registry, llm_gateway=None)
 
-        result = await runner._persist(
+        result = await runner._persister.persist(
             status="success",
             steps_executed=1,
             results=[],

@@ -15,7 +15,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from intellisource.agent.runner import AgentRunner
+from intellisource.agent.runner import AgentMode, AgentRunner
+from intellisource.agent.tool_gating import ToolPermissionResolver
 from intellisource.agent.tools import AgentToolRegistry, PermissionLevel, ToolDefinition
 from intellisource.config.pipeline_models import PipelineConfig
 from intellisource.llm.gateway import LLMResult
@@ -138,8 +139,9 @@ class TestDenyHardFilter:
             {"safe": PermissionLevel.auto, "dangerous": PermissionLevel.deny}
         )
         config = _flexible_config_with_permissions("p", ["safe", "dangerous"])
-        runner = AgentRunner(registry, _one_shot_llm(), pipeline_engine=None)
-        available = runner._filter_tools(config)
+        available = ToolPermissionResolver(registry).filter_tools(
+            config, AgentMode.process
+        )
         assert "dangerous" not in available
         assert "safe" in available
 
@@ -231,8 +233,9 @@ class TestPipelinePermissionOverride:
         config = _flexible_config_with_permissions(
             "p", ["safe", "guarded"], tool_permissions={"guarded": "deny"}
         )
-        runner = AgentRunner(registry, _one_shot_llm(), pipeline_engine=None)
-        available = runner._filter_tools(config)
+        available = ToolPermissionResolver(registry).filter_tools(
+            config, AgentMode.process
+        )
         assert "guarded" not in available
         assert "safe" in available
 

@@ -14,6 +14,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock
 
 from intellisource.agent.runner import AgentMode, AgentRunner
+from intellisource.agent.tool_gating import ToolPermissionResolver
 from intellisource.config.pipeline_models import PipelineConfig
 from intellisource.llm.gateway import LLMResult
 
@@ -451,13 +452,6 @@ class TestMutatesExternalStateAnalyzeDeny:
             execute=AsyncMock(return_value={"items": []}),
         )
 
-        llm_gw = AsyncMock()
-        llm_gw.chat.return_value = LLMResult(
-            content="done",
-            metadata={"tool_calls": None, "finish_reason": "stop", "usage": {}},
-        )
-
-        runner = AgentRunner(tool_registry=registry, llm_gateway=llm_gw)
         config = PipelineConfig.from_dict(
             {
                 "name": "analyze-new-tool",
@@ -471,17 +465,19 @@ class TestMutatesExternalStateAnalyzeDeny:
             }
         )
 
-        # _filter_tools drops send_email even though it's NOT in the legacy
-        # _ANALYZE_DENIED_TOOLS frozenset — proving the field, not the
+        # ToolPermissionResolver drops send_email even though it's NOT in the
+        # legacy _ANALYZE_DENIED_TOOLS frozenset — proving the field, not the
         # hardcoded set, drives the decision.
-        allowed = runner._filter_tools(config, agent_mode=AgentMode.analyze)
+        allowed = ToolPermissionResolver(registry).filter_tools(
+            config, AgentMode.analyze
+        )
         assert "search" in allowed
         assert "send_email" not in allowed
 
     async def test_legacy_distribute_still_denied_via_fallback_set(self) -> None:
         """Backward compatibility: ToolDefinition-less callables still hit the
         static fallback set so existing pipelines don't regress."""
-        from intellisource.agent.runner import _ANALYZE_DENIED_TOOLS
+        from intellisource.agent.tool_gating import _ANALYZE_DENIED_TOOLS
 
         # Registry that returns a raw callable (not a ToolDefinition) so the
         # field-based path can't decide — the fallback set takes over.
@@ -492,7 +488,6 @@ class TestMutatesExternalStateAnalyzeDeny:
         registry.list_tools = MagicMock(return_value=["distribute", "search"])
         registry.get = MagicMock(side_effect=lambda n: _raw_distribute if n else None)
 
-        runner = AgentRunner(tool_registry=registry, llm_gateway=AsyncMock())
         config = PipelineConfig.from_dict(
             {
                 "name": "legacy",
@@ -506,6 +501,8 @@ class TestMutatesExternalStateAnalyzeDeny:
             }
         )
 
-        allowed = runner._filter_tools(config, agent_mode=AgentMode.analyze)
+        allowed = ToolPermissionResolver(registry).filter_tools(
+            config, AgentMode.analyze
+        )
         assert "distribute" not in allowed
         assert "distribute" in _ANALYZE_DENIED_TOOLS

@@ -1,10 +1,11 @@
-"""Tests for AgentRunner._persist parameterization (T-075 AC-T075-3).
+"""Tests for TaskChainPersister.persist parameterization (T-075 AC-T075-3).
 
+AgentRunner delegates persistence to ``self._persister`` (TaskChainPersister).
 Verifies that:
-- _persist accepts trigger_type and execution_mode keyword parameters and
+- persist accepts trigger_type and execution_mode keyword parameters and
   forwards them to the TaskChain it constructs.
-- run_strict passes execution_mode="strict" when calling _persist.
-- run_flexible passes execution_mode="flexible" when calling _persist.
+- run_strict drives persist with execution_mode="strict".
+- run_flexible drives persist with execution_mode="flexible".
 """
 
 from __future__ import annotations
@@ -88,7 +89,7 @@ class TestPersistDefaultParameters:
         runner = _make_runner()
         mock_repo = _make_mock_repo()
 
-        await runner._persist(
+        await runner._persister.persist(
             status="success",
             steps_executed=0,
             results=[],
@@ -123,7 +124,7 @@ class TestPersistExplicitParameters:
         runner = _make_runner()
         mock_repo = _make_mock_repo()
 
-        await runner._persist(
+        await runner._persister.persist(
             status="success",
             steps_executed=2,
             results=[],
@@ -161,13 +162,13 @@ class TestRunStrictPassesExecutionMode:
 
         captured_kwargs: list[dict[str, Any]] = []
 
-        original_persist = runner._persist
+        original_persist = runner._persister.persist
 
         async def _spy_persist(**kwargs: Any) -> dict[str, Any]:
             captured_kwargs.append(dict(kwargs))
             return await original_persist(**kwargs)
 
-        monkeypatch.setattr(runner, "_persist", _spy_persist)
+        monkeypatch.setattr(runner._persister, "persist", _spy_persist)
 
         await runner.run_strict(config, params={})
 
@@ -207,13 +208,13 @@ class TestRunFlexiblePassesExecutionMode:
 
         captured_kwargs: list[dict[str, Any]] = []
 
-        original_persist = runner._persist
+        original_persist = runner._persister.persist
 
         async def _spy_persist(**kwargs: Any) -> dict[str, Any]:
             captured_kwargs.append(dict(kwargs))
             return await original_persist(**kwargs)
 
-        monkeypatch.setattr(runner, "_persist", _spy_persist)
+        monkeypatch.setattr(runner._persister, "persist", _spy_persist)
 
         await runner.run_flexible(config, user_message="test", session={})
 
