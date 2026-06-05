@@ -11,12 +11,15 @@ instead of crashing the content-process pipeline).
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import litellm
 
 from intellisource.llm.cost_tracker import LLMCallRecord
 from intellisource.observability.logging import get_logger
+
+if TYPE_CHECKING:
+    from intellisource.llm.gateway._proto import _GatewayProto
 
 logger = get_logger(__name__)
 
@@ -29,7 +32,7 @@ class _EmbedMixin:
         """Thin wrapper around litellm.aembedding for testability."""
         return await litellm.aembedding(**kwargs)
 
-    async def embed(self: Any, text: str) -> list[float] | None:
+    async def embed(self: _GatewayProto, text: str) -> list[float] | None:
         if not text or not text.strip():
             return None
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import time
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from intellisource.llm.cost_tracker import LLMCallRecord
 from intellisource.llm.gateway._extra_body import (
@@ -20,6 +20,9 @@ from intellisource.llm.gateway._types import (
     SchemaValidationError,
 )
 from intellisource.observability.logging import get_logger
+
+if TYPE_CHECKING:
+    from intellisource.llm.gateway._proto import _GatewayProto
 
 logger = get_logger(__name__)
 
@@ -81,7 +84,7 @@ class _ChatMixin:
                 raise ValueError(f"tools[{i}] missing required key 'function'")
 
     async def chat(
-        self: Any,
+        self: _GatewayProto,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
         response_format: dict[str, Any] | None = None,
@@ -195,7 +198,7 @@ class _ChatMixin:
                     call_type=cache_parts["call_type"],
                     input_text=fallback_text,
                 )
-                return cast(LLMResult, cached)
+                return cached
 
         start_time = time.monotonic()
         try:

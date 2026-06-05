@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from intellisource.llm.cost_tracker import LLMCallRecord
 from intellisource.llm.gateway._extra_body import (
@@ -14,12 +14,15 @@ from intellisource.llm.gateway._metrics import _record_llm_call
 from intellisource.llm.gateway._types import LLMResult
 from intellisource.llm.prompt_builder import PromptBuilder
 
+if TYPE_CHECKING:
+    from intellisource.llm.gateway._proto import _GatewayProto
+
 
 class _CompleteMixin:
     """Provides complete() and the private _call_with_retry() helper."""
 
     async def complete(
-        self: Any,
+        self: _GatewayProto,
         prompt: str,
         model: str | None = None,
         system_prompt: str | None = None,
@@ -68,7 +71,7 @@ class _CompleteMixin:
                     call_type=cache_key_parts["call_type"],
                     input_text=prompt,
                 )
-                return cast(LLMResult, cached)
+                return cached
 
         resolved_model = model
 
@@ -208,7 +211,7 @@ class _CompleteMixin:
         return result
 
     async def _call_with_retry(
-        self: Any,
+        self: _GatewayProto,
         call_kwargs: dict[str, Any],
         prompt: str,
         task_type: str | None = None,

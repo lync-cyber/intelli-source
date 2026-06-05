@@ -5,12 +5,15 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from intellisource.llm.cost_tracker import LLMCallRecord
 from intellisource.llm.gateway._extra_body import build_extra_body
 from intellisource.llm.gateway._metrics import _record_llm_call
 from intellisource.observability.logging import get_logger
+
+if TYPE_CHECKING:
+    from intellisource.llm.gateway._proto import _GatewayProto
 
 logger = get_logger(__name__)
 
@@ -19,7 +22,7 @@ class _StreamMixin:
     """Provides stream_complete() for streaming LLM responses."""
 
     async def stream_complete(
-        self: Any,
+        self: _GatewayProto,
         prompt: str | None = None,
         model: str | None = None,
         system_prompt: str | None = None,
