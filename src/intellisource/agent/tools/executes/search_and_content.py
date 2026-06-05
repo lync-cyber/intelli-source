@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid as _uuid
 from typing import Any
 
+from intellisource.agent.tools.results import tool_degraded
 from intellisource.observability.logging import get_logger
 
 logger = get_logger(__name__)
@@ -33,12 +34,7 @@ async def _search_execute(
             "response": _serialize_search_response(response),
         }
     logger.warning("tool_deps not injected for search, returning placeholder")
-    return {
-        "status": "degraded",
-        "tool": "search",
-        "reason": "tool_deps not injected",
-        "query": query,
-    }
+    return tool_degraded("search", "tool_deps not injected", query=query)
 
 
 def _serialize_search_response(response: Any) -> dict[str, Any]:
@@ -84,12 +80,11 @@ async def _get_content_detail_execute(
             repo = ContentRepository(session=s)
             content = await repo.get_by_id(_uuid.UUID(content_id))
             if content is None:
-                return {
-                    "status": "degraded",
-                    "tool": "get_content_detail",
-                    "reason": f"content not found: {content_id}",
-                    "content_id": content_id,
-                }
+                return tool_degraded(
+                    "get_content_detail",
+                    f"content not found: {content_id}",
+                    content_id=content_id,
+                )
             content_dict = ProcessedContentDTO.model_validate(content).model_dump(
                 mode="json"
             )
@@ -102,12 +97,9 @@ async def _get_content_detail_execute(
     logger.warning(
         "tool_deps not injected for get_content_detail, returning placeholder"
     )
-    return {
-        "status": "degraded",
-        "tool": "get_content_detail",
-        "reason": "tool_deps not injected",
-        "content_id": content_id,
-    }
+    return tool_degraded(
+        "get_content_detail", "tool_deps not injected", content_id=content_id
+    )
 
 
 async def _summarize_for_user_execute(
@@ -131,9 +123,6 @@ async def _summarize_for_user_execute(
     logger.warning(
         "tool_deps not injected for summarize_for_user, returning placeholder"
     )
-    return {
-        "status": "degraded",
-        "tool": "summarize_for_user",
-        "reason": "tool_deps not injected",
-        "content_id": content_id,
-    }
+    return tool_degraded(
+        "summarize_for_user", "tool_deps not injected", content_id=content_id
+    )
