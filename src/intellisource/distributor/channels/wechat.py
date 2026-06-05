@@ -12,6 +12,7 @@ from intellisource.distributor.channels.constants import (
     RETRY_INTERVAL,
     TOKEN_EXPIRE_BUFFER,
 )
+from intellisource.distributor.token_cache import TokenCache
 
 if TYPE_CHECKING:
     from intellisource.storage.repositories.push import PushRepository
@@ -50,6 +51,9 @@ class WeChatDistributor(BaseDistributor):
         self._app_id = app_id
         self._app_secret = app_secret
         self._push_repo = push_repo
+        self._token_cache = TokenCache(
+            redis, TOKEN_CACHE_KEY, self._fetch_token, ttl_buffer=TOKEN_EXPIRE_BUFFER
+        )
 
     @classmethod
     def from_env(cls, *, redis: Any, http_client: Any = None) -> WeChatDistributor:
@@ -81,10 +85,10 @@ class WeChatDistributor(BaseDistributor):
 
     async def get_access_token(self) -> str:
         """Return cached token or fetch a new one."""
-        cached: str | None = await self._redis.get(TOKEN_CACHE_KEY)
-        if cached is not None:
-            return cached
+        return await self._token_cache.get()
 
+    async def _fetch_token(self) -> tuple[str, int]:
+        """Fetch a fresh access token from the WeChat token endpoint."""
         url = _WECHAT_TOKEN_URL.format(
             app_id=self._app_id,
             app_secret=self._app_secret,
@@ -98,10 +102,7 @@ class WeChatDistributor(BaseDistributor):
 
         token: str = data["access_token"]
         expires_in: int = int(data.get("expires_in", 7200))
-        ttl = expires_in - TOKEN_EXPIRE_BUFFER
-
-        await self._redis.set(TOKEN_CACHE_KEY, token, ex=ttl)
-        return token
+        return token, expires_in
 
     # ----------------------------------------------------------
     # Message sending
