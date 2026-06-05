@@ -15,11 +15,10 @@ a process() exception would otherwise be caught and surfaced as
 
 from __future__ import annotations
 
-import asyncio
-import concurrent.futures
 from typing import Any
 
 from intellisource.observability.logging import get_logger
+from intellisource.pipeline._async_bridge import run_coro
 from intellisource.pipeline.base import BaseProcessor, PipelineContext
 from intellisource.pipeline.processors.tools import truncate_summary
 
@@ -49,7 +48,7 @@ class LLMSummarizer(BaseProcessor):
         deps = _GatewayDeps(self._llm_gateway)
 
         try:
-            result = _run_coro(truncate_summary(cluster, tool_deps=deps))
+            result = run_coro(truncate_summary(cluster, tool_deps=deps))
         except Exception:
             logger.warning(
                 "LLMSummarizer call failed; persisting empty summary",
@@ -68,18 +67,3 @@ class LLMSummarizer(BaseProcessor):
         # timeline / key_points into ProcessedContent.structured_data.
         context.set("digest", result)
         return context
-
-
-def _run_coro(coro: Any) -> Any:
-    """Run an async coroutine from sync code, handling both the
-    no-loop case (worker offloads pipeline execute to a thread —
-    ``asyncio.to_thread`` — and ``asyncio.run`` works) and the
-    running-loop case (executor-stream callers) by deferring to a
-    fresh thread + ``asyncio.run``."""
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coro)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(asyncio.run, coro)
-        return future.result()
