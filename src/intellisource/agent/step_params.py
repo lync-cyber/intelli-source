@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from intellisource.agent.deps import ToolDeps
 from intellisource.config.pipeline_models import StepSpec
 
 
@@ -54,7 +55,7 @@ def build_step_params(
     *,
     runtime_params: dict[str, Any],
     step_context: dict[str, Any],
-    tool_deps: Any,
+    tool_deps: ToolDeps | None,
 ) -> dict[str, Any]:
     """Merge YAML params, Celery runtime params, and prior step outputs."""
     yaml_params = dict(step.get("params") or {})

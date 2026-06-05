@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from intellisource.agent.deps import ToolDeps
 from intellisource.agent.tools.results import tool_degraded
 from intellisource.observability.logging import get_logger
 
@@ -13,7 +14,7 @@ logger = get_logger(__name__)
 async def _llm_complete_execute(
     call_type: str = "",
     prompt_vars: dict[str, Any] | None = None,
-    tool_deps: Any = None,
+    tool_deps: ToolDeps | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Invoke LLMGateway for a specific call_type with prompt_vars."""

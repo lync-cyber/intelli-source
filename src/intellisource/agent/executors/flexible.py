@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, AsyncGenerator, Callable, Coroutine
 
+from intellisource.agent.deps import ToolDeps
 from intellisource.agent.tool_gating import ToolPermissionResolver, _is_preview_mode
 from intellisource.agent.tools import PermissionLevel, ToolDefinition
 from intellisource.core.errors import ErrorCategory, IntelliSourceError
@@ -49,7 +50,7 @@ class FlexibleLoop:
         *,
         agent_mode: Any,
         max_tokens_budget: int | None = None,
-        tool_deps: Any = None,
+        tool_deps: ToolDeps | None = None,
         approved_calls: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Run LLM agent loop with tool access.
@@ -359,7 +360,7 @@ class FlexibleLoop:
         *,
         agent_mode: Any,
         max_tokens_budget: int | None = None,
-        tool_deps: Any = None,
+        tool_deps: ToolDeps | None = None,
         approved_calls: list[dict[str, Any]] | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """Streaming counterpart to ``run``.
@@ -707,7 +708,7 @@ class FlexibleLoop:
         *,
         config: Any,
         chain_id: str,
-        tool_deps: Any,
+        tool_deps: ToolDeps | None,
         messages: list[dict[str, Any]],
         tool_results: list[dict[str, Any]],
         agent_mode: Any,

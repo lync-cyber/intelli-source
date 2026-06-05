@@ -476,8 +476,14 @@ class TestGetContentDetailExecuteReal:
         content_id = uuid.uuid4()
         fake_content = MagicMock()
         fake_content.id = content_id
+        fake_content.raw_content_id = None
         fake_content.title = "Test Title"
         fake_content.body_text = "Test body"
+        fake_content.summary = None
+        fake_content.tags = []
+        fake_content.fingerprint = None
+        fake_content.source_url = None
+        fake_content.created_at = None
 
         mock_repo = AsyncMock()
         mock_repo.get_by_id = AsyncMock(return_value=fake_content)
@@ -512,8 +518,14 @@ class TestGetContentDetailExecuteReal:
 
         fake_content = MagicMock()
         fake_content.id = content_id
+        fake_content.raw_content_id = None
         fake_content.title = "Test Content Title"
         fake_content.body_text = "Some body text"
+        fake_content.summary = None
+        fake_content.tags = []
+        fake_content.fingerprint = None
+        fake_content.source_url = None
+        fake_content.created_at = None
 
         mock_repo = AsyncMock()
         mock_repo.get_by_id = AsyncMock(return_value=fake_content)
@@ -554,7 +566,14 @@ class TestGetContentDetailExecuteReal:
         content_id = uuid.uuid4()
         fake_content = MagicMock()
         fake_content.id = content_id
+        fake_content.raw_content_id = None
         fake_content.title = "Title"
+        fake_content.body_text = "body"
+        fake_content.summary = None
+        fake_content.tags = []
+        fake_content.fingerprint = None
+        fake_content.source_url = None
+        fake_content.created_at = None
 
         mock_repo = AsyncMock()
         mock_repo.get_by_id = AsyncMock(return_value=fake_content)

@@ -94,7 +94,7 @@ class AgentRunner:
         config: Any,
         params: dict[str, Any],
         *,
-        tool_deps: Any = None,
+        tool_deps: ToolDeps | None = None,
     ) -> dict[str, Any]:
         """Execute pipeline steps sequentially without LLM."""
         effective_deps = tool_deps if tool_deps is not None else self._tool_deps
@@ -112,7 +112,7 @@ class AgentRunner:
         config: Any,
         params: dict[str, Any],
         *,
-        tool_deps: Any = None,
+        tool_deps: ToolDeps | None = None,
     ) -> dict[str, Any]:
         """Execute processor pipeline for a single raw content_id (batch mode)."""
         effective_deps = tool_deps if tool_deps is not None else self._tool_deps
@@ -181,7 +181,7 @@ class AgentRunner:
         session: dict[str, Any],
         *,
         max_tokens_budget: int | None = None,
-        tool_deps: Any = None,
+        tool_deps: ToolDeps | None = None,
         approved_calls: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Run LLM agent loop with tool access.
@@ -230,7 +230,7 @@ class AgentRunner:
         session: dict[str, Any],
         *,
         max_tokens_budget: int | None = None,
-        tool_deps: Any = None,
+        tool_deps: ToolDeps | None = None,
         approved_calls: list[dict[str, Any]] | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """Streaming counterpart to ``run_flexible``.

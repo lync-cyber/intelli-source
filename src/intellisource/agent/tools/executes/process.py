@@ -6,6 +6,7 @@ import asyncio
 import uuid as _uuid
 from typing import Any
 
+from intellisource.agent.deps import ToolDeps
 from intellisource.agent.tools.results import tool_degraded
 from intellisource.observability.logging import get_logger
 
@@ -15,7 +16,7 @@ logger = get_logger(__name__)
 async def _process_execute(
     content_id: str = "",
     raw_content_ids: list[str] | None = None,
-    tool_deps: Any = None,
+    tool_deps: ToolDeps | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Fetch RawContent, run PipelineEngine, persist ProcessedContent.

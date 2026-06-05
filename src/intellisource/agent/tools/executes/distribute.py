@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from intellisource.agent.deps import ToolDeps
 from intellisource.agent.tools.results import tool_degraded
 from intellisource.observability.logging import get_logger
 
@@ -14,7 +15,7 @@ async def _distribute_execute(
     content_id: str = "",
     processed_content_ids: list[str] | None = None,
     subscription_id: str = "",
-    tool_deps: Any = None,
+    tool_deps: ToolDeps | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Invoke distributor.distribute() for the given content and subscription.
