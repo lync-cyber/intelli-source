@@ -102,18 +102,15 @@ class _RawContentResultRepo:
             return result
         try:
             import uuid as _uuid_mod  # noqa: PLC0415
-            from datetime import datetime, timezone  # noqa: PLC0415
+
+            from intellisource.storage.repositories.content import (  # noqa: PLC0415
+                ContentRepository,
+            )
 
             raw_id = _uuid_mod.UUID(str(content_id_val))
             async with self._session_factory() as session:
-                row = (
-                    await session.execute(
-                        select(RawContent).where(RawContent.id == raw_id).limit(1)
-                    )
-                ).scalar_one_or_none()
-                if row is not None:
-                    row.status = "processed"
-                    row.processed_at = datetime.now(tz=timezone.utc)
+                repo = ContentRepository(session)
+                if await repo.mark_processed(raw_id):
                     await session.commit()
         except Exception as exc:
             logger.warning(

@@ -122,12 +122,8 @@ class SourceConfigService:
 
     async def delete(self, source_id: uuid.UUID) -> bool:
         """Soft delete: mark status='paused' to preserve FK history."""
-        existing = await self._repo.get_by_id(source_id)
-        if existing is None:
-            return False
-        existing.status = "paused"
-        await self._session.flush()
-        return True
+        updated = await self._repo.update(source_id, status="paused")
+        return updated is not None
 
     # ------------------------------------------------------------------
     # Bulk operations (yaml reload — additive upsert + version snapshot)

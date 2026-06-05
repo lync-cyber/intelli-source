@@ -257,56 +257,34 @@ class DistributorFacade:
         content_id: str,
         subscription_id: str | None,
     ) -> tuple[Any, list[Any]]:
-        """Load ProcessedContent and resolve subscriptions in a single session.
+        """Load ProcessedContent + matching subscriptions via ContentRepository.
 
-        ProcessedContent is loaded with ``raw_content.source`` eager-loaded so
-        SubscriptionMatcher can resolve ``content.raw_content.source.name`` for
-        ``match_rules.source_names`` (B-057) without triggering a lazy load
-        outside this session.
+        Opens one session so the eager-loaded ``raw_content.source`` (needed by
+        SubscriptionMatcher for ``match_rules.source_names``, B-057) stays
+        attached. A falsy ``subscription_id`` (None or "" from the strict
+        distribute step, which has no subscription_id param) resolves to every
+        active subscription rather than being treated as an invalid uuid; an
+        unparseable id yields (None, []).
         """
-        from sqlalchemy import select
-        from sqlalchemy.orm import selectinload
-
-        from intellisource.storage.models import (
-            ProcessedContent,
-            RawContent,
-            Subscription,
-        )
+        from intellisource.storage.repositories.content import ContentRepository
 
         try:
             content_uuid = uuid.UUID(content_id)
         except ValueError:
             return None, []
 
+        sub_uuid: uuid.UUID | None = None
+        if subscription_id:
+            try:
+                sub_uuid = uuid.UUID(subscription_id)
+            except ValueError:
+                return None, []
+
         async with self._session_factory() as session:
-            content_stmt = (
-                select(ProcessedContent)
-                .where(ProcessedContent.id == content_uuid)
-                .options(
-                    selectinload(ProcessedContent.raw_content).selectinload(
-                        RawContent.source
-                    )
-                )
+            repo = ContentRepository(session)
+            return await repo.get_with_source_and_subscriptions(
+                content_id=content_uuid, subscription_id=sub_uuid
             )
-            content = (await session.scalars(content_stmt)).one_or_none()
-
-            if not subscription_id:
-                # None or "" → distribute to every active subscription. The
-                # strict-pipeline distribute step has no subscription_id param,
-                # so it arrives as "" here; treating that as an invalid uuid
-                # would drop the loaded content and report content_not_found
-                # (0 pushes) instead of matching subscriptions.
-                sub_stmt = select(Subscription).where(Subscription.status == "active")
-            else:
-                try:
-                    sub_uuid = uuid.UUID(subscription_id)
-                except ValueError:
-                    return None, []
-                sub_stmt = select(Subscription).where(Subscription.id == sub_uuid)
-
-            subscriptions: list[Any] = list((await session.scalars(sub_stmt)).all())
-
-        return content, subscriptions
 
     async def _is_already_pushed(
         self,

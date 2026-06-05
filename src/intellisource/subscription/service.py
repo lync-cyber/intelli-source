@@ -121,12 +121,8 @@ class SubscriptionService:
 
     async def delete(self, sub_id: uuid.UUID) -> bool:
         """Soft delete: mark status='paused' to preserve push_records FK history."""
-        existing = await self._repo.get_by_id(sub_id)
-        if existing is None:
-            return False
-        existing.status = "paused"
-        await self._session.flush()
-        return True
+        updated = await self._repo.update(sub_id, status="paused")
+        return updated is not None
 
     # ------------------------------------------------------------------
     # Bulk operations (yaml reload / rollback — write version snapshot)
