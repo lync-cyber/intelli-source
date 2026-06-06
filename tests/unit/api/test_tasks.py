@@ -12,11 +12,14 @@ Covers:
 from __future__ import annotations
 
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # The router module does not exist yet -- import may fail during RED phase.
 try:
@@ -410,13 +413,37 @@ class TestTaskDetailEndpoint:
 # ===========================================================================
 
 
+def _make_mock_db() -> MagicMock:
+    """Return a MagicMock DatabaseManager whose get_session yields a mock session."""
+    mock_session = MagicMock(spec=AsyncSession)
+
+    @asynccontextmanager
+    async def _get_session() -> AsyncIterator[MagicMock]:
+        yield mock_session
+
+    db = MagicMock()
+    db.get_session = _get_session
+    db.close = AsyncMock()
+    return db
+
+
+def _app_with_celery(mock_celery: MagicMock) -> FastAPI:
+    """Bare tasks-router app with a celery_app + mock db wired into app.state."""
+    application = FastAPI()
+    application.include_router(router, prefix="/api/v1")
+    application.state.celery_app = mock_celery
+    application.state.db = _make_mock_db()
+    return application
+
+
 class TestTaskUpdateEndpoint:
-    """AC-T041-4: PATCH /api/v1/tasks/{id} supports pause/resume."""
+    """AC-T041-4 / API-009: PATCH /api/v1/tasks/{id} {action} pause/resume/cancel."""
 
     @pytest.mark.asyncio
     async def test_pause_task_success(self, client: AsyncClient) -> None:
-        """PATCH with status='paused' succeeds."""
+        """action=pause on a running task transitions to paused (200)."""
         mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = _make_task_obj(status="running")
         mock_repo.update.return_value = _make_task_obj(status="paused")
 
         with patch(
@@ -425,18 +452,21 @@ class TestTaskUpdateEndpoint:
         ):
             resp = await client.patch(
                 f"/api/v1/tasks/{TASK_ID}",
-                json={"status": "paused"},
+                json={"action": "pause"},
             )
 
         assert resp.status_code == 200
         body = resp.json()
         assert body["status"] == "paused"
+        assert body["id"] == str(TASK_ID)
+        assert "message" in body
 
     @pytest.mark.asyncio
-    async def test_resume_task_success(self, client: AsyncClient) -> None:
-        """PATCH with status='running' succeeds (resume)."""
+    async def test_cancel_task_success(self, client: AsyncClient) -> None:
+        """action=cancel on a pending task transitions to cancelled (200)."""
         mock_repo = AsyncMock()
-        mock_repo.update.return_value = _make_task_obj(status="running")
+        mock_repo.get_by_id.return_value = _make_task_obj(status="pending")
+        mock_repo.update.return_value = _make_task_obj(status="cancelled")
 
         with patch(
             "intellisource.api.routers.tasks.TaskRepository",
@@ -444,18 +474,35 @@ class TestTaskUpdateEndpoint:
         ):
             resp = await client.patch(
                 f"/api/v1/tasks/{TASK_ID}",
-                json={"status": "running"},
+                json={"action": "cancel"},
             )
 
         assert resp.status_code == 200
-        body = resp.json()
-        assert body["status"] == "running"
+        assert resp.json()["status"] == "cancelled"
 
     @pytest.mark.asyncio
-    async def test_update_task_not_found_404(self, client: AsyncClient) -> None:
-        """Updating a non-existent task returns 404."""
+    async def test_illegal_transition_returns_400(self, client: AsyncClient) -> None:
+        """action=pause on a pending task is rejected with 400 (not 500)."""
         mock_repo = AsyncMock()
-        mock_repo.update.return_value = None
+        mock_repo.get_by_id.return_value = _make_task_obj(status="pending")
+
+        with patch(
+            "intellisource.api.routers.tasks.TaskRepository",
+            return_value=mock_repo,
+        ):
+            resp = await client.patch(
+                f"/api/v1/tasks/{TASK_ID}",
+                json={"action": "pause"},
+            )
+
+        assert resp.status_code == 400
+        mock_repo.update.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_action_not_found_404(self, client: AsyncClient) -> None:
+        """An action on a non-existent task returns 404."""
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = None
 
         nonexistent_id = uuid.UUID("ffffffff-ffff-ffff-ffff-ffffffffffff")
         with patch(
@@ -464,10 +511,124 @@ class TestTaskUpdateEndpoint:
         ):
             resp = await client.patch(
                 f"/api/v1/tasks/{nonexistent_id}",
-                json={"status": "paused"},
+                json={"action": "cancel"},
             )
 
         assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_cancel_revokes_celery_task_with_terminate(self) -> None:
+        """cancel calls control.revoke(celery_task_id, terminate=True)."""
+        mock_celery = MagicMock()
+        application = _app_with_celery(mock_celery)
+
+        task = _make_task_obj(status="running")
+        task.celery_task_id = "celery-xyz"
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = task
+        mock_repo.update.return_value = _make_task_obj(status="cancelled")
+
+        transport = ASGITransport(app=application)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            with patch(
+                "intellisource.api.routers.tasks.TaskRepository",
+                return_value=mock_repo,
+            ):
+                resp = await ac.patch(
+                    f"/api/v1/tasks/{TASK_ID}", json={"action": "cancel"}
+                )
+
+        assert resp.status_code == 200
+        mock_celery.control.revoke.assert_called_once()
+        call = mock_celery.control.revoke.call_args
+        assert call.args[0] == "celery-xyz"
+        assert call.kwargs.get("terminate") is True
+
+    @pytest.mark.asyncio
+    async def test_pause_revokes_with_terminate(self) -> None:
+        """pause terminates the running task (revoke w/o terminate wouldn't stop
+        a running run); resumability comes from resume's idempotent re-dispatch,
+        not from leaving the run alive."""
+        mock_celery = MagicMock()
+        application = _app_with_celery(mock_celery)
+
+        task = _make_task_obj(status="running")
+        task.celery_task_id = "celery-abc"
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = task
+        mock_repo.update.return_value = _make_task_obj(status="paused")
+
+        transport = ASGITransport(app=application)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            with patch(
+                "intellisource.api.routers.tasks.TaskRepository",
+                return_value=mock_repo,
+            ):
+                resp = await ac.patch(
+                    f"/api/v1/tasks/{TASK_ID}", json={"action": "pause"}
+                )
+
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "paused"
+        call = mock_celery.control.revoke.call_args
+        assert call.args[0] == "celery-abc"
+        assert call.kwargs.get("terminate") is True
+
+    @pytest.mark.asyncio
+    async def test_resume_redispatches_pipeline_with_force(self) -> None:
+        """resume re-dispatches run_pipeline (force=True) and stores the new id."""
+        mock_celery = MagicMock()
+        mock_celery.send_task = MagicMock(return_value=MagicMock(id="new-celery-id"))
+        application = _app_with_celery(mock_celery)
+
+        task = _make_task_obj(status="paused")
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = task
+        mock_repo.update.return_value = _make_task_obj(status="running")
+        mock_source_repo = AsyncMock()
+        mock_source_repo.get_types_by_ids.return_value = {SOURCE_ID: "rss"}
+
+        transport = ASGITransport(app=application)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            with (
+                patch(
+                    "intellisource.api.routers.tasks.TaskRepository",
+                    return_value=mock_repo,
+                ),
+                patch(
+                    "intellisource.api.routers.tasks.SourceRepository",
+                    return_value=mock_source_repo,
+                ),
+            ):
+                resp = await ac.patch(
+                    f"/api/v1/tasks/{TASK_ID}", json={"action": "resume"}
+                )
+
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "running"
+        mock_celery.send_task.assert_called_once()
+        sent_kwargs = mock_celery.send_task.call_args.kwargs["kwargs"]
+        assert sent_kwargs["pipeline_name"] in ("scheduled-collect", "manual-collect")
+        assert sent_kwargs["params"]["force"] is True
+        update_call = mock_repo.update.call_args
+        assert update_call.kwargs["celery_task_id"] == "new-celery-id"
+
+    @pytest.mark.asyncio
+    async def test_resume_without_celery_returns_503(self, client: AsyncClient) -> None:
+        """resume when celery_app is unwired returns 503 (no silent no-op)."""
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = _make_task_obj(status="paused")
+
+        with patch(
+            "intellisource.api.routers.tasks.TaskRepository",
+            return_value=mock_repo,
+        ):
+            resp = await client.patch(
+                f"/api/v1/tasks/{TASK_ID}",
+                json={"action": "resume"},
+            )
+
+        assert resp.status_code == 503
 
 
 # ===========================================================================
