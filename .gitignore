@@ -29,3 +29,6 @@ __pycache__/
 config/sources/*.yaml
 config/subscriptions/*.yaml
 config/llm_models.yaml
+
+# refactor engagement forensics scratch (jscpd/radon/ruff scans, ad-hoc scripts)
+.refactor-forensics/
