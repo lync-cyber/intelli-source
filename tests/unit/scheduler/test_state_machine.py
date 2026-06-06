@@ -477,3 +477,61 @@ class TestStateMachineEdgeCases:
         sm.transition("task-1", "resume")
         sm.transition("task-1", "complete")
         assert sm.get_state("task-1") == "success"
+
+
+# ===================================================================
+# resolve_transition: stateless transition validation for DB-backed
+# callers (PATCH /tasks/{id} action wiring)
+# ===================================================================
+
+
+class TestResolveTransition:
+    """Stateless resolve_transition mirrors the table the state machine uses."""
+
+    def test_pause_from_running(self):
+        mod = _import_state_machine()
+        assert mod.resolve_transition("running", "pause") == "paused"
+
+    def test_resume_from_paused(self):
+        mod = _import_state_machine()
+        assert mod.resolve_transition("paused", "resume") == "running"
+
+    def test_cancel_from_pending(self):
+        mod = _import_state_machine()
+        assert mod.resolve_transition("pending", "cancel") == "cancelled"
+
+    def test_cancel_from_running(self):
+        mod = _import_state_machine()
+        assert mod.resolve_transition("running", "cancel") == "cancelled"
+
+    def test_cancel_from_paused(self):
+        mod = _import_state_machine()
+        assert mod.resolve_transition("paused", "cancel") == "cancelled"
+
+    def test_pause_from_pending_raises(self):
+        mod = _import_state_machine()
+        with pytest.raises(mod.InvalidTransitionError):
+            mod.resolve_transition("pending", "pause")
+
+    def test_resume_from_running_raises(self):
+        mod = _import_state_machine()
+        with pytest.raises(mod.InvalidTransitionError):
+            mod.resolve_transition("running", "resume")
+
+    def test_cancel_from_terminal_raises(self):
+        mod = _import_state_machine()
+        with pytest.raises(mod.InvalidTransitionError):
+            mod.resolve_transition("success", "cancel")
+
+    def test_unknown_action_raises(self):
+        mod = _import_state_machine()
+        with pytest.raises(mod.InvalidTransitionError):
+            mod.resolve_transition("running", "explode")
+
+    def test_state_machine_transition_delegates(self):
+        """TaskStateMachine.transition uses resolve_transition's table."""
+        sm = _make_state_machine()
+        sm.transition("task-1", "start")
+        result = sm.transition("task-1", "pause")
+        assert result["to_state"] == "paused"
+        assert result["from_state"] == "running"

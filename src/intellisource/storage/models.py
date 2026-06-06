@@ -175,6 +175,7 @@ class CollectTask(ExecutionTimingMixin, CreatedAtMixin, Base):
     items_collected: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    celery_task_id: Mapped[Optional[str]] = mapped_column(VARCHAR(64), nullable=True)
 
     # Relationships
     source: Mapped["Source"] = relationship(back_populates="collect_tasks")

@@ -62,6 +62,23 @@ class InvalidTransitionError(IntelliSourceError):
         )
 
 
+def resolve_transition(current_state: str, action: str) -> str:
+    """Return the target state for applying *action* in *current_state*.
+
+    Raises InvalidTransitionError when *action* is unknown or the
+    (current_state, action) pair has no defined transition. Stateless so
+    callers holding the authoritative state elsewhere (e.g. a DB row) can
+    validate a transition without seeding a TaskStateMachine instance.
+    """
+    if action not in VALID_ACTIONS:
+        raise InvalidTransitionError(f"Unknown action '{action}'")
+    key = (current_state, action)
+    if key not in _TRANSITIONS:
+        msg = f"Invalid transition: cannot apply '{action}' in state '{current_state}'"
+        raise InvalidTransitionError(msg)
+    return _TRANSITIONS[key]
+
+
 class TaskStateMachine:
     """Manages task state transitions."""
 
@@ -78,18 +95,8 @@ class TaskStateMachine:
 
     def transition(self, task_id: str, action: str) -> dict[str, Any]:
         """Execute a state transition and return metadata dict."""
-        if action not in VALID_ACTIONS:
-            msg = f"Unknown action '{action}'"
-            raise InvalidTransitionError(msg)
-
         current = self.get_state(task_id)
-        key = (current, action)
-
-        if key not in _TRANSITIONS:
-            msg = f"Invalid transition: cannot apply '{action}' in state '{current}'"
-            raise InvalidTransitionError(msg)
-
-        new_state = _TRANSITIONS[key]
+        new_state = resolve_transition(current, action)
         self._states[task_id] = new_state
 
         result: dict[str, Any] = {
