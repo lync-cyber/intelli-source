@@ -37,13 +37,6 @@ class PaginatedResult:
         self.next_cursor = next_cursor
         self.has_more = has_more
 
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "items": self.items,
-            "next_cursor": self.next_cursor,
-            "has_more": self.has_more,
-        }
-
 
 class BaseRepository(Generic[ModelT]):
     """Shared CRUD helpers for SQLAlchemy-mapped entities.
