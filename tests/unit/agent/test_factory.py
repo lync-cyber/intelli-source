@@ -231,3 +231,44 @@ class TestToolDepsWiring:
                 distributor=None,
                 search_engine_factory=None,
             )
+
+
+# ---------------------------------------------------------------------------
+# AC-014: a pipeline step carrying `condition` is wired as a ConditionalProcessor
+# ---------------------------------------------------------------------------
+
+
+class TestConditionalStepWiring:
+    """`_build_processors_from_config` wraps a conditional step's processor."""
+
+    @staticmethod
+    def _build(steps: list[dict[str, object]]) -> list[object]:
+        from intellisource.agent.factory import _build_processors_from_config
+        from intellisource.config.pipeline_models import PipelineConfig
+
+        config = PipelineConfig.from_dict(
+            {"name": "t", "mode": "batch", "steps": steps}
+        )
+        return list(_build_processors_from_config(config))
+
+    def test_step_without_condition_builds_bare_processor(self) -> None:
+        from intellisource.pipeline.condition import ConditionalProcessor
+        from intellisource.pipeline.processors.dedup import ContentDedup
+
+        procs = self._build([{"processor": "ContentDedup"}])
+
+        assert isinstance(procs[0], ContentDedup)
+        assert not isinstance(procs[0], ConditionalProcessor)
+
+    def test_step_with_condition_wraps_in_conditional_processor(self) -> None:
+        from intellisource.pipeline.condition import ConditionalProcessor
+        from intellisource.pipeline.processors.dedup import ContentDedup
+
+        condition = {"field": "content_type", "operator": "eq", "value": "article"}
+        procs = self._build([{"processor": "ContentDedup", "condition": condition}])
+
+        wrapped = procs[0]
+        assert isinstance(wrapped, ConditionalProcessor)
+        assert isinstance(wrapped._if_processor, ContentDedup)
+        assert wrapped._condition == condition
+        assert wrapped._else_processor is None
