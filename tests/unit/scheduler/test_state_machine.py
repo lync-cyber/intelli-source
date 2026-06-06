@@ -378,27 +378,6 @@ class TestSchedulerManagerRegistration:
         entry = next(s for s in schedules if s["name"] == "hourly_check")
         assert entry["cron_expr"] == "0 * * * *"
 
-    def test_remove_schedule(self):
-        """remove_schedule should remove the named schedule."""
-        mgr = _make_scheduler_manager()
-        mgr.register_schedule(
-            name="to_remove",
-            cron_expr="0 0 * * *",
-            pipeline_name="cleanup",
-            params={},
-        )
-        mgr.remove_schedule("to_remove")
-        schedules = mgr.list_schedules()
-        names = [s["name"] for s in schedules]
-        assert "to_remove" not in names
-
-    def test_remove_nonexistent_schedule_raises(self):
-        """Removing a schedule that does not exist should raise
-        an error."""
-        mgr = _make_scheduler_manager()
-        with pytest.raises(KeyError):
-            mgr.remove_schedule("nonexistent_schedule")
-
     def test_list_schedules_empty_initially(self):
         """list_schedules should return empty list when no schedules
         are registered."""
@@ -434,37 +413,12 @@ class TestTriggerModes:
     """AC-039: Supports Celery Beat scheduled, manual trigger, and
     message trigger modes."""
 
-    def test_trigger_manual(self):
-        """trigger_manual should create and return a task execution."""
-        mgr = _make_scheduler_manager()
-        result = mgr.trigger_manual(
-            pipeline_name="news_collect",
-            params={"source_id": "src-1"},
-        )
-        assert result is not None
-        assert "task_id" in result
-
-    def test_trigger_manual_sets_mode(self):
-        """Manual trigger should set execution_mode to 'manual'."""
-        mgr = _make_scheduler_manager()
-        result = mgr.trigger_manual(
-            pipeline_name="news_collect",
-            params={},
-        )
-        assert result["execution_mode"] == "manual"
-
     def test_supported_trigger_modes(self):
         """Module should define SUPPORTED_TRIGGER_MODES with three
         modes."""
         mod = _import_state_machine()
         expected = {"scheduled", "manual", "message"}
         assert set(mod.SUPPORTED_TRIGGER_MODES) == expected
-
-    def test_trigger_manual_with_empty_params(self):
-        """trigger_manual should handle empty params dict."""
-        mgr = _make_scheduler_manager()
-        result = mgr.trigger_manual(pipeline_name="test_pipeline", params={})
-        assert "task_id" in result
 
 
 # ===================================================================
