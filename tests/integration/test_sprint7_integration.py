@@ -170,19 +170,6 @@ class TestPromptBuilderModelProfile:
         assert profile.max_tokens == 2048
         assert profile.context_window == 128_000
 
-    def test_build_messages_produces_system_and_user_roles(self) -> None:
-        """build_messages() returns [system, user] list with non-empty content."""
-        from intellisource.llm.prompt_builder import PromptBuilder
-
-        pb = PromptBuilder("summarizer", model="gpt-4o-mini", system_prompt="Be brief.")
-        pb.add_context("docs_text", "some clustered docs")
-        messages = pb.build_messages()
-
-        roles = [m["role"] for m in messages]
-        assert "system" in roles
-        assert "user" in roles
-        assert all(m["content"] for m in messages)
-
 
 # ===========================================================================
 # AC-T063-4: Context compaction in AgentRunner flexible mode

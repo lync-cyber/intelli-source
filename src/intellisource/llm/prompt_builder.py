@@ -7,9 +7,7 @@ template loading infrastructure from intellisource.llm.prompts.
 from __future__ import annotations
 
 import hashlib
-import json
 from pathlib import Path
-from typing import Any
 
 import litellm
 
@@ -19,7 +17,6 @@ from intellisource.observability.logging import get_logger
 logger = get_logger(__name__)
 
 _DEFAULT_MODEL = "gpt-4o-mini"
-_DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant."
 _UNKNOWN_VERSION = "unknown"
 
 # (path_str, mtime_ns) -> sha256[:8]
@@ -70,7 +67,6 @@ class PromptBuilder:
         self,
         call_type: str,
         model: str | None = None,
-        system_prompt: str | None = None,
         *,
         prompt_style: str | None = None,
     ) -> None:
@@ -79,9 +75,6 @@ class PromptBuilder:
         Args:
             call_type: Template name (without extension).
             model: Model identifier for token counting. Defaults to gpt-4o-mini.
-            system_prompt: Optional system prompt override for build_messages().
-                If None, tries to load a sibling '{call_type}.system.prompt.md'
-                template; falls back to a generic default when absent.
             prompt_style: Optional variant style (e.g. ``"structured"``,
                 ``"concise"``). When provided, tries
                 ``{call_type}.{prompt_style}.prompt.md`` first and falls back to
@@ -95,9 +88,7 @@ class PromptBuilder:
         self._prompt_style: str | None = prompt_style
         self._template_path: Path = _resolve_template_path(call_type, prompt_style)
         self._model: str = model if model is not None else _DEFAULT_MODEL
-        self._content: str = ""
         self._context: dict[str, str] = {}
-        self._system_prompt: str = self._resolve_system_prompt(call_type, system_prompt)
 
     @property
     def call_type(self) -> str:
@@ -113,46 +104,6 @@ class PromptBuilder:
         template file is missing or unreadable at the time of access.
         """
         return _compute_prompt_version(self._template_path)
-
-    @staticmethod
-    def _resolve_system_prompt(call_type: str, override: str | None) -> str:
-        """Resolve system prompt: explicit override > sidecar template > default."""
-        if override is not None:
-            return override
-        try:
-            return read_prompt_source(f"{call_type}.system")
-        except FileNotFoundError:
-            return _DEFAULT_SYSTEM_PROMPT
-
-    def add_content(self, content: str, max_tokens: int | None = None) -> PromptBuilder:
-        """Add content with optional token truncation.
-
-        Args:
-            content: The content string to add.
-            max_tokens: If set, truncate content to fit within this token limit.
-
-        Returns:
-            self for method chaining.
-        """
-        if max_tokens is not None:
-            content = self.truncate_content(content, max_tokens, self._model)
-        self._content = content
-        return self
-
-    def add_schema(self, schema: dict[str, Any]) -> PromptBuilder:
-        """Add output schema instruction.
-
-        Serializes the schema dict to a JSON string and stores it in the
-        context under the 'schema' key.
-
-        Args:
-            schema: JSON Schema dictionary.
-
-        Returns:
-            self for method chaining.
-        """
-        self._context["schema"] = json.dumps(schema, ensure_ascii=False)
-        return self
 
     def add_context(self, key: str, value: str) -> PromptBuilder:
         """Add arbitrary context variable for template substitution.
@@ -178,19 +129,6 @@ class PromptBuilder:
             The rendered prompt string.
         """
         return load_prompt(self._call_type, style=self._prompt_style, **self._context)
-
-    def build_messages(self) -> list[dict[str, str]]:
-        """Build as messages list (system + user) for chat-style calls.
-
-        Returns:
-            A list of message dicts with 'role' and 'content' keys.
-            Contains a system message and a user message.
-        """
-        prompt = self.build()
-        return [
-            {"role": "system", "content": self._system_prompt},
-            {"role": "user", "content": prompt},
-        ]
 
     @staticmethod
     def truncate_content(text: str, max_tokens: int, model: str = "gpt-4o-mini") -> str:
