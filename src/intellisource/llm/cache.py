@@ -7,7 +7,7 @@ Cache key format: llm:cache:{call_type}:{prompt_version}:{content_fingerprint}
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, Coroutine
+from typing import Any
 
 from intellisource.llm.gateway import LLMResult
 from intellisource.observability.logging import get_logger
@@ -100,57 +100,3 @@ class LLMCache:
             await self._redis.setex(key, self._ttl, payload)
         except Exception:
             logger.warning("Cache set error for key '%s', skipping", key)
-
-    async def get_or_call(
-        self,
-        content_fingerprint: str,
-        call_type: str,
-        prompt_version: str,
-        llm_fn: Callable[[], Coroutine[Any, Any, LLMResult]],
-    ) -> tuple[LLMResult, bool]:
-        """Get from cache or call LLM.
-
-        Args:
-            content_fingerprint: Hash of the input content.
-            call_type: Type of LLM call.
-            prompt_version: Version identifier for the prompt template.
-            llm_fn: Async callable that performs the actual LLM call.
-
-        Returns:
-            Tuple of (result, was_cached). was_cached is True when the
-            result came from cache.
-        """
-        cached = await self.get(content_fingerprint, call_type, prompt_version)
-        if cached is not None:
-            return cached, True
-
-        result = await llm_fn()
-        await self.set(content_fingerprint, call_type, prompt_version, result)
-        return result, False
-
-    async def invalidate(self, call_type: str, prompt_version: str) -> int:
-        """Invalidate all cache entries for a call_type+prompt_version.
-
-        Args:
-            call_type: Type of LLM call.
-            prompt_version: Version identifier for the prompt template.
-
-        Returns:
-            Number of cache entries deleted.
-        """
-        pattern = f"{self._KEY_PREFIX}:{call_type}:{prompt_version}:*"
-        try:
-            # SR-003: use non-blocking SCAN iteration instead of KEYS to
-            # avoid O(N) blocking on large keyspaces in production.
-            keys: list[Any] = []
-            async for key in self._redis.scan_iter(match=pattern, count=100):
-                keys.append(key)
-            if not keys:
-                return 0
-            deleted: int = await self._redis.delete(*keys)
-            return deleted
-        except Exception:
-            logger.warning(
-                "Cache invalidate error for pattern '%s', returning 0", pattern
-            )
-            return 0
