@@ -106,7 +106,7 @@ class TestProcessFansOut:
         from intellisource.agent.tools import (
             _process_execute,  # type: ignore[attr-defined]
         )
-        from intellisource.pipeline.context import PipelineContext
+        from intellisource.core.processor import PipelineContext
 
         id1 = str(uuid.uuid4())
         id2 = str(uuid.uuid4())
@@ -236,7 +236,7 @@ class TestAsyncToolUsesToThread:
     ) -> None:
         """pipeline_engine.execute is called via asyncio.to_thread, not directly."""
         import intellisource.agent.tools as tools_mod
-        from intellisource.pipeline.context import PipelineContext
+        from intellisource.core.processor import PipelineContext
 
         cid = str(uuid.uuid4())
         proc_id = str(uuid.uuid4())

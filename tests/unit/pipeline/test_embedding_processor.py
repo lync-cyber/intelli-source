@@ -38,7 +38,7 @@ class TestEmbeddingProcessorRegistered:
         assert isinstance(EmbeddingProcessor, type)
 
     def test_embedder_subclasses_base_processor(self) -> None:
-        from intellisource.pipeline.base import BaseProcessor  # noqa: PLC0415
+        from intellisource.core.processor import BaseProcessor  # noqa: PLC0415
         from intellisource.pipeline.processors.embedder import (  # noqa: PLC0415
             EmbeddingProcessor,
         )
@@ -62,7 +62,7 @@ class TestEmbeddingProcessorRegistered:
 
 class TestEmbeddingProcessorProcess:
     def test_process_writes_embedding_to_context(self) -> None:
-        from intellisource.pipeline.context import PipelineContext  # noqa: PLC0415
+        from intellisource.core.processor import PipelineContext  # noqa: PLC0415
         from intellisource.pipeline.processors.embedder import (  # noqa: PLC0415
             EmbeddingProcessor,
         )
@@ -84,7 +84,7 @@ class TestEmbeddingProcessorProcess:
         gw.embed.assert_awaited_once()
 
     def test_process_without_gateway_leaves_embedding_none(self) -> None:
-        from intellisource.pipeline.context import PipelineContext  # noqa: PLC0415
+        from intellisource.core.processor import PipelineContext  # noqa: PLC0415
         from intellisource.pipeline.processors.embedder import (  # noqa: PLC0415
             EmbeddingProcessor,
         )
@@ -99,7 +99,7 @@ class TestEmbeddingProcessorProcess:
         assert ctx.get("embedding") is None
 
     def test_process_swallows_gateway_exception(self) -> None:
-        from intellisource.pipeline.context import PipelineContext  # noqa: PLC0415
+        from intellisource.core.processor import PipelineContext  # noqa: PLC0415
         from intellisource.pipeline.processors.embedder import (  # noqa: PLC0415
             EmbeddingProcessor,
         )
@@ -117,7 +117,7 @@ class TestEmbeddingProcessorProcess:
         assert ctx.get("embedding") is None
 
     def test_process_handles_empty_body_text(self) -> None:
-        from intellisource.pipeline.context import PipelineContext  # noqa: PLC0415
+        from intellisource.core.processor import PipelineContext  # noqa: PLC0415
         from intellisource.pipeline.processors.embedder import (  # noqa: PLC0415
             EmbeddingProcessor,
         )
@@ -231,7 +231,7 @@ async def test_process_execute_persists_embedding_from_context() -> None:
     from intellisource.agent.tools.executes.process import (
         _process_execute,  # noqa: PLC0415
     )
-    from intellisource.pipeline.context import PipelineContext  # noqa: PLC0415
+    from intellisource.core.processor import PipelineContext  # noqa: PLC0415
 
     raw_id = uuid4()
     embedding_vec = [0.42] * 1536
@@ -326,7 +326,7 @@ async def test_process_execute_omits_embedding_when_ctx_none() -> None:
     from intellisource.agent.tools.executes.process import (
         _process_execute,  # noqa: PLC0415
     )
-    from intellisource.pipeline.context import PipelineContext  # noqa: PLC0415
+    from intellisource.core.processor import PipelineContext  # noqa: PLC0415
 
     raw_id = uuid4()
     raw_stub = MagicMock()

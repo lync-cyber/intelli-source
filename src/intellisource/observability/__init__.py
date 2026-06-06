@@ -1,4 +1,4 @@
-"""Observability module: logging, metrics, and tracing."""
+"""Observability module: logging and metrics."""
 
 from intellisource.observability.logging import (
     TraceIdFormatter,
@@ -6,12 +6,10 @@ from intellisource.observability.logging import (
     setup_logging,
 )
 from intellisource.observability.metrics import MetricsCollector
-from intellisource.observability.tracing import TracingMiddleware
 
 __all__ = [
     "MetricsCollector",
     "TraceIdFormatter",
-    "TracingMiddleware",
     "get_logger",
     "setup_logging",
 ]

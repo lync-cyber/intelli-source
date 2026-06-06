@@ -11,8 +11,6 @@ Covers:
              deadlocks.
 - AC-T029-3: Fingerprint dedup checks RawContent.fingerprint unique
              constraint before insert.
-- AC-T029-4: Push dedup via PushRecord (subscription_id, content_id,
-             channel) unique constraint.
 """
 
 from __future__ import annotations
@@ -50,12 +48,6 @@ def _make_fingerprint_checker(repo_mock):
     return mod.FingerprintChecker(repository=repo_mock)
 
 
-def _make_push_deduplicator(repo_mock):
-    """Instantiate PushDeduplicator with a mock repository."""
-    mod = _import_idempotency()
-    return mod.PushDeduplicator(repository=repo_mock)
-
-
 # -------------------------------------------------------------------
 # Fixtures
 # -------------------------------------------------------------------
@@ -77,15 +69,6 @@ def mock_content_repo():
     repo = MagicMock()
     repo.exists_by_fingerprint = AsyncMock(return_value=False)
     repo.record_fingerprint = AsyncMock(return_value=None)
-    return repo
-
-
-@pytest.fixture()
-def mock_push_repo():
-    """Provide a mock push-record repository."""
-    repo = MagicMock()
-    repo.exists = AsyncMock(return_value=False)
-    repo.record = AsyncMock(return_value=None)
     return repo
 
 
@@ -214,26 +197,6 @@ class TestIdempotencyGuardRelease:
         await guard.release("source-missing")
 
 
-class TestIdempotencyGuardIsLocked:
-    """IdempotencyGuard.is_locked(source_id) checks lock state."""
-
-    @pytest.mark.asyncio
-    async def test_is_locked_true(self, mock_redis):
-        """When key exists, is_locked should return True."""
-        mock_redis.get = AsyncMock(return_value=b"1")
-        guard = _make_guard(mock_redis)
-        result = await guard.is_locked("source-check")
-        assert result is True
-
-    @pytest.mark.asyncio
-    async def test_is_locked_false(self, mock_redis):
-        """When key does not exist, is_locked should return False."""
-        mock_redis.get = AsyncMock(return_value=None)
-        guard = _make_guard(mock_redis)
-        result = await guard.is_locked("source-check")
-        assert result is False
-
-
 # ===================================================================
 # FingerprintChecker — content fingerprint dedup (AC-T029-3)
 # ===================================================================
@@ -282,84 +245,18 @@ class TestFingerprintCheckerRecord:
 
 
 # ===================================================================
-# PushDeduplicator — push record dedup (AC-T029-4)
-# ===================================================================
-
-
-class TestPushDeduplicatorIsDuplicate:
-    """AC-T029-4: Check (subscription_id, content_id, channel) uniqueness."""
-
-    @pytest.mark.asyncio
-    async def test_not_duplicate(self, mock_push_repo):
-        """First push for a combination should return False."""
-        mock_push_repo.exists = AsyncMock(return_value=False)
-        sub_id = uuid.uuid4()
-        content_id = uuid.uuid4()
-        dedup = _make_push_deduplicator(mock_push_repo)
-        result = await dedup.is_duplicate(sub_id, content_id, "email")
-        assert result is False
-
-    @pytest.mark.asyncio
-    async def test_is_duplicate(self, mock_push_repo):
-        """Repeated push for same combination should return True."""
-        mock_push_repo.exists = AsyncMock(return_value=True)
-        sub_id = uuid.uuid4()
-        content_id = uuid.uuid4()
-        dedup = _make_push_deduplicator(mock_push_repo)
-        result = await dedup.is_duplicate(sub_id, content_id, "email")
-        assert result is True
-
-    @pytest.mark.asyncio
-    async def test_different_channel_not_duplicate(self, mock_push_repo):
-        """Same sub+content but different channel is NOT a duplicate."""
-        mock_push_repo.exists = AsyncMock(return_value=False)
-        sub_id = uuid.uuid4()
-        content_id = uuid.uuid4()
-        dedup = _make_push_deduplicator(mock_push_repo)
-        result = await dedup.is_duplicate(sub_id, content_id, "webhook")
-        assert result is False
-
-    @pytest.mark.asyncio
-    async def test_is_duplicate_calls_repo_with_correct_args(self, mock_push_repo):
-        """Ensure the repo is called with exact (sub_id, content_id, channel)."""
-        mock_push_repo.exists = AsyncMock(return_value=False)
-        sub_id = uuid.uuid4()
-        content_id = uuid.uuid4()
-        dedup = _make_push_deduplicator(mock_push_repo)
-        await dedup.is_duplicate(sub_id, content_id, "slack")
-        mock_push_repo.exists.assert_called_once_with(sub_id, content_id, "slack")
-
-
-class TestPushDeduplicatorRecord:
-    """PushDeduplicator.record() persists push record."""
-
-    @pytest.mark.asyncio
-    async def test_record_push(self, mock_push_repo):
-        """record should store the push entry."""
-        sub_id = uuid.uuid4()
-        content_id = uuid.uuid4()
-        push_id = uuid.uuid4()
-        dedup = _make_push_deduplicator(mock_push_repo)
-        await dedup.record(sub_id, content_id, "email", push_id)
-        mock_push_repo.record.assert_called_once_with(
-            sub_id, content_id, "email", push_id
-        )
-
-
-# ===================================================================
-# Integration-style: three-layer idempotency (AC-037)
+# Integration-style: idempotency layers (AC-037)
 # ===================================================================
 
 
 class TestThreeLayerIdempotency:
-    """AC-037: All three dedup layers exist and are independently usable."""
+    """AC-037: dedup layers exist and are independently usable."""
 
     def test_all_classes_importable(self):
-        """The module must export all three classes."""
+        """The module must export the lock + fingerprint dedup classes."""
         mod = _import_idempotency()
         assert hasattr(mod, "IdempotencyGuard")
         assert hasattr(mod, "FingerprintChecker")
-        assert hasattr(mod, "PushDeduplicator")
 
     @pytest.mark.asyncio
     async def test_guard_and_fingerprint_independent(

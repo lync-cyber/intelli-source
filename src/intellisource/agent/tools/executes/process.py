@@ -47,7 +47,7 @@ async def _process_execute(
 
     from datetime import datetime, timezone  # noqa: PLC0415
 
-    from intellisource.pipeline.context import PipelineContext  # noqa: PLC0415
+    from intellisource.core.processor import PipelineContext  # noqa: PLC0415
     from intellisource.storage.repositories.content import (  # noqa: PLC0415
         ContentRepository,
     )

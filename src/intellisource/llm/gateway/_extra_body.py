@@ -57,6 +57,28 @@ def build_extra_body(
     return payload
 
 
+def apply_extra_body(
+    call_kwargs: dict[str, Any],
+    routing_config: dict[str, Any],
+    model: str,
+    task_type: str | None,
+    profile: Any,
+) -> None:
+    """Attach the provider ``extra_body`` payload to *call_kwargs* in place.
+
+    Resolves the task-level config from *routing_config* for *task_type* and
+    sets ``call_kwargs["extra_body"]`` only when a payload is produced.
+    """
+    task_cfg = (
+        routing_config.get("models", {}).get(task_type)
+        if task_type is not None
+        else None
+    )
+    extra_body = build_extra_body(model, task_cfg, profile)
+    if extra_body is not None:
+        call_kwargs["extra_body"] = extra_body
+
+
 def extract_reasoning_content(message: Any) -> str | None:
     """Read ``reasoning_content`` from a litellm response message, if present."""
     if message is None:

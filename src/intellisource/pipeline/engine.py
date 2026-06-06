@@ -4,9 +4,8 @@ import time
 from collections.abc import AsyncIterator
 from typing import Sequence
 
+from intellisource.core.processor import BaseProcessor, PipelineContext
 from intellisource.observability.logging import get_logger
-from intellisource.pipeline.base import BaseProcessor
-from intellisource.pipeline.context import PipelineContext
 from intellisource.pipeline.middleware import BaseMiddleware, MiddlewareChain
 
 logger = get_logger(__name__)

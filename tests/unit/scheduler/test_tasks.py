@@ -593,3 +593,159 @@ class TestEdgeCases:
         mod = _import_tasks()
         with pytest.raises(ValueError):
             mod.get_queue_for_priority("critical")
+
+
+# ===================================================================
+# C1-B: worker writes CollectTask lifecycle status keyed by
+#       params['task_id'] (makes pause/cancel reachable) + resume
+#       force-unlock
+# ===================================================================
+
+
+class TestCollectTaskLifecycle:
+    """run_pipeline advances CollectTask.status pending → running → success/
+    failed via params['task_id'], guarded so it only steps from the expected
+    prior state. Non-UUID lock keys leave the table untouched."""
+
+    def _patches(self, task_obj):
+        """Return (chain_patch, task_patch, task_repo, session_factory)."""
+        import uuid as _uuid
+
+        chain_repo = AsyncMock()
+
+        async def fake_create(**kwargs):
+            return SimpleNamespace(id=kwargs.get("id") or _uuid.uuid4())
+
+        chain_repo.create = AsyncMock(side_effect=fake_create)
+
+        task_repo = AsyncMock()
+        task_repo.get_by_id = AsyncMock(return_value=task_obj)
+
+        async def fake_update(_uid, **fields):
+            for key, value in fields.items():
+                setattr(task_obj, key, value)
+            return task_obj
+
+        task_repo.update = AsyncMock(side_effect=fake_update)
+
+        mock_session = AsyncMock()
+        mock_session.close = AsyncMock()
+
+        async def fake_session_factory():
+            return mock_session
+
+        chain_patch = patch(
+            "intellisource.scheduler.tasks.TaskChainRepository",
+            return_value=chain_repo,
+        )
+        task_patch = patch(
+            "intellisource.scheduler.tasks.TaskRepository",
+            return_value=task_repo,
+        )
+        return chain_patch, task_patch, task_repo, fake_session_factory
+
+    def test_marks_running_then_success(self, mock_agent_runner, mock_pipeline_config):
+        import uuid
+
+        task_id = uuid.uuid4()
+        task_obj = SimpleNamespace(status="pending")
+        chain_p, task_p, task_repo, factory = self._patches(task_obj)
+
+        with chain_p, task_p:
+            tasks = _make_celery_tasks_with_session_factory(
+                mock_agent_runner, mock_pipeline_config, factory
+            )
+            tasks.run_pipeline("news_collect", params={"task_id": str(task_id)})
+
+        statuses = [c.kwargs.get("status") for c in task_repo.update.call_args_list]
+        assert statuses == ["running", "success"]
+        assert task_obj.status == "success"
+
+    def test_marks_failed_with_error_message(
+        self, mock_agent_runner, mock_pipeline_config
+    ):
+        import uuid
+
+        mock_agent_runner.execute = AsyncMock(side_effect=RuntimeError("boom"))
+        task_id = uuid.uuid4()
+        task_obj = SimpleNamespace(status="pending")
+        chain_p, task_p, task_repo, factory = self._patches(task_obj)
+
+        with chain_p, task_p:
+            tasks = _make_celery_tasks_with_session_factory(
+                mock_agent_runner, mock_pipeline_config, factory
+            )
+            with pytest.raises(RuntimeError, match="boom"):
+                tasks.run_pipeline("news_collect", params={"task_id": str(task_id)})
+
+        statuses = [c.kwargs.get("status") for c in task_repo.update.call_args_list]
+        assert statuses == ["running", "failed"]
+        assert task_obj.status == "failed"
+        failed_call = task_repo.update.call_args_list[-1]
+        assert "boom" in str(failed_call.kwargs.get("error_message"))
+
+    def test_non_uuid_task_id_skips_status_write(
+        self, mock_agent_runner, mock_pipeline_config
+    ):
+        task_obj = SimpleNamespace(status="pending")
+        chain_p, task_p, task_repo, factory = self._patches(task_obj)
+
+        with chain_p, task_p:
+            tasks = _make_celery_tasks_with_session_factory(
+                mock_agent_runner, mock_pipeline_config, factory
+            )
+            tasks.run_pipeline("news_collect", params={"task_id": "lock-key:src"})
+
+        task_repo.update.assert_not_called()
+
+    def test_running_guard_skips_when_already_cancelled(
+        self, mock_agent_runner, mock_pipeline_config
+    ):
+        """A row the API already moved to 'cancelled' is not flipped to running."""
+        import uuid
+
+        task_id = uuid.uuid4()
+        task_obj = SimpleNamespace(status="cancelled")
+        chain_p, task_p, task_repo, factory = self._patches(task_obj)
+
+        with chain_p, task_p:
+            tasks = _make_celery_tasks_with_session_factory(
+                mock_agent_runner, mock_pipeline_config, factory
+            )
+            tasks.run_pipeline("news_collect", params={"task_id": str(task_id)})
+
+        task_repo.update.assert_not_called()
+        assert task_obj.status == "cancelled"
+
+    def test_force_param_releases_stale_lock_before_acquire(
+        self, mock_agent_runner, mock_pipeline_config
+    ):
+        guard = MagicMock()
+        guard.acquire = AsyncMock(return_value=True)
+        guard.release = AsyncMock()
+        mod = _import_tasks()
+        tasks = mod.CeleryTasks(
+            agent_runner=mock_agent_runner,
+            pipeline_config=mock_pipeline_config,
+            idempotency_guard=guard,
+        )
+
+        tasks.run_pipeline("news_collect", params={"task_id": "t-1", "force": True})
+
+        # force-clear before acquire + finally release == 2 release calls
+        assert guard.release.await_count == 2
+
+    def test_no_force_releases_lock_once(self, mock_agent_runner, mock_pipeline_config):
+        guard = MagicMock()
+        guard.acquire = AsyncMock(return_value=True)
+        guard.release = AsyncMock()
+        mod = _import_tasks()
+        tasks = mod.CeleryTasks(
+            agent_runner=mock_agent_runner,
+            pipeline_config=mock_pipeline_config,
+            idempotency_guard=guard,
+        )
+
+        tasks.run_pipeline("news_collect", params={"task_id": "t-1"})
+
+        assert guard.release.await_count == 1

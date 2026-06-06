@@ -16,9 +16,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from intellisource.core.processor import BaseProcessor, PipelineContext
 from intellisource.observability.logging import get_logger
 from intellisource.pipeline._async_bridge import run_coro
-from intellisource.pipeline.base import BaseProcessor, PipelineContext
 
 logger = get_logger(__name__)
 

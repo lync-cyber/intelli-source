@@ -52,41 +52,28 @@ async def llm_stats(
 
 
 async def get_llm_gateway_status(request: Request) -> dict[str, Any]:
-    """Return current circuit breaker state and queue lengths.
+    """Return current circuit breaker state.
 
     Reads LLMGateway from request.app.state.llm_gateway when available.
     Returns circuit_state="UNKNOWN" with a runtime warning when the gateway
     is not injected (e.g. during testing or misconfigured deployments).
 
-    Returns a dict with keys:
+    Returns a dict with key:
     - circuit_state: one of CLOSED, OPEN, HALF_OPEN, UNKNOWN
-    - queue_lengths: dict with interactive and background integer counts
     """
     gateway = getattr(request.app.state, "llm_gateway", None)
     if gateway is None:
         logger.warning(
             "llm_gateway not found in app.state; returning UNKNOWN circuit state"
         )
-        return {
-            "circuit_state": "UNKNOWN",
-            "queue_lengths": {"interactive": 0, "background": 0},
-        }
+        return {"circuit_state": "UNKNOWN"}
 
     circuit_state = "UNKNOWN"
     if gateway.circuit_breaker is not None:
         state = await gateway.circuit_breaker.get_state()
         circuit_state = state.value
 
-    interactive = 0
-    background = 0
-    if gateway._priority_queue is not None:
-        interactive = gateway._priority_queue.interactive_queue_size()
-        background = gateway._priority_queue.background_queue_size()
-
-    return {
-        "circuit_state": circuit_state,
-        "queue_lengths": {"interactive": interactive, "background": background},
-    }
+    return {"circuit_state": circuit_state}
 
 
 @router.get("/llm/status", response_model=LLMStatusResponse)
@@ -94,5 +81,5 @@ async def llm_status(
     request: Request,
     _: str = Depends(require_api_key),
 ) -> Any:
-    """Return LLM gateway health: circuit state and queue depths."""
+    """Return LLM gateway health: circuit state."""
     return await get_llm_gateway_status(request)

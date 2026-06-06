@@ -38,7 +38,7 @@ class TestLLMSummarizerRegistered:
         assert isinstance(LLMSummarizer, type)
 
     def test_llm_summarizer_subclasses_base_processor(self) -> None:
-        from intellisource.pipeline.base import BaseProcessor  # noqa: PLC0415
+        from intellisource.core.processor import BaseProcessor  # noqa: PLC0415
         from intellisource.pipeline.processors.summarizer import (  # noqa: PLC0415
             LLMSummarizer,
         )
@@ -70,7 +70,7 @@ def _make_complete_result(summary_json: str) -> MagicMock:
 
 class TestLLMSummarizerProcess:
     def test_process_writes_summary_to_context(self) -> None:
-        from intellisource.pipeline.context import PipelineContext  # noqa: PLC0415
+        from intellisource.core.processor import PipelineContext  # noqa: PLC0415
         from intellisource.pipeline.processors.summarizer import (  # noqa: PLC0415
             LLMSummarizer,
         )
@@ -94,7 +94,7 @@ class TestLLMSummarizerProcess:
         gw.complete.assert_awaited_once()
 
     def test_process_falls_back_when_gateway_returns_invalid_json(self) -> None:
-        from intellisource.pipeline.context import PipelineContext  # noqa: PLC0415
+        from intellisource.core.processor import PipelineContext  # noqa: PLC0415
         from intellisource.pipeline.processors.summarizer import (  # noqa: PLC0415
             LLMSummarizer,
         )
@@ -123,7 +123,7 @@ class TestLLMSummarizerProcess:
         assert summary_val != ""
 
     def test_process_without_gateway_falls_back_to_truncation(self) -> None:
-        from intellisource.pipeline.context import PipelineContext  # noqa: PLC0415
+        from intellisource.core.processor import PipelineContext  # noqa: PLC0415
         from intellisource.pipeline.processors.summarizer import (  # noqa: PLC0415
             LLMSummarizer,
         )
@@ -143,7 +143,7 @@ class TestLLMSummarizerProcess:
         assert summary_val  # non-empty fallback text
 
     def test_process_swallows_gateway_exception(self) -> None:
-        from intellisource.pipeline.context import PipelineContext  # noqa: PLC0415
+        from intellisource.core.processor import PipelineContext  # noqa: PLC0415
         from intellisource.pipeline.processors.summarizer import (  # noqa: PLC0415
             LLMSummarizer,
         )
@@ -260,7 +260,7 @@ async def test_process_execute_persists_summary_from_context() -> None:
     from intellisource.agent.tools.executes.process import (
         _process_execute,  # noqa: PLC0415
     )
-    from intellisource.pipeline.context import PipelineContext  # noqa: PLC0415
+    from intellisource.core.processor import PipelineContext  # noqa: PLC0415
 
     raw_id = uuid4()
     summary_text = "synthesized digest line"
@@ -355,7 +355,7 @@ async def test_process_execute_persists_summary_from_context() -> None:
 
 class TestLLMSummarizerPopulatesDigest:
     def test_process_populates_full_digest_in_context(self) -> None:
-        from intellisource.pipeline.context import PipelineContext  # noqa: PLC0415
+        from intellisource.core.processor import PipelineContext  # noqa: PLC0415
         from intellisource.pipeline.processors.summarizer import (  # noqa: PLC0415
             LLMSummarizer,
         )
@@ -395,7 +395,7 @@ async def test_process_execute_persists_structured_data_from_digest() -> None:
     from intellisource.agent.tools.executes.process import (  # noqa: PLC0415
         _process_execute,
     )
-    from intellisource.pipeline.context import PipelineContext  # noqa: PLC0415
+    from intellisource.core.processor import PipelineContext  # noqa: PLC0415
 
     raw_id = uuid4()
     digest_payload = {

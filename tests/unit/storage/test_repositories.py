@@ -1223,3 +1223,56 @@ class TestCursorPaginationFormat:
         # The repo should cap at 100, not return 200
         # We just verify the call succeeds and respects the cap
         assert isinstance(page["items"], list)
+
+
+class TestChatSessionRepository:
+    """find_by_channel_user + cleanup_expired against a real session (OBS-003)."""
+
+    @pytest.mark.asyncio
+    async def test_find_by_channel_user_returns_match(
+        self, session: AsyncSession
+    ) -> None:
+        from intellisource.storage.repositories.chat_session import (
+            ChatSessionRepository,
+        )
+
+        repo = ChatSessionRepository(session)
+        created = await repo.create(
+            channel="wework", channel_user_id="u1", context={"messages": []}
+        )
+
+        found = await repo.find_by_channel_user("wework", "u1")
+        assert found is not None
+        assert found.id == created.id
+        assert await repo.find_by_channel_user("wework", "absent") is None
+
+    @pytest.mark.asyncio
+    async def test_cleanup_expired_deletes_only_stale(
+        self, session: AsyncSession
+    ) -> None:
+        from datetime import timedelta
+
+        from intellisource.storage.repositories.chat_session import (
+            ChatSessionRepository,
+        )
+
+        repo = ChatSessionRepository(session)
+        now = datetime.now(timezone.utc)
+        await repo.create(
+            channel="wework",
+            channel_user_id="stale",
+            context={},
+            last_active_at=now - timedelta(days=40),
+        )
+        await repo.create(
+            channel="wework",
+            channel_user_id="fresh",
+            context={},
+            last_active_at=now - timedelta(days=1),
+        )
+
+        deleted = await repo.cleanup_expired(before=now - timedelta(days=30))
+
+        assert deleted == 1
+        assert await repo.find_by_channel_user("wework", "stale") is None
+        assert await repo.find_by_channel_user("wework", "fresh") is not None

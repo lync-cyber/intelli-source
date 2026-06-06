@@ -9,8 +9,7 @@ Covers:
 
 import pytest
 
-from intellisource.pipeline.base import BaseProcessor
-from intellisource.pipeline.context import PipelineContext
+from intellisource.core.processor import BaseProcessor, PipelineContext
 from intellisource.pipeline.engine import PipelineEngine
 
 # ---------------------------------------------------------------------------

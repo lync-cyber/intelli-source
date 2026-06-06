@@ -4,7 +4,7 @@ Covers:
 - AC-016: PipelineContext supports inter-processor data via get/set key-value pairs.
 """
 
-from intellisource.pipeline.context import PipelineContext
+from intellisource.core.processor import PipelineContext
 
 
 class TestPipelineContextGetSet:

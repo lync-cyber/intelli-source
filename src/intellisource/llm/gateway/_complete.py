@@ -6,11 +6,9 @@ import time
 from typing import TYPE_CHECKING, Any, cast
 
 from intellisource.llm.cost_tracker import LLMCallRecord
-from intellisource.llm.gateway._extra_body import (
-    build_extra_body,
-    extract_reasoning_content,
-)
+from intellisource.llm.gateway._extra_body import extract_reasoning_content
 from intellisource.llm.gateway._metrics import _record_llm_call
+from intellisource.llm.gateway._routing import resolve_model
 from intellisource.llm.gateway._types import LLMResult
 from intellisource.llm.prompt_builder import PromptBuilder
 
@@ -73,21 +71,9 @@ class _CompleteMixin:
                 )
                 return cached
 
-        resolved_model = model
-
-        if resolved_model is None and task_type is not None:
-            models = self._routing_config.get("models", {})
-            if task_type in models:
-                resolved_model = models[task_type]["model"]
-            else:
-                self._warn(
-                    "No model config for task_type '%s', using default_model",
-                    task_type,
-                )
-                resolved_model = self._routing_config["default_model"]["model"]
-
-        if resolved_model is None:
-            resolved_model = "gpt-4o-mini"
+        resolved_model = resolve_model(
+            self._routing_config, model, task_type, warn=self._warn
+        )
 
         estimated = self.estimate_tokens(prompt, resolved_model)
         context_window = self._CONTEXT_WINDOWS.get(
@@ -112,44 +98,17 @@ class _CompleteMixin:
                 prompt, effective_limit, resolved_model
             )
 
-        profile = self._model_routing.get_profile(resolved_model)
-        resolved_temperature = temperature
-        if resolved_temperature is None:
-            resolved_temperature = (
-                profile.temperature
-                if profile is not None
-                else self._default_temperature
-            )
-        resolved_max_tokens = max_tokens
-        if resolved_max_tokens is None:
-            resolved_max_tokens = (
-                profile.max_tokens if profile is not None else self._default_max_tokens
-            )
-
-        messages: list[dict[str, str]] = []
-        if system_prompt is not None:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
-
-        call_kwargs: dict[str, Any] = {
-            "model": resolved_model,
-            "messages": messages,
-            "temperature": resolved_temperature,
-            "max_tokens": resolved_max_tokens,
-        }
-        if profile is not None:
-            call_kwargs["timeout"] = profile.timeout_seconds
-        if response_format is not None:
-            call_kwargs["response_format"] = response_format
-
-        task_cfg_for_extra = (
-            self._routing_config.get("models", {}).get(task_type)
-            if task_type is not None
-            else None
+        call_kwargs = self._prepare_litellm_kwargs(
+            resolved_model=resolved_model,
+            prompt=prompt,
+            messages=None,
+            system_prompt=system_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            task_type=task_type,
+            stream=False,
+            response_format=response_format,
         )
-        extra_body = build_extra_body(resolved_model, task_cfg_for_extra, profile)
-        if extra_body is not None:
-            call_kwargs["extra_body"] = extra_body
 
         start_time = time.monotonic()
         try:

@@ -182,10 +182,14 @@ class TestDispatchChatReply:
         )
         mock_cs = MagicMock()
         mock_cs.send_text = AsyncMock(return_value=None)
+        mock_app = MagicMock()
+        mock_app.state.db = None
 
         await _dispatch_chat_reply(
+            app=mock_app,
             runner=mock_runner,
             cs_messenger=mock_cs,
+            channel="wechat",
             openid=_OPENID,
             user_text="查询最新 RAG 论文",
         )
@@ -217,10 +221,14 @@ class TestDispatchChatReply:
         )
         mock_cs = MagicMock()
         mock_cs.send_text = AsyncMock(return_value=None)
+        mock_app = MagicMock()
+        mock_app.state.db = None
 
         await _dispatch_chat_reply(
+            app=mock_app,
             runner=mock_runner,
             cs_messenger=mock_cs,
+            channel="wechat",
             openid=_OPENID,
             user_text="query",
         )
@@ -252,10 +260,14 @@ class TestDispatchChatReply:
         )
         mock_cs = MagicMock()
         mock_cs.send_text = AsyncMock(return_value=None)
+        mock_app = MagicMock()
+        mock_app.state.db = None
 
         await _dispatch_chat_reply(
+            app=mock_app,
             runner=mock_runner,
             cs_messenger=mock_cs,
+            channel="wechat",
             openid=_OPENID,
             user_text="query",
         )
@@ -275,11 +287,15 @@ class TestDispatchChatReply:
         )
         mock_cs = MagicMock()
         mock_cs.send_text = AsyncMock(return_value=None)
+        mock_app = MagicMock()
+        mock_app.state.db = None
 
         # Must not raise — fallback text should be sent
         await _dispatch_chat_reply(
+            app=mock_app,
             runner=mock_runner,
             cs_messenger=mock_cs,
+            channel="wechat",
             openid=_OPENID,
             user_text="任何查询",
         )

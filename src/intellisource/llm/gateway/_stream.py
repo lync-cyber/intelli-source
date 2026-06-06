@@ -8,8 +8,8 @@ from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Any
 
 from intellisource.llm.cost_tracker import LLMCallRecord
-from intellisource.llm.gateway._extra_body import build_extra_body
 from intellisource.llm.gateway._metrics import _record_llm_call
+from intellisource.llm.gateway._routing import resolve_model
 from intellisource.observability.logging import get_logger
 
 if TYPE_CHECKING:
@@ -45,55 +45,22 @@ class _StreamMixin:
         if messages is None and prompt is None:
             raise ValueError("stream_complete requires either prompt= or messages=")
 
-        resolved_model = model
-        if resolved_model is None:
-            models = self._routing_config.get("models", {})
-            if task_type is not None and task_type in models:
-                resolved_model = models[task_type]["model"]
-            else:
-                resolved_model = self._routing_config["default_model"]["model"]
-
-        profile = self._model_routing.get_profile(resolved_model)
-        resolved_temperature = temperature
-        if resolved_temperature is None:
-            resolved_temperature = (
-                profile.temperature
-                if profile is not None
-                else self._default_temperature
-            )
-        resolved_max_tokens = max_tokens
-        if resolved_max_tokens is None:
-            resolved_max_tokens = (
-                profile.max_tokens if profile is not None else self._default_max_tokens
-            )
-
-        call_messages: list[dict[str, Any]]
-        if messages is not None:
-            call_messages = list(messages)
-        else:
-            call_messages = []
-            if system_prompt is not None:
-                call_messages.append({"role": "system", "content": system_prompt})
-            call_messages.append({"role": "user", "content": prompt})
-
-        call_kwargs: dict[str, Any] = {
-            "model": resolved_model,
-            "messages": call_messages,
-            "temperature": resolved_temperature,
-            "max_tokens": resolved_max_tokens,
-            "stream": True,
-        }
-        if profile is not None:
-            call_kwargs["timeout"] = profile.timeout_seconds
-
-        task_cfg_for_extra = (
-            self._routing_config.get("models", {}).get(task_type)
-            if task_type is not None
-            else None
+        resolved_model = resolve_model(
+            self._routing_config, model, task_type, fallback_default=True
         )
-        extra_body = build_extra_body(resolved_model, task_cfg_for_extra, profile)
-        if extra_body is not None:
-            call_kwargs["extra_body"] = extra_body
+
+        call_kwargs = self._prepare_litellm_kwargs(
+            resolved_model=resolved_model,
+            prompt=prompt,
+            messages=messages,
+            system_prompt=system_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            task_type=task_type,
+            stream=True,
+            response_format=None,
+        )
+        call_messages = call_kwargs["messages"]
 
         start_time = time.monotonic()
         accumulated_content = ""

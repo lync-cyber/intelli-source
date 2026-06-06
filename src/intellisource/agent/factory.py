@@ -17,7 +17,8 @@ from intellisource.agent.runner import AgentRunner, get_agent_runner_holder
 from intellisource.agent.tools import AgentToolRegistry
 from intellisource.config.pipeline_models import PipelineConfig
 from intellisource.core.errors import CompositionError
-from intellisource.pipeline.base import BaseProcessor
+from intellisource.core.processor import BaseProcessor
+from intellisource.pipeline.condition import ConditionalProcessor
 from intellisource.pipeline.registry import get_processor
 
 if TYPE_CHECKING:
@@ -48,7 +49,13 @@ def _build_processors_from_config(
         params: dict[str, Any] = dict(step.get("params") or {})
         if getattr(cls, "_NEEDS_LLM_GATEWAY", False) and "llm_gateway" not in params:
             params["llm_gateway"] = llm_gateway
-        processors.append(cls(**params))
+        processor: BaseProcessor = cls(**params)
+        condition = step.get("condition")
+        if condition:
+            processor = ConditionalProcessor(
+                condition=condition, if_processor=processor
+            )
+        processors.append(processor)
     return processors
 
 

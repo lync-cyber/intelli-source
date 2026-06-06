@@ -202,9 +202,12 @@ class TestCollectToolNotDegraded:
 
         received_kwargs: list[dict[str, object]] = []
 
-        async def _spy_collect(self_: object, **kwargs: object) -> list[object]:
-            # T-097 must call collect(source_config={...}) — capture all kwargs.
-            received_kwargs.append(dict(kwargs))
+        async def _spy_collect(
+            self_: object, source_config: object = None, **kwargs: object
+        ) -> list[object]:
+            # collect_with_retry forwards source_config positionally to collect();
+            # capture it alongside any kwargs so the assertions below see it.
+            received_kwargs.append({"source_config": source_config, **kwargs})
             return [_make_raw_content_fixture(source_id)]
 
         with patch.object(RSSCollector, "collect", new=_spy_collect):
@@ -251,11 +254,14 @@ class TestCollectToolNotDegraded:
         source_id = str(uuid.uuid4())
         tool_deps = _make_tool_deps_with_registry()
 
-        received: list[object] = []
+        received: list[dict[str, object]] = []
 
-        async def _spy_api_collect(self_: object, **kwargs: object) -> list[object]:
-            # T-097 must call collect(source_config={...}) — capture what is passed.
-            received.append(kwargs)
+        async def _spy_api_collect(
+            self_: object, source_config: object = None, **kwargs: object
+        ) -> list[object]:
+            # collect_with_retry forwards source_config positionally to collect();
+            # capture it alongside any kwargs so the assertions below see it.
+            received.append({"source_config": source_config, **kwargs})
             return [_make_raw_content_fixture(source_id)]
 
         with patch.object(APICollector, "collect", new=_spy_api_collect):

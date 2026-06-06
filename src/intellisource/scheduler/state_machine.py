@@ -6,8 +6,6 @@ SchedulerManager (AC-T028-4, AC-039).
 
 from __future__ import annotations
 
-import json
-import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from typing import Any
@@ -64,6 +62,23 @@ class InvalidTransitionError(IntelliSourceError):
         )
 
 
+def resolve_transition(current_state: str, action: str) -> str:
+    """Return the target state for applying *action* in *current_state*.
+
+    Raises InvalidTransitionError when *action* is unknown or the
+    (current_state, action) pair has no defined transition. Stateless so
+    callers holding the authoritative state elsewhere (e.g. a DB row) can
+    validate a transition without seeding a TaskStateMachine instance.
+    """
+    if action not in VALID_ACTIONS:
+        raise InvalidTransitionError(f"Unknown action '{action}'")
+    key = (current_state, action)
+    if key not in _TRANSITIONS:
+        msg = f"Invalid transition: cannot apply '{action}' in state '{current_state}'"
+        raise InvalidTransitionError(msg)
+    return _TRANSITIONS[key]
+
+
 class TaskStateMachine:
     """Manages task state transitions."""
 
@@ -80,18 +95,8 @@ class TaskStateMachine:
 
     def transition(self, task_id: str, action: str) -> dict[str, Any]:
         """Execute a state transition and return metadata dict."""
-        if action not in VALID_ACTIONS:
-            msg = f"Unknown action '{action}'"
-            raise InvalidTransitionError(msg)
-
         current = self.get_state(task_id)
-        key = (current, action)
-
-        if key not in _TRANSITIONS:
-            msg = f"Invalid transition: cannot apply '{action}' in state '{current}'"
-            raise InvalidTransitionError(msg)
-
-        new_state = _TRANSITIONS[key]
+        new_state = resolve_transition(current, action)
         self._states[task_id] = new_state
 
         result: dict[str, Any] = {
@@ -163,43 +168,6 @@ class InMemoryStateBackend(SchedulerStateBackend):
         return name in self._data
 
 
-class RedisStateBackend(SchedulerStateBackend):
-    """Redis-backed schedule storage using hash fields under a namespace key."""
-
-    _KEY_PREFIX = "scheduler:state:"
-
-    def __init__(self, redis_client: Any) -> None:
-        self._redis = redis_client
-
-    def _key(self, name: str) -> str:
-        return f"{self._KEY_PREFIX}{name}"
-
-    def get(self, name: str) -> dict[str, Any] | None:
-        raw = self._redis.get(self._key(name))
-        if raw is None:
-            return None
-        return json.loads(raw)  # type: ignore[no-any-return]
-
-    def set(self, name: str, schedule: dict[str, Any]) -> None:
-        self._redis.set(self._key(name), json.dumps(schedule))
-
-    def delete(self, name: str) -> None:
-        deleted = self._redis.delete(self._key(name))
-        if not deleted:
-            raise KeyError(name)
-
-    def all(self) -> list[dict[str, Any]]:
-        pattern = f"{self._KEY_PREFIX}*"
-        keys = self._redis.keys(pattern)
-        if not keys:
-            return []
-        values = self._redis.mget(keys)
-        return [json.loads(v) for v in values if v is not None]
-
-    def exists(self, name: str) -> bool:
-        return bool(self._redis.exists(self._key(name)))
-
-
 class SchedulerManager:
     """Manages Celery Beat schedule registration and removal."""
 
@@ -231,29 +199,6 @@ class SchedulerManager:
         self._schedules[name] = entry
         self._backend.set(name, entry)
 
-    def remove_schedule(self, name: str) -> None:
-        """Remove a schedule by name. Raises KeyError if not found."""
-        if name not in self._schedules:
-            raise KeyError(name)
-        del self._schedules[name]
-        try:
-            self._backend.delete(name)
-        except KeyError:
-            pass
-
     def list_schedules(self) -> list[dict[str, Any]]:
         """Return all registered schedules as a list of dicts."""
         return list(self._schedules.values())
-
-    def trigger_manual(
-        self,
-        pipeline_name: str,
-        params: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Trigger a manual pipeline execution."""
-        return {
-            "task_id": str(uuid.uuid4()),
-            "pipeline_name": pipeline_name,
-            "params": params,
-            "execution_mode": "manual",
-        }

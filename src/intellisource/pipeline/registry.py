@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from intellisource.pipeline.base import BaseProcessor
+from intellisource.core.processor import BaseProcessor
 from intellisource.pipeline.processors.dedup import ContentDedup
 from intellisource.pipeline.processors.embedder import EmbeddingProcessor
 from intellisource.pipeline.processors.formatter import FormatConverter

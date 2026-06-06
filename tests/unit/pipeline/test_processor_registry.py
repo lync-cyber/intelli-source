@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from intellisource.pipeline.base import BaseProcessor
+from intellisource.core.processor import BaseProcessor
 
 
 class TestProcessorRegistryExists:

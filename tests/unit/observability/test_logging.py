@@ -14,8 +14,6 @@ import json
 import os
 from unittest.mock import patch
 
-import pytest
-
 # ===========================================================================
 # AC-T006-1: Log format is JSON Lines with timestamp, level, message, extra
 # ===========================================================================
@@ -266,97 +264,3 @@ class TestStructuredLogFields:
         assert entry.get("task_id") == "task-002"
         assert entry.get("processing_stage") == "summarization"
         assert entry.get("duration_ms") == 456
-
-
-# ===========================================================================
-# AC-059: TracingMiddleware generates trace_id and injects into log context
-# ===========================================================================
-
-
-class TestTracingMiddlewareLogIntegration:
-    """AC-059: TracingMiddleware generates unique trace_id per request
-    and injects it into structlog context."""
-
-    def test_import_tracing_middleware(self) -> None:
-        """TracingMiddleware must be importable from observability.tracing."""
-        from intellisource.observability.tracing import TracingMiddleware
-
-        assert isinstance(TracingMiddleware, type)
-
-    @pytest.mark.asyncio
-    async def test_trace_id_injected_into_log_context(self) -> None:
-        """TracingMiddleware must inject a trace_id into the structlog context
-        so that logs emitted during request handling contain the trace_id."""
-        from intellisource.observability.logging import get_logger, setup_logging
-        from intellisource.observability.tracing import TracingMiddleware
-
-        stream = io.StringIO()
-        setup_logging(stream=stream)
-
-        # Minimal ASGI app that logs a message
-        async def app(scope: dict, receive: object, send: object) -> None:
-            logger = get_logger("app")
-            logger.info("request-handled")
-
-        middleware = TracingMiddleware(app)
-
-        # Simulate a minimal HTTP request through the middleware
-        scope = {"type": "http", "method": "GET", "path": "/test"}
-
-        async def receive() -> dict:
-            return {"type": "http.request", "body": b""}
-
-        sent_events: list[dict] = []
-
-        async def send(event: dict) -> None:
-            sent_events.append(event)
-
-        await middleware(scope, receive, send)
-
-        output = stream.getvalue().strip()
-        assert output, "No log output during middleware handling"
-        entry = json.loads(output.splitlines()[-1])
-        assert "trace_id" in entry, f"trace_id not injected into log context: {entry}"
-        assert isinstance(entry["trace_id"], str)
-        assert len(entry["trace_id"]) > 0
-
-    @pytest.mark.asyncio
-    async def test_trace_id_is_unique_per_request(self) -> None:
-        """Each request through TracingMiddleware must get a unique trace_id."""
-        from intellisource.observability.logging import get_logger, setup_logging
-        from intellisource.observability.tracing import TracingMiddleware
-
-        stream = io.StringIO()
-        setup_logging(stream=stream)
-
-        async def app(scope: dict, receive: object, send: object) -> None:
-            logger = get_logger("app")
-            logger.info("handled")
-
-        middleware = TracingMiddleware(app)
-        scope = {"type": "http", "method": "GET", "path": "/test"}
-
-        async def receive() -> dict:
-            return {"type": "http.request", "body": b""}
-
-        async def send(event: dict) -> None:
-            pass
-
-        # Two requests
-        await middleware(scope, receive, send)
-        await middleware(scope, receive, send)
-
-        output = stream.getvalue().strip()
-        lines = [ln for ln in output.splitlines() if ln.strip()]
-        assert len(lines) >= 2, "Expected at least 2 log lines for 2 requests"
-
-        trace_ids = []
-        for line in lines:
-            entry = json.loads(line)
-            if "trace_id" in entry:
-                trace_ids.append(entry["trace_id"])
-
-        assert len(trace_ids) >= 2, "Expected trace_id in at least 2 log entries"
-        assert trace_ids[0] != trace_ids[1], (
-            f"trace_id should be unique per request, got same: {trace_ids[0]}"
-        )

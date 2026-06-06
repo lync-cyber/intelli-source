@@ -21,7 +21,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.agent.deps import ToolDeps
-from intellisource.pipeline.context import PipelineContext
+from intellisource.core.processor import PipelineContext
 from intellisource.pipeline.engine import PipelineEngine
 from intellisource.pipeline.processors.parser import HTMLParser
 from intellisource.storage.models import RawContent, Source

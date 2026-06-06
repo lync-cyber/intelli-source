@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from intellisource.core.processor import BaseProcessor, PipelineContext
 from intellisource.observability.logging import get_logger
-from intellisource.pipeline.base import BaseProcessor
-from intellisource.pipeline.context import PipelineContext
 
 logger = get_logger(__name__)
 

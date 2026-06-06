@@ -24,7 +24,9 @@ class StepSpec(TypedDict, total=False):
 
     - agent / strict steps carry ``tool``;
     - processor / batch steps carry ``processor`` or ``name``;
-    - ``params`` is the shared keyword payload merged into the call.
+    - ``params`` is the shared keyword payload merged into the call;
+    - ``condition`` wraps a processor step in ConditionalProcessor so it is
+      skipped when the ``{field, operator, value}`` rule is false.
 
     ``total=False`` keeps the shape open (steps originate from user/LLM YAML or
     the DB) while still typing the known keys so a misspelt key is caught.
@@ -34,6 +36,7 @@ class StepSpec(TypedDict, total=False):
     processor: str
     name: str
     params: dict[str, Any]
+    condition: dict[str, Any]
 
 
 class PipelineConfig:

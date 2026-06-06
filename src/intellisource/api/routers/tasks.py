@@ -27,6 +27,10 @@ from intellisource.scheduler.dispatch import (
     send_task_with_trace,
 )
 from intellisource.scheduler.queues import PRIORITY_QUEUES
+from intellisource.scheduler.state_machine import (
+    InvalidTransitionError,
+    resolve_transition,
+)
 from intellisource.storage.repositories.source import SourceRepository
 from intellisource.storage.repositories.task import TaskRepository
 from intellisource.storage.repositories.task_chain import TaskChainRepository
@@ -48,8 +52,8 @@ class CollectRequest(BaseModel):
     priority: str = "normal"
 
 
-class TaskUpdateRequest(BaseModel):
-    status: str | None = None
+class TaskActionRequest(BaseModel):
+    action: str
 
 
 # ---------------------------------------------------------------------------
@@ -88,6 +92,41 @@ def _task_brief(task: Any) -> dict[str, Any]:
         "status": task.status,
         "created_at": task.created_at,
     }
+
+
+def _run_pipeline_dispatch_kwargs(
+    task: Any,
+    pipeline_name: str,
+    priority: str,
+    task_chain_id: str,
+    *,
+    force: bool = False,
+) -> dict[str, Any]:
+    """Build the ``send_task('run_pipeline', kwargs=...)`` payload for *task*.
+
+    Shared by the collect fan-out and the resume re-dispatch so both ship the
+    identical nested-params contract (T-095 AC-8). ``force`` is added only on
+    resume, where the worker uses it to clear the idempotency lock left by the
+    paused run before re-acquiring.
+    """
+    params: dict[str, Any] = {
+        "task_id": str(task.id),
+        "task_chain_id": task_chain_id,
+        "source_id": str(task.source_id),
+        "trigger_type": task.trigger_type or "manual",
+        "priority": priority,
+        "fingerprint": "",
+    }
+    if force:
+        params["force"] = True
+    return {"pipeline_name": pipeline_name, "params": params}
+
+
+def _resolve_pipeline_name(source_type: str | None) -> str:
+    """Route a Source.type to its pipeline yaml name, defaulting when unknown."""
+    if source_type is None:
+        return "scheduled-collect"
+    return SOURCE_TYPE_TO_PIPELINE.get(source_type, "scheduled-collect")
 
 
 def _serialize_task_chain(chain: Any) -> dict[str, Any]:
@@ -222,27 +261,20 @@ async def trigger_collect(
         try:
             for task in tasks:
                 source_type = source_type_by_id.get(task.source_id)
-                pipeline_name = (
-                    SOURCE_TYPE_TO_PIPELINE.get(source_type, "scheduled-collect")
-                    if source_type is not None
-                    else "scheduled-collect"
-                )
-                send_task_with_trace(
+                pipeline_name = _resolve_pipeline_name(source_type)
+                async_result = send_task_with_trace(
                     "run_pipeline",
-                    kwargs={
-                        "pipeline_name": pipeline_name,
-                        "params": {
-                            "task_id": str(task.id),
-                            "task_chain_id": task_chain_id,
-                            "source_id": str(task.source_id),
-                            "trigger_type": task.trigger_type or "manual",
-                            "priority": priority,
-                            "fingerprint": "",
-                        },
-                    },
+                    kwargs=_run_pipeline_dispatch_kwargs(
+                        task, pipeline_name, priority, task_chain_id
+                    ),
                     queue=target_queue,
                     celery_instance=celery_instance,
                 )
+                # Persist the Celery task id so pause/cancel can target this run
+                # via control.revoke (API-009). The id is broker-assigned at
+                # dispatch; without storing it the CollectTask row has no handle
+                # on the worker task.
+                await task_repo.update(task.id, celery_task_id=str(async_result.id))
         except BrokerUnavailableError as exc:
             # Broker unreachable — raising here rolls back the just-created
             # task_chain + task rows (get_db_session rolls back on exception)
@@ -333,15 +365,70 @@ async def get_task(
     return _serialize_task(task)
 
 
-@router.patch("/tasks/{id}", response_model=TaskItem)
+@router.patch("/tasks/{id}")
 async def update_task(
     id: uuid.UUID,
-    body: TaskUpdateRequest,
+    body: TaskActionRequest,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
 ) -> Any:
+    """Pause / resume / cancel a collect task (API-009).
+
+    The action is validated against the task's current status via the state
+    machine's transition table (400 on an illegal transition), then effected:
+    pause / cancel both ``control.revoke(terminate=True)`` to actually halt the
+    worker run (revoke without terminate only stops a not-yet-started task — a
+    running one would otherwise finish); they differ only in the resulting
+    status — cancel is terminal, pause stays resumable. resume re-dispatches the
+    pipeline — idempotent because collect dedups by fingerprint and the worker
+    force-clears the stale idempotency lock.
+    """
     repo = TaskRepository(session)
-    fields = body.model_dump(exclude_unset=True)
-    updated = await repo.update(id, **fields)
+    task = await repo.get_by_id(id)
+    if task is None:
+        return error_json(404, "not found")
+
+    try:
+        to_state = resolve_transition(task.status, body.action)
+    except InvalidTransitionError as exc:
+        return error_json(400, str(exc))
+
+    celery_instance = getattr(request.app.state, "celery_app", None)
+
+    if body.action in ("pause", "cancel"):
+        if task.celery_task_id and celery_instance is not None:
+            celery_instance.control.revoke(task.celery_task_id, terminate=True)
+        updated = await repo.update(id, status=to_state)
+        if updated is None:
+            return error_json(404, "not found")
+        message = "任务已取消" if body.action == "cancel" else "任务已暂停"
+        return {"id": str(updated.id), "status": updated.status, "message": message}
+
+    # resume — re-dispatch the pipeline run for this task.
+    if celery_instance is None:
+        return error_json(503, "celery_app not initialised")
+    source_repo = SourceRepository(session)
+    source_type_by_id = await source_repo.get_types_by_ids([task.source_id])
+    pipeline_name = _resolve_pipeline_name(source_type_by_id.get(task.source_id))
+    target_queue = PRIORITY_QUEUES.get(task.priority, PRIORITY_QUEUES["normal"])
+    chain_id = str(task.task_chain_id) if task.task_chain_id else str(uuid.uuid4())
+    try:
+        async_result = send_task_with_trace(
+            "run_pipeline",
+            kwargs=_run_pipeline_dispatch_kwargs(
+                task, pipeline_name, task.priority, chain_id, force=True
+            ),
+            queue=target_queue,
+            celery_instance=celery_instance,
+        )
+    except BrokerUnavailableError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="task broker unavailable; resume not dispatched",
+        ) from exc
+    updated = await repo.update(
+        id, status=to_state, celery_task_id=str(async_result.id)
+    )
     if updated is None:
         return error_json(404, "not found")
-    return _serialize_task(updated)
+    return {"id": str(updated.id), "status": updated.status, "message": "任务已恢复"}

@@ -84,29 +84,6 @@ class TestLLMGatewayLifespanInjection:
                 assert isinstance(gw.circuit_breaker, CircuitBreaker)
 
     @pytest.mark.asyncio
-    async def test_llm_gateway_has_priority_queue(self) -> None:
-        """After lifespan startup, app.state.llm_gateway._priority_queue is set."""
-        from intellisource.llm.priority_queue import PriorityQueue
-
-        mock_db, mock_celery, mock_redis = _make_lifespan_patches()
-
-        with (
-            patch("intellisource.main.DatabaseManager", return_value=mock_db),
-            patch(
-                "intellisource.main.aioredis.from_url",
-                new_callable=AsyncMock,
-                return_value=mock_redis,
-            ),
-        ):
-            app = create_app()
-            lifespan = app.router.lifespan_context
-
-            async with lifespan(app):
-                gw = app.state.llm_gateway
-                assert gw._priority_queue is not None
-                assert isinstance(gw._priority_queue, PriorityQueue)
-
-    @pytest.mark.asyncio
     async def test_llm_status_endpoint_returns_closed_not_unknown(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

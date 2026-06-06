@@ -7,8 +7,7 @@ model centralises *where* values come from, not *how* each consumer interprets
 them.
 
 Dynamic env access that cannot be modelled as fixed fields stays as direct
-``os.environ`` reads: prefix-scanning config overrides
-(:mod:`intellisource.config.resolver`), ``${VAR}`` substitution
+``os.environ`` reads: ``${VAR}`` substitution
 (:mod:`intellisource.config.validator`), CLI subprocess env merge, and
 third-party LLM provider key presence checks.
 """

@@ -3,10 +3,7 @@
 Covers:
 - PromptBuilder template loading from prompts/ directory
 - Variable substitution via add_context
-- add_content with and without truncation
-- add_schema serialization
 - build() produces same output as load_prompt() for same inputs
-- build_messages() returns correct message format
 - truncate_content preserves first 40% + last 10%
 - truncate_content is no-op when content is under limit
 - LLMGateway truncation integration via max_input_tokens
@@ -14,7 +11,6 @@ Covers:
 
 from __future__ import annotations
 
-import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -92,68 +88,6 @@ class TestPromptBuilderAddContext:
 
 
 # ===================================================================
-# add_content with and without truncation
-# ===================================================================
-
-
-class TestPromptBuilderAddContent:
-    """Verify add_content adds content with optional truncation."""
-
-    def test_add_content_returns_self(self) -> None:
-        """add_content returns self for method chaining."""
-        builder = PromptBuilder(call_type="extraction")
-        result = builder.add_content("some text")
-        assert result is builder
-
-    def test_add_content_stores_content(self) -> None:
-        """add_content stores the content string."""
-        builder = PromptBuilder(call_type="extraction")
-        builder.add_content("hello world")
-        assert builder._content == "hello world"
-
-    def test_add_content_with_truncation(self) -> None:
-        """add_content with max_tokens truncates long content."""
-        long_text = "word " * 10000  # Very long text
-        builder = PromptBuilder(call_type="extraction")
-        builder.add_content(long_text, max_tokens=50)
-        # Content should be truncated (shorter than original)
-        assert len(builder._content) < len(long_text)
-        assert "[..." in builder._content
-
-    def test_add_content_no_truncation_when_short(self) -> None:
-        """add_content with max_tokens does not truncate short content."""
-        short_text = "hello world"
-        builder = PromptBuilder(call_type="extraction")
-        with patch("intellisource.llm.prompt_builder.litellm") as mock_litellm:
-            mock_litellm.token_counter = MagicMock(return_value=3)
-            builder.add_content(short_text, max_tokens=100)
-        assert builder._content == short_text
-
-
-# ===================================================================
-# add_schema serialization
-# ===================================================================
-
-
-class TestPromptBuilderAddSchema:
-    """Verify add_schema serializes dict to JSON string in context."""
-
-    def test_add_schema_returns_self(self) -> None:
-        """add_schema returns self for method chaining."""
-        builder = PromptBuilder(call_type="extraction")
-        result = builder.add_schema({"type": "object"})
-        assert result is builder
-
-    def test_add_schema_serializes_to_json(self) -> None:
-        """add_schema stores JSON-serialized schema in context['schema']."""
-        schema = {"type": "object", "properties": {"name": {"type": "string"}}}
-        builder = PromptBuilder(call_type="extraction")
-        builder.add_schema(schema)
-        stored = builder._context["schema"]
-        assert json.loads(stored) == schema
-
-
-# ===================================================================
 # build() produces same output as load_prompt()
 # ===================================================================
 
@@ -178,7 +112,6 @@ class TestPromptBuilderBuild:
     def test_build_with_content_substituted(self) -> None:
         """build() substitutes content into body_text context variable."""
         builder = PromptBuilder(call_type="extraction")
-        builder.add_content("My document text")
         builder.add_context("schema", '{"type": "object"}')
         builder.add_context("body_text", "My document text")
         result = builder.build()
@@ -190,47 +123,6 @@ class TestPromptBuilderBuild:
         builder.add_context("docs_text", "some docs")
         result = builder.build()
         assert "some docs" in result
-
-
-# ===================================================================
-# build_messages() returns correct format
-# ===================================================================
-
-
-class TestPromptBuilderBuildMessages:
-    """Verify build_messages() returns chat-style message list."""
-
-    def test_build_messages_returns_list_of_dicts(self) -> None:
-        """build_messages() returns a list of message dicts."""
-        builder = PromptBuilder(call_type="extraction")
-        builder.add_context("schema", '{"type": "object"}')
-        builder.add_context("body_text", "text")
-        messages = builder.build_messages()
-        assert isinstance(messages, list)
-        assert len(messages) >= 1
-        for msg in messages:
-            assert "role" in msg
-            assert "content" in msg
-
-    def test_build_messages_has_system_and_user(self) -> None:
-        """build_messages() includes system + user messages."""
-        builder = PromptBuilder(call_type="extraction")
-        builder.add_context("schema", '{"type": "object"}')
-        builder.add_context("body_text", "text")
-        messages = builder.build_messages()
-        roles = [m["role"] for m in messages]
-        assert "system" in roles
-        assert "user" in roles
-
-    def test_build_messages_user_contains_prompt(self) -> None:
-        """build_messages() user message contains the formatted prompt."""
-        builder = PromptBuilder(call_type="extraction")
-        builder.add_context("schema", '{"type": "object"}')
-        builder.add_context("body_text", "my text here")
-        messages = builder.build_messages()
-        user_msgs = [m for m in messages if m["role"] == "user"]
-        assert len(user_msgs) == 1
-        assert "my text here" in user_msgs[0]["content"]
 
 
 # ===================================================================
