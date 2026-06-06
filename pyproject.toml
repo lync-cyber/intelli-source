@@ -353,7 +353,12 @@ modules = ["intellisource.search", "intellisource.distributor"]
 [[tool.importlinter.contracts]]
 name = "Collector source adapters are mutually independent"
 type = "independence"
-modules = ["intellisource.collector.sources", "intellisource.distributor.channels"]
+modules = [
+    "intellisource.collector.adapters.rss",
+    "intellisource.collector.adapters.api",
+    "intellisource.collector.adapters.web",
+    "intellisource.distributor.channels",
+]
 
 # Contract 8: Config layer must not depend on storage models.
 # allow_indirect_imports=true so the legitimate config -> repo -> models chain

@@ -1,11 +1,7 @@
-"""CollectorRegistry: registration and auto-discovery of collectors."""
+"""CollectorRegistry: registration of source-type collectors."""
 
 from __future__ import annotations
 
-import importlib.util
-import inspect
-import sys
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from intellisource.collector.base import BaseCollector
@@ -58,36 +54,3 @@ class CollectorRegistry:
             proxy_manager=self._proxy_manager,
             adaptive=self._adaptive,
         )
-
-    def auto_discover(self, sources_dir: str) -> None:
-        """Scan sources_dir for sub-packages containing BaseCollector subclasses.
-
-        Each sub-package's __init__.py is imported and inspected for classes
-        that extend BaseCollector. Found classes are registered using their
-        SOURCE_TYPE class attribute as the registry key.
-        """
-        sources_path = Path(sources_dir)
-        for child in sorted(sources_path.iterdir()):
-            if not child.is_dir():
-                continue
-            init_file = child / "__init__.py"
-            if not init_file.exists():
-                continue
-
-            module_name = f"intellisource.collector.sources.{child.name}"
-            spec = importlib.util.spec_from_file_location(module_name, str(init_file))
-            if spec is None or spec.loader is None:
-                continue
-
-            module = importlib.util.module_from_spec(spec)
-            sys.modules[module_name] = module
-            spec.loader.exec_module(module)
-
-            for _name, obj in inspect.getmembers(module, inspect.isclass):
-                if (
-                    issubclass(obj, BaseCollector)
-                    and obj is not BaseCollector
-                    and hasattr(obj, "SOURCE_TYPE")
-                ):
-                    source_type: str = getattr(obj, "SOURCE_TYPE")
-                    self._registry[source_type] = obj
