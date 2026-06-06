@@ -218,9 +218,3 @@ def get_shared_metric_store() -> RedisMetricStore:
     if _store_singleton is None:
         _store_singleton = RedisMetricStore(_build_sync_redis_client())
     return _store_singleton
-
-
-def reset_shared_metric_store() -> None:
-    """Drop the cached store so the next access rebuilds it (test hook)."""
-    global _store_singleton
-    _store_singleton = None
