@@ -11,14 +11,20 @@ import concurrent.futures
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, TypeVar
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.core.pipeline_loader import PipelineLoader
+from intellisource.observability.logging import get_logger
 from intellisource.scheduler.celery_app import celery_app
 from intellisource.scheduler.queues import PRIORITY_QUEUES, TRIGGER_TYPE_QUEUES
+from intellisource.storage.repositories.task import TaskRepository
 from intellisource.storage.repositories.task_chain import TaskChainRepository
+
+logger = get_logger(__name__)
+
+_R = TypeVar("_R")
 
 MAX_RETRIES: int = 3
 RETRY_BACKOFF_BASE: int = 1
@@ -72,14 +78,14 @@ def _run_sync(coro_or_result: Any) -> Any:
     return coro_or_result
 
 
-def _parse_chain_id(raw: Any) -> uuid.UUID | None:
-    """Return a validated TaskChain UUID from a dispatch param, or None.
+def _parse_uuid_param(raw: Any) -> uuid.UUID | None:
+    """Return a validated UUID from a dispatch param, or None when absent/malformed.
 
-    The api / agent / mcp dispatch layer passes ``params['task_chain_id']`` so
-    the worker persists the run under the id it returned to the caller, which
-    ``get_task_status`` then reads. A missing or malformed value falls back to a
-    worker-generated id. Kept distinct from ``params['task_id']``, which
-    :func:`_task_lock_key` consumes as the idempotency key.
+    Used for both ``params['task_chain_id']`` (the run-correlation id the
+    api / agent / mcp dispatch layer returned to the caller) and
+    ``params['task_id']`` (the CollectTask row whose lifecycle status the worker
+    writes back). Non-UUID lock keys — e.g. ``scheduled-collect:source:...`` —
+    parse to None so only real CollectTask rows are touched.
     """
     text = str(raw or "").strip()
     if not text:
@@ -125,19 +131,66 @@ class CeleryTasks:
         self._content_repository = content_repository
 
     @asynccontextmanager
-    async def _chain_repo_session(self) -> AsyncIterator[TaskChainRepository]:
-        """Open a session, yield a TaskChainRepository, close on exit."""
+    async def _repo_session(
+        self, repo_cls: Callable[[AsyncSession], _R]
+    ) -> AsyncIterator[_R]:
+        """Open a session, yield ``repo_cls(session)``, commit/rollback/close."""
         if self._session_factory is None:
             raise RuntimeError("session_factory not configured")
         session = await self._session_factory()
         try:
-            yield TaskChainRepository(session)
+            yield repo_cls(session)
             await session.commit()
         except Exception:
             await session.rollback()
             raise
         finally:
             await session.close()
+
+    @asynccontextmanager
+    async def _chain_repo_session(self) -> AsyncIterator[TaskChainRepository]:
+        """Open a session, yield a TaskChainRepository, close on exit."""
+        async with self._repo_session(TaskChainRepository) as repo:
+            yield repo
+
+    def _set_task_status(
+        self,
+        raw_task_id: Any,
+        new_status: str,
+        *,
+        only_from: tuple[str, ...],
+        **fields: Any,
+    ) -> None:
+        """Best-effort CollectTask lifecycle write keyed by ``params['task_id']``.
+
+        No-op when session_factory is unwired or the id is not a real CollectTask
+        UUID (non-UUID lock keys parse to None). The *only_from* guard means a
+        status the API set out-of-band (paused / cancelled) is never clobbered by
+        a worker still finishing the run. Persistence errors are swallowed so a
+        status-write hiccup never fails the pipeline run itself.
+        """
+        if self._session_factory is None:
+            return
+        uid = _parse_uuid_param(raw_task_id)
+        if uid is None:
+            return
+
+        async def _do() -> None:
+            async with self._repo_session(TaskRepository) as repo:
+                task = await repo.get_by_id(uid)
+                if task is None or task.status not in only_from:
+                    return
+                await repo.update(uid, status=new_status, **fields)
+
+        try:
+            _run_sync(_do())
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "CollectTask status write failed task=%s status=%s: %s",
+                uid,
+                new_status,
+                exc,
+            )
 
     def _create_chain(
         self,
@@ -232,6 +285,11 @@ class CeleryTasks:
         lock_acquired = False
 
         if self._idempotency_guard is not None:
+            # A resume re-dispatch (params["force"]) clears any stale lock left by
+            # the run that was revoked on pause — without it the resumed run would
+            # be deduped as "already_running" until the lock TTL elapses.
+            if params.get("force"):
+                _run_sync(self._idempotency_guard.release(task_id))
             lock_acquired = bool(_run_sync(self._idempotency_guard.acquire(task_id)))
             if not lock_acquired:
                 return {"status": "skipped", "reason": "already_running"}
@@ -261,7 +319,7 @@ class CeleryTasks:
             # row; otherwise generate one worker-side as before.
             chain_id: uuid.UUID | None = None
             if self._session_factory is not None:
-                explicit_chain_id = _parse_chain_id(params.get("task_chain_id"))
+                explicit_chain_id = _parse_uuid_param(params.get("task_chain_id"))
                 if explicit_chain_id is not None:
                     chain_id = self._create_chain_with_id(
                         explicit_chain_id,
@@ -277,6 +335,10 @@ class CeleryTasks:
                         execution_mode=execution_mode,
                         total_steps=total_steps,
                     )
+
+            self._set_task_status(
+                params.get("task_id"), "running", only_from=("pending",)
+            )
 
             last_error: Exception | None = None
             for attempt in range(1 + MAX_RETRIES):
@@ -297,6 +359,9 @@ class CeleryTasks:
                         )
                     if chain_id is not None:
                         self._update_chain_status(chain_id, "success")
+                    self._set_task_status(
+                        params.get("task_id"), "success", only_from=("running",)
+                    )
                     return dict(result)
                 except Exception as exc:
                     last_error = exc
@@ -305,6 +370,12 @@ class CeleryTasks:
 
             if chain_id is not None:
                 self._update_chain_status(chain_id, "failed")
+            self._set_task_status(
+                params.get("task_id"),
+                "failed",
+                only_from=("running",),
+                error_message=str(last_error) if last_error else None,
+            )
 
             raise last_error  # type: ignore[misc]
         finally:

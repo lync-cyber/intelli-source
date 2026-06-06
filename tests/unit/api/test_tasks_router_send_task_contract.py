@@ -400,6 +400,38 @@ async def test_send_task_forwards_trace_id_in_headers(
 
 
 @pytest.mark.asyncio
+async def test_collect_persists_celery_task_id(
+    celery_client: AsyncClient, app_with_celery: FastAPI
+) -> None:
+    """C1-B: the broker-assigned Celery task id is written back to the
+    CollectTask row so pause/cancel can target the run via control.revoke."""
+    mock_task_repo, mock_source_repo = _patched_repos()
+    with (
+        patch(
+            "intellisource.api.routers.tasks.TaskRepository",
+            return_value=mock_task_repo,
+        ),
+        patch(
+            "intellisource.api.routers.tasks.SourceRepository",
+            return_value=mock_source_repo,
+        ),
+    ):
+        resp = await celery_client.post(
+            "/api/v1/tasks/collect", json={"priority": "normal"}
+        )
+
+    assert resp.status_code == 202, resp.text
+    update_calls = [
+        c
+        for c in mock_task_repo.update.await_args_list
+        if "celery_task_id" in c.kwargs
+    ]
+    assert update_calls, "celery_task_id was not persisted via TaskRepository.update"
+    assert update_calls[0].args[0] == FAKE_TASK_ID
+    assert update_calls[0].kwargs["celery_task_id"] == "celery-task-id"
+
+
+@pytest.mark.asyncio
 async def test_invalid_priority_rejected_with_400(
     celery_client: AsyncClient, app_with_celery: FastAPI
 ) -> None:

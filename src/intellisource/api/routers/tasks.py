@@ -227,7 +227,7 @@ async def trigger_collect(
                     if source_type is not None
                     else "scheduled-collect"
                 )
-                send_task_with_trace(
+                async_result = send_task_with_trace(
                     "run_pipeline",
                     kwargs={
                         "pipeline_name": pipeline_name,
@@ -242,6 +242,13 @@ async def trigger_collect(
                     },
                     queue=target_queue,
                     celery_instance=celery_instance,
+                )
+                # Persist the Celery task id so pause/cancel can target this run
+                # via control.revoke (API-009). The id is broker-assigned at
+                # dispatch; without storing it the CollectTask row has no handle
+                # on the worker task.
+                await task_repo.update(
+                    task.id, celery_task_id=str(async_result.id)
                 )
         except BrokerUnavailableError as exc:
             # Broker unreachable — raising here rolls back the just-created
