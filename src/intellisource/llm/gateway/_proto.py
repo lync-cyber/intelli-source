@@ -55,6 +55,20 @@ class _GatewayProto(Protocol):
 
     def _validate_tools(self, tools: Any) -> None: ...
 
+    def _prepare_litellm_kwargs(
+        self,
+        *,
+        resolved_model: str,
+        prompt: str | None,
+        messages: list[dict[str, Any]] | None,
+        system_prompt: str | None,
+        temperature: float | None,
+        max_tokens: int | None,
+        task_type: str | None,
+        stream: bool,
+        response_format: dict[str, Any] | None,
+    ) -> dict[str, Any]: ...
+
     async def _emit_call_log(self, record: LLMCallRecord) -> None: ...
 
     async def _log_cache_hit(

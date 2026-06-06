@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import ValidationError as PydanticValidationError
 
@@ -11,7 +11,70 @@ from intellisource.core.errors import ErrorCategory, IntelliSourceError, LLMErro
 from intellisource.core.settings import get_settings
 from intellisource.observability.logging import get_logger
 
+if TYPE_CHECKING:
+    from intellisource.llm.model_config import ModelProfile, ModelRoutingConfig
+
 logger = get_logger(__name__)
+
+
+def resolve_model(
+    routing_config: dict[str, Any],
+    model: str | None,
+    task_type: str | None,
+    *,
+    warn: Any = None,
+    fallback_default: bool = False,
+) -> str:
+    """Resolve the litellm model id from explicit model / task routing / defaults.
+
+    - explicit ``model`` always wins.
+    - ``task_type`` mapped in routing config → that model.
+    - ``task_type`` set but unmapped → ``default_model`` (calling ``warn`` first
+      when a warn callable is supplied, so complete() keeps its warning while
+      stream stays quiet).
+    - no ``task_type`` → ``default_model`` when ``fallback_default`` is True
+      (streaming path), otherwise the ``"gpt-4o-mini"`` safety net.
+    """
+    if model is not None:
+        return model
+    models = routing_config.get("models", {})
+    if task_type is not None:
+        if task_type in models:
+            return cast(str, models[task_type]["model"])
+        if warn is not None:
+            warn("No model config for task_type '%s', using default_model", task_type)
+        return cast(str, routing_config["default_model"]["model"])
+    if fallback_default:
+        return cast(str, routing_config["default_model"]["model"])
+    return "gpt-4o-mini"
+
+
+def resolve_call_params(
+    model_routing: ModelRoutingConfig,
+    model: str,
+    temperature: float | None,
+    max_tokens: int | None,
+    default_temperature: float,
+    default_max_tokens: int,
+) -> tuple[ModelProfile | None, float, int]:
+    """Resolve (profile, temperature, max_tokens) for a model.
+
+    Looks up the model's profile and fills temperature / max_tokens from the
+    profile when the caller passed None, falling back to the supplied gateway
+    defaults when there is no profile.
+    """
+    profile = model_routing.get_profile(model)
+    resolved_temperature = temperature
+    if resolved_temperature is None:
+        resolved_temperature = (
+            profile.temperature if profile is not None else default_temperature
+        )
+    resolved_max_tokens = max_tokens
+    if resolved_max_tokens is None:
+        resolved_max_tokens = (
+            profile.max_tokens if profile is not None else default_max_tokens
+        )
+    return profile, resolved_temperature, resolved_max_tokens
 
 _DEFAULT_CONFIG_PATH = str(
     Path(__file__).resolve().parents[4] / "config" / "llm_models.yaml"

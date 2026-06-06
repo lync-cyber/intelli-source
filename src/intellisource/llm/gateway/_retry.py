@@ -14,7 +14,8 @@ from tenacity import (
 from intellisource.core.errors import ErrorCategory
 from intellisource.llm.circuit_breaker import CircuitOpenError
 from intellisource.llm.cost_tracker import LLMCallRecord
-from intellisource.llm.gateway._routing import _classify_error
+from intellisource.llm.gateway._extra_body import apply_extra_body
+from intellisource.llm.gateway._routing import _classify_error, resolve_call_params
 from intellisource.llm.gateway._types import LLMResult
 from intellisource.observability.logging import get_logger
 
@@ -22,6 +23,7 @@ if TYPE_CHECKING:
     from intellisource.llm.circuit_breaker import CircuitBreaker
     from intellisource.llm.cost_tracker import CostTracker
     from intellisource.llm.fallback import FallbackManager
+    from intellisource.llm.gateway._proto import _GatewayProto
 
 logger = get_logger(__name__)
 
@@ -35,6 +37,58 @@ class _RetryMixin:
     _fallback_manager: FallbackManager | None
     circuit_breaker: CircuitBreaker | None
     _session_factory: Any  # Callable returning async ctx mgr → AsyncSession
+
+    def _prepare_litellm_kwargs(
+        self: _GatewayProto,
+        *,
+        resolved_model: str,
+        prompt: str | None,
+        messages: list[dict[str, Any]] | None,
+        system_prompt: str | None,
+        temperature: float | None,
+        max_tokens: int | None,
+        task_type: str | None,
+        stream: bool,
+        response_format: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Assemble the litellm call_kwargs shared by complete()/stream_complete().
+
+        Resolves temperature/max_tokens from the model profile, builds the
+        messages list (from ``messages`` when supplied, else system_prompt +
+        prompt), and attaches stream / timeout / response_format / extra_body.
+        """
+        profile, resolved_temperature, resolved_max_tokens = resolve_call_params(
+            self._model_routing,
+            resolved_model,
+            temperature,
+            max_tokens,
+            self._default_temperature,
+            self._default_max_tokens,
+        )
+        if messages is not None:
+            call_messages: list[dict[str, Any]] = list(messages)
+        else:
+            call_messages = []
+            if system_prompt is not None:
+                call_messages.append({"role": "system", "content": system_prompt})
+            call_messages.append({"role": "user", "content": prompt})
+
+        call_kwargs: dict[str, Any] = {
+            "model": resolved_model,
+            "messages": call_messages,
+            "temperature": resolved_temperature,
+            "max_tokens": resolved_max_tokens,
+        }
+        if stream:
+            call_kwargs["stream"] = True
+        if profile is not None:
+            call_kwargs["timeout"] = profile.timeout_seconds
+        if response_format is not None:
+            call_kwargs["response_format"] = response_format
+        apply_extra_body(
+            call_kwargs, self._routing_config, resolved_model, task_type, profile
+        )
+        return call_kwargs
 
     async def _emit_call_log(self, record: LLMCallRecord) -> None:
         """Persist an LLMCallRecord through whichever logging path is wired.
