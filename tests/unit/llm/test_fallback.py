@@ -184,16 +184,6 @@ class TestFallbackMappingTable:
                 input_data="data",
             )
 
-    def test_register_new_fallback(self, manager: FallbackManager) -> None:
-        """It should be possible to register additional fallback functions."""
-
-        def custom_fn(x):
-            return x
-
-        manager.register_fallback("custom_task", custom_fn)
-        assert "custom_task" in manager.fallback_registry
-
-
 # ===================================================================
 # AC-T020-4: Fallback events recorded to LLMCallLog (status=fallback)
 # ===================================================================

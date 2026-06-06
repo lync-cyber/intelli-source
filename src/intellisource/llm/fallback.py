@@ -31,12 +31,6 @@ class FallbackManager:
         """Return the current fallback registry."""
         return self._fallback_registry
 
-    def register_fallback(
-        self, task_type: str, fallback_fn: Callable[..., Any]
-    ) -> None:
-        """Register a new fallback function for a task type."""
-        self._fallback_registry[task_type] = fallback_fn
-
     async def execute_fallback(
         self,
         task_type: str,
