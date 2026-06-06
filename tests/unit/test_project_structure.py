@@ -56,7 +56,6 @@ EXPECTED_SUBPACKAGES = [
     "pipeline/processors",
     "agent",
     "llm",
-    "llm/processors",
     "llm/prompts",
     "llm/schemas",
     "scheduler",
