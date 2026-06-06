@@ -69,9 +69,7 @@ class TestBootstrapBeatSchedule:
             == "assemble_daily_weekly_digests"
         )
         assert "cleanup_chat_sessions" in beat_schedule
-        assert (
-            beat_schedule["cleanup_chat_sessions"]["task"] == "cleanup_chat_sessions"
-        )
+        assert beat_schedule["cleanup_chat_sessions"]["task"] == "cleanup_chat_sessions"
 
     def test_empty_sources_table_logs_warning(self) -> None:
         from structlog.testing import capture_logs

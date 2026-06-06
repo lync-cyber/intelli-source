@@ -422,9 +422,7 @@ async def test_collect_persists_celery_task_id(
 
     assert resp.status_code == 202, resp.text
     update_calls = [
-        c
-        for c in mock_task_repo.update.await_args_list
-        if "celery_task_id" in c.kwargs
+        c for c in mock_task_repo.update.await_args_list if "celery_task_id" in c.kwargs
     ]
     assert update_calls, "celery_task_id was not persisted via TaskRepository.update"
     assert update_calls[0].args[0] == FAKE_TASK_ID

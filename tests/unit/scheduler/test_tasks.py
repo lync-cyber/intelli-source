@@ -644,9 +644,7 @@ class TestCollectTaskLifecycle:
         )
         return chain_patch, task_patch, task_repo, fake_session_factory
 
-    def test_marks_running_then_success(
-        self, mock_agent_runner, mock_pipeline_config
-    ):
+    def test_marks_running_then_success(self, mock_agent_runner, mock_pipeline_config):
         import uuid
 
         task_id = uuid.uuid4()
@@ -732,16 +730,12 @@ class TestCollectTaskLifecycle:
             idempotency_guard=guard,
         )
 
-        tasks.run_pipeline(
-            "news_collect", params={"task_id": "t-1", "force": True}
-        )
+        tasks.run_pipeline("news_collect", params={"task_id": "t-1", "force": True})
 
         # force-clear before acquire + finally release == 2 release calls
         assert guard.release.await_count == 2
 
-    def test_no_force_releases_lock_once(
-        self, mock_agent_runner, mock_pipeline_config
-    ):
+    def test_no_force_releases_lock_once(self, mock_agent_runner, mock_pipeline_config):
         guard = MagicMock()
         guard.acquire = AsyncMock(return_value=True)
         guard.release = AsyncMock()

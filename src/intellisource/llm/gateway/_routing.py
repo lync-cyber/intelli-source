@@ -76,6 +76,7 @@ def resolve_call_params(
         )
     return profile, resolved_temperature, resolved_max_tokens
 
+
 _DEFAULT_CONFIG_PATH = str(
     Path(__file__).resolve().parents[4] / "config" / "llm_models.yaml"
 )

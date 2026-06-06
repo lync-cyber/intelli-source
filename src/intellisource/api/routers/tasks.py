@@ -274,9 +274,7 @@ async def trigger_collect(
                 # via control.revoke (API-009). The id is broker-assigned at
                 # dispatch; without storing it the CollectTask row has no handle
                 # on the worker task.
-                await task_repo.update(
-                    task.id, celery_task_id=str(async_result.id)
-                )
+                await task_repo.update(task.id, celery_task_id=str(async_result.id))
         except BrokerUnavailableError as exc:
             # Broker unreachable — raising here rolls back the just-created
             # task_chain + task rows (get_db_session rolls back on exception)

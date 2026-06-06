@@ -184,6 +184,7 @@ class TestFallbackMappingTable:
                 input_data="data",
             )
 
+
 # ===================================================================
 # AC-T020-4: Fallback events recorded to LLMCallLog (status=fallback)
 # ===================================================================
