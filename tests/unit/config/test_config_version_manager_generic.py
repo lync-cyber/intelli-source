@@ -1,14 +1,44 @@
-"""Tests for ConfigVersionManager generalized over SubscriptionConfig."""
+"""Tests for ConfigVersionManager generalized over SubscriptionConfig.
+
+The DB-path cases run against a real in-memory SQLite session so they verify
+that the manager targets the subscription_config_versions table and revives
+snapshots through SubscriptionConfig — not that a particular SQL string was
+emitted.
+"""
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from typing import AsyncIterator
 
 import pytest
-import yaml
+import pytest_asyncio
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import StaticPool
 
 from intellisource.config.loader import ConfigVersionManager
 from intellisource.config.subscription_models import SubscriptionConfig
+from intellisource.storage.models import Base, ConfigVersion, SubscriptionConfigVersion
+
+
+@pytest_asyncio.fixture
+async def session() -> AsyncIterator[AsyncSession]:
+    """In-memory SQLite holding only the two config-version tables."""
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
+        poolclass=StaticPool,
+        connect_args={"check_same_thread": False},
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(
+            Base.metadata.create_all,
+            tables=[ConfigVersion.__table__, SubscriptionConfigVersion.__table__],
+        )
+    factory = async_sessionmaker(
+        bind=engine, class_=AsyncSession, expire_on_commit=False
+    )
+    async with factory() as sess:
+        yield sess
+    await engine.dispose()
 
 
 @pytest.fixture()
@@ -36,6 +66,18 @@ def _make_manager() -> ConfigVersionManager:
     )
 
 
+async def _fetch_sub_version(
+    session: AsyncSession, version: str
+) -> SubscriptionConfigVersion | None:
+    from sqlalchemy import select
+
+    return await session.scalar(
+        select(SubscriptionConfigVersion).where(
+            SubscriptionConfigVersion.version == version
+        )
+    )
+
+
 class TestSubscriptionFlavoredManager:
     def test_record_and_rollback_in_memory(
         self, sample_subs: list[SubscriptionConfig]
@@ -43,71 +85,45 @@ class TestSubscriptionFlavoredManager:
         mgr = _make_manager()
         mgr.record_version(sample_subs)
         result = mgr.rollback(1)
-        # 返回的对象必须是 SubscriptionConfig 实例（不是 BaseModel 抽象）
+        # The returned objects must be SubscriptionConfig instances.
         assert all(isinstance(c, SubscriptionConfig) for c in result)
         names = [c.name for c in result]  # type: ignore[attr-defined]
         assert names == ["sub-a", "sub-b"]
 
-    async def test_record_version_async_uses_subscription_table(
-        self, sample_subs: list[SubscriptionConfig]
+    async def test_record_version_async_writes_subscription_table(
+        self, session: AsyncSession, sample_subs: list[SubscriptionConfig]
     ) -> None:
-        captured_sql: list[str] = []
-        captured_params: list[dict] = []
-
-        async def capture_execute(stmt: object, params: dict) -> AsyncMock:
-            captured_sql.append(str(stmt))
-            captured_params.append(params)
-            return AsyncMock()
-
-        mock_session = AsyncMock()
-        mock_session.execute = capture_execute
-        mock_session.commit = AsyncMock()
+        import yaml
+        from sqlalchemy import select
 
         mgr = _make_manager()
-        label = await mgr.record_version_async(sample_subs, session=mock_session)
+        label = await mgr.record_version_async(sample_subs, session=session)
 
         assert label == "1"
-        # 表名落到 SQL 上
-        assert "subscription_config_versions" in captured_sql[0]
-        # 快照可被 yaml.safe_load 解出且保留 channel_config
-        raw = yaml.safe_load(captured_params[0]["snapshot_yaml"])
+        stored = await _fetch_sub_version(session, "1")
+        assert stored is not None, "row must land in subscription_config_versions"
+        # And the config_versions table stays empty (table isolation).
+        assert await session.scalar(select(ConfigVersion.id)) is None
+        raw = yaml.safe_load(stored.snapshot_yaml)
         assert raw[0]["name"] == "sub-a"
         assert raw[0]["channel"] == "wework"
         assert raw[0]["channel_config"]["user_id"] == "@all"
 
     async def test_rollback_by_label_revives_through_subscription_config(
-        self, sample_subs: list[SubscriptionConfig]
+        self, session: AsyncSession, sample_subs: list[SubscriptionConfig]
     ) -> None:
-        snapshot = yaml.dump([c.model_dump() for c in sample_subs])
-        mock_row = MagicMock()
-        mock_row.fetchone = MagicMock(return_value=(snapshot,))
-        mock_session = AsyncMock()
-        mock_session.execute = AsyncMock(return_value=mock_row)
+        writer = _make_manager()
+        for _ in range(6):
+            writer.record_version([])  # bump so next async record is version 7
+        await writer.record_version_async(sample_subs, session=session)
 
-        mgr = _make_manager()
-        result = await mgr.rollback_by_label("7", session=mock_session)
-        assert mgr.current_version == 7
-        # 每一项都是 SubscriptionConfig 实例（而非 dict / BaseModel）
+        reader = _make_manager()  # cold cache → DB read
+        result = await reader.rollback_by_label("7", session=session)
+        assert reader.current_version == 7
         assert all(isinstance(c, SubscriptionConfig) for c in result)
         assert [c.name for c in result] == ["sub-a", "sub-b"]  # type: ignore[attr-defined]
 
-    async def test_rollback_select_targets_subscription_table(self) -> None:
-        # Empty DB result triggers SELECT and we can inspect the SQL
-        captured_sql: list[str] = []
-
-        async def capture_execute(stmt: object, params: dict) -> MagicMock:
-            captured_sql.append(str(stmt))
-            row = MagicMock()
-            row.fetchone = MagicMock(return_value=None)
-            return row
-
-        mock_session = AsyncMock()
-        mock_session.execute = capture_execute
-
+    async def test_rollback_db_miss_raises(self, session: AsyncSession) -> None:
         mgr = _make_manager()
         with pytest.raises(ValueError, match="not found"):
-            await mgr.rollback_by_label("99", session=mock_session)
-
-        assert any("subscription_config_versions" in sql for sql in captured_sql), (
-            "rollback_by_label must SELECT from subscription_config_versions"
-        )
+            await mgr.rollback_by_label("99", session=session)
