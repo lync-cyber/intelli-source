@@ -346,27 +346,27 @@ agent → pipeline | collector | search | distributor | scheduler
 
 ---
 
-## 8. 执行进度跟踪（截至 commit 0c189ef）
+## 8. 执行进度跟踪（截至 commit 5f76d0c）
 
-§5 阶段计划的落地状态。✅ = 已落地并过门禁；🔶 = 部分落地（剩余子项见备注）；⏳ = 待办。门禁基线：3470 单测 PASS / mypy --strict 236 files / ruff + ruff format clean / lint-imports 12/12 KEPT / deptry 0 / vulture clean。
+§5 阶段计划的落地状态。✅ = 已落地并过门禁；🔶 = 部分落地（剩余子项见备注）；⏳ = 待办（受限）。门禁基线：3469 单测 PASS / mypy --strict 250 files / ruff + ruff format clean / lint-imports 12/12 KEPT / deptry 0 / vulture clean。
 
 | 组 | 目标 | 状态 | 落地证据 / 剩余 |
 |----|------|------|----------------|
 | G1 | agent 执行层去重 + 持久化收口 | ✅ | `agent/tool_gating.py` 单一工具门控；`TaskChainPersister` 已接线（`runner.py` `__init__` 实例化）；runner 死副本/转发器删除（瘦身至 386 行） |
-| G2 | composition 拆包 + 删反向边 | 🔶 | 反向边 3→1（仅剩 `scheduler.boot -> composition` 这条 Celery `worker_process_init` inherent 边，靠 1 条 `ignore_imports`）；**composition.py 仍单文件未拆包**（B-023 待办） |
+| G2 | composition 拆包 + 删反向边 | ✅ | composition.py → `composition/` 包（builders / deps / worker / api / app_state）；反向边 3→1（仅剩 `scheduler.boot -> composition` Celery `worker_process_init` inherent 边）；`__init__` 经包前门再导出，调用点不变 |
 | G3 | repository 边界回收（ORM 下沉） | ✅ | `storage.models` 白名单 forbidden 契约（仅 storage + cost_tracker）；facade/boot/service 内联 ORM 下沉 repository |
-| G4 | config 横切层去 ORM/裸 SQL | 🔶 | 表名 f-string → 白名单常量查表（注入面消除，最小修）；**完整 ConfigVersion ORM + Repository 待办** |
-| G5 | 类型契约加固 | 🔶 | `llm/gateway/_proto.py` `_GatewayProto` 收敛 `self: Any`；`agent/dto.py` 真类型；`agent/deps.py` ToolDeps Protocol/Callable；`agent/tool_results.py` TypedDict + process 结果归一 `results`；**G5-4 app.state Protocol 待办（依赖 G2 拆包）** |
+| G4 | config 横切层去 ORM/裸 SQL | ✅ | ConfigVersion / SubscriptionConfigVersion ORM 模型 + `storage.repositories.config_version.ConfigVersionRepository`；ConfigVersionManager 三 DB 方法委托 repository，删全部 text() 裸 SQL；mock-coupled 测试改 real SQLite |
+| G5 | 类型契约加固 | ✅ | `llm/gateway/_proto.py` `_GatewayProto`；`agent/dto.py` 真类型；`agent/deps.py` ToolDeps Protocol/Callable；`agent/tool_results.py` TypedDict + process `results` 归一；**G5-4** `composition/app_state.py` `AppState(Protocol)` + `get_app_state` + `validate_app_state` 启动 fail-fast（路由刻意保留 getattr 降级路径作优雅降级测试契约） |
 | G6 | 令牌缓存收敛 | ✅ | `distributor/token_cache.py` 单一 `TokenCache`，原子 `set(ex=)`，wework/wechat/cs_client 共用 |
 | G7 | 小工具克隆收敛 | ✅ | `distributor/clock.py` + `pipeline/_async_bridge.py` 消除 _Clock/_run_coro 散布克隆 |
-| G8 | god module 拆包 | 🔶 | `cli/` 已拆包；**`mcp_server.py`（815 行）仍单文件未拆** |
+| G8 | god module 拆包 | ✅ | `cli/` + `mcp_server/`（tools/{pipeline,source,subscription,search,template} register_* + _serialize + _types + __main__）均已拆包；北极星 forbidden 契约仍覆盖子模块 |
 | G9 | 版本号 SSOT | ✅ | `core/version.py` `get_version()` 读 importlib.metadata；main.py 注入 `create_app(version=)`，health/OpenAPI 读 `app.version`，硬编码 0.1.0/0.3.0 消除 |
 | G10 | 依赖清理 | ✅ | opentelemetry-api / aioredis 已删；DEP002 校准 |
-| E1 | 死代码清理 + 接线 | ✅ | **删除**：DeliveryTracker / webhooks.handle_message（整模块）/ compaction.py 薄壳 / pipelines/paths.py / search/chat_session.py（ChatSessionManager 解散，compaction 内联 api/chat_sessions.py）。**接线（勿删）**：FormatConverter 注册进 PROCESSOR_REGISTRY + content-process.yaml；RetryPolicy 经 `collect_with_retry` 接入采集链路（B-063 闭环 / AC-012 落地） |
-| E2 | 测试改造 + 覆盖率门禁 | ⏳ | 真 PG hybrid/semantic SQL 集成 + api 真 SQLite 写端点 + pytest-cov 门禁接入待办 |
-| D2 | scheduler 初始化顺序解耦 | ⏳ | 高风险独立项（打破 celery_app↔tasks 循环 + typed WorkerRuntime）待办 |
+| E1 | 死代码清理 + 接线 | ✅ | **删除**：DeliveryTracker / webhooks.handle_message / compaction.py 薄壳 / pipelines/paths.py / search/chat_session.py / collector.auto_discover + 空 collector.sources 包。**接线（勿删）**：FormatConverter 注册进 PROCESSOR_REGISTRY；RetryPolicy 经 `collect_with_retry` 接入采集链路（B-063 闭环 / AC-012）。Contract 7「源适配器互相独立」改守真适配器 rss/api/web |
+| E2 | 测试改造 + 覆盖率门禁 | ⏳（docker-blocked） | 真 PG hybrid/semantic SQL 集成 + api 真 SQLite 写端点 + pytest-cov 门禁待办。**覆盖率门禁与真 PG 集成耦合**（报告 §4：覆盖率须配套真 PG 而非 mock 刷行覆盖），testcontainers 需 docker，当前环境 docker daemon 未启动，无法计量/验证 → 暂缓 |
+| D2 | scheduler 初始化顺序解耦 | ⏳（docker-blocked） | 高风险独立项（打破 celery_app↔tasks 循环 + typed WorkerRuntime）。报告 §5 明确要求 worker 真起栈复测（manual-collect 全链路 + beat schedule 同步）作放行门禁，且历史 trace_id / B-059 缺陷均仅在真 worker 启动暴露；docker daemon 未启动无法真起栈验证 → 不盲改，暂缓 |
 
-**剩余结构债（按依赖序）**：G2 composition 包拆分（解锁 G5-4 app.state Protocol）→ G8 mcp_server 拆包 → G4 完整 ConfigVersion ORM 化 → D2 scheduler 解耦 → E2 真 PG 测试 + 覆盖率门禁。次要项：`collector/sources/` 空目录 + auto_discover 死路径清理。
+**剩余结构债**：仅余 D2（scheduler 解耦）+ E2（真 PG 测试 + 覆盖率门禁），二者均需 docker 真起栈/testcontainers 验证，待 docker 环境可用后推进。其余 G1~G10 + E1 + 次要清理全部闭环。
 
 ---
 

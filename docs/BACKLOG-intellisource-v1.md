@@ -487,12 +487,11 @@ deps: []
 - **成本**：~5 行
 - **验证**：`lint-imports` V7 消失；现有 chat session 单测仍 PASS
 
-### B-023 拆分 `composition.py` 解耦 wiring root 与共享常量 🔶（反向边已消除；包拆分待办）
+### B-023 拆分 `composition.py` 解耦 wiring root 与共享常量 ✅
 - **关联**：CODE-SCAN-arch V2 + V3 + V4；CODE-SCAN-arch-20260605-r1 G2
-- **现状**：共享符号已下沉到正确层——`AgentRunnerHolder` / `get_agent_runner_holder` → `agent.runner`，`CompositionError` / `CompositionNotInitialisedError` → `core.errors`，`SOURCE_TYPE_TO_PIPELINE` → `config.constants`。agent.factory 与 scheduler.beat_sync 的反向边消除，`ignore_imports` 由 3 条降为 1 条（仅 `scheduler.boot -> composition`，Celery `worker_process_init` 固有反向边，唯一合法例外）。`composition.py` 仍为单文件，拆为 `composition/` 包（builders / api / worker）待办。
-- **剩余**：`composition.py` → `composition/` 包（`builders.py` / `api.py` / `worker.py`），调用点直引子模块
-- **影响范围**：composition / agent.runner / core.errors / config.constants / api.routers.tasks / scheduler.beat_sync
-- **验证**：`lint-imports` 12 KEPT（移除 agent.factory + beat_sync 两条 ignore 后契约仍全覆盖）；3509 unit + 19 composition/worker 集成 PASS
+- **现状**：共享符号已下沉到正确层——`AgentRunnerHolder` / `get_agent_runner_holder` → `agent.runner`，`CompositionError` / `CompositionNotInitialisedError` → `core.errors`，`SOURCE_TYPE_TO_PIPELINE` → `config.constants`。`ignore_imports` 由 3 条降为 1 条（仅 `scheduler.boot -> composition`，Celery `worker_process_init` 固有反向边，唯一合法例外）。
+- **包拆分（已落地）**：`composition.py` → `composition/` 包：`builders.py`（build_* 装配助手 + PipelineLoader）/ `deps.py`（_DepsBundle + _install_agent_runner 共享）/ `worker.py`（build_worker_composition）/ `api.py`（build_api_composition + app.state 装配）/ `app_state.py`（G5-4 AppState Protocol）。`__init__` 再导出包公共面，main/scheduler.boot 经包前门 import 不变；测试 patch 目标随符号归属改指子模块。
+- **验证**：`lint-imports` 12 KEPT；mypy --strict 250 + 全量单测 PASS（composition 单测 + webhook 集成 mock-driven 全绿）
 
 ### B-024 `config.loader` 返回 `SourceConfig` 而非 `Source` ORM ✅
 - **关联**：CODE-SCAN-arch V8
