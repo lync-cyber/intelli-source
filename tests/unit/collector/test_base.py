@@ -255,3 +255,57 @@ class TestConditionalFetch:
         assert "If-Modified-Since" not in headers
         assert isinstance(result, httpx.Response)
         assert result.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# AC-012: collect_with_retry retries transient transport errors (B-063)
+# ---------------------------------------------------------------------------
+
+
+class _FlakyCollector(BaseCollector):
+    """Collector whose collect raises a transient error a fixed number of times."""
+
+    def __init__(self, fail_times: int, error: Exception) -> None:
+        super().__init__()
+        self._fail_times = fail_times
+        self._error = error
+        self.attempts = 0
+
+    async def collect(self, source_config: dict) -> list[RawContent]:
+        self.attempts += 1
+        if self.attempts <= self._fail_times:
+            raise self._error
+        return [RawContent(source_url="https://example.com/x", fingerprint="f" * 64)]
+
+
+class TestCollectWithRetry:
+    """AC-012: transient transport failures are retried with backoff (B-063)."""
+
+    @pytest.mark.asyncio
+    async def test_retries_then_succeeds_on_transient_connect_error(self) -> None:
+        collector = _FlakyCollector(
+            fail_times=2, error=httpx.ConnectError("connection refused")
+        )
+        with patch("intellisource.collector.base.asyncio.sleep", new=AsyncMock()):
+            result = await collector.collect_with_retry({"url": "https://example.com"})
+
+        assert collector.attempts == 3  # 2 failures + 1 success
+        assert len(result) == 1
+
+    @pytest.mark.asyncio
+    async def test_raises_after_exhausting_retries(self) -> None:
+        collector = _FlakyCollector(fail_times=99, error=httpx.ConnectError("down"))
+        with patch("intellisource.collector.base.asyncio.sleep", new=AsyncMock()):
+            with pytest.raises(httpx.ConnectError):
+                await collector.collect_with_retry({"url": "https://example.com"})
+
+        assert collector.attempts == 4  # initial + 3 retries (max_retries=3)
+
+    @pytest.mark.asyncio
+    async def test_non_transport_error_propagates_without_retry(self) -> None:
+        collector = _FlakyCollector(fail_times=1, error=ValueError("bad config"))
+        with patch("intellisource.collector.base.asyncio.sleep", new=AsyncMock()):
+            with pytest.raises(ValueError, match="bad config"):
+                await collector.collect_with_retry({"url": "https://example.com"})
+
+        assert collector.attempts == 1  # not retried

@@ -99,7 +99,7 @@ async def test_collect_process_distribute_persists_push_record(
 
     registry = build_collector_registry()
     mock_collector = AsyncMock()
-    mock_collector.collect = AsyncMock(return_value=collected)
+    mock_collector.collect_with_retry = AsyncMock(return_value=collected)
 
     session_factory = _session_factory_from_session(pg_session)
     engine = PipelineEngine(processors=[HTMLParser()])

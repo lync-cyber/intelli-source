@@ -83,7 +83,7 @@ class TestCollectExecuteReal:
         from intellisource.agent.tools import _collect_execute  # type: ignore[import]
 
         mock_collector = AsyncMock()
-        mock_collector.collect = AsyncMock(return_value=[])
+        mock_collector.collect_with_retry = AsyncMock(return_value=[])
 
         mock_registry = MagicMock()
         mock_registry.get = MagicMock(return_value=mock_collector)
@@ -99,8 +99,8 @@ class TestCollectExecuteReal:
         assert mock_registry.get.called, (
             "_collect_execute must call collector_registry.get(source_type)"
         )
-        assert mock_collector.collect.called, (
-            "_collect_execute must call .collect() on the returned collector"
+        assert mock_collector.collect_with_retry.called, (
+            "_collect_execute must call .collect_with_retry() on the collector"
         )
 
     @pytest.mark.asyncio
@@ -109,7 +109,7 @@ class TestCollectExecuteReal:
         from intellisource.agent.tools import _collect_execute  # type: ignore[import]
 
         mock_collector = AsyncMock()
-        mock_collector.collect = AsyncMock(return_value=[])
+        mock_collector.collect_with_retry = AsyncMock(return_value=[])
 
         mock_registry = MagicMock()
         mock_registry.get = MagicMock(return_value=mock_collector)
@@ -131,7 +131,7 @@ class TestCollectExecuteReal:
         from intellisource.collector.base import RawContent as CollectedRawContent
 
         mock_collector = AsyncMock()
-        mock_collector.collect = AsyncMock(
+        mock_collector.collect_with_retry = AsyncMock(
             return_value=[
                 CollectedRawContent(
                     source_url="https://example.com/1",
@@ -167,7 +167,7 @@ class TestCollectExecuteReal:
             and result.get("status") == "ok"
             and result.get("tool") == "collect"
             and "collected" not in result
-            and mock_collector.collect.call_count == 0
+            and mock_collector.collect_with_retry.call_count == 0
         )
         assert not is_placeholder, (
             f"_collect_execute must not return old placeholder; got: {result}"

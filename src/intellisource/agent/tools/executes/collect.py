@@ -91,7 +91,7 @@ async def _collect_execute(
             source_id=source_id,
         )
 
-    collected_items: list[CollectedRawContent] = await collector.collect(
+    collected_items: list[CollectedRawContent] = await collector.collect_with_retry(
         source_config=source_config
     )
 

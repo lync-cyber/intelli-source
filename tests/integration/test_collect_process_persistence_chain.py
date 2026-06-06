@@ -65,7 +65,7 @@ async def test_collect_persists_raw_content_rows(pg_session: AsyncSession) -> No
 
     registry = build_collector_registry()
     mock_collector = AsyncMock()
-    mock_collector.collect = AsyncMock(return_value=collected)
+    mock_collector.collect_with_retry = AsyncMock(return_value=collected)
 
     deps = ToolDeps(
         session_factory=_session_factory_from_session(pg_session),

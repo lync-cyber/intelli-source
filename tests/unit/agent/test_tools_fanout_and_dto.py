@@ -70,7 +70,7 @@ class TestCollectReturnsBatch:
         )
 
         collector_mock = AsyncMock()
-        collector_mock.collect = AsyncMock(return_value=[item1, item2])
+        collector_mock.collect_with_retry = AsyncMock(return_value=[item1, item2])
         registry_mock = MagicMock()
         registry_mock.get = MagicMock(return_value=collector_mock)
 
