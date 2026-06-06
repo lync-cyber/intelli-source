@@ -16,6 +16,24 @@ from intellisource.storage.repositories.base import TEXT_TYPE, BaseRepository
 logger = get_logger(__name__)
 
 
+def _source_from_config(config: SourceConfig) -> Source:
+    """Build a new active Source ORM row from a SourceConfig."""
+    return Source(
+        name=config.name,
+        type=config.type,
+        url=config.url,
+        tags=config.tags,
+        discipline_tags=config.discipline_tags,
+        status="active",
+        schedule_interval=config.schedule_interval,
+        schedule_adaptive=config.schedule_adaptive,
+        proxy=config.proxy,
+        rate_limit_qps=config.rate_limit_qps,
+        rate_limit_concurrency=config.rate_limit_concurrency,
+        metadata_=config.metadata,
+    )
+
+
 class SourceRepository(BaseRepository[Source]):
     """CRUD and filtered listing for :class:`Source` entities."""
 
@@ -47,20 +65,7 @@ class SourceRepository(BaseRepository[Source]):
             # an out-of-greenlet lazy load → MissingGreenlet. Refresh repopulates it.
             await self._session.refresh(existing)
             return existing
-        source = Source(
-            name=config.name,
-            type=config.type,
-            url=config.url,
-            tags=config.tags,
-            discipline_tags=config.discipline_tags,
-            status="active",
-            schedule_interval=config.schedule_interval,
-            schedule_adaptive=config.schedule_adaptive,
-            proxy=config.proxy,
-            rate_limit_qps=config.rate_limit_qps,
-            rate_limit_concurrency=config.rate_limit_concurrency,
-            metadata_=config.metadata,
-        )
+        source = _source_from_config(config)
         self._session.add(source)
         await self._session.flush()
         return source
@@ -100,22 +105,7 @@ class SourceRepository(BaseRepository[Source]):
                 existing.rate_limit_concurrency = config.rate_limit_concurrency
                 existing.metadata_ = config.metadata
             else:
-                self._session.add(
-                    Source(
-                        name=config.name,
-                        type=config.type,
-                        url=config.url,
-                        tags=config.tags,
-                        discipline_tags=config.discipline_tags,
-                        status="active",
-                        schedule_interval=config.schedule_interval,
-                        schedule_adaptive=config.schedule_adaptive,
-                        proxy=config.proxy,
-                        rate_limit_qps=config.rate_limit_qps,
-                        rate_limit_concurrency=config.rate_limit_concurrency,
-                        metadata_=config.metadata,
-                    )
-                )
+                self._session.add(_source_from_config(config))
 
         for name, source in existing_by_name.items():
             if name not in config_by_name:
