@@ -107,15 +107,15 @@ class TestPipelineLoader:
     def test_pipeline_loader_load_delegates_to_load_pipeline_config(self) -> None:
         """AC-2: PipelineLoader.load(name) calls load_pipeline_config(name).
 
-        Patch the name bound in `composition` (it imports load_pipeline_config
-        at module load), not the origin in agent.tools.
+        Patch the name bound in `composition.builders` (where PipelineLoader
+        imports load_pipeline_config), not the origin in agent.tools.
         """
         from intellisource.composition import PipelineLoader  # type: ignore[import]
         from intellisource.config.pipeline_models import PipelineConfig
 
         mock_config = MagicMock(spec=PipelineConfig)
         with patch(
-            "intellisource.composition.load_pipeline_config",
+            "intellisource.composition.builders.load_pipeline_config",
             return_value=mock_config,
         ) as mock_fn:
             loader = PipelineLoader(None)

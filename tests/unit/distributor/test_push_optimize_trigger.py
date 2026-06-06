@@ -225,11 +225,15 @@ class TestWorkerCompositionWiresLlmGateway:
     """EXP-005: build_worker_composition must wire llm_gateway into facade."""
 
     def test_worker_composition_facade_has_llm_gateway(self, monkeypatch: Any) -> None:
-        from intellisource import composition as comp_mod
+        # Names resolve where they are looked up: build_worker_composition (in
+        # composition.worker) calls _build_deps_bundle / _install_agent_runner;
+        # _build_deps_bundle (in composition.deps) calls the build_* helpers.
+        from intellisource.composition import deps as deps_mod
+        from intellisource.composition import worker as worker_mod
 
         bundle_holder: list[Any] = []
         facade_holder: list[Any] = []
-        original_build_deps = comp_mod._build_deps_bundle
+        original_build_deps = deps_mod._build_deps_bundle
 
         def _capture_build_deps(*args: Any, **kwargs: Any) -> Any:
             bundle = original_build_deps(*args, **kwargs)
@@ -242,22 +246,22 @@ class TestWorkerCompositionWiresLlmGateway:
             facade_holder.append(facade)
             return facade
 
-        monkeypatch.setattr(comp_mod, "_build_deps_bundle", _capture_build_deps)
-        monkeypatch.setattr(comp_mod, "build_distributor_facade", _capture_facade)
+        monkeypatch.setattr(worker_mod, "_build_deps_bundle", _capture_build_deps)
+        monkeypatch.setattr(deps_mod, "build_distributor_facade", _capture_facade)
         monkeypatch.setattr(
-            comp_mod, "build_llm_gateway", lambda *a, **k: MagicMock(name="gw")
+            deps_mod, "build_llm_gateway", lambda *a, **k: MagicMock(name="gw")
         )
         monkeypatch.setattr(
-            comp_mod, "build_collector_registry", lambda *a, **k: MagicMock()
+            deps_mod, "build_collector_registry", lambda *a, **k: MagicMock()
         )
         monkeypatch.setattr(
-            comp_mod, "build_search_engine_factory", lambda: lambda *a, **k: MagicMock()
+            deps_mod, "build_search_engine_factory", lambda: lambda *a, **k: MagicMock()
         )
         monkeypatch.setattr(
-            comp_mod, "_install_agent_runner", lambda *a, **k: MagicMock()
+            worker_mod, "_install_agent_runner", lambda *a, **k: MagicMock()
         )
 
-        comp_mod.build_worker_composition(
+        worker_mod.build_worker_composition(
             session_factory=MagicMock(), redis_client=MagicMock()
         )
 
