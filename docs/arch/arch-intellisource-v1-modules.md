@@ -108,7 +108,7 @@ consumers: [tech-lead, developer, devops]
   - `LLMStatsAggregator` — **[新增]** LLM 调用统计聚合器，按时间窗口/模型/task_type 维度聚合调用量、token 消耗、延迟分布等指标，供 API-019 增强端点使用
   - `CircuitBreaker` — 熔断器实现（AC-029），连续失败 5 次触发，60s 恢复探测
   - `FallbackManager` — 降级管理器，LLM 失败时自动切换（AC-030，<500ms）
-  - `PriorityQueue` — 优先级队列，隔离用户交互请求和后台处理请求（AC-032）
+  - AC-032（交互/后台请求隔离，互不阻塞）由进程级分离达成：交互 LLM 调用（chat/search flexible 模式）在 API 进程执行，后台 LLM 调用（pipeline strict 模式）经 Celery 在 Worker 进程执行；两进程各持独立 `LLMGateway` 实例（`composition.deps._build_deps_bundle`），后台批量负载物理上无法阻塞 API 进程的交互请求。任务级隔离另由 Celery `PRIORITY_QUEUES`（high/normal/low）满足 AC-035
   - `CostTracker` — 成本追踪器，记录 Token 消耗/延迟/IO 长度，支持聚合统计（AC-033）
   - 模型路由通过 YAML 配置文件 (`config/llm_models.yaml`) 声明 task_type → model 映射 + profiles 区段声明模型默认参数
   - `SchemaEnforcer` — JSON Mode / Function Calling 输出格式强制器（AC-031）

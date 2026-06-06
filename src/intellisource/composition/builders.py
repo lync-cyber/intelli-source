@@ -29,7 +29,6 @@ from intellisource.distributor.facade import DistributorFacade
 from intellisource.distributor.matcher import SubscriptionMatcher
 from intellisource.llm.circuit_breaker import CircuitBreaker
 from intellisource.llm.gateway import LLMGateway
-from intellisource.llm.priority_queue import PriorityQueue
 from intellisource.observability.logging import get_logger
 from intellisource.pipeline.definition_service import (
     PipelineDefinitionService,
@@ -114,8 +113,8 @@ def build_llm_gateway(
     redis_client: Any,
     session_factory: Any | None = None,
 ) -> LLMGateway:
-    """Assemble LLMGateway with its CircuitBreaker, PriorityQueue, and
-    optional session_factory.
+    """Assemble LLMGateway with its CircuitBreaker and optional
+    session_factory.
 
     ``session_factory`` is the per-call DB session opener forwarded to
     ``LLMGateway`` so successful chat / complete / stream calls can persist
@@ -124,10 +123,8 @@ def build_llm_gateway(
     construction), the gateway runs without log_call persistence.
     """
     circuit_breaker = CircuitBreaker(redis=redis_client)
-    priority_queue = PriorityQueue()
     return LLMGateway(
         circuit_breaker=circuit_breaker,
-        priority_queue=priority_queue,
         session_factory=session_factory,
     )
 

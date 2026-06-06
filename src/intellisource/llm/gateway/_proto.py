@@ -1,7 +1,7 @@
 """Structural view of ``LLMGateway`` as seen by its mixins.
 
 The gateway is assembled from several mixins (``_CompleteMixin``, ``_ChatMixin``,
-``_StreamMixin``, ``_EmbedMixin``, ``_QueueMixin``, ``_RetryMixin``) that call
+``_StreamMixin``, ``_EmbedMixin``, ``_RetryMixin``) that call
 across one another and read shared state set in ``LLMGateway.__init__``. Each
 mixin alone is not a complete gateway, so its methods annotate ``self`` with this
 Protocol instead of ``Any`` — that restores ``mypy --strict`` coverage of the
@@ -21,7 +21,6 @@ if TYPE_CHECKING:
     from intellisource.llm.fallback import FallbackManager
     from intellisource.llm.gateway._types import LLMResult
     from intellisource.llm.model_config import ModelRoutingConfig
-    from intellisource.llm.priority_queue import PriorityQueue
 
 
 class _GatewayProto(Protocol):
@@ -37,13 +36,11 @@ class _GatewayProto(Protocol):
     _fallback_manager: FallbackManager | None
     _retry_wait: Any
     circuit_breaker: CircuitBreaker | None
-    _priority_queue: PriorityQueue | None
     _session_factory: Callable[[], Any] | None
 
     # --- class-level constants on LLMGateway ---
     _CONTEXT_WINDOWS: dict[str, int]
     _DEFAULT_CONTEXT_WINDOW: int
-    _INTERACTIVE_TASK_TYPES: frozenset[str]
 
     # --- provider call wrappers (staticmethods on LLMGateway; declared as
     #     read-only Protocol methods so a staticmethod satisfies them) ---

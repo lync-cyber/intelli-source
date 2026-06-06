@@ -5,18 +5,10 @@ from __future__ import annotations
 from intellisource.api.schemas.common import APIModel
 
 
-class QueueLengths(APIModel):
-    """Interactive / background LLM queue depths."""
-
-    interactive: int
-    background: int
-
-
 class LLMStatusResponse(APIModel):
-    """LLM gateway health: circuit-breaker state + queue depths."""
+    """LLM gateway health: circuit-breaker state."""
 
     circuit_state: str
-    queue_lengths: QueueLengths
 
 
 class HealthResponse(APIModel):

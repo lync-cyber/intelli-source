@@ -17,7 +17,6 @@ from intellisource.llm.gateway._chat import _ChatMixin
 from intellisource.llm.gateway._complete import _CompleteMixin
 from intellisource.llm.gateway._embed import _EmbedMixin
 from intellisource.llm.gateway._metrics import _record_llm_call as _record_llm_call
-from intellisource.llm.gateway._queue import _QueueMixin
 from intellisource.llm.gateway._retry import _RetryMixin
 from intellisource.llm.gateway._routing import _classify_error, _load_routing_config
 from intellisource.llm.gateway._stream import _StreamMixin
@@ -28,7 +27,6 @@ from intellisource.llm.gateway._types import (
     SchemaValidationError,
 )
 from intellisource.llm.model_config import ModelRoutingConfig
-from intellisource.llm.priority_queue import PriorityQueue
 from intellisource.observability.logging import get_logger
 
 if TYPE_CHECKING:
@@ -52,7 +50,6 @@ class LLMGateway(
     _ChatMixin,
     _StreamMixin,
     _EmbedMixin,
-    _QueueMixin,
 ):
     """Unified LLM calling interface built on litellm."""
 
@@ -64,10 +61,6 @@ class LLMGateway(
     }
     _DEFAULT_CONTEXT_WINDOW: int = 128000
 
-    _INTERACTIVE_TASK_TYPES: frozenset[str] = frozenset(
-        ["search", "chat", "interactive", "query"]
-    )
-
     def __init__(
         self,
         cache: LLMCache | None = None,
@@ -75,7 +68,6 @@ class LLMGateway(
         fallback_manager: FallbackManager | None = None,
         _retry_wait: Any = None,
         circuit_breaker: CircuitBreaker | None = None,
-        priority_queue: PriorityQueue | None = None,
         session_factory: SessionFactory | None = None,
     ) -> None:
         self._default_temperature: float = 0.7
@@ -91,7 +83,6 @@ class LLMGateway(
             else wait_exponential(multiplier=1, min=1, max=30)
         )
         self.circuit_breaker: CircuitBreaker | None = circuit_breaker
-        self._priority_queue: PriorityQueue | None = priority_queue
         self._session_factory: SessionFactory | None = session_factory
         self._register_metrics()
 
