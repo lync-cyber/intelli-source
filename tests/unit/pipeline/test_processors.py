@@ -322,3 +322,35 @@ class TestFormatConverter:
         ctx.set("body_text", "text")
         result = processor.process(ctx)
         assert isinstance(result, PipelineContext)
+
+
+# ---------------------------------------------------------------------------
+# AC-015 + AC-T018-4: FormatConverter registered and active in content-process
+# ---------------------------------------------------------------------------
+
+
+class TestFormatConverterWired:
+    """FormatConverter is registered and runs in the content-process pipeline."""
+
+    def test_format_converter_is_registered(self) -> None:
+        """get_processor resolves 'FormatConverter' (AC-015 registrable)."""
+        from intellisource.pipeline.registry import get_processor
+
+        assert get_processor("FormatConverter") is FormatConverter
+
+    def test_content_process_runs_format_converter_after_parse(self) -> None:
+        """content-process.yaml runs FormatConverter right after HTMLParser."""
+        from pathlib import Path
+
+        from intellisource.config.pipeline_models import PipelineConfig
+
+        yaml_path = (
+            Path(__file__).resolve().parents[3]
+            / "config"
+            / "pipelines"
+            / "content-process.yaml"
+        )
+        config = PipelineConfig.from_yaml(str(yaml_path))
+        processors = [step.get("processor") for step in config.steps]
+        assert "FormatConverter" in processors
+        assert processors.index("FormatConverter") == processors.index("HTMLParser") + 1

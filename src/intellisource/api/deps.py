@@ -11,12 +11,13 @@ from typing import AsyncIterator
 from fastapi import Header, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from intellisource.composition.app_state import get_app_state
 from intellisource.core.settings import get_settings
 
 
 async def get_db_session(request: Request) -> AsyncIterator[AsyncSession]:
     """Yield a database session from app.state.db for the request scope."""
-    async with request.app.state.db.get_session() as session:
+    async with get_app_state(request).db.get_session() as session:
         yield session
 
 

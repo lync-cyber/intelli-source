@@ -99,7 +99,7 @@ async def test_collect_process_distribute_persists_push_record(
 
     registry = build_collector_registry()
     mock_collector = AsyncMock()
-    mock_collector.collect = AsyncMock(return_value=collected)
+    mock_collector.collect_with_retry = AsyncMock(return_value=collected)
 
     session_factory = _session_factory_from_session(pg_session)
     engine = PipelineEngine(processors=[HTMLParser()])
@@ -143,7 +143,7 @@ async def test_collect_process_distribute_persists_push_record(
 
     process_result = await _process_execute(content_id=str(raw_id), tool_deps=deps)
     assert process_result["status"] == "ok"
-    processed_id = uuid.UUID(str(process_result["result"]["content_id"]))
+    processed_id = uuid.UUID(str(process_result["results"][0]["content_id"]))
 
     processed = await pg_session.get(ProcessedContent, processed_id)
     assert processed is not None

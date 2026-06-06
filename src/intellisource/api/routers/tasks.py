@@ -20,7 +20,7 @@ from intellisource.api.schemas.tasks import (
     TaskListResponse,
     TaskTriggerResponse,
 )
-from intellisource.composition import SOURCE_TYPE_TO_PIPELINE
+from intellisource.config.constants import SOURCE_TYPE_TO_PIPELINE
 from intellisource.observability.logging import get_logger
 from intellisource.scheduler.dispatch import (
     BrokerUnavailableError,

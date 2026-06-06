@@ -20,6 +20,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from intellisource.core.errors import DistributorError, ErrorCategory
+from intellisource.distributor.token_cache import TokenCache
 
 _TOKEN_TTL_BUFFER_SECONDS: int = 200
 
@@ -45,6 +46,12 @@ class BaseCustomerServiceClient(ABC):
             )
         self._redis = redis_client
         self._http = http_client
+        self._token_cache = TokenCache(
+            redis_client,
+            self.token_cache_key,
+            self._fetch_token,
+            ttl_buffer=_TOKEN_TTL_BUFFER_SECONDS,
+        )
 
     @abstractmethod
     def _build_token_query(self) -> str:
@@ -56,12 +63,10 @@ class BaseCustomerServiceClient(ABC):
 
     async def get_access_token(self) -> str:
         """Return cached token or fetch a fresh one from the platform."""
-        cached = await self._redis.get(self.token_cache_key)
-        if cached is not None:
-            if isinstance(cached, bytes):
-                return cached.decode()
-            return str(cached)
+        return await self._token_cache.get()
 
+    async def _fetch_token(self) -> tuple[str, int]:
+        """Fetch a fresh access token from the platform token endpoint."""
         url = f"{self.api_base}{self.token_path}?{self._build_token_query()}"
         resp = await self._http.get(url)
         data: dict[str, Any] = resp.json()
@@ -81,9 +86,7 @@ class BaseCustomerServiceClient(ABC):
             )
 
         expires_in: int = int(data.get("expires_in", 7200))
-        ttl = max(expires_in - _TOKEN_TTL_BUFFER_SECONDS, 60)
-        await self._redis.set(self.token_cache_key, token_value, ex=ttl)
-        return token_value
+        return token_value, expires_in
 
     async def send_text(self, openid: str, content: str) -> dict[str, Any]:
         """Send a text customer-service message to the given openid."""

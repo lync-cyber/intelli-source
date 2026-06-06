@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid as _uuid
 from typing import Any
 
+from intellisource.agent.deps import ToolDeps
 from intellisource.agent.tools.results import tool_degraded
 from intellisource.observability.logging import get_logger
 
@@ -14,7 +15,7 @@ logger = get_logger(__name__)
 async def _search_execute(
     query: str = "",
     top_k: int = 10,
-    tool_deps: Any = None,
+    tool_deps: ToolDeps | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Invoke HybridSearchEngine.search() with the given query."""
@@ -65,7 +66,7 @@ def _serialize_search_response(response: Any) -> dict[str, Any]:
 
 async def _get_content_detail_execute(
     content_id: str = "",
-    tool_deps: Any = None,
+    tool_deps: ToolDeps | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Invoke ContentRepository.get_by_id() for the given content_id."""
@@ -105,7 +106,7 @@ async def _get_content_detail_execute(
 async def _summarize_for_user_execute(
     content_id: str = "",
     content: str = "",
-    tool_deps: Any = None,
+    tool_deps: ToolDeps | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Invoke LLMGateway.complete() to generate a user-facing summary."""

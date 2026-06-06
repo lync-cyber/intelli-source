@@ -13,9 +13,10 @@ from typing import TYPE_CHECKING, Any, Callable
 
 import intellisource.pipeline.engine as _engine_mod
 from intellisource.agent.deps import ToolDeps
-from intellisource.agent.runner import AgentRunner
+from intellisource.agent.runner import AgentRunner, get_agent_runner_holder
 from intellisource.agent.tools import AgentToolRegistry
 from intellisource.config.pipeline_models import PipelineConfig
+from intellisource.core.errors import CompositionError
 from intellisource.pipeline.base import BaseProcessor
 from intellisource.pipeline.registry import get_processor
 
@@ -60,9 +61,6 @@ def get_agent_runner() -> AgentRunner:
     must run `build_worker_composition` first; API processes rely on
     `build_api_composition` from FastAPI lifespan startup.
     """
-    # Lazy import — composition imports from this module at runtime.
-    from intellisource.composition import get_agent_runner_holder
-
     return get_agent_runner_holder().get()
 
 
@@ -90,9 +88,6 @@ def build_agent_runner(
     ``task_dispatcher`` and ``task_chain_repo_factory`` back the run-trigger /
     run-status execution-control tools.
     """
-    # Lazy import — composition imports build_agent_runner from this module.
-    from intellisource.composition import CompositionError
-
     if session_factory is None:
         raise CompositionError("session_factory is required (got None)")
     if llm_gateway is None:

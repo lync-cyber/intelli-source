@@ -107,10 +107,10 @@ async def populate_scheduler_from_sources(
     Each row's ``schedule_interval`` (seconds) is registered as a schedule
     named after the source id. The pipeline name is resolved via
     ``pipeline_resolver(source) -> str`` if provided, otherwise via the
-    composition-level ``SOURCE_TYPE_TO_PIPELINE`` mapping. Returns the
+    config-level ``SOURCE_TYPE_TO_PIPELINE`` mapping. Returns the
     number of schedules registered.
     """
-    from intellisource.composition import SOURCE_TYPE_TO_PIPELINE
+    from intellisource.config.constants import SOURCE_TYPE_TO_PIPELINE
     from intellisource.storage.repositories.source import SourceRepository
 
     registered = 0

@@ -53,15 +53,15 @@ def _isolated_composition_env(env: dict[str, str]) -> Iterator[None]:
     with (
         patch.dict(os.environ, env, clear=True),
         patch(
-            "intellisource.composition._build_deps_bundle",
+            "intellisource.composition.api._build_deps_bundle",
             return_value=deps_bundle_stub,
         ),
         patch(
-            "intellisource.composition._install_agent_runner",
+            "intellisource.composition.api._install_agent_runner",
             return_value=agent_runner_stub,
         ),
         patch(
-            "intellisource.composition.build_pipeline_loader",
+            "intellisource.composition.api.build_pipeline_loader",
             return_value=pipeline_loader_stub,
         ),
     ):

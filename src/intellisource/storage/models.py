@@ -617,3 +617,35 @@ class Template(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(VARCHAR(20), nullable=False, default="active")
 
     __table_args__ = (Index("ix_templates_status", "status"),)
+
+
+class ConfigVersion(CreatedAtMixin, Base):
+    """A persisted snapshot of the source-config set, keyed by version label."""
+
+    __tablename__ = "config_versions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    version: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    snapshot_yaml: Mapped[str] = mapped_column(Text, nullable=False)
+    author: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (Index("ix_config_versions_version", "version", unique=True),)
+
+
+class SubscriptionConfigVersion(CreatedAtMixin, Base):
+    """A persisted snapshot of the subscription-config set, keyed by version."""
+
+    __tablename__ = "subscription_config_versions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    version: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    snapshot_yaml: Mapped[str] = mapped_column(Text, nullable=False)
+    author: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (
+        Index("ix_subscription_config_versions_version", "version", unique=True),
+    )

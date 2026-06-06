@@ -13,6 +13,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from intellisource.agent.deps import ToolDeps
 from intellisource.agent.tools.executes._deps import resolve_factories
 from intellisource.agent.tools.results import tool_error, tool_ok
 from intellisource.observability.logging import get_logger
@@ -21,7 +22,7 @@ logger = get_logger(__name__)
 
 
 async def _run_pipeline_execute(
-    tool_deps: Any = None,
+    tool_deps: ToolDeps | None = None,
     name: str = "",
     params: dict[str, Any] | None = None,
     **kwargs: Any,
@@ -67,7 +68,7 @@ async def _run_pipeline_execute(
 
 
 async def _get_task_status_execute(
-    tool_deps: Any = None,
+    tool_deps: ToolDeps | None = None,
     task_chain_id: str = "",
     **kwargs: Any,
 ) -> dict[str, Any]:

@@ -15,6 +15,7 @@ tools_allowed:
 tools_denied: []
 steps:
   - processor: HTMLParser
+  - processor: FormatConverter
   - processor: ContentDedup
   - processor: KeywordTagger
     params:

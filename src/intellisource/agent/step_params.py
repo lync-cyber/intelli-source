@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from intellisource.agent.deps import ToolDeps
 from intellisource.config.pipeline_models import StepSpec
 
 
@@ -28,18 +29,18 @@ def merge_step_output(
             step_context["source_type"] = source_type
         return
     if tool_name == "process":
-        # ``result`` is a list when several contents are processed in one run,
-        # so the processed ids live at the top level — distribute fans out over
-        # the full list and falls back to ``content_id`` for the single case.
+        # ``results`` is always a list (one entry per processed content); the
+        # processed ids also live at the top level — distribute fans out over the
+        # full list and falls back to ``content_id`` for the single case.
         processed_ids = output.get("processed_content_ids") or []
         if processed_ids:
             step_context["processed_content_ids"] = processed_ids
-        inner = output.get("result")
-        inner_dict = inner if isinstance(inner, dict) else {}
-        content_id = output.get("content_id") or inner_dict.get("content_id")
+        results = output.get("results") or []
+        first = results[0] if results else {}
+        content_id = output.get("content_id") or first.get("content_id")
         if content_id:
             step_context["content_id"] = content_id
-        raw_id = inner_dict.get("raw_content_id")
+        raw_id = first.get("raw_content_id")
         if raw_id:
             step_context["raw_content_id"] = raw_id
         return
@@ -54,7 +55,7 @@ def build_step_params(
     *,
     runtime_params: dict[str, Any],
     step_context: dict[str, Any],
-    tool_deps: Any,
+    tool_deps: ToolDeps | None,
 ) -> dict[str, Any]:
     """Merge YAML params, Celery runtime params, and prior step outputs."""
     yaml_params = dict(step.get("params") or {})

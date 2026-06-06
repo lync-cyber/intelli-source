@@ -107,15 +107,15 @@ class TestPipelineLoader:
     def test_pipeline_loader_load_delegates_to_load_pipeline_config(self) -> None:
         """AC-2: PipelineLoader.load(name) calls load_pipeline_config(name).
 
-        Patch the name bound in `composition` (it imports load_pipeline_config
-        at module load), not the origin in agent.tools.
+        Patch the name bound in `composition.builders` (where PipelineLoader
+        imports load_pipeline_config), not the origin in agent.tools.
         """
         from intellisource.composition import PipelineLoader  # type: ignore[import]
         from intellisource.config.pipeline_models import PipelineConfig
 
         mock_config = MagicMock(spec=PipelineConfig)
         with patch(
-            "intellisource.composition.load_pipeline_config",
+            "intellisource.composition.builders.load_pipeline_config",
             return_value=mock_config,
         ) as mock_fn:
             loader = PipelineLoader(None)
@@ -384,7 +384,7 @@ class TestGetAgentRunnerRaisesWhenNotInitialised:
         """AC-5: get_agent_runner() raises RuntimeError with correct message."""
 
         import intellisource.agent.factory as factory_mod
-        from intellisource.composition import get_agent_runner_holder
+        from intellisource.agent.runner import get_agent_runner_holder
 
         holder = get_agent_runner_holder()
         original = holder._runner
@@ -398,7 +398,7 @@ class TestGetAgentRunnerRaisesWhenNotInitialised:
     def test_get_agent_runner_error_message_mentions_build_function(self) -> None:
         """AC-5: RuntimeError message names the required build function."""
         import intellisource.agent.factory as factory_mod
-        from intellisource.composition import get_agent_runner_holder
+        from intellisource.agent.runner import get_agent_runner_holder
 
         holder = get_agent_runner_holder()
         original = holder._runner
@@ -608,15 +608,13 @@ class TestCompositionErrorHierarchy:
     """
 
     def test_composition_error_inherits_intellisource_error(self) -> None:
-        from intellisource.composition import CompositionError
-        from intellisource.core.errors import IntelliSourceError
+        from intellisource.core.errors import CompositionError, IntelliSourceError
 
         assert issubclass(CompositionError, IntelliSourceError)
         assert issubclass(CompositionError, ValueError)
 
     def test_composition_error_has_unrecoverable_category(self) -> None:
-        from intellisource.composition import CompositionError
-        from intellisource.core.errors import ErrorCategory
+        from intellisource.core.errors import CompositionError, ErrorCategory
 
         exc = CompositionError("test")
         assert exc.category is ErrorCategory.UNRECOVERABLE
@@ -624,15 +622,17 @@ class TestCompositionErrorHierarchy:
     def test_composition_not_initialised_error_inherits_intellisource_error(
         self,
     ) -> None:
-        from intellisource.composition import CompositionNotInitialisedError
-        from intellisource.core.errors import IntelliSourceError
+        from intellisource.core.errors import (
+            CompositionNotInitialisedError,
+            IntelliSourceError,
+        )
 
         assert issubclass(CompositionNotInitialisedError, IntelliSourceError)
         assert issubclass(CompositionNotInitialisedError, RuntimeError)
 
     def test_build_agent_runner_raises_composition_error_on_none(self) -> None:
         from intellisource.agent.factory import build_agent_runner
-        from intellisource.composition import CompositionError
+        from intellisource.core.errors import CompositionError
 
         with pytest.raises(CompositionError):
             build_agent_runner(
@@ -645,10 +645,8 @@ class TestCompositionErrorHierarchy:
 
     def test_get_agent_runner_raises_composition_not_initialised(self) -> None:
         from intellisource.agent.factory import get_agent_runner
-        from intellisource.composition import (
-            CompositionNotInitialisedError,
-            get_agent_runner_holder,
-        )
+        from intellisource.agent.runner import get_agent_runner_holder
+        from intellisource.core.errors import CompositionNotInitialisedError
 
         holder = get_agent_runner_holder()
         original = holder._runner
@@ -666,17 +664,17 @@ class TestCompositionErrorHierarchy:
 
 
 class TestAgentRunnerHolder:
-    """r2 R-004: composition.AgentRunnerHolder replaces module-level
+    """r2 R-004: agent.runner.AgentRunnerHolder replaces module-level
     `agent_factory._agent_runner` mutation."""
 
     def test_holder_singleton(self) -> None:
         """get_agent_runner_holder() returns the same instance every call."""
-        from intellisource.composition import get_agent_runner_holder
+        from intellisource.agent.runner import get_agent_runner_holder
 
         assert get_agent_runner_holder() is get_agent_runner_holder()
 
     def test_holder_install_and_get_round_trip(self) -> None:
-        from intellisource.composition import get_agent_runner_holder
+        from intellisource.agent.runner import get_agent_runner_holder
 
         holder = get_agent_runner_holder()
         original = holder._runner
@@ -689,10 +687,8 @@ class TestAgentRunnerHolder:
             holder._runner = original
 
     def test_holder_reset_clears_runner(self) -> None:
-        from intellisource.composition import (
-            CompositionNotInitialisedError,
-            get_agent_runner_holder,
-        )
+        from intellisource.agent.runner import get_agent_runner_holder
+        from intellisource.core.errors import CompositionNotInitialisedError
 
         holder = get_agent_runner_holder()
         original = holder._runner
@@ -711,7 +707,7 @@ class TestAgentRunnerHolder:
 
         assert not hasattr(factory_mod, "_agent_runner"), (
             "r2 R-004: factory._agent_runner module state must be removed; "
-            "singleton lives in composition.AgentRunnerHolder"
+            "singleton lives in agent.runner.AgentRunnerHolder"
         )
 
 

@@ -12,6 +12,7 @@ from __future__ import annotations
 import uuid as _uuid
 from typing import Any
 
+from intellisource.agent.deps import ToolDeps
 from intellisource.agent.tools.executes._deps import resolve_factories
 from intellisource.agent.tools.results import tool_error, tool_ok
 from intellisource.config.models import SourceConfig
@@ -120,7 +121,7 @@ def _serialize_template(t: Any) -> dict[str, Any]:
 
 
 async def _create_source_execute(
-    tool_deps: Any = None, **kwargs: Any
+    tool_deps: ToolDeps | None = None, **kwargs: Any
 ) -> dict[str, Any]:
     """Create (idempotent upsert) a source from LLM-supplied fields."""
     factory, session_factory = resolve_factories(tool_deps, "source_service_factory")
@@ -147,7 +148,7 @@ async def _create_source_execute(
 
 
 async def _list_sources_execute(
-    tool_deps: Any = None, limit: int = 20, **kwargs: Any
+    tool_deps: ToolDeps | None = None, limit: int = 20, **kwargs: Any
 ) -> dict[str, Any]:
     """List sources (id / name / type / url / status)."""
     factory, session_factory = resolve_factories(tool_deps, "source_service_factory")
@@ -173,7 +174,7 @@ async def _list_sources_execute(
 
 
 async def _get_source_execute(
-    tool_deps: Any = None, source_id: str = "", **kwargs: Any
+    tool_deps: ToolDeps | None = None, source_id: str = "", **kwargs: Any
 ) -> dict[str, Any]:
     """Fetch a single source by id."""
     factory, session_factory = resolve_factories(tool_deps, "source_service_factory")
@@ -197,7 +198,7 @@ async def _get_source_execute(
 
 
 async def _update_source_execute(
-    tool_deps: Any = None, source_id: str = "", **kwargs: Any
+    tool_deps: ToolDeps | None = None, source_id: str = "", **kwargs: Any
 ) -> dict[str, Any]:
     """Partial-update an existing source by id (real patch, not create-upsert)."""
     factory, session_factory = resolve_factories(tool_deps, "source_service_factory")
@@ -226,7 +227,7 @@ async def _update_source_execute(
 
 
 async def _delete_source_execute(
-    tool_deps: Any = None, source_id: str = "", **kwargs: Any
+    tool_deps: ToolDeps | None = None, source_id: str = "", **kwargs: Any
 ) -> dict[str, Any]:
     """Soft-delete a source by id (status='paused')."""
     factory, session_factory = resolve_factories(tool_deps, "source_service_factory")
@@ -256,7 +257,7 @@ async def _delete_source_execute(
 
 
 async def _create_subscription_execute(
-    tool_deps: Any = None, **kwargs: Any
+    tool_deps: ToolDeps | None = None, **kwargs: Any
 ) -> dict[str, Any]:
     """Create a subscription from LLM-supplied fields."""
     factory, session_factory = resolve_factories(
@@ -287,7 +288,7 @@ async def _create_subscription_execute(
 
 
 async def _list_subscriptions_execute(
-    tool_deps: Any = None, limit: int = 20, **kwargs: Any
+    tool_deps: ToolDeps | None = None, limit: int = 20, **kwargs: Any
 ) -> dict[str, Any]:
     """List subscriptions (id / name / channel / status)."""
     factory, session_factory = resolve_factories(
@@ -316,7 +317,7 @@ async def _list_subscriptions_execute(
 
 
 async def _get_subscription_execute(
-    tool_deps: Any = None, subscription_id: str = "", **kwargs: Any
+    tool_deps: ToolDeps | None = None, subscription_id: str = "", **kwargs: Any
 ) -> dict[str, Any]:
     """Fetch a single subscription by id."""
     factory, session_factory = resolve_factories(
@@ -348,7 +349,7 @@ async def _get_subscription_execute(
 
 
 async def _update_subscription_execute(
-    tool_deps: Any = None, subscription_id: str = "", **kwargs: Any
+    tool_deps: ToolDeps | None = None, subscription_id: str = "", **kwargs: Any
 ) -> dict[str, Any]:
     """Partial-update an existing subscription by id (real patch)."""
     factory, session_factory = resolve_factories(
@@ -387,7 +388,7 @@ async def _update_subscription_execute(
 
 
 async def _delete_subscription_execute(
-    tool_deps: Any = None, subscription_id: str = "", **kwargs: Any
+    tool_deps: ToolDeps | None = None, subscription_id: str = "", **kwargs: Any
 ) -> dict[str, Any]:
     """Soft-delete a subscription by id (status='paused')."""
     factory, session_factory = resolve_factories(
@@ -442,7 +443,7 @@ def _serialize_pipeline(cfg: Any) -> dict[str, Any]:
 
 
 async def _get_pipeline_execute(
-    tool_deps: Any = None, name: str = "", **kwargs: Any
+    tool_deps: ToolDeps | None = None, name: str = "", **kwargs: Any
 ) -> dict[str, Any]:
     """Fetch one pipeline definition's full config by name (get-before-update)."""
     factory, session_factory = resolve_factories(tool_deps, "pipeline_service_factory")
@@ -462,7 +463,7 @@ async def _get_pipeline_execute(
 
 
 async def _create_pipeline_execute(
-    tool_deps: Any = None, **kwargs: Any
+    tool_deps: ToolDeps | None = None, **kwargs: Any
 ) -> dict[str, Any]:
     """Create (idempotent upsert) a pipeline definition from LLM-supplied fields."""
     factory, session_factory = resolve_factories(tool_deps, "pipeline_service_factory")
@@ -492,7 +493,7 @@ async def _create_pipeline_execute(
 
 
 async def _list_pipelines_execute(
-    tool_deps: Any = None, **kwargs: Any
+    tool_deps: ToolDeps | None = None, **kwargs: Any
 ) -> dict[str, Any]:
     """List pipeline definitions (name / mode / max_steps / tools_allowed)."""
     factory, session_factory = resolve_factories(tool_deps, "pipeline_service_factory")
@@ -508,7 +509,7 @@ async def _list_pipelines_execute(
 
 
 async def _update_pipeline_execute(
-    tool_deps: Any = None, name: str = "", **kwargs: Any
+    tool_deps: ToolDeps | None = None, name: str = "", **kwargs: Any
 ) -> dict[str, Any]:
     """Partial-update an existing pipeline definition by name (real patch).
 
@@ -547,7 +548,7 @@ async def _update_pipeline_execute(
 
 
 async def _delete_pipeline_execute(
-    tool_deps: Any = None, name: str = "", **kwargs: Any
+    tool_deps: ToolDeps | None = None, name: str = "", **kwargs: Any
 ) -> dict[str, Any]:
     """Delete a pipeline definition by name."""
     factory, session_factory = resolve_factories(tool_deps, "pipeline_service_factory")
@@ -573,7 +574,7 @@ async def _delete_pipeline_execute(
 
 
 async def _create_template_execute(
-    tool_deps: Any = None, **kwargs: Any
+    tool_deps: ToolDeps | None = None, **kwargs: Any
 ) -> dict[str, Any]:
     """Create (idempotent upsert) a custom digest template from LLM-supplied fields."""
     factory, session_factory = resolve_factories(tool_deps, "template_service_factory")
@@ -602,7 +603,7 @@ async def _create_template_execute(
 
 
 async def _get_template_execute(
-    tool_deps: Any = None, name: str = "", **kwargs: Any
+    tool_deps: ToolDeps | None = None, name: str = "", **kwargs: Any
 ) -> dict[str, Any]:
     """Fetch a single custom template by name."""
     factory, session_factory = resolve_factories(tool_deps, "template_service_factory")
@@ -622,7 +623,7 @@ async def _get_template_execute(
 
 
 async def _update_template_execute(
-    tool_deps: Any = None, name: str = "", **kwargs: Any
+    tool_deps: ToolDeps | None = None, name: str = "", **kwargs: Any
 ) -> dict[str, Any]:
     """Partial-update an existing custom template by name (real patch)."""
     factory, session_factory = resolve_factories(tool_deps, "template_service_factory")
@@ -660,7 +661,7 @@ async def _update_template_execute(
 
 
 async def _list_templates_execute(
-    tool_deps: Any = None, limit: int = 20, **kwargs: Any
+    tool_deps: ToolDeps | None = None, limit: int = 20, **kwargs: Any
 ) -> dict[str, Any]:
     """List custom templates (id / name / base_template / default_format / status)."""
     factory, session_factory = resolve_factories(tool_deps, "template_service_factory")
@@ -686,7 +687,7 @@ async def _list_templates_execute(
 
 
 async def _delete_template_execute(
-    tool_deps: Any = None, name: str = "", **kwargs: Any
+    tool_deps: ToolDeps | None = None, name: str = "", **kwargs: Any
 ) -> dict[str, Any]:
     """Delete a custom template by name."""
     factory, session_factory = resolve_factories(tool_deps, "template_service_factory")

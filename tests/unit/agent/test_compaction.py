@@ -1,4 +1,4 @@
-"""Tests for agent.compaction module.
+"""Tests for llm.compaction module.
 
 Covers:
 - Token-based retention strategy using estimate_tokens
@@ -17,7 +17,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from intellisource.agent.compaction import compact_messages, needs_compaction
+from intellisource.llm.compaction import compact_messages, needs_compaction
 from intellisource.llm.model_config import ModelProfile
 
 # ---------------------------------------------------------------------------
@@ -450,6 +450,6 @@ def _prune_tool_messages(
     messages: list[dict[str, str]],
 ) -> list[dict[str, str]]:
     """White-box helper: exercise the tool-pruning logic directly."""
-    from intellisource.agent.compaction import _prune_old_tool_messages
+    from intellisource.llm.compaction import _prune_old_tool_messages
 
     return _prune_old_tool_messages(messages)

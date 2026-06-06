@@ -65,7 +65,7 @@ async def test_collect_persists_raw_content_rows(pg_session: AsyncSession) -> No
 
     registry = build_collector_registry()
     mock_collector = AsyncMock()
-    mock_collector.collect = AsyncMock(return_value=collected)
+    mock_collector.collect_with_retry = AsyncMock(return_value=collected)
 
     deps = ToolDeps(
         session_factory=_session_factory_from_session(pg_session),
@@ -119,7 +119,7 @@ async def test_process_persists_processed_content(pg_session: AsyncSession) -> N
     result = await _process_execute(content_id=str(raw.id), tool_deps=deps)
     assert result["status"] == "ok"
 
-    inner = result["result"]
+    inner = result["results"][0]
     processed_id = uuid.UUID(str(inner["content_id"]))
     assert processed_id != raw.id
 

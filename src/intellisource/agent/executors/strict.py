@@ -6,6 +6,7 @@ import time
 import uuid
 from typing import Any, Callable, Coroutine
 
+from intellisource.agent.deps import ToolDeps
 from intellisource.agent.step_params import build_step_params, merge_step_output
 from intellisource.agent.tools import ToolDefinition
 from intellisource.observability.logging import get_logger
@@ -41,7 +42,7 @@ class StrictExecutor:
         config: Any,
         params: dict[str, Any],
         *,
-        tool_deps: Any = None,
+        tool_deps: ToolDeps | None = None,
     ) -> dict[str, Any]:
         """Execute pipeline steps sequentially without LLM."""
         results: list[dict[str, Any]] = []

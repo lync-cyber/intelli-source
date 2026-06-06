@@ -2,13 +2,13 @@
 
 AC-4: _process_execute fetches RawContent via session_factory, builds a
 PipelineContext, calls pipeline_engine.execute() synchronously, and returns
-{"status": "ok", "tool": "process", "result": {...}}.
+{"status": "ok", "tool": "process", "results": [{...}]}.
 
 AC-5: ContentRepository.get_raw_by_id(raw_id: UUID) -> RawContent | None exists
 and returns the correct row.
 
 AC-7: Given a RawContent fixture with HTML body, calling _process_execute with
-full ToolDeps returns status="ok" and result["body_text"] is non-empty
+full ToolDeps returns status="ok" and results[0]["body_text"] is non-empty
 (HTMLParser has run).
 """
 
@@ -190,7 +190,8 @@ class TestProcessExecuteRealPipeline:
         assert result.get("status") == "ok", (
             f"Expected status='ok', got {result.get('status')!r}"
         )
-        inner = result.get("result", {})
+        results = result.get("results", [])
+        inner = results[0] if results else {}
         body_text = inner.get("body_text") if isinstance(inner, dict) else None
         assert body_text, (
             "AC-7: result['body_text'] must be non-empty after HTMLParser runs. "
@@ -309,7 +310,8 @@ class TestProcessExecuteRealPipeline:
 
         result = await _process_execute(content_id=str(raw.id), tool_deps=tool_deps)
 
-        inner = result.get("result", {})
+        results = result.get("results", [])
+        inner = results[0] if results else {}
         assert isinstance(inner, dict), (
             f"result['result'] must be a dict, got {type(inner)}"
         )

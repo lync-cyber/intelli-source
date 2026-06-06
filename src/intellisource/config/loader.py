@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-import uuid
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
 import yaml
 from pydantic import BaseModel
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.config.models import SourceConfig
@@ -18,6 +16,7 @@ from intellisource.config.validator import ConfigValidator
 from intellisource.core.encoding import read_text
 from intellisource.core.settings import get_settings
 from intellisource.observability.logging import get_logger
+from intellisource.storage.repositories.config_version import ConfigVersionRepository
 
 logger = get_logger(__name__)
 
@@ -219,19 +218,9 @@ class ConfigVersionManager:
         self._versions[self._current_version] = list(configs)
         version_label = str(self._current_version)
         snapshot = yaml.dump([c.model_dump() for c in configs], allow_unicode=True)
-        await session.execute(
-            text(
-                f"INSERT INTO {self._table_name}"
-                " (id, version, snapshot_yaml, author)"
-                " VALUES (:id, :version, :snapshot_yaml, :author)"
-                " ON CONFLICT (version) DO NOTHING"
-            ),
-            {
-                "id": str(uuid.uuid4()),
-                "version": version_label,
-                "snapshot_yaml": snapshot,
-                "author": author,
-            },
+        repo = ConfigVersionRepository(session, self._table_name)
+        await repo.insert_version(
+            version=version_label, snapshot_yaml=snapshot, author=author
         )
         await session.commit()
         return version_label
@@ -254,17 +243,10 @@ class ConfigVersionManager:
         Returns ``{version, author, created_at, config_count}`` per row;
         ``config_count`` is derived by parsing the stored snapshot yaml.
         """
-        result = await session.execute(
-            text(
-                f"SELECT version, author, created_at, snapshot_yaml"
-                f" FROM {self._table_name}"
-                " ORDER BY CAST(version AS INTEGER) DESC"
-                " LIMIT :limit"
-            ),
-            {"limit": limit},
-        )
+        repo = ConfigVersionRepository(session, self._table_name)
+        rows = await repo.list_versions(limit=limit)
         versions: list[dict[str, Any]] = []
-        for version, author, created_at, snapshot_yaml in result.fetchall():
+        for version, author, created_at, snapshot_yaml in rows:
             try:
                 parsed = yaml.safe_load(snapshot_yaml) or []
                 count = len(parsed) if isinstance(parsed, list) else 0
@@ -299,14 +281,11 @@ class ConfigVersionManager:
             self._current_version = version_int
             return list(self._versions[version_int])
 
-        row = await session.execute(
-            text(f"SELECT snapshot_yaml FROM {self._table_name} WHERE version = :v"),
-            {"v": version_label},
-        )
-        fetched = row.fetchone()
-        if fetched is None:
+        repo = ConfigVersionRepository(session, self._table_name)
+        snapshot_yaml = await repo.get_snapshot(version_label)
+        if snapshot_yaml is None:
             raise ValueError(f"Version '{version_label}' not found")
-        configs = [self._config_cls(**item) for item in yaml.safe_load(fetched[0])]
+        configs = [self._config_cls(**item) for item in yaml.safe_load(snapshot_yaml)]
         self._versions[version_int] = configs
         self._current_version = version_int
         return list(configs)

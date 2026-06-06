@@ -83,7 +83,7 @@ class TestCollectExecuteReal:
         from intellisource.agent.tools import _collect_execute  # type: ignore[import]
 
         mock_collector = AsyncMock()
-        mock_collector.collect = AsyncMock(return_value=[])
+        mock_collector.collect_with_retry = AsyncMock(return_value=[])
 
         mock_registry = MagicMock()
         mock_registry.get = MagicMock(return_value=mock_collector)
@@ -99,8 +99,8 @@ class TestCollectExecuteReal:
         assert mock_registry.get.called, (
             "_collect_execute must call collector_registry.get(source_type)"
         )
-        assert mock_collector.collect.called, (
-            "_collect_execute must call .collect() on the returned collector"
+        assert mock_collector.collect_with_retry.called, (
+            "_collect_execute must call .collect_with_retry() on the collector"
         )
 
     @pytest.mark.asyncio
@@ -109,7 +109,7 @@ class TestCollectExecuteReal:
         from intellisource.agent.tools import _collect_execute  # type: ignore[import]
 
         mock_collector = AsyncMock()
-        mock_collector.collect = AsyncMock(return_value=[])
+        mock_collector.collect_with_retry = AsyncMock(return_value=[])
 
         mock_registry = MagicMock()
         mock_registry.get = MagicMock(return_value=mock_collector)
@@ -131,7 +131,7 @@ class TestCollectExecuteReal:
         from intellisource.collector.base import RawContent as CollectedRawContent
 
         mock_collector = AsyncMock()
-        mock_collector.collect = AsyncMock(
+        mock_collector.collect_with_retry = AsyncMock(
             return_value=[
                 CollectedRawContent(
                     source_url="https://example.com/1",
@@ -167,7 +167,7 @@ class TestCollectExecuteReal:
             and result.get("status") == "ok"
             and result.get("tool") == "collect"
             and "collected" not in result
-            and mock_collector.collect.call_count == 0
+            and mock_collector.collect_with_retry.call_count == 0
         )
         assert not is_placeholder, (
             f"_collect_execute must not return old placeholder; got: {result}"
@@ -284,7 +284,8 @@ class TestProcessExecuteReal:
             result = await _process_execute(content_id=str(raw_id), tool_deps=deps)
 
         assert result.get("status") == "ok"
-        inner = result.get("result", {})
+        results = result.get("results", [])
+        inner = results[0] if results else {}
         assert inner.get("content_id") == str(mock_processed.id)
         assert inner.get("raw_content_id") == str(raw_id)
 
@@ -476,8 +477,14 @@ class TestGetContentDetailExecuteReal:
         content_id = uuid.uuid4()
         fake_content = MagicMock()
         fake_content.id = content_id
+        fake_content.raw_content_id = None
         fake_content.title = "Test Title"
         fake_content.body_text = "Test body"
+        fake_content.summary = None
+        fake_content.tags = []
+        fake_content.fingerprint = None
+        fake_content.source_url = None
+        fake_content.created_at = None
 
         mock_repo = AsyncMock()
         mock_repo.get_by_id = AsyncMock(return_value=fake_content)
@@ -512,8 +519,14 @@ class TestGetContentDetailExecuteReal:
 
         fake_content = MagicMock()
         fake_content.id = content_id
+        fake_content.raw_content_id = None
         fake_content.title = "Test Content Title"
         fake_content.body_text = "Some body text"
+        fake_content.summary = None
+        fake_content.tags = []
+        fake_content.fingerprint = None
+        fake_content.source_url = None
+        fake_content.created_at = None
 
         mock_repo = AsyncMock()
         mock_repo.get_by_id = AsyncMock(return_value=fake_content)
@@ -554,7 +567,14 @@ class TestGetContentDetailExecuteReal:
         content_id = uuid.uuid4()
         fake_content = MagicMock()
         fake_content.id = content_id
+        fake_content.raw_content_id = None
         fake_content.title = "Title"
+        fake_content.body_text = "body"
+        fake_content.summary = None
+        fake_content.tags = []
+        fake_content.fingerprint = None
+        fake_content.source_url = None
+        fake_content.created_at = None
 
         mock_repo = AsyncMock()
         mock_repo.get_by_id = AsyncMock(return_value=fake_content)

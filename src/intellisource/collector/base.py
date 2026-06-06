@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import abc
+import asyncio
 import hashlib
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -10,11 +11,16 @@ from typing import TYPE_CHECKING
 
 import httpx
 
+from intellisource.collector.adaptive import RetryPolicy
+from intellisource.observability.logging import get_logger
+
 if TYPE_CHECKING:
     from intellisource.collector.adaptive import AdaptiveScheduler
     from intellisource.collector.proxy import ProxyManager
     from intellisource.collector.rate_limiter import RateLimiter
     from intellisource.config.models import SourceConfig
+
+logger = get_logger(__name__)
 
 
 def compute_fingerprint(
@@ -59,6 +65,32 @@ class BaseCollector(abc.ABC):
     async def collect(self, source_config: dict[str, object]) -> list[RawContent]:
         """Collect content from a source defined by source_config."""
         ...
+
+    async def collect_with_retry(
+        self, source_config: dict[str, object]
+    ) -> list[RawContent]:
+        """Run ``collect`` with bounded exponential-backoff retry (AC-012).
+
+        Transient transport failures (e.g. a momentary ``httpx.ConnectError``)
+        are retried via :class:`RetryPolicy` instead of dropping the whole
+        collection run; non-transport errors propagate immediately. This is the
+        resilient entry the agent collect tool calls.
+        """
+        policy = RetryPolicy()
+        attempt = 1
+        while True:
+            try:
+                return await self.collect(source_config)
+            except (httpx.TransportError, ConnectionError) as exc:
+                if not policy.should_retry(attempt, exc):
+                    raise
+                logger.warning(
+                    "collect transient error (attempt %d), retrying: %s",
+                    attempt,
+                    exc,
+                )
+                await asyncio.sleep(policy.get_delay(attempt))
+                attempt += 1
 
     async def fetch(self, source_config: SourceConfig) -> list[RawContent]:
         """Fetch with rate limiting, proxy routing, and adaptive recording."""

@@ -14,14 +14,21 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from intellisource.llm.compaction import compact_messages_for_chat
 from intellisource.observability.logging import get_logger
-from intellisource.search.chat_session import ChatSessionManager
 
 logger = get_logger(__name__)
 
 CHAT_CHANNEL_API: str = "api"
 MAX_HISTORY_TURNS: int = 10
 CHAT_COMPACT_TOKEN_BUDGET: int = 6000
+_CHARS_PER_TOKEN: int = 4
+
+
+def _estimate_tokens(messages: list[dict[str, Any]]) -> int:
+    """Estimate token count from messages (approx 1 token per 4 chars)."""
+    total_chars = sum(len(m.get("content", "")) for m in messages)
+    return total_chars // _CHARS_PER_TOKEN
 
 
 async def prepare_session(
@@ -167,16 +174,21 @@ async def compact_history(
     history_messages: list[dict[str, Any]],
     max_tokens_budget: int | None,
 ) -> list[dict[str, Any]]:
-    """Compact stored chat history via ChatSessionManager before replay.
+    """Compact stored chat history before replay.
 
     A history over the token budget is LLM-summarized (or truncated when no
-    gateway is configured) instead of hard-sliced, so older context survives.
-    Falls back to the raw history on any error.
+    gateway is configured) via ``llm.compaction.compact_messages_for_chat``
+    instead of hard-sliced, so older context survives. Falls back to the raw
+    history on any error.
     """
     budget = max_tokens_budget or CHAT_COMPACT_TOKEN_BUDGET
-    manager = ChatSessionManager(session=None, llm_gateway=llm_gateway)
     try:
-        await manager.maybe_compact(stored_session, max_tokens=budget)
+        messages: list[dict[str, Any]] = stored_session.context["messages"]
+        if _estimate_tokens(messages) > budget:
+            compacted_messages = await compact_messages_for_chat(
+                messages, gateway=llm_gateway, max_tokens=budget
+            )
+            stored_session.context["messages"] = compacted_messages
     except Exception:
         logger.exception("chat history compaction failed; using raw history")
         return history_messages

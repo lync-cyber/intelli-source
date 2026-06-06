@@ -64,11 +64,12 @@ deps: []
 - **修复（分支 `fix/walkthrough-email-push-defects`）**：两个 upsert UPDATE 分支 `flush()` 后 `await session.refresh(existing)` + 回归测试。真起栈复测：`POST /sources` 同名 500→201
 - **状态**：代码已修并端到端验证，待 commit/PR 合入 main
 
-### B-063 RSS collector 对瞬时 `httpx.ConnectError` 无重试（单次抖动令 `on_failure:abort` 管道夭折）
+### B-063 RSS collector 对瞬时 `httpx.ConnectError` 无重试（单次抖动令 `on_failure:abort` 管道夭折）✅
 - **优先级**：P2（健壮性观察 — 走查首次触发即因单次网络抖动 `steps_executed:1/results:[]` 空转，重试后正常）
-- **关联**：[collector/adapters/rss.py](src/intellisource/collector/adapters/rss.py) / [collector/base.py](src/intellisource/collector/base.py)（`conditional_fetch`）；[CORRECTIONS-LOG 2026-06-03](reviews/CORRECTIONS-LOG.md)
-- **修复方向**：collect 层对瞬时连接错误加有限重试/退避，或 manual-collect 对 collect 步骤用 `on_failure:retry`；未修，留作观察
-- **状态**：open（非阻塞）
+- **关联**：[collector/base.py](src/intellisource/collector/base.py)（`collect_with_retry`）/ [collector/adaptive.py](src/intellisource/collector/adaptive.py)（`RetryPolicy`）/ [agent/tools/executes/collect.py](src/intellisource/agent/tools/executes/collect.py)；[CORRECTIONS-LOG 2026-06-03](reviews/CORRECTIONS-LOG.md)
+- **修复（已落地，commit 0c189ef）**：`BaseCollector.collect_with_retry` 用 `RetryPolicy` 做有界指数退避（初始 1 次 + max_retries=3 次重试），仅对瞬时传输错误（`httpx.TransportError` / `ConnectionError`）重试，非传输错误立即抛出；agent collect 工具改调 `collect_with_retry`。同步把此前仅有测试、无源码引用的 `RetryPolicy`（CODE-SCAN-arch-20260605 §6 死代码）接入生产链路（AC-012 自动重试落地）
+- **验证**：`tests/unit/collector/test_base.py::TestCollectWithRetry` 3 例（重试后成功 attempts==3 / 耗尽后抛出 attempts==4 / 非传输错误不重试 attempts==1）GREEN；3470 单测全绿 + mypy --strict + ruff + lint-imports 12/12 KEPT
+- **状态**：closed
 
 ### B-059 Celery broker/result-store 宕机时任务派发挂起（无 fast-fail）✅
 - **优先级**：P1（HIGH — 生产稳定性风险）
@@ -487,15 +488,10 @@ deps: []
 - **验证**：`lint-imports` V7 消失；现有 chat session 单测仍 PASS
 
 ### B-023 拆分 `composition.py` 解耦 wiring root 与共享常量 ✅
-- **关联**：CODE-SCAN-arch V2 + V3 + V4
-- **现状**：[`composition.py`](../src/intellisource/composition.py) 同时承担 wiring root（依赖一切）和共享常量提供者（`SOURCE_TYPE_TO_PIPELINE`、`CompositionError`、`get_agent_runner_holder`），导致 scheduler.{boot,tasks,beat_sync}（3 处顶层 import）+ agent.factory（lazy import）反向依赖
-- **修复方向**：拆为 `composition/` 包：
-  - `composition/constants.py` — `SOURCE_TYPE_TO_PIPELINE` / `CompositionError` / `get_agent_runner_holder`（最底层）
-  - `composition/api.py` — `build_api_composition`（顶层，仅被 `main` import）
-  - `composition/worker.py` — `build_worker_composition`（顶层，仅被 `scheduler.boot` import）
-  - 顺带把 `WeComCrypto` (l.515) 抽到 `intellisource.tools.wecom_crypto`（V3）
-- **影响范围**：composition / agent.factory / scheduler.{boot,tasks,beat_sync} / api.routers.tasks
-- **验证**：`lint-imports` V2/V3/V4 全部消失；现有装配测试 PASS
+- **关联**：CODE-SCAN-arch V2 + V3 + V4；CODE-SCAN-arch-20260605-r1 G2
+- **现状**：共享符号已下沉到正确层——`AgentRunnerHolder` / `get_agent_runner_holder` → `agent.runner`，`CompositionError` / `CompositionNotInitialisedError` → `core.errors`，`SOURCE_TYPE_TO_PIPELINE` → `config.constants`。`ignore_imports` 由 3 条降为 1 条（仅 `scheduler.boot -> composition`，Celery `worker_process_init` 固有反向边，唯一合法例外）。
+- **包拆分（已落地）**：`composition.py` → `composition/` 包：`builders.py`（build_* 装配助手 + PipelineLoader）/ `deps.py`（_DepsBundle + _install_agent_runner 共享）/ `worker.py`（build_worker_composition）/ `api.py`（build_api_composition + app.state 装配）/ `app_state.py`（G5-4 AppState Protocol）。`__init__` 再导出包公共面，main/scheduler.boot 经包前门 import 不变；测试 patch 目标随符号归属改指子模块。
+- **验证**：`lint-imports` 12 KEPT；mypy --strict 250 + 全量单测 PASS（composition 单测 + webhook 集成 mock-driven 全绿）
 
 ### B-024 `config.loader` 返回 `SourceConfig` 而非 `Source` ORM ✅
 - **关联**：CODE-SCAN-arch V8

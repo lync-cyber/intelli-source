@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid as _uuid
 from typing import Any
 
+from intellisource.agent.deps import ToolDeps
 from intellisource.agent.tools.results import tool_degraded
 from intellisource.observability.logging import get_logger
 
@@ -14,7 +15,7 @@ logger = get_logger(__name__)
 async def _collect_execute(
     source_id: str = "",
     source_type: str = "",
-    tool_deps: Any = None,
+    tool_deps: ToolDeps | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Collect from source, persist RawContent rows, return ids for downstream steps."""
@@ -90,7 +91,7 @@ async def _collect_execute(
             source_id=source_id,
         )
 
-    collected_items: list[CollectedRawContent] = await collector.collect(
+    collected_items: list[CollectedRawContent] = await collector.collect_with_retry(
         source_config=source_config
     )
 

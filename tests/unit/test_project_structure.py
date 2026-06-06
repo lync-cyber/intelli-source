@@ -52,7 +52,6 @@ EXPECTED_SUBPACKAGES = [
     "core",
     "collector",
     "collector/adapters",
-    "collector/sources",
     "pipeline",
     "pipeline/processors",
     "agent",

@@ -19,6 +19,7 @@ from intellisource.agent.executors.strict import (
     ToolDegradedError,
     _retry_step,
 )
+from intellisource.core.errors import CompositionNotInitialisedError
 from intellisource.observability.logging import get_logger
 
 if TYPE_CHECKING:
@@ -30,7 +31,9 @@ logger = get_logger(__name__)
 __all__ = [
     "AgentMode",
     "AgentRunner",
+    "AgentRunnerHolder",
     "ToolDegradedError",
+    "get_agent_runner_holder",
 ]
 
 
@@ -94,7 +97,7 @@ class AgentRunner:
         config: Any,
         params: dict[str, Any],
         *,
-        tool_deps: Any = None,
+        tool_deps: ToolDeps | None = None,
     ) -> dict[str, Any]:
         """Execute pipeline steps sequentially without LLM."""
         effective_deps = tool_deps if tool_deps is not None else self._tool_deps
@@ -112,7 +115,7 @@ class AgentRunner:
         config: Any,
         params: dict[str, Any],
         *,
-        tool_deps: Any = None,
+        tool_deps: ToolDeps | None = None,
     ) -> dict[str, Any]:
         """Execute processor pipeline for a single raw content_id (batch mode)."""
         effective_deps = tool_deps if tool_deps is not None else self._tool_deps
@@ -165,11 +168,11 @@ class AgentRunner:
             execution_mode="batch",
             task_chain_id=chain_id,
         )
-        inner_result = output.get("result")
-        inner: dict[str, Any] = inner_result if isinstance(inner_result, dict) else {}
-        raw_id = inner.get("raw_content_id") or content_id
+        results_list = output.get("results") or []
+        first: dict[str, Any] = results_list[0] if results_list else {}
+        raw_id = first.get("raw_content_id") or content_id
         persist_result["content_id"] = raw_id
-        processed_id = inner.get("content_id")
+        processed_id = first.get("content_id")
         if processed_id:
             persist_result["processed_content_id"] = processed_id
         return persist_result
@@ -181,7 +184,7 @@ class AgentRunner:
         session: dict[str, Any],
         *,
         max_tokens_budget: int | None = None,
-        tool_deps: Any = None,
+        tool_deps: ToolDeps | None = None,
         approved_calls: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Run LLM agent loop with tool access.
@@ -230,7 +233,7 @@ class AgentRunner:
         session: dict[str, Any],
         *,
         max_tokens_budget: int | None = None,
-        tool_deps: Any = None,
+        tool_deps: ToolDeps | None = None,
         approved_calls: list[dict[str, Any]] | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """Streaming counterpart to ``run_flexible``.
@@ -340,3 +343,44 @@ class AgentRunner:
     ) -> dict[str, Any]:
         """Retry a failed step up to _MAX_RETRIES times."""
         return await _retry_step(tool_fn, params, tool_name, self._MAX_RETRIES)
+
+
+class AgentRunnerHolder:
+    """Mutable single-slot container for the process-wide AgentRunner.
+
+    Owned by the composition root: `install()` puts the assembled runner in
+    (composition → agent, a forward edge); `get()` reads it (raising
+    CompositionNotInitialisedError when empty); `reset()` clears the slot
+    (test fixture support only). Lives beside AgentRunner so reads stay
+    intra-agent and the agent layer keeps no reverse edge to composition.
+    """
+
+    def __init__(self) -> None:
+        self._runner: AgentRunner | None = None
+
+    def install(self, runner: AgentRunner) -> None:
+        self._runner = runner
+
+    def get(self) -> AgentRunner:
+        if self._runner is None:
+            raise CompositionNotInitialisedError(
+                "AgentRunner not initialised; call build_worker_composition() "
+                "or build_api_composition() first"
+            )
+        return self._runner
+
+    def reset(self) -> None:
+        self._runner = None
+
+    @property
+    def installed(self) -> bool:
+        return self._runner is not None
+
+
+_global_agent_runner_holder = AgentRunnerHolder()
+"""Process-wide AgentRunner holder. Read via get_agent_runner_holder()."""
+
+
+def get_agent_runner_holder() -> AgentRunnerHolder:
+    """Return the process-wide AgentRunnerHolder singleton."""
+    return _global_agent_runner_holder

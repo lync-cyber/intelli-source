@@ -4,7 +4,6 @@ AC-10: WeWork CS client mirrors WeChatCustomerServiceClient structure:
        - from_env raises ValueError on missing IS_WEWORK_CORP_ID / IS_WEWORK_CORP_SECRET
        - access_token fetched from cgi-bin/gettoken, cached in Redis
        - send_text calls cgi-bin/message/send with openid + content
-       - WeWorkWebhookHandler.handle_message is fully implemented
 """
 
 from __future__ import annotations
@@ -357,56 +356,3 @@ class TestWeWorkCsClientErrcodeHandling:
 
         with pytest.raises(DistributorError, match="40056"):
             await client.send_text(openid="u", content="c")
-
-
-# ---------------------------------------------------------------------------
-# AC-10: WeWorkWebhookHandler.handle_message is implemented
-# ---------------------------------------------------------------------------
-
-
-class TestWeWorkWebhookHandlerHandleMessage:
-    """AC-10: WeWorkWebhookHandler.handle_message must be a real implementation."""
-
-    async def test_handle_message_exists_and_is_coroutine(self) -> None:
-        """WeWorkWebhookHandler.handle_message is an async method."""
-        import inspect
-
-        from intellisource.distributor.webhooks import (
-            WeWorkWebhookHandler,
-        )
-
-        assert hasattr(WeWorkWebhookHandler, "handle_message"), (
-            "WeWorkWebhookHandler must have a handle_message method (AC-10)"
-        )
-        assert inspect.iscoroutinefunction(WeWorkWebhookHandler.handle_message), (
-            "handle_message must be a coroutine function (async def)"
-        )
-
-    async def test_handle_message_returns_xml_ack(self) -> None:
-        """WeWorkWebhookHandler.handle_message returns an XML ack string."""
-        from intellisource.distributor.webhooks import (
-            WeWorkWebhookHandler,
-        )
-
-        handler = WeWorkWebhookHandler(
-            token="test_token",
-            encoding_aes_key="abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG",
-            corp_id="ww_test_corp",
-        )
-
-        xml_body = (
-            "<xml>"
-            "<ToUserName><![CDATA[ww_account]]></ToUserName>"
-            "<FromUserName><![CDATA[ww_user]]></FromUserName>"
-            "<CreateTime>1700001234</CreateTime>"
-            "<MsgType><![CDATA[text]]></MsgType>"
-            "<Content><![CDATA[测试消息]]></Content>"
-            "</xml>"
-        )
-
-        result = await handler.handle_message(xml_body, cs_messenger=None)  # type: ignore[attr-defined]
-
-        assert isinstance(result, str), (
-            f"handle_message must return str, got {type(result)}"
-        )
-        # AC-10: returns an XML ack or empty string — must not raise

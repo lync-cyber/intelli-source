@@ -404,7 +404,7 @@ class TestCompactionConsistency:
 
     @pytest.mark.asyncio
     async def test_both_paths_keep_same_head_and_tail(self) -> None:
-        from intellisource.agent.compaction import (
+        from intellisource.llm.compaction import (
             compact_messages,
             compact_messages_for_chat,
         )

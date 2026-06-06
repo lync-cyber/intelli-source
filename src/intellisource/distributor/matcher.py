@@ -1,9 +1,8 @@
-"""SubscriptionMatcher and DeliveryTracker."""
+"""SubscriptionMatcher — match content against subscription rules."""
 
 from __future__ import annotations
 
 import hashlib
-import uuid
 from typing import Any
 
 import regex as regex_lib
@@ -151,44 +150,3 @@ class SubscriptionMatcher:
                     has_match = True
 
         return has_match
-
-
-class DeliveryTracker:
-    """Tracks push delivery history for deduplication."""
-
-    def __init__(self) -> None:
-        self._pushed: set[tuple[uuid.UUID, uuid.UUID, str]] = set()
-
-    def record(
-        self,
-        *,
-        content_id: uuid.UUID,
-        subscription_id: uuid.UUID,
-        channel: str = "",
-    ) -> None:
-        """Record a push delivery."""
-        self._pushed.add((content_id, subscription_id, channel))
-
-    def has_been_pushed(
-        self,
-        *,
-        content_id: uuid.UUID,
-        subscription_id: uuid.UUID,
-        channel: str = "",
-    ) -> bool:
-        """Check if content has been pushed to subscription on channel."""
-        return (content_id, subscription_id, channel) in self._pushed
-
-    def is_duplicate(
-        self,
-        *,
-        content_id: uuid.UUID,
-        subscription_id: uuid.UUID,
-        channel: str = "",
-    ) -> bool:
-        """Check if pushing would be a duplicate."""
-        return self.has_been_pushed(
-            content_id=content_id,
-            subscription_id=subscription_id,
-            channel=channel,
-        )

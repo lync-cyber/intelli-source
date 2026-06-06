@@ -15,6 +15,7 @@ from intellisource.distributor.channels.constants import (
     TOKEN_EXPIRE_BUFFER,
 )
 from intellisource.distributor.templates import resolve_template_for
+from intellisource.distributor.token_cache import TokenCache
 
 if TYPE_CHECKING:
     from intellisource.storage.repositories.push import PushRepository
@@ -44,6 +45,11 @@ class WeWorkDistributor(BaseDistributor):
         self.corp_secret = corp_secret
         self.agent_id = agent_id
         self._push_repo = push_repo
+        # WeWork distributor and the WeWork CS client share this corp token key;
+        # both write it through TokenCache's atomic set(ex=).
+        self._token_cache = TokenCache(
+            redis, TOKEN_CACHE_KEY, self._fetch_token, ttl_buffer=TOKEN_EXPIRE_BUFFER
+        )
 
     @classmethod
     def from_env(cls, *, redis: Any, http_client: Any = None) -> "WeWorkDistributor":
@@ -160,12 +166,10 @@ class WeWorkDistributor(BaseDistributor):
 
     async def get_access_token(self) -> str:
         """Return a valid access token (cached or freshly fetched)."""
-        cached = await self.redis.get(TOKEN_CACHE_KEY)
-        if cached is not None:
-            if isinstance(cached, bytes):
-                return cached.decode()
-            return str(cached)
+        return await self._token_cache.get()
 
+    async def _fetch_token(self) -> tuple[str, int]:
+        """Fetch a fresh access token from the WeWork gettoken endpoint."""
         url = (
             f"{_WEWORK_API_BASE}/gettoken"
             f"?corpid={self.corp_id}"
@@ -179,14 +183,7 @@ class WeWorkDistributor(BaseDistributor):
 
         token: str = data["access_token"]
         expires_in: int = data.get("expires_in", 7200)
-
-        # Atomic SET with TTL so a crash can never leave a never-expiring token.
-        # The WeWork CS client (base_cs_client) writes the same
-        # ``wework:access_token`` key the same way.
-        await self.redis.set(
-            TOKEN_CACHE_KEY, token, ex=expires_in - TOKEN_EXPIRE_BUFFER
-        )
-        return token
+        return token, expires_in
 
     # ------------------------------------------------------------------
     # Message senders
