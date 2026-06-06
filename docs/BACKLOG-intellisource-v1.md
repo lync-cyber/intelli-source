@@ -64,11 +64,12 @@ deps: []
 - **修复（分支 `fix/walkthrough-email-push-defects`）**：两个 upsert UPDATE 分支 `flush()` 后 `await session.refresh(existing)` + 回归测试。真起栈复测：`POST /sources` 同名 500→201
 - **状态**：代码已修并端到端验证，待 commit/PR 合入 main
 
-### B-063 RSS collector 对瞬时 `httpx.ConnectError` 无重试（单次抖动令 `on_failure:abort` 管道夭折）
+### B-063 RSS collector 对瞬时 `httpx.ConnectError` 无重试（单次抖动令 `on_failure:abort` 管道夭折）✅
 - **优先级**：P2（健壮性观察 — 走查首次触发即因单次网络抖动 `steps_executed:1/results:[]` 空转，重试后正常）
-- **关联**：[collector/adapters/rss.py](src/intellisource/collector/adapters/rss.py) / [collector/base.py](src/intellisource/collector/base.py)（`conditional_fetch`）；[CORRECTIONS-LOG 2026-06-03](reviews/CORRECTIONS-LOG.md)
-- **修复方向**：collect 层对瞬时连接错误加有限重试/退避，或 manual-collect 对 collect 步骤用 `on_failure:retry`；未修，留作观察
-- **状态**：open（非阻塞）
+- **关联**：[collector/base.py](src/intellisource/collector/base.py)（`collect_with_retry`）/ [collector/adaptive.py](src/intellisource/collector/adaptive.py)（`RetryPolicy`）/ [agent/tools/executes/collect.py](src/intellisource/agent/tools/executes/collect.py)；[CORRECTIONS-LOG 2026-06-03](reviews/CORRECTIONS-LOG.md)
+- **修复（已落地，commit 0c189ef）**：`BaseCollector.collect_with_retry` 用 `RetryPolicy` 做有界指数退避（初始 1 次 + max_retries=3 次重试），仅对瞬时传输错误（`httpx.TransportError` / `ConnectionError`）重试，非传输错误立即抛出；agent collect 工具改调 `collect_with_retry`。同步把此前仅有测试、无源码引用的 `RetryPolicy`（CODE-SCAN-arch-20260605 §6 死代码）接入生产链路（AC-012 自动重试落地）
+- **验证**：`tests/unit/collector/test_base.py::TestCollectWithRetry` 3 例（重试后成功 attempts==3 / 耗尽后抛出 attempts==4 / 非传输错误不重试 attempts==1）GREEN；3470 单测全绿 + mypy --strict + ruff + lint-imports 12/12 KEPT
+- **状态**：closed
 
 ### B-059 Celery broker/result-store 宕机时任务派发挂起（无 fast-fail）✅
 - **优先级**：P1（HIGH — 生产稳定性风险）
