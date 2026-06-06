@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from intellisource.composition.app_state import validate_app_state
 from intellisource.composition.builders import (
     _maybe_build_http_client,
     build_pipeline_loader,
@@ -67,6 +68,10 @@ def build_api_composition(
     _install_webhook_state(app, redis_client=redis_client)
     app.state.background_tasks = set()
     _install_observability_state(app, db_manager=db_manager, redis_client=redis_client)
+
+    # Fail loudly now if any required handle was missed, rather than letting a
+    # router's getattr(..., None) degrade to a silent 503 at request time.
+    validate_app_state(app)
 
 
 def _install_observability_state(

@@ -21,6 +21,11 @@ from intellisource.composition.api import (
     _install_observability_state,
     build_api_composition,
 )
+from intellisource.composition.app_state import (
+    AppState,
+    get_app_state,
+    validate_app_state,
+)
 from intellisource.composition.builders import (
     PipelineLoader,
     build_collector_registry,
@@ -37,6 +42,7 @@ from intellisource.composition.worker import (
 )
 
 __all__ = [
+    "AppState",
     "PipelineLoader",
     "WorkerComposition",
     "_build_deps_bundle",
@@ -49,5 +55,7 @@ __all__ = [
     "build_pipeline_loader",
     "build_search_engine_factory",
     "build_worker_composition",
+    "get_app_state",
     "hydrate_worker_template_registry",
+    "validate_app_state",
 ]
