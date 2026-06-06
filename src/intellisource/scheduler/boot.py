@@ -320,6 +320,10 @@ def _bootstrap_beat_schedule(factory: async_sessionmaker[AsyncSession]) -> None:
         "task": "assemble_daily_weekly_digests",
         "schedule": crontab(minute=0),
     }
+    _module_celery_app.conf.beat_schedule["cleanup_chat_sessions"] = {
+        "task": "cleanup_chat_sessions",
+        "schedule": crontab(minute=0, hour=3),
+    }
     setattr(_module_celery_app, "_scheduler_manager", scheduler_manager)
 
 

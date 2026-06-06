@@ -68,6 +68,10 @@ class TestBootstrapBeatSchedule:
             beat_schedule["assemble_daily_weekly_digests"]["task"]
             == "assemble_daily_weekly_digests"
         )
+        assert "cleanup_chat_sessions" in beat_schedule
+        assert (
+            beat_schedule["cleanup_chat_sessions"]["task"] == "cleanup_chat_sessions"
+        )
 
     def test_empty_sources_table_logs_warning(self) -> None:
         from structlog.testing import capture_logs
@@ -102,6 +106,7 @@ class TestBootstrapBeatSchedule:
         beat_schedule = celery_stub.conf.beat_schedule
         assert all(v["task"] != "run_pipeline" for v in beat_schedule.values())
         assert "assemble_daily_weekly_digests" in beat_schedule
+        assert "cleanup_chat_sessions" in beat_schedule
         warnings = [e["event"] for e in logs]
         assert any("zero scheduled tasks" in w or "empty" in w for w in warnings)
 

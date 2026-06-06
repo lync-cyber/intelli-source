@@ -22,12 +22,14 @@ from intellisource.storage.repositories.task_chain import TaskChainRepository
 
 MAX_RETRIES: int = 3
 RETRY_BACKOFF_BASE: int = 1
+CHAT_SESSION_TTL_DAYS: int = 30
 
 __all__ = [
     "PRIORITY_QUEUES",
     "TRIGGER_TYPE_QUEUES",
     "CeleryTasks",
     "assemble_daily_weekly_digests",
+    "cleanup_chat_sessions",
     "get_queue_for_priority",
     "get_queue_for_trigger_type",
     "run_pipeline",
@@ -375,3 +377,35 @@ def assemble_daily_weekly_digests(self: Any, **kwargs: Any) -> dict[str, Any]:
     """
     del kwargs
     return _assemble_digests_body()
+
+
+def _cleanup_chat_sessions_body() -> dict[str, Any]:
+    """Purge chat sessions inactive past the TTL; raise if the Worker never wired."""
+    factory = getattr(celery_app, "_chat_session_cleanup_factory", None)
+    if factory is None:
+        raise RuntimeError(
+            "chat session cleanup not wired: build_worker_composition() must run"
+            " in the worker_process_init handler"
+        )
+
+    async def _do() -> int:
+        from datetime import datetime, timedelta, timezone  # noqa: PLC0415
+
+        from intellisource.storage.repositories.chat_session import (  # noqa: PLC0415
+            ChatSessionRepository,
+        )
+
+        before = datetime.now(timezone.utc) - timedelta(days=CHAT_SESSION_TTL_DAYS)
+        async with factory() as session:
+            deleted = await ChatSessionRepository(session).cleanup_expired(before)
+            await session.commit()
+            return deleted
+
+    return {"deleted": _run_sync(_do())}
+
+
+@celery_app.task(name="cleanup_chat_sessions", bind=True)  # type: ignore[untyped-decorator]
+def cleanup_chat_sessions(self: Any, **kwargs: Any) -> dict[str, Any]:
+    """Beat entry point: delete chat sessions inactive past the TTL."""
+    del kwargs
+    return _cleanup_chat_sessions_body()
