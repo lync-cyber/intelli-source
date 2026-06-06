@@ -20,9 +20,8 @@ import pytest
 import yaml
 from source_scan import find_substring_in_tree
 
-from intellisource.pipeline.base import BaseProcessor
+from intellisource.core.processor import BaseProcessor, PipelineContext
 from intellisource.pipeline.condition import ConditionalProcessor
-from intellisource.pipeline.context import PipelineContext
 from intellisource.pipeline.engine import PipelineEngine
 from intellisource.pipeline.middleware import BaseMiddleware
 

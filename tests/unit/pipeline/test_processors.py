@@ -10,8 +10,7 @@ Covers:
 
 import hashlib
 
-from intellisource.pipeline.base import BaseProcessor
-from intellisource.pipeline.context import PipelineContext
+from intellisource.core.processor import BaseProcessor, PipelineContext
 from intellisource.pipeline.processors.dedup import ContentDedup
 from intellisource.pipeline.processors.formatter import FormatConverter
 from intellisource.pipeline.processors.parser import HTMLParser

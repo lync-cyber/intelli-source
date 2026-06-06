@@ -6,9 +6,8 @@ Covers:
 - AC-T017-3: Conditional branching supports if-else routing to processor sub-chains.
 """
 
-from intellisource.pipeline.base import BaseProcessor
+from intellisource.core.processor import BaseProcessor, PipelineContext
 from intellisource.pipeline.condition import ConditionalProcessor, ConditionEvaluator
-from intellisource.pipeline.context import PipelineContext
 
 # ---------------------------------------------------------------------------
 # Helper: concrete processor stubs for testing conditional routing

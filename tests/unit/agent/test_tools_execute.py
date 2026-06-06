@@ -217,7 +217,7 @@ class TestProcessExecuteReal:
     async def test_process_execute_calls_pipeline_engine_execute(self) -> None:
         """_process_execute must call pipeline_engine.execute() or execute_stream()."""
         from intellisource.agent.tools import _process_execute  # type: ignore[import]
-        from intellisource.pipeline.context import (
+        from intellisource.core.processor import (
             PipelineContext,  # type: ignore[import]
         )
 
@@ -245,7 +245,7 @@ class TestProcessExecuteReal:
     async def test_process_execute_calls_execute_exactly_once(self) -> None:
         """_process_execute calls engine exactly once per invocation."""
         from intellisource.agent.tools import _process_execute  # type: ignore[import]
-        from intellisource.pipeline.context import (
+        from intellisource.core.processor import (
             PipelineContext,  # type: ignore[import]
         )
 
@@ -268,7 +268,7 @@ class TestProcessExecuteReal:
     async def test_process_execute_not_placeholder(self) -> None:
         """_process_execute must not return old placeholder."""
         from intellisource.agent.tools import _process_execute  # type: ignore[import]
-        from intellisource.pipeline.context import (
+        from intellisource.core.processor import (
             PipelineContext,  # type: ignore[import]
         )
 

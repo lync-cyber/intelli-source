@@ -24,7 +24,7 @@ from uuid import uuid4
 
 import pytest
 
-from intellisource.pipeline.context import PipelineContext
+from intellisource.core.processor import PipelineContext
 
 
 def _make_raw_stub(*, published_at: datetime | None, created_at: datetime) -> MagicMock:

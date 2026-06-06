@@ -17,7 +17,7 @@ from intellisource.agent.runner import AgentRunner, get_agent_runner_holder
 from intellisource.agent.tools import AgentToolRegistry
 from intellisource.config.pipeline_models import PipelineConfig
 from intellisource.core.errors import CompositionError
-from intellisource.pipeline.base import BaseProcessor
+from intellisource.core.processor import BaseProcessor
 from intellisource.pipeline.condition import ConditionalProcessor
 from intellisource.pipeline.registry import get_processor
 

@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import Callable, Sequence
 
-from intellisource.pipeline.context import PipelineContext
+from intellisource.core.processor import PipelineContext
 
 
 class BaseMiddleware(ABC):

@@ -7,7 +7,7 @@ Covers:
 
 import pytest
 
-from intellisource.pipeline.context import PipelineContext
+from intellisource.core.processor import PipelineContext
 from intellisource.pipeline.middleware import BaseMiddleware, MiddlewareChain
 
 # ---------------------------------------------------------------------------

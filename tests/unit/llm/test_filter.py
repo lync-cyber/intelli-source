@@ -15,9 +15,8 @@ from pathlib import Path
 
 import pytest
 
+from intellisource.core.processor import BaseProcessor, PipelineContext
 from intellisource.llm.processors.filter import ContentFilter
-from intellisource.pipeline.base import BaseProcessor
-from intellisource.pipeline.context import PipelineContext
 
 # ---------------------------------------------------------------------------
 # Sample data

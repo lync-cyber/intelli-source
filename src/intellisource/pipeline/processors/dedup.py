@@ -1,7 +1,6 @@
 """ContentDedup processor: detects duplicate content via SHA-256 fingerprint."""
 
-from intellisource.pipeline.base import BaseProcessor
-from intellisource.pipeline.context import PipelineContext
+from intellisource.core.processor import BaseProcessor, PipelineContext
 
 
 class ContentDedup(BaseProcessor):
