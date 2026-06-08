@@ -38,10 +38,23 @@ PUBLIC_EXACT_PATHS = frozenset(
 )
 PUBLIC_PATH_PREFIXES = ("/api/v1/webhooks",)
 
+
+def is_exempt_path(path: str) -> bool:
+    """True when *path* is reachable without the production API key.
+
+    Single source of truth shared with api.openapi so the security-scheme
+    builder marks exactly the paths the middleware exempts.
+    """
+    if path in PUBLIC_EXACT_PATHS:
+        return True
+    return any(path.startswith(prefix) for prefix in PUBLIC_PATH_PREFIXES)
+
+
 __all__ = [
     "AuthMiddleware",
     "PUBLIC_EXACT_PATHS",
     "PUBLIC_PATH_PREFIXES",
+    "is_exempt_path",
     "RequestLoggerMiddleware",
     "TracingMiddleware",
     "trace_id_ctx",
@@ -69,17 +82,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
     allowed through with a one-time WARN so local development stays frictionless.
     """
 
-    _EXEMPT_EXACT = PUBLIC_EXACT_PATHS
-    _EXEMPT_PREFIXES = PUBLIC_PATH_PREFIXES
-
     def __init__(self, app: ASGIApp) -> None:
         super().__init__(app)
         self._warned_missing_key = False
-
-    def _is_exempt(self, path: str) -> bool:
-        if path in self._EXEMPT_EXACT:
-            return True
-        return any(path.startswith(prefix) for prefix in self._EXEMPT_PREFIXES)
 
     def _warn_missing_key_once(self, production: bool) -> None:
         if self._warned_missing_key:
@@ -100,7 +105,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
         path = request.url.path
-        if self._is_exempt(path):
+        if is_exempt_path(path):
             return await call_next(request)
 
         api_key = get_settings().api_key

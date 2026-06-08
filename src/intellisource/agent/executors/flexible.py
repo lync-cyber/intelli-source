@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Any, AsyncGenerator, Callable, Coroutine
 
 from intellisource.agent.deps import ToolDeps
+from intellisource.agent.executors.strict import _resolve_callable
 from intellisource.agent.tool_gating import ToolPermissionResolver, _is_preview_mode
 from intellisource.agent.tools import PermissionLevel, ToolDefinition
 from intellisource.core.errors import ErrorCategory, IntelliSourceError
@@ -841,13 +842,6 @@ class FlexibleLoop:
                     "status": "error",
                     "error": str(exc),
                 }
-
-
-def _resolve_callable(tool: Any) -> Any:
-    """Unwrap ToolDefinition to its execute callable if needed."""
-    if isinstance(tool, ToolDefinition):
-        return tool.execute
-    return tool
 
 
 def _serialize_tool_call(tool_call: Any) -> dict[str, Any]:

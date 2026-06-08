@@ -12,17 +12,11 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 
-from intellisource.api.middleware import PUBLIC_EXACT_PATHS, PUBLIC_PATH_PREFIXES
+from intellisource.api.middleware import is_exempt_path
 
 SECURITY_SCHEME_NAME = "ApiKeyAuth"
 
 _HTTP_METHODS = frozenset({"get", "post", "put", "patch", "delete", "options", "head"})
-
-
-def _is_public(path: str) -> bool:
-    if path in PUBLIC_EXACT_PATHS:
-        return True
-    return any(path.startswith(prefix) for prefix in PUBLIC_PATH_PREFIXES)
 
 
 def build_openapi(app: FastAPI) -> dict[str, Any]:
@@ -45,7 +39,7 @@ def build_openapi(app: FastAPI) -> dict[str, Any]:
 
     requirement: list[dict[str, list[str]]] = [{SECURITY_SCHEME_NAME: []}]
     for path, operations in schema.get("paths", {}).items():
-        public = _is_public(path)
+        public = is_exempt_path(path)
         for method, operation in operations.items():
             if method not in _HTTP_METHODS or not isinstance(operation, dict):
                 continue
