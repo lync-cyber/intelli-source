@@ -23,13 +23,13 @@ logger = get_logger(__name__)
 def _default_system_prompt(tool_descriptors: list[dict[str, Any]]) -> str:
     """Render the flexible agent's identity + tools system prompt from templates.
 
-    The streamed final answer is produced by a tools-less ``stream_complete``
-    call (streaming completions carry no ``tools=`` argument), so without this it
-    has no idea what tools exist or who it is — which is why a streamed reply
-    drifts to a generic model identity. The prompt text lives in the shared
-    ``llm.prompts`` template store; here we only shape the live tool registry
-    into its ``tools`` variable, so the streaming path gets the same tool
-    awareness the non-stream path gets from its ``tools=`` argument.
+    Used by both ``run`` and ``run_stream`` as the fallback when a pipeline
+    declares no ``system_prompt``: without an identity message the model drifts
+    to a generic assistant persona (e.g. ``我是你的智能助手``). The streaming path
+    additionally relies on it for tool awareness, since its terminating answer
+    comes from a tools-less ``stream_complete`` call. The prompt text lives in
+    the shared ``llm.prompts`` template store; here we only shape the live tool
+    registry into its ``tools`` variable.
     """
     tools: list[dict[str, str]] = []
     for descriptor in tool_descriptors:
@@ -105,7 +105,12 @@ class FlexibleLoop:
         tool_results: list[dict[str, Any]] = []
         preview_plan: list[dict[str, Any]] = []
 
-        sys_prompt = getattr(config, "system_prompt", None)
+        # Fall back to the identity+tools prompt so the non-stream path keeps the
+        # IntelliSource persona instead of drifting to a generic model identity —
+        # the same fallback run_stream applies.
+        sys_prompt = getattr(config, "system_prompt", None) or _default_system_prompt(
+            tool_descriptors
+        )
         if sys_prompt:
             messages.append({"role": "system", "content": sys_prompt})
 

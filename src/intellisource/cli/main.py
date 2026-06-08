@@ -62,6 +62,11 @@ def run() -> None:
 
 DEFAULT_API_URL = "http://localhost:8000"
 
+# POST timeout. httpx defaults to 5s, but /search/chat blocks for a whole
+# multi-step LLM agent loop, so a generous read timeout keeps the client from
+# raising ReadTimeout while the server is still synthesising the answer.
+_POST_TIMEOUT = httpx.Timeout(180.0, connect=10.0)
+
 _state: dict[str, Any] = {
     "api_url": DEFAULT_API_URL,
     "api_key": "",
@@ -1363,7 +1368,12 @@ def init(
 
 def _post_json(path: str, payload: dict[str, Any]) -> httpx.Response:
     return _http(
-        lambda: httpx.post(f"{_base_url()}{path}", json=payload, headers=_get_headers())
+        lambda: httpx.post(
+            f"{_base_url()}{path}",
+            json=payload,
+            headers=_get_headers(),
+            timeout=_POST_TIMEOUT,
+        )
     )
 
 

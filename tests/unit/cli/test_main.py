@@ -410,6 +410,30 @@ class TestChatCommand:
         assert mock_httpx.post.call_args.kwargs["json"]["message"] == "second"
         assert mock_httpx.post.call_args.kwargs["json"]["session_id"] == "sess-repl"
 
+    @patch("intellisource.cli.main.httpx")
+    def test_chat_post_uses_generous_timeout(
+        self, mock_httpx: MagicMock, runner: Any
+    ) -> None:
+        """chat must override httpx's 5s default — the agent loop runs longer.
+
+        The interactive REPL posts to /search/chat and blocks for the whole
+        multi-step LLM agent loop. With httpx's default Timeout(5.0) the client
+        raises ReadTimeout while the server is still synthesising the answer, so
+        the POST must carry an explicit, generous read timeout.
+        """
+        _skip_if_missing()
+        mock_httpx.post.return_value = _chat_response()
+
+        result = runner.invoke(app, ["chat", "今天有哪些 AI 新闻"])
+
+        assert result.exit_code == 0
+        timeout = mock_httpx.post.call_args.kwargs.get("timeout")
+        assert timeout is not None, "chat POST must set an explicit timeout"
+        read_timeout = (
+            timeout.read if isinstance(timeout, httpx.Timeout) else float(timeout)
+        )
+        assert read_timeout is not None and read_timeout >= 60.0
+
 
 # ===========================================================================
 # AC-T044-5: output format (table default, --json)
