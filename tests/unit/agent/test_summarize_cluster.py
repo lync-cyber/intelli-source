@@ -11,8 +11,8 @@ from types import SimpleNamespace
 from typing import Any
 
 from intellisource.agent.tools.executes.summarize_cluster import (
+    _summarize_cluster_execute,
     make_cluster_summarizer,
-    summarize_cluster,
 )
 
 
@@ -43,7 +43,7 @@ class TestSummarizeClusterLLM:
 
         gw = SimpleNamespace(complete=fake_complete)
         contents = [{"title": "Doc 1", "body_text": "Text one. Text two."}]
-        result = await summarize_cluster(contents, tool_deps=_deps(gw))
+        result = await _summarize_cluster_execute(contents, tool_deps=_deps(gw))
 
         assert result["summary"] == "A comprehensive summary."
         assert result["timeline"][0]["event"] == "Launch"
@@ -59,7 +59,7 @@ class TestSummarizeClusterLLM:
 
         gw = SimpleNamespace(complete=failing)
         contents = [{"title": "Fallback", "body_text": "One. Two. Three. Four."}]
-        result = await summarize_cluster(contents, tool_deps=_deps(gw))
+        result = await _summarize_cluster_execute(contents, tool_deps=_deps(gw))
 
         assert result["title"] == "Fallback"
         assert "One" in result["summary"]
@@ -72,7 +72,7 @@ class TestSummarizeClusterLLM:
 
         gw = SimpleNamespace(complete=bad)
         contents = [{"title": "T", "body_text": "A. B. C."}]
-        result = await summarize_cluster(contents, tool_deps=_deps(gw))
+        result = await _summarize_cluster_execute(contents, tool_deps=_deps(gw))
 
         assert result["title"] == "T"
         assert result["timeline"] == []
@@ -83,7 +83,7 @@ class TestSummarizeClusterLLM:
 
         gw = SimpleNamespace(complete=partial)
         contents = [{"title": "Original", "body_text": "Text here."}]
-        result = await summarize_cluster(contents, tool_deps=_deps(gw))
+        result = await _summarize_cluster_execute(contents, tool_deps=_deps(gw))
 
         assert result["title"] == "Original"
         assert result["timeline"] == []
@@ -92,13 +92,13 @@ class TestSummarizeClusterLLM:
 class TestSummarizeClusterFallback:
     async def test_no_tool_deps_uses_truncation(self) -> None:
         contents = [{"title": "Plain", "body_text": "One. Two. Three. Four."}]
-        result = await summarize_cluster(contents, tool_deps=None)
+        result = await _summarize_cluster_execute(contents, tool_deps=None)
         assert result["title"] == "Plain"
         assert "One" in result["summary"]
 
     async def test_no_gateway_uses_truncation(self) -> None:
         contents = [{"title": "T", "body_text": "A. B. C."}]
-        result = await summarize_cluster(contents, tool_deps=_deps(None))
+        result = await _summarize_cluster_execute(contents, tool_deps=_deps(None))
         assert result["title"] == "T"
 
     async def test_empty_cluster_returns_empty_digest(self) -> None:
@@ -106,7 +106,7 @@ class TestSummarizeClusterFallback:
             raise AssertionError("Should not call LLM for empty cluster")
 
         gw = SimpleNamespace(complete=should_not_call)
-        result = await summarize_cluster([], tool_deps=_deps(gw))
+        result = await _summarize_cluster_execute([], tool_deps=_deps(gw))
         assert result == {"title": "", "summary": "", "timeline": [], "key_points": []}
 
 

@@ -9,7 +9,7 @@ tools_allowed:
   - vector_search_similar
   - find_nearest_cluster
   - tfidf_keywords
-  - truncate_summary
+  - summarize_cluster
   - keyword_tag
   - filter_sensitive
   - llm_complete

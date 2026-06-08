@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from intellisource.agent.deps import ToolDeps
+from intellisource.agent.tools._spec import PermissionLevel, ToolDefinition
 from intellisource.agent.tools.results import tool_degraded
 from intellisource.observability.logging import get_logger
 
@@ -51,3 +52,45 @@ async def _distribute_execute(
 
     single_result = results[0] if len(results) == 1 else results
     return {"status": "ok", "tool": "distribute", "result": single_result}
+
+
+DISTRIBUTE_TOOL_DEF = ToolDefinition(
+    name="distribute",
+    description=(
+        "Distribute processed content to subscribers via configured channels."
+    ),
+    parameters={
+        "type": "object",
+        "properties": {
+            "content_id": {
+                "type": "string",
+                "description": "Single processed content UUID to distribute.",
+            },
+            "processed_content_ids": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "Batch of processed content UUIDs; takes precedence over"
+                    " content_id when provided."
+                ),
+            },
+            "subscription_id": {
+                "type": "string",
+                "description": (
+                    "Target subscription UUID; when omitted, fans out to all"
+                    " active subscriptions matching the content."
+                ),
+            },
+        },
+        # At least one content identifier is required (single id or the
+        # batch list). subscription_id stays optional on purpose: omitting
+        # it fans out to every matching active subscription.
+        "anyOf": [
+            {"required": ["content_id"]},
+            {"required": ["processed_content_ids"]},
+        ],
+    },
+    execute=_distribute_execute,
+    permission_level=PermissionLevel.confirm,
+    mutates_external_state=True,
+)

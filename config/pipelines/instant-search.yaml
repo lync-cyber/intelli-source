@@ -8,7 +8,7 @@ tools_allowed:
   - get_content_detail
   - summarize_for_user
   - tfidf_keywords
-  - truncate_summary
+  - summarize_cluster
 tools_denied:
   - collect
   - process

@@ -206,12 +206,12 @@ class TestSummarizeWorkflow:
     async def test_summarize_via_atomic_tool(
         self, full_registry: AgentToolRegistry
     ) -> None:
-        """AC-T056-1: Agent invokes truncate_summary."""
+        """AC-T056-1: Agent invokes summarize_cluster."""
         gw = _make_llm_gateway(
             [
                 [
                     {
-                        "name": "truncate_summary",
+                        "name": "summarize_cluster",
                         "arguments": {
                             "cluster_contents": [
                                 {
@@ -231,7 +231,7 @@ class TestSummarizeWorkflow:
             {
                 "name": "summarize-test",
                 "mode": "flexible",
-                "tools_allowed": ["truncate_summary", "llm_complete"],
+                "tools_allowed": ["summarize_cluster", "llm_complete"],
                 "steps": [],
                 "max_steps": 5,
                 "on_failure": "skip",

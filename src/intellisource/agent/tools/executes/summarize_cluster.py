@@ -5,9 +5,9 @@ Lives in the agent layer because the LLM path needs ``load_prompt`` from
 from importing. The pure truncation fallback stays in
 ``pipeline.processors.tools`` and is reused here via ``truncate_fallback``.
 
-Two entry points share one core:
-- ``summarize_cluster`` — the agent-callable tool execute (reads gateway from
-  ``tool_deps``).
+Two wrappers share one core (``_summarize_core``):
+- ``_summarize_cluster_execute`` — the agent-callable tool execute (reads the
+  gateway from ``tool_deps``).
 - ``make_cluster_summarizer`` — binds a gateway into a plain callable that
   ``agent.factory`` injects into the pipeline ``LLMSummarizer`` processor (which
   cannot import this module: pipeline ✗→ agent).
@@ -69,7 +69,7 @@ async def _summarize_core(
     return truncate_fallback(cluster_contents).model_dump()
 
 
-async def summarize_cluster(
+async def _summarize_cluster_execute(
     cluster_contents: list[dict[str, str]],
     *,
     tool_deps: ToolDeps | None = None,

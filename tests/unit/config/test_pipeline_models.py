@@ -197,7 +197,7 @@ class TestUpdatedPipelineConfigs:
         assert "get_content_detail" in allowed
         assert "summarize_for_user" in allowed
         # Should also include relevant atomic tools
-        assert "tfidf_keywords" in allowed or "truncate_summary" in allowed
+        assert "tfidf_keywords" in allowed or "summarize_cluster" in allowed
 
     def test_existing_pipeline_configs_parse(self) -> None:
         """AC-T055-4: All pipeline configs parse without error."""
