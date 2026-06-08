@@ -42,4 +42,11 @@ tools_allowed:
   - process
   - distribute
 tools_denied: []
+# Destructive deletes require human-in-the-loop approval (surfaced as a
+# confirm_token); distribute carries its own confirm level from the registry.
+tool_permissions:
+  delete_source: confirm
+  delete_subscription: confirm
+  delete_pipeline: confirm
+  delete_template: confirm
 steps: []
