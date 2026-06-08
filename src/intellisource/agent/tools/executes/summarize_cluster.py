@@ -11,6 +11,11 @@ Two entry points share one core:
 - ``make_cluster_summarizer`` — binds a gateway into a plain callable that
   ``agent.factory`` injects into the pipeline ``LLMSummarizer`` processor (which
   cannot import this module: pipeline ✗→ agent).
+
+``summarize_cluster`` deliberately omits the ``_*_execute`` naming used by the
+other tool bodies: it is a genuine dual-use public entry point (also injected
+into the pipeline via ``make_cluster_summarizer``), not a registry-internal
+execute, so it carries no underscore and no ``_execute`` suffix.
 """
 
 from __future__ import annotations

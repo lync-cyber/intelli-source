@@ -260,6 +260,11 @@ def _atomic_tool_defs() -> list[ToolDefinition]:
             execute=atomic_tools.tfidf_keywords,
         ),
         ToolDefinition(
+            # ``truncate_summary`` is a load-bearing tool name: it is referenced
+            # by config/pipelines/*.yaml and persisted in pipeline ``tools_allowed``
+            # rows, so renaming it requires a coordinated YAML + DB migration. The
+            # primary behaviour is LLM summarization (truncation is only the
+            # fallback), as the description makes explicit.
             name="truncate_summary",
             description=(
                 "Generate a structured digest from clustered documents"
