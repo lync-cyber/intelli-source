@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=schema/llm_models.schema.json
+# ↑ schema 路径相对 config/llm_models.yaml（init 复制后即生效）；编辑器据此自动补全与即时校验。
+#
+# LLM 模型路由配置 —— 三段语义：
+#   default_model  未匹配 task 时的兜底模型
+#   models         按 task_type 路由到 model + provider (+ thinking / reasoning_effort)
+#   profiles       按 model id 设定采样参数 (temperature / max_tokens / context_window / timeout / prompt_style)
+#
+# ⚠️ 参数优先级（易踩）：
+#   temperature / max_tokens  以 profiles 为准 —— models 段不设这两项（设了也会被 profile 覆盖）
+#   thinking / reasoning_effort  以 models（task 级）为准，profiles 仅兜底
+#
+# DeepSeek V4 契约 (https://api-docs.deepseek.com/zh-cn/api/create-chat-completion)：
+#   thinking: enabled | disabled（cheap 确定性任务与 chat-tool-loop 用 disabled）
+#   reasoning_effort: high | max
+# deepseek-chat / deepseek-reasoner 将于 2026-07-24 退役 —— 改用 v4-flash / v4-pro。
+
+default_model:
+  model: deepseek/deepseek-v4-flash
+  provider: deepseek
+
+models:
+  # —— 当前实际由 LLM 调用的 task ——
+  summarize:
+    model: deepseek/deepseek-v4-pro
+    provider: deepseek
+    thinking: enabled
+    reasoning_effort: high
+  render:
+    model: deepseek/deepseek-v4-flash
+    provider: deepseek
+    thinking: disabled
+  push_optimize:
+    model: deepseek/deepseek-v4-flash
+    provider: deepseek
+    thinking: disabled
+  chat:
+    model: deepseek/deepseek-v4-flash
+    provider: deepseek
+    thinking: disabled
+  # —— 以下任务当前由非 LLM 算法处理（extract=正则 / dedup=指纹 / tag=关键词）——
+  # —— 路由配置为未来切换 LLM 预留，当前不参与调用 ——
+  extract:
+    model: deepseek/deepseek-v4-flash
+    provider: deepseek
+    thinking: disabled
+  dedup:
+    model: deepseek/deepseek-v4-flash
+    provider: deepseek
+    thinking: disabled
+  tag:
+    model: deepseek/deepseek-v4-flash
+    provider: deepseek
+    thinking: disabled
+
+profiles:
+  deepseek/deepseek-v4-flash:
+    temperature: 0.1
+    max_tokens: 4096
+    context_window: 1000000
+    prompt_style: default
+    timeout_seconds: 60
+    thinking: disabled
+  deepseek/deepseek-v4-pro:
+    temperature: 0.3
+    max_tokens: 4096
+    context_window: 1000000
+    prompt_style: concise
+    timeout_seconds: 120
+    thinking: enabled
+    reasoning_effort: high

@@ -675,11 +675,11 @@ def _seed_example_tree(root: pathlib.Path) -> None:
     """Create the minimal example files init's seeding expects under *root*."""
     (root / "docker").mkdir(parents=True, exist_ok=True)
     (root / "docker" / ".env.example").write_text("IS_API_KEY=\n", encoding="utf-8")
-    (root / "config").mkdir(parents=True, exist_ok=True)
-    (root / "config" / "llm_models.example.yaml").write_text(
+    (root / "config" / "examples").mkdir(parents=True, exist_ok=True)
+    (root / "config" / "examples" / "llm_models.example.yaml").write_text(
         "default_model:\n  model: deepseek/deepseek-v4-flash\n", encoding="utf-8"
     )
-    (root / "config" / "subscriptions.example.yaml").write_text(
+    (root / "config" / "examples" / "subscriptions.example.yaml").write_text(
         "subscriptions: []\n", encoding="utf-8"
     )
 

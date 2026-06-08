@@ -56,11 +56,11 @@ consumers: [devops, qa-engineer, developer]
 
 ### 0.3 信源配置文件
 
-`config/sources/` 默认不存在；需手动创建并放置至少一个 YAML（可参考 [config/sources.example.yaml](../../config/sources.example.yaml)）。建议用本仓库自带的 RSS 源以避免网络抖动：
+`config/sources/` 默认不存在；需手动创建并放置至少一个 YAML（可参考 [config/examples/sources.example.yaml](../../config/examples/sources.example.yaml)）。建议用本仓库自带的 RSS 源以避免网络抖动：
 
 ```bash
 mkdir -p config/sources
-cp config/sources.example.yaml config/sources/sources.yaml
+cp config/examples/sources.example.yaml config/sources/sources.yaml
 ```
 
 ### 0.4 LLM 配置

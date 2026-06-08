@@ -9,14 +9,13 @@ algorithmic processing only.
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 from collections import Counter
 from typing import Any
 
 from intellisource.core.text_tools import filter_sensitive, truncate_for_push
 from intellisource.observability.logging import get_logger
-from intellisource.pipeline.digest.schemas import ContentDigest, parse_digest
+from intellisource.pipeline.digest.schemas import ContentDigest
 
 logger = get_logger(__name__)
 
@@ -264,85 +263,15 @@ async def tfidf_keywords(title: str, body_text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# truncate_summary
+# truncate_fallback — pure, non-LLM cluster digest. The LLM summarize path
+# lives in agent.tools.executes.summarize_cluster (pipeline ✗→ llm, Contract 2).
 # ---------------------------------------------------------------------------
 
 
-async def truncate_summary(
-    cluster_contents: list[dict[str, str]],
-    *,
-    tool_deps: Any = None,
-) -> dict[str, Any]:
-    """Generate a digest from clustered documents.
-
-    Attempts LLM-based summarization when ``tool_deps.llm_gateway`` is
-    available; falls back to first-3-sentence truncation on failure.
-
-    Args:
-        cluster_contents: List of dicts with ``title``, ``body_text``,
-            and optionally ``published_at``.
-        tool_deps: Optional dependency container with ``llm_gateway``.
-
-    Returns:
-        Dict with title, summary, timeline, key_points.
-    """
+def truncate_fallback(cluster_contents: list[dict[str, str]]) -> ContentDigest:
+    """First-3-sentence truncation digest."""
     if not cluster_contents:
-        return ContentDigest(title="", summary="").model_dump()
-
-    gateway = getattr(tool_deps, "llm_gateway", None) if tool_deps is not None else None
-    if gateway is not None:
-        digest = await _llm_summarize(cluster_contents, gateway)
-        if digest is not None:
-            return digest.model_dump()
-
-    return _truncate_fallback(cluster_contents).model_dump()
-
-
-_SUMMARIZER_PROMPT_TEMPLATE = (
-    "Generate a JSON digest for the following clustered "
-    "documents using the structure below.\n\n"
-    "<output_format>\n"
-    '{{"title": str, "summary": str, '
-    '"timeline": [{{"date": str, "event": str}}], '
-    '"key_points": [str]}}\n'
-    "</output_format>\n\n"
-    "<documents>\n"
-    "{docs_text}\n"
-    "</documents>\n\n"
-    "Return only valid JSON. "
-    "Do not include any explanation or markdown fences."
-)
-
-
-async def _llm_summarize(
-    cluster_contents: list[dict[str, str]],
-    gateway: Any,
-) -> ContentDigest | None:
-    """Call LLM to produce a structured summary; return None on failure."""
-    docs_text = "\n\n".join(
-        f"Title: {doc.get('title', '')}\n{doc.get('body_text', '')}"
-        for doc in cluster_contents
-    )
-    try:
-        prompt = _SUMMARIZER_PROMPT_TEMPLATE.format(docs_text=docs_text)
-        llm_result = await gateway.complete(
-            prompt=prompt,
-            task_type="summarize",
-            response_format={"type": "json_object"},
-        )
-        parsed = json.loads(llm_result.content)
-    except Exception:
-        logger.warning("LLM summarize failed, falling back to truncation")
-        return None
-
-    digest = parse_digest(parsed)
-    if digest is None:
-        logger.warning("LLM response missing required keys, falling back")
-    return digest
-
-
-def _truncate_fallback(cluster_contents: list[dict[str, str]]) -> ContentDigest:
-    """First-3-sentence truncation (original logic)."""
+        return ContentDigest(title="", summary="")
     title = cluster_contents[0].get("title", "")
     combined_text = " ".join(doc.get("body_text", "") for doc in cluster_contents)
     sentences = combined_text.split(". ")

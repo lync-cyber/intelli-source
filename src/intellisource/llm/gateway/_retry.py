@@ -57,6 +57,11 @@ class _RetryMixin:
         messages list (from ``messages`` when supplied, else system_prompt +
         prompt), and attaches stream / timeout / response_format / extra_body.
         """
+        task_cfg = (
+            self._routing_config.get("models", {}).get(task_type)
+            if task_type is not None
+            else None
+        )
         profile, resolved_temperature, resolved_max_tokens = resolve_call_params(
             self._model_routing,
             resolved_model,
@@ -64,6 +69,7 @@ class _RetryMixin:
             max_tokens,
             self._default_temperature,
             self._default_max_tokens,
+            task_cfg=task_cfg,
         )
         if messages is not None:
             call_messages: list[dict[str, Any]] = list(messages)

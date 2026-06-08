@@ -1,9 +1,16 @@
-# IntelliSource 订阅配置示例
-# 此文件是订阅配置的 source-of-truth。
-# 通过 API / CLI 对订阅的改动会在下次 POST /subscriptions/reload 时被覆盖。
+# ============================================================
+# 订阅配置 (subscription) 示例  —  把匹配内容推给谁、走哪个渠道
+# ------------------------------------------------------------
+# 谁会读它: SubscriptionLoader（经 IS_SUBSCRIPTION_CONFIG_DIR 扫描 config/subscriptions/）
+# 怎么生效: 复制到 config/subscriptions/ → `intellisource subscriptions reload`
+# 复制命令: cp config/examples/subscriptions.example.yaml config/subscriptions/subscriptions.yaml
+# 配置全貌: 见 config/README.md
+# ------------------------------------------------------------
+# config/subscriptions/*.yaml 是订阅配置的 source-of-truth。
+# 通过 API / CLI 对订阅的改动会在下次 reload 时被覆盖。
 # 从 yaml 中移除的订阅会被软删（status=paused），不会丢失推送历史。
-#
 # 支持 ${ENV_VAR} 环境变量占位符（与 sources.yaml 一致）。
+# ============================================================
 
 subscriptions:
   - name: "AI 早报 - WeWork"

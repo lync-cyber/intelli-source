@@ -1,6 +1,12 @@
-# IntelliSource 信源配置示例
-# 支持 rss / api / web 三种类型
+# ============================================================
+# 信源配置 (source) 示例  —  内容从哪来（rss / api / web）
+# ------------------------------------------------------------
+# 谁会读它: ConfigLoader（经 IS_SOURCE_CONFIG_DIR 扫描 config/sources/）
+# 怎么生效: 复制到 config/sources/ → `intellisource source diff` 预览 → reload
+# 复制命令: cp config/examples/sources.example.yaml config/sources/sources.yaml
 # 支持 ${ENV_VAR} 环境变量占位符
+# 配置全貌: 见 config/README.md
+# ============================================================
 
 sources:
   - name: "Hacker News"

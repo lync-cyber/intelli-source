@@ -9,6 +9,7 @@ from typing import Any
 from pydantic import BaseModel, Field, ValidationError
 
 from intellisource.core.text_tools import filter_sensitive, truncate_for_push
+from intellisource.llm.prompts import load_prompt
 from intellisource.observability.logging import get_logger
 
 _logger = get_logger(__name__)
@@ -37,14 +38,13 @@ async def optimize_for_push(
 
     try:
         result = await llm_gateway.complete(
-            prompt=(
-                f"Subscription: {getattr(subscription, 'name', '')}\n"
-                f"Original title: {title}\n"
-                f"Body excerpt: {body[:800]}\n"
-                f"Draft title: {push_title}\n"
-                f"Draft summary: {push_summary}\n"
-                "Return JSON with keys title (max 80 chars) and "
-                "summary (max 200 chars) optimized for a push notification."
+            prompt=load_prompt(
+                "optimizer",
+                subscription_name=getattr(subscription, "name", ""),
+                original_title=title,
+                body_text=body[:800],
+                draft_title=push_title,
+                draft_summary=push_summary,
             ),
             task_type="push_optimize",
             response_format={"type": "json_object"},
