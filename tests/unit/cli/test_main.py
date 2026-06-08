@@ -73,7 +73,7 @@ def runner():  # type: ignore[no-untyped-def]
 class TestSourceCommands:
     """AC-T044-1: source CRUD commands."""
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_source_list_returns_table(
         self, mock_httpx: MagicMock, runner: Any
     ) -> None:
@@ -98,7 +98,7 @@ class TestSourceCommands:
         assert result.exit_code == 0
         assert "test-rss" in result.output
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_source_add_creates_source(
         self, mock_httpx: MagicMock, runner: Any
     ) -> None:
@@ -126,7 +126,7 @@ class TestSourceCommands:
         assert result.exit_code == 0
         assert "new-source" in result.output
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_source_update_modifies_source(
         self, mock_httpx: MagicMock, runner: Any
     ) -> None:
@@ -143,7 +143,7 @@ class TestSourceCommands:
         assert result.exit_code == 0
         assert "updated-source" in result.output
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_source_delete_removes_source(
         self, mock_httpx: MagicMock, runner: Any
     ) -> None:
@@ -164,7 +164,7 @@ class TestSourceCommands:
 class TestTaskCommands:
     """AC-T044-2: task trigger and status commands."""
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_task_trigger_starts_collection(
         self, mock_httpx: MagicMock, runner: Any
     ) -> None:
@@ -180,7 +180,7 @@ class TestTaskCommands:
         assert result.exit_code == 0
         assert "task-001" in result.output
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_task_status_shows_progress(
         self, mock_httpx: MagicMock, runner: Any
     ) -> None:
@@ -195,7 +195,7 @@ class TestTaskCommands:
         assert result.exit_code == 0
         assert "running" in result.output
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_task_trigger_nonexistent_source(
         self, mock_httpx: MagicMock, runner: Any
     ) -> None:
@@ -222,7 +222,7 @@ class TestTaskCommands:
 class TestPipelineCommands:
     """AC-T044-3: pipeline list command."""
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_pipeline_list_shows_pipelines(
         self, mock_httpx: MagicMock, runner: Any
     ) -> None:
@@ -242,7 +242,7 @@ class TestPipelineCommands:
         assert result.exit_code == 0
         assert "default-pipeline" in result.output
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_pipeline_list_empty(self, mock_httpx: MagicMock, runner: Any) -> None:
         """pipeline list with no pipelines should display an empty result."""
         _skip_if_missing()
@@ -263,7 +263,7 @@ class TestPipelineCommands:
 class TestSearchCommand:
     """AC-T044-4: search command."""
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_search_returns_results(self, mock_httpx: MagicMock, runner: Any) -> None:
         """search should display matching results."""
         _skip_if_missing()
@@ -279,7 +279,7 @@ class TestSearchCommand:
         assert result.exit_code == 0
         assert "Python Guide" in result.output
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_search_no_results(self, mock_httpx: MagicMock, runner: Any) -> None:
         """search with no matches should display an appropriate message."""
         _skip_if_missing()
@@ -291,7 +291,7 @@ class TestSearchCommand:
 
         assert result.exit_code == 0
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_search_empty_query_rejected(
         self, mock_httpx: MagicMock, runner: Any
     ) -> None:
@@ -338,7 +338,7 @@ def _chat_response(
 class TestChatCommand:
     """chat command wraps POST /search/chat (single-shot + interactive REPL)."""
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_chat_single_shot_prints_answer_and_sources(
         self, mock_httpx: MagicMock, runner: Any
     ) -> None:
@@ -355,7 +355,7 @@ class TestChatCommand:
         assert url.endswith("/api/v1/agent/chat")
         assert mock_httpx.post.call_args.kwargs["json"]["message"] == "what is python"
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_chat_json_output_emits_raw_body(
         self, mock_httpx: MagicMock, runner: Any
     ) -> None:
@@ -368,7 +368,7 @@ class TestChatCommand:
         assert result.exit_code == 0
         assert json.loads(result.output)["answer"] == "hi"
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_chat_session_id_forwarded(
         self, mock_httpx: MagicMock, runner: Any
     ) -> None:
@@ -381,7 +381,7 @@ class TestChatCommand:
         assert result.exit_code == 0
         assert mock_httpx.post.call_args.kwargs["json"]["session_id"] == "sess-9"
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_chat_error_response_exits_nonzero(
         self, mock_httpx: MagicMock, runner: Any
     ) -> None:
@@ -397,7 +397,7 @@ class TestChatCommand:
         assert result.exit_code == 1
         assert "agent_runner not initialised" in result.output
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_chat_interactive_repl_carries_session(
         self, mock_httpx: MagicMock, runner: Any
     ) -> None:
@@ -416,7 +416,7 @@ class TestChatCommand:
         assert mock_httpx.post.call_args.kwargs["json"]["message"] == "second"
         assert mock_httpx.post.call_args.kwargs["json"]["session_id"] == "sess-repl"
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_chat_interactive_confirms_pending_write(
         self, mock_httpx: MagicMock, runner: Any
     ) -> None:
@@ -451,7 +451,7 @@ class TestChatCommand:
         assert replay["confirm_token"] == "tok-1"
         assert replay["session_id"] == "sess-c"
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_chat_interactive_declines_pending_write(
         self, mock_httpx: MagicMock, runner: Any
     ) -> None:
@@ -475,7 +475,7 @@ class TestChatCommand:
         # only the initial turn was sent; no confirm replay
         assert mock_httpx.post.call_count == 1
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_chat_post_uses_generous_timeout(
         self, mock_httpx: MagicMock, runner: Any
     ) -> None:
@@ -508,7 +508,7 @@ class TestChatCommand:
 class TestOutputFormat:
     """AC-T044-5: table (default) and JSON (--json) output format."""
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_default_output_is_table(self, mock_httpx: MagicMock, runner: Any) -> None:
         """Without --json flag, output should be formatted as a table."""
         _skip_if_missing()
@@ -533,7 +533,7 @@ class TestOutputFormat:
         with pytest.raises(json.JSONDecodeError):
             json.loads(result.output)
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_json_flag_outputs_json(self, mock_httpx: MagicMock, runner: Any) -> None:
         """With --json flag, output should be valid JSON."""
         _skip_if_missing()
@@ -557,7 +557,7 @@ class TestOutputFormat:
         parsed = json.loads(result.output)
         assert isinstance(parsed, (dict, list))
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_json_flag_on_search(self, mock_httpx: MagicMock, runner: Any) -> None:
         """--json flag should also work on search command."""
         _skip_if_missing()
@@ -583,7 +583,7 @@ class TestOutputFormat:
 class TestApiConfiguration:
     """AC-T044-6: API url/key configured via env vars or CLI args."""
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_env_var_api_url(
         self, mock_httpx: MagicMock, runner: Any, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -603,7 +603,7 @@ class TestApiConfiguration:
         url_arg = str(call_args[0][0]) if call_args[0] else str(call_args)
         assert "custom-api:9000" in url_arg
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_env_var_api_key(
         self, mock_httpx: MagicMock, runner: Any, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -623,7 +623,7 @@ class TestApiConfiguration:
         headers = call_kwargs.kwargs.get("headers", {}) if call_kwargs.kwargs else {}
         assert "Authorization" in headers or "test-secret-key" in str(call_kwargs)
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_cli_arg_overrides_env_api_url(
         self, mock_httpx: MagicMock, runner: Any, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -644,7 +644,7 @@ class TestApiConfiguration:
         url_arg = str(call_args[0][0]) if call_args[0] else str(call_args)
         assert "cli-api:9999" in url_arg
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_cli_arg_overrides_env_api_key(
         self, mock_httpx: MagicMock, runner: Any, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -672,7 +672,7 @@ class TestApiConfiguration:
 class TestComposeCommands:
     """up/down/migrate/logs/ps wrap `docker compose` via subprocess."""
 
-    @patch("intellisource.cli.main.subprocess")
+    @patch("intellisource.cli.commands.stack.subprocess")
     def test_up_runs_compose_up_detached(
         self, mock_subprocess: MagicMock, runner: Any
     ) -> None:
@@ -690,7 +690,7 @@ class TestComposeCommands:
         # never shell=True — Windows path quoting safety
         assert mock_subprocess.run.call_args.kwargs.get("shell", False) is False
 
-    @patch("intellisource.cli.main.subprocess")
+    @patch("intellisource.cli.commands.stack.subprocess")
     def test_compose_file_is_absolute_anchored_path(
         self, mock_subprocess: MagicMock, runner: Any
     ) -> None:
@@ -707,7 +707,7 @@ class TestComposeCommands:
         assert compose_path.name == "docker-compose.yml"
         assert compose_path.parent.name == "docker"
 
-    @patch("intellisource.cli.main.subprocess")
+    @patch("intellisource.cli.commands.stack.subprocess")
     def test_down_runs_compose_down(
         self, mock_subprocess: MagicMock, runner: Any
     ) -> None:
@@ -719,7 +719,7 @@ class TestComposeCommands:
         assert result.exit_code == 0
         assert mock_subprocess.run.call_args[0][0][-1] == "down"
 
-    @patch("intellisource.cli.main.subprocess")
+    @patch("intellisource.cli.commands.stack.subprocess")
     def test_migrate_runs_compose_run_migrate(
         self, mock_subprocess: MagicMock, runner: Any
     ) -> None:
@@ -731,7 +731,7 @@ class TestComposeCommands:
         assert result.exit_code == 0
         assert mock_subprocess.run.call_args[0][0][-3:] == ["run", "--rm", "migrate"]
 
-    @patch("intellisource.cli.main.subprocess")
+    @patch("intellisource.cli.commands.stack.subprocess")
     def test_nonzero_exit_code_propagates(
         self, mock_subprocess: MagicMock, runner: Any
     ) -> None:
@@ -742,7 +742,7 @@ class TestComposeCommands:
 
         assert result.exit_code == 2
 
-    @patch("intellisource.cli.main.subprocess")
+    @patch("intellisource.cli.commands.stack.subprocess")
     def test_docker_missing_shows_friendly_error(
         self, mock_subprocess: MagicMock, runner: Any
     ) -> None:
@@ -776,7 +776,7 @@ def _seed_example_tree(root: pathlib.Path) -> None:
 class TestInitHardening:
     """init: path anchoring, provider validation, template seeding, -y mode."""
 
-    @patch("intellisource.cli.main.project_root")
+    @patch("intellisource.cli.commands.init.project_root")
     def test_non_interactive_generates_core_files(
         self, mock_root: MagicMock, runner: Any, tmp_path: pathlib.Path
     ) -> None:
@@ -794,7 +794,7 @@ class TestInitHardening:
         assert (tmp_path / "config" / "llm_models.yaml").is_file()
         assert (tmp_path / "config" / "sources" / "sources.yaml").is_file()
 
-    @patch("intellisource.cli.main.project_root")
+    @patch("intellisource.cli.commands.init.project_root")
     def test_non_interactive_writes_generated_api_key(
         self,
         mock_root: MagicMock,
@@ -816,7 +816,7 @@ class TestInitHardening:
         )
         assert key_line.split("=", 1)[1] not in ("", "change-me-in-production")
 
-    @patch("intellisource.cli.main.project_root")
+    @patch("intellisource.cli.commands.init.project_root")
     def test_invalid_provider_rejected_without_writing(
         self, mock_root: MagicMock, runner: Any, tmp_path: pathlib.Path
     ) -> None:
@@ -831,7 +831,7 @@ class TestInitHardening:
         assert result.exit_code != 0
         assert not (tmp_path / "docker" / ".env").exists()
 
-    @patch("intellisource.cli.main.project_root")
+    @patch("intellisource.cli.commands.init.project_root")
     def test_seeding_is_idempotent(
         self, mock_root: MagicMock, runner: Any, tmp_path: pathlib.Path
     ) -> None:
@@ -850,7 +850,7 @@ class TestInitHardening:
             encoding="utf-8"
         )
 
-    @patch("intellisource.cli.main.project_root")
+    @patch("intellisource.cli.commands.init.project_root")
     def test_interactive_reprompts_invalid_provider_choice(
         self, mock_root: MagicMock, runner: Any, tmp_path: pathlib.Path
     ) -> None:
@@ -916,7 +916,7 @@ class TestDoctorChecks:
         wework = next(i for i in items if i[0] == "channel wework")
         assert wework[1] is None
 
-    @patch("intellisource.cli.main.project_root")
+    @patch("intellisource.cli.commands.doctor.project_root")
     def test_doctor_command_runs_offline(
         self, mock_root: MagicMock, runner: Any, tmp_path: pathlib.Path
     ) -> None:
@@ -932,7 +932,7 @@ class TestDoctorChecks:
         assert result.exit_code == 0
         assert "Inspecting" in result.output
 
-    @patch("intellisource.cli.main.project_root")
+    @patch("intellisource.cli.commands.doctor.project_root")
     def test_doctor_strict_exits_nonzero_when_config_missing(
         self, mock_root: MagicMock, runner: Any, tmp_path: pathlib.Path
     ) -> None:
@@ -1015,7 +1015,7 @@ def _seed_doctor_clean_tree(root: pathlib.Path) -> None:
 class TestProbeApiHealth:
     """_probe_api_health classifies ok / starting / down and retries."""
 
-    @patch("intellisource.cli.main.httpx.get")
+    @patch("intellisource.cli.commands.doctor.httpx.get")
     def test_ok_returns_decoded_body(self, mock_get: MagicMock) -> None:
         _skip_if_missing()
         from intellisource.cli.main import _probe_api_health
@@ -1028,7 +1028,7 @@ class TestProbeApiHealth:
         assert isinstance(payload, dict)
         assert payload["status"] == "healthy"
 
-    @patch("intellisource.cli.main.httpx.get")
+    @patch("intellisource.cli.commands.doctor.httpx.get")
     def test_empty_body_is_starting_after_retries(self, mock_get: MagicMock) -> None:
         _skip_if_missing()
         from intellisource.cli.main import _probe_api_health
@@ -1042,7 +1042,7 @@ class TestProbeApiHealth:
         # exhausted all attempts before giving up
         assert mock_get.call_count == 3
 
-    @patch("intellisource.cli.main.httpx.get")
+    @patch("intellisource.cli.commands.doctor.httpx.get")
     def test_5xx_is_starting(self, mock_get: MagicMock) -> None:
         _skip_if_missing()
         from intellisource.cli.main import _probe_api_health
@@ -1056,7 +1056,7 @@ class TestProbeApiHealth:
         assert outcome == "starting"
         assert "503" in str(payload)
 
-    @patch("intellisource.cli.main.httpx.get")
+    @patch("intellisource.cli.commands.doctor.httpx.get")
     def test_connect_error_is_down(self, mock_get: MagicMock) -> None:
         _skip_if_missing()
         from intellisource.cli.main import _probe_api_health
@@ -1069,7 +1069,7 @@ class TestProbeApiHealth:
         assert "refused" in str(payload)
         assert mock_get.call_count == 2
 
-    @patch("intellisource.cli.main.httpx.get")
+    @patch("intellisource.cli.commands.doctor.httpx.get")
     def test_read_timeout_is_starting(self, mock_get: MagicMock) -> None:
         _skip_if_missing()
         from intellisource.cli.main import _probe_api_health
@@ -1080,7 +1080,7 @@ class TestProbeApiHealth:
 
         assert outcome == "starting"
 
-    @patch("intellisource.cli.main.httpx.get")
+    @patch("intellisource.cli.commands.doctor.httpx.get")
     def test_retries_then_succeeds(self, mock_get: MagicMock) -> None:
         _skip_if_missing()
         from intellisource.cli.main import _probe_api_health
@@ -1098,9 +1098,9 @@ class TestProbeApiHealth:
 class TestDoctorCheckApi:
     """doctor --check-api surfaces ok / starting / down distinctly."""
 
-    @patch("intellisource.cli.main.time.sleep")
-    @patch("intellisource.cli.main.httpx.get")
-    @patch("intellisource.cli.main.project_root")
+    @patch("intellisource.cli.commands.doctor.time.sleep")
+    @patch("intellisource.cli.commands.doctor.httpx.get")
+    @patch("intellisource.cli.commands.doctor.project_root")
     def test_check_api_ok_reports_status(
         self,
         mock_root: MagicMock,
@@ -1123,9 +1123,9 @@ class TestDoctorCheckApi:
         assert "[OK]" in result.output
         assert "healthy" in result.output
 
-    @patch("intellisource.cli.main.time.sleep")
-    @patch("intellisource.cli.main.httpx.get")
-    @patch("intellisource.cli.main.project_root")
+    @patch("intellisource.cli.commands.doctor.time.sleep")
+    @patch("intellisource.cli.commands.doctor.httpx.get")
+    @patch("intellisource.cli.commands.doctor.project_root")
     def test_check_api_down_reports_unreachable(
         self,
         mock_root: MagicMock,
@@ -1148,9 +1148,9 @@ class TestDoctorCheckApi:
         assert "unreachable" in result.output
         assert "intellisource up" in result.output
 
-    @patch("intellisource.cli.main.time.sleep")
-    @patch("intellisource.cli.main.httpx.get")
-    @patch("intellisource.cli.main.project_root")
+    @patch("intellisource.cli.commands.doctor.time.sleep")
+    @patch("intellisource.cli.commands.doctor.httpx.get")
+    @patch("intellisource.cli.commands.doctor.project_root")
     def test_check_api_starting_is_soft_note_in_non_strict(
         self,
         mock_root: MagicMock,
@@ -1173,9 +1173,9 @@ class TestDoctorCheckApi:
         assert "starting up" in result.output
         assert "[FAIL]" not in result.output
 
-    @patch("intellisource.cli.main.time.sleep")
-    @patch("intellisource.cli.main.httpx.get")
-    @patch("intellisource.cli.main.project_root")
+    @patch("intellisource.cli.commands.doctor.time.sleep")
+    @patch("intellisource.cli.commands.doctor.httpx.get")
+    @patch("intellisource.cli.commands.doctor.project_root")
     def test_check_api_starting_fails_gate_in_strict(
         self,
         mock_root: MagicMock,
@@ -1204,7 +1204,7 @@ class TestDoctorCheckApi:
 
 
 class TestSourceShowVersionsDiff:
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_source_show_renders_detail(
         self, mock_httpx: MagicMock, runner: Any
     ) -> None:
@@ -1223,7 +1223,7 @@ class TestSourceShowVersionsDiff:
         assert mock_httpx.get.call_args.args[0].endswith("/api/v1/sources/src-1")
         assert "name: hn" in result.output
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_source_show_404_exits_1(self, mock_httpx: MagicMock, runner: Any) -> None:
         _skip_if_missing()
         mock_httpx.get.return_value = _mock_response(status_code=404)
@@ -1231,7 +1231,7 @@ class TestSourceShowVersionsDiff:
         assert result.exit_code == 1
         assert "Not found" in result.output
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_source_update_sends_url_type_tags_schedule(
         self, mock_httpx: MagicMock, runner: Any
     ) -> None:
@@ -1262,7 +1262,7 @@ class TestSourceShowVersionsDiff:
         assert body["tags"] == ["ai", "security"]
         assert body["schedule_interval"] == 1800
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_source_update_no_fields_exits_2(
         self, mock_httpx: MagicMock, runner: Any
     ) -> None:
@@ -1272,7 +1272,7 @@ class TestSourceShowVersionsDiff:
         assert "Nothing to update" in result.output
         mock_httpx.patch.assert_not_called()
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_source_versions_lists(self, mock_httpx: MagicMock, runner: Any) -> None:
         _skip_if_missing()
         mock_httpx.get.return_value = _mock_response(
@@ -1283,7 +1283,7 @@ class TestSourceShowVersionsDiff:
         assert "config/versions" in mock_httpx.get.call_args.args[0]
         assert "config_count" in result.output
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_source_diff_marks_preserve(
         self, mock_httpx: MagicMock, runner: Any
     ) -> None:
@@ -1308,7 +1308,7 @@ class TestSourceShowVersionsDiff:
 
 
 class TestConfigStatus:
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_config_status_aggregates_both_domains(
         self, mock_httpx: MagicMock, runner: Any
     ) -> None:
@@ -1350,7 +1350,7 @@ class TestConfigStatus:
         assert "latest recorded version: 5" in out
         assert "reload will PAUSE" in out
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_config_status_handles_diff_error(
         self, mock_httpx: MagicMock, runner: Any
     ) -> None:

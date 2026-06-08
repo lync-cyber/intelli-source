@@ -77,7 +77,7 @@ def test_pipeline_list_returns_known_configs() -> None:
         assert "/api/v1/pipelines" in url
         return mock_resp
 
-    with patch("intellisource.cli.main.httpx.get", side_effect=fake_get):
+    with patch("intellisource.cli._client.httpx.get", side_effect=fake_get):
         runner = CliRunner()
         result = runner.invoke(cli_app, ["pipeline", "list", "--json"])
 
