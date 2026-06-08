@@ -70,6 +70,32 @@
     .sources li { margin: 2px 0; color: var(--muted); }
     .status { font-size: 12px; color: var(--muted); font-style: italic; }
     .error { color: #f85149; }
+    .confirm {
+      margin-top: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      background: #2a1f0f;
+    }
+    .confirm .title { font-size: 13px; color: #e3b341; margin-bottom: 6px; }
+    .confirm pre {
+      margin: 0 0 10px;
+      font-size: 12px;
+      color: var(--text);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .confirm .actions { display: flex; gap: 8px; }
+    .confirm button {
+      border: none;
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      color: #fff;
+    }
+    .confirm button.yes { background: var(--accent); }
+    .confirm button.no { background: #3a4450; }
     footer {
       border-top: 1px solid var(--border);
       padding: 12px 16px;
@@ -114,7 +140,7 @@
   </header>
 
   <div id="log">
-    <div class="hint">向已采集的资料库提问，回答基于检索结果（RAG）实时流式生成。</div>
+    <div class="hint">向 IntelliSource 助手提问：可基于已采集资料检索作答（RAG），也可管理信源 / 订阅 / 模板 / 管线并触发运行；写操作会请你确认后执行。</div>
   </div>
 
   <footer>
@@ -124,7 +150,7 @@
 
   <script>
     "use strict";
-    const STREAM_URL = "/api/v1/search/chat/stream";
+    const STREAM_URL = "/api/v1/agent/chat/stream";
     const logEl = document.getElementById("log");
     const inputEl = document.getElementById("input");
     const sendBtn = document.getElementById("send");
@@ -190,20 +216,61 @@
       }
     }
 
-    async function send() {
+    function renderConfirm(wrap, pending, confirmToken) {
+      const box = document.createElement("div");
+      box.className = "confirm";
+      const title = document.createElement("div");
+      title.className = "title";
+      title.textContent = "需要确认的写操作";
+      const pre = document.createElement("pre");
+      pre.textContent = pending
+        .map((c, i) => `[${i + 1}] ${c.tool}  ${JSON.stringify(c.args || {})}`)
+        .join("\n");
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      const yes = document.createElement("button");
+      yes.className = "yes";
+      yes.textContent = "确认执行";
+      const no = document.createElement("button");
+      no.className = "no";
+      no.textContent = "取消";
+      yes.addEventListener("click", () => { box.remove(); streamTurn("确认执行", confirmToken); });
+      no.addEventListener("click", () => {
+        box.remove();
+        const note = document.createElement("div");
+        note.className = "status";
+        note.textContent = "已取消。";
+        wrap.appendChild(note);
+      });
+      actions.appendChild(yes);
+      actions.appendChild(no);
+      box.appendChild(title);
+      box.appendChild(pre);
+      box.appendChild(actions);
+      wrap.appendChild(box);
+      scrollDown();
+    }
+
+    function send() {
       const message = inputEl.value.trim();
       if (!message || busy) return;
-      busy = true;
-      sendBtn.disabled = true;
       inputEl.value = "";
       inputEl.style.height = "auto";
+      streamTurn(message, null);
+    }
 
-      addMessage("user").bubble.textContent = message;
+    async function streamTurn(message, confirmToken) {
+      if (busy) return;
+      busy = true;
+      sendBtn.disabled = true;
+
+      addMessage("user").bubble.textContent = confirmToken ? "✓ 确认执行" : message;
       const { wrap, bubble } = addMessage("assistant");
-      setStatus(bubble, "检索中…");
+      setStatus(bubble, "处理中…");
 
       const body = { message };
       if (sessionId) body.session_id = sessionId;
+      if (confirmToken) body.confirm_token = confirmToken;
       const headers = { "Content-Type": "application/json" };
       const key = apiKeyEl.value.trim();
       if (key) headers["X-API-Key"] = key;
@@ -261,13 +328,18 @@
           scrollDown();
           break;
         }
-        case "done":
-          if (evt.metadata && evt.metadata.session_id) {
-            sessionId = evt.metadata.session_id;
+        case "done": {
+          const meta = evt.metadata || {};
+          if (meta.session_id) {
+            sessionId = meta.session_id;
             sessionEl.textContent = "session: " + sessionId.slice(0, 8);
           }
           if (!getAnswer()) bubble.textContent = "(无回答)";
+          if (meta.confirm_token && meta.pending_confirmations && meta.pending_confirmations.length) {
+            renderConfirm(wrap, meta.pending_confirmations, meta.confirm_token);
+          }
           break;
+        }
         case "error":
           bubble.innerHTML = `<span class="error">出错: ${evt.detail || "unknown"}</span>`;
           break;

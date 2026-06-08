@@ -34,6 +34,8 @@ from intellisource.agent.response_utils import extract_answer
 from intellisource.api.chat_sessions import persist_turn, prepare_session
 from intellisource.api.confirm_token import mint_confirm_token, parse_confirm_token
 from intellisource.api.errors import error_json
+from intellisource.api.routers.search import _extract_sources
+from intellisource.api.schemas.search import ChatSource
 from intellisource.observability.logging import get_logger
 from intellisource.pipeline.definition_service import load_pipeline_config
 
@@ -73,6 +75,7 @@ class AgentChatResponse(BaseModel):
     task_chain_id: str
     session_id: str
     tools_used: list[str]
+    sources: list[ChatSource] = []
     results: list[dict[str, Any]] = []
     confirm_token: str | None = None
     pending_confirmations: list[dict[str, Any]] = []
@@ -147,6 +150,7 @@ async def agent_chat(request: Request, body: AgentChatRequest) -> Any:
         task_chain_id=str(flex_result.get("task_chain_id", "")),
         session_id=str(response_session_uuid),
         tools_used=_tools_used(flex_result),
+        sources=_extract_sources(flex_result),
         results=results,
         confirm_token=confirm_token,
         pending_confirmations=pending,

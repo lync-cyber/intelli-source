@@ -314,17 +314,23 @@ def _chat_response(
     answer: str = "Python is a programming language.",
     session_id: str = "sess-1",
     sources: list[dict[str, Any]] | None = None,
+    pending_confirmations: list[dict[str, Any]] | None = None,
+    confirm_token: str | None = None,
 ) -> MagicMock:
     return _mock_response(
         json_data={
             "session_id": session_id,
             "answer": answer,
+            "pipeline": "admin-agent",
             "sources": sources
             if sources is not None
             else [{"title": "Python Guide", "url": "https://example.com/py"}],
-            "query_time_ms": 12,
             "steps_executed": 2,
             "task_chain_id": "tc-1",
+            "tools_used": ["search"],
+            "results": [],
+            "pending_confirmations": pending_confirmations or [],
+            "confirm_token": confirm_token,
         }
     )
 
@@ -336,7 +342,7 @@ class TestChatCommand:
     def test_chat_single_shot_prints_answer_and_sources(
         self, mock_httpx: MagicMock, runner: Any
     ) -> None:
-        """chat MESSAGE should POST /search/chat and print the answer + sources."""
+        """chat MESSAGE should POST /agent/chat and print the answer + sources."""
         _skip_if_missing()
         mock_httpx.post.return_value = _chat_response()
 
@@ -346,7 +352,7 @@ class TestChatCommand:
         assert "Python is a programming language." in result.output
         assert "Python Guide" in result.output
         url = mock_httpx.post.call_args.args[0]
-        assert url.endswith("/api/v1/search/chat")
+        assert url.endswith("/api/v1/agent/chat")
         assert mock_httpx.post.call_args.kwargs["json"]["message"] == "what is python"
 
     @patch("intellisource.cli.main.httpx")
@@ -409,6 +415,65 @@ class TestChatCommand:
         # the second turn carries the session id returned by the first reply
         assert mock_httpx.post.call_args.kwargs["json"]["message"] == "second"
         assert mock_httpx.post.call_args.kwargs["json"]["session_id"] == "sess-repl"
+
+    @patch("intellisource.cli.main.httpx")
+    def test_chat_interactive_confirms_pending_write(
+        self, mock_httpx: MagicMock, runner: Any
+    ) -> None:
+        """A pending write is shown, approved, and replayed with its token.
+
+        The agent answers with a confirm-gated action (pending_confirmations +
+        confirm_token); the REPL prints it, the user answers 'y', and the CLI
+        replays the signed token so the runner executes exactly that call.
+        """
+        _skip_if_missing()
+        pending = _chat_response(
+            answer="将把 c1 推送给 s1，确认？",
+            session_id="sess-c",
+            sources=[],
+            pending_confirmations=[
+                {"tool": "distribute", "args": {"content_id": "c1"}}
+            ],
+            confirm_token="tok-1",
+        )
+        done = _chat_response(answer="已推送。", session_id="sess-c", sources=[])
+        mock_httpx.post.side_effect = [pending, done]
+
+        # message → 'y' (confirm) → blank line (leave REPL)
+        result = runner.invoke(app, ["chat"], input="把 c1 推给 s1\ny\n\n")
+
+        assert result.exit_code == 0
+        assert "需要确认的写操作" in result.output
+        assert "distribute" in result.output
+        assert "已推送。" in result.output
+        assert mock_httpx.post.call_count == 2
+        replay = mock_httpx.post.call_args.kwargs["json"]
+        assert replay["confirm_token"] == "tok-1"
+        assert replay["session_id"] == "sess-c"
+
+    @patch("intellisource.cli.main.httpx")
+    def test_chat_interactive_declines_pending_write(
+        self, mock_httpx: MagicMock, runner: Any
+    ) -> None:
+        """Declining a pending write cancels it — no replay request is sent."""
+        _skip_if_missing()
+        mock_httpx.post.return_value = _chat_response(
+            answer="将把 c1 推送给 s1，确认？",
+            session_id="sess-c",
+            sources=[],
+            pending_confirmations=[
+                {"tool": "distribute", "args": {"content_id": "c1"}}
+            ],
+            confirm_token="tok-1",
+        )
+
+        # message → 'n' (decline) → blank line (leave REPL)
+        result = runner.invoke(app, ["chat"], input="把 c1 推给 s1\nn\n\n")
+
+        assert result.exit_code == 0
+        assert "已取消" in result.output
+        # only the initial turn was sent; no confirm replay
+        assert mock_httpx.post.call_count == 1
 
     @patch("intellisource.cli.main.httpx")
     def test_chat_post_uses_generous_timeout(
