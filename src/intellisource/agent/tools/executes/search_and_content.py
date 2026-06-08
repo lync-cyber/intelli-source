@@ -6,6 +6,7 @@ import uuid as _uuid
 from typing import Any
 
 from intellisource.agent.deps import ToolDeps
+from intellisource.agent.tools._spec import ToolDefinition
 from intellisource.agent.tools.results import tool_degraded
 from intellisource.llm.prompts import load_prompt
 from intellisource.observability.logging import get_logger
@@ -128,3 +129,42 @@ async def _summarize_for_user_execute(
     return tool_degraded(
         "summarize_for_user", "tool_deps not injected", content_id=content_id
     )
+
+
+READ_TOOL_DEFS: list[ToolDefinition] = [
+    ToolDefinition(
+        name="search",
+        description="Search the knowledge base using keyword and semantic search.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "top_k": {"type": "integer"},
+            },
+        },
+        execute=_search_execute,
+    ),
+    ToolDefinition(
+        name="get_content_detail",
+        description="Retrieve detailed content by ID.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "content_id": {"type": "string"},
+            },
+        },
+        execute=_get_content_detail_execute,
+    ),
+    ToolDefinition(
+        name="summarize_for_user",
+        description="Summarize retrieved content for user response.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "content": {"type": "string"},
+                "format": {"type": "string"},
+            },
+        },
+        execute=_summarize_for_user_execute,
+    ),
+]

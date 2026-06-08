@@ -20,17 +20,13 @@ from pathlib import Path
 from typing import Any, Callable, Coroutine
 
 from intellisource.agent.tools._spec import PermissionLevel, ToolDefinition
-from intellisource.agent.tools.executes.collect import _collect_execute
-from intellisource.agent.tools.executes.distribute import _distribute_execute
+from intellisource.agent.tools.executes.collect import COLLECT_TOOL_DEF
+from intellisource.agent.tools.executes.distribute import DISTRIBUTE_TOOL_DEF
 from intellisource.agent.tools.executes.llm import _llm_complete_execute
 from intellisource.agent.tools.executes.manage import MANAGEMENT_TOOL_DEFS
-from intellisource.agent.tools.executes.process import _process_execute
+from intellisource.agent.tools.executes.process import PROCESS_TOOL_DEF
 from intellisource.agent.tools.executes.run import RUN_TOOL_DEFS
-from intellisource.agent.tools.executes.search_and_content import (
-    _get_content_detail_execute,
-    _search_execute,
-    _summarize_for_user_execute,
-)
+from intellisource.agent.tools.executes.search_and_content import READ_TOOL_DEFS
 from intellisource.agent.tools.executes.summarize_cluster import summarize_cluster
 from intellisource.observability.logging import get_logger
 from intellisource.pipeline.processors import tools as atomic_tools
@@ -347,134 +343,8 @@ def _atomic_tool_defs() -> list[ToolDefinition]:
 
 
 def _default_tool_defs() -> list[ToolDefinition]:
-    """Return the six built-in tool definitions."""
-    return [
-        ToolDefinition(
-            name="collect",
-            description="Collect content from a configured source (RSS, web, etc.)",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "source_id": {
-                        "type": "string",
-                        "description": "UUID of the source to collect from.",
-                    },
-                    "source_type": {
-                        "type": "string",
-                        "description": (
-                            "Source adapter type (rss/web/api); inferred from the"
-                            " source row when omitted."
-                        ),
-                    },
-                },
-            },
-            execute=_collect_execute,
-        ),
-        ToolDefinition(
-            name="process",
-            description="Process raw content through the cleaning/extraction pipeline.",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "content_id": {
-                        "type": "string",
-                        "description": "Single raw content UUID to process.",
-                    },
-                    "raw_content_ids": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": (
-                            "Batch of raw content UUIDs; takes precedence over"
-                            " content_id when provided."
-                        ),
-                    },
-                },
-                # At least one content identifier must be supplied (single id or
-                # the batch list); a call with neither is a no-op.
-                "anyOf": [
-                    {"required": ["content_id"]},
-                    {"required": ["raw_content_ids"]},
-                ],
-            },
-            execute=_process_execute,
-            mutates_external_state=True,
-        ),
-        ToolDefinition(
-            name="distribute",
-            description=(
-                "Distribute processed content to subscribers via configured channels."
-            ),
-            parameters={
-                "type": "object",
-                "properties": {
-                    "content_id": {
-                        "type": "string",
-                        "description": "Single processed content UUID to distribute.",
-                    },
-                    "processed_content_ids": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": (
-                            "Batch of processed content UUIDs; takes precedence over"
-                            " content_id when provided."
-                        ),
-                    },
-                    "subscription_id": {
-                        "type": "string",
-                        "description": (
-                            "Target subscription UUID; when omitted, fans out to all"
-                            " active subscriptions matching the content."
-                        ),
-                    },
-                },
-                # At least one content identifier is required (single id or the
-                # batch list). subscription_id stays optional on purpose: omitting
-                # it fans out to every matching active subscription.
-                "anyOf": [
-                    {"required": ["content_id"]},
-                    {"required": ["processed_content_ids"]},
-                ],
-            },
-            execute=_distribute_execute,
-            permission_level=PermissionLevel.confirm,
-            mutates_external_state=True,
-        ),
-        ToolDefinition(
-            name="search",
-            description="Search the knowledge base using keyword and semantic search.",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string"},
-                    "top_k": {"type": "integer"},
-                },
-            },
-            execute=_search_execute,
-        ),
-        ToolDefinition(
-            name="get_content_detail",
-            description="Retrieve detailed content by ID.",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "content_id": {"type": "string"},
-                },
-            },
-            execute=_get_content_detail_execute,
-        ),
-        ToolDefinition(
-            name="summarize_for_user",
-            description="Summarize retrieved content for user response.",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "content": {"type": "string"},
-                    "format": {"type": "string"},
-                },
-            },
-            execute=_summarize_for_user_execute,
-        ),
-    ]
+    """Return the six built-in tool definitions (co-located in their modules)."""
+    return [COLLECT_TOOL_DEF, PROCESS_TOOL_DEF, DISTRIBUTE_TOOL_DEF, *READ_TOOL_DEFS]
 
 
 def _management_tool_defs() -> list[ToolDefinition]:
