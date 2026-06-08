@@ -394,7 +394,7 @@ _ATOMIC_TOOL_NAMES = [
     "fingerprint_dedup",
     "find_nearest_cluster",
     "tfidf_keywords",
-    "truncate_summary",
+    "summarize_cluster",
     "keyword_tag",
     "filter_sensitive",
     "truncate_for_push",

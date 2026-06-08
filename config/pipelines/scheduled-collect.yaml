@@ -10,7 +10,7 @@ tools_allowed:
   - fingerprint_generate
   - fingerprint_dedup
   - tfidf_keywords
-  - truncate_summary
+  - summarize_cluster
   - keyword_tag
   - filter_sensitive
 tools_denied: []

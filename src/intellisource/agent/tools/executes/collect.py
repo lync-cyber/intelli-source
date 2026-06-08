@@ -6,6 +6,7 @@ import uuid as _uuid
 from typing import Any
 
 from intellisource.agent.deps import ToolDeps
+from intellisource.agent.tools._spec import ToolDefinition
 from intellisource.agent.tools.results import tool_degraded
 from intellisource.observability.logging import get_logger
 
@@ -161,3 +162,26 @@ async def _collect_execute(
         "source_id": source_id,
         "source_type": source_type,
     }
+
+
+COLLECT_TOOL_DEF = ToolDefinition(
+    name="collect",
+    description="Collect content from a configured source (RSS, web, etc.)",
+    parameters={
+        "type": "object",
+        "properties": {
+            "source_id": {
+                "type": "string",
+                "description": "UUID of the source to collect from.",
+            },
+            "source_type": {
+                "type": "string",
+                "description": (
+                    "Source adapter type (rss/web/api); inferred from the"
+                    " source row when omitted."
+                ),
+            },
+        },
+    },
+    execute=_collect_execute,
+)

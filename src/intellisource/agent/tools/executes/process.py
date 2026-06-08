@@ -8,6 +8,7 @@ from typing import Any
 
 from intellisource.agent.deps import ToolDeps
 from intellisource.agent.tool_results import ProcessItemResult
+from intellisource.agent.tools._spec import ToolDefinition
 from intellisource.agent.tools.results import tool_degraded
 from intellisource.observability.logging import get_logger
 
@@ -161,3 +162,34 @@ async def _process_execute(
         "processed_content_ids": processed_content_ids,
         "content_id": first_processed_id,
     }
+
+
+PROCESS_TOOL_DEF = ToolDefinition(
+    name="process",
+    description="Process raw content through the cleaning/extraction pipeline.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "content_id": {
+                "type": "string",
+                "description": "Single raw content UUID to process.",
+            },
+            "raw_content_ids": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "Batch of raw content UUIDs; takes precedence over"
+                    " content_id when provided."
+                ),
+            },
+        },
+        # At least one content identifier must be supplied (single id or
+        # the batch list); a call with neither is a no-op.
+        "anyOf": [
+            {"required": ["content_id"]},
+            {"required": ["raw_content_ids"]},
+        ],
+    },
+    execute=_process_execute,
+    mutates_external_state=True,
+)
