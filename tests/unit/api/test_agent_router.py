@@ -100,6 +100,47 @@ async def test_agent_chat_runs_admin_agent_and_summarizes() -> None:
 
 
 @pytest.mark.asyncio
+async def test_agent_chat_returns_sources_from_search_step() -> None:
+    """RAG parity: /agent/chat surfaces cited sources like /search/chat does.
+
+    The CLI and web chat both drive this endpoint, so a search step's hits must
+    be projected to the response ``sources`` list (deduped by content_id) for
+    the client to render citations.
+    """
+    runner = _StubRunner(
+        {
+            "final_answer": "基于检索结果……",
+            "steps_executed": 2,
+            "task_chain_id": "c",
+            "results": [
+                {
+                    "tool": "search",
+                    "output": {
+                        "response": {
+                            "items": [
+                                {"id": "c1", "title": "Doc 1", "url": "http://x/1"},
+                                {"id": "c1", "title": "Doc 1", "url": "http://x/1"},
+                                {"id": "c2", "title": "Doc 2", "url": "http://x/2"},
+                            ]
+                        }
+                    },
+                },
+            ],
+        }
+    )
+    app = _make_app(runner)
+
+    resp = await _post(app, {"message": "查 AI"})
+
+    body = resp.json()
+    assert resp.status_code == 200
+    assert body["sources"] == [
+        {"title": "Doc 1", "url": "http://x/1", "content_id": "c1"},
+        {"title": "Doc 2", "url": "http://x/2", "content_id": "c2"},
+    ]
+
+
+@pytest.mark.asyncio
 async def test_agent_chat_503_when_runner_absent() -> None:
     app = _make_app(None)
 

@@ -9,7 +9,10 @@ from sqlalchemy import Text, event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from intellisource.config.pipeline_models import PipelineConfig
-from intellisource.pipeline.definition_service import PipelineDefinitionService
+from intellisource.pipeline.definition_service import (
+    PipelineDefinitionService,
+    load_pipeline_config,
+)
 from intellisource.storage.models import Base
 
 SQLITE_TEST_URL = "sqlite+aiosqlite:///:memory:"
@@ -53,6 +56,27 @@ def _config(name: str = "instant-search") -> PipelineConfig:
             ],
         }
     )
+
+
+class TestAdminAgentSeedConfig:
+    """The user-facing chat drives admin-agent; deletes must stay confirm-gated."""
+
+    def test_admin_agent_gates_destructive_deletes_at_confirm(self) -> None:
+        config = load_pipeline_config("admin-agent")
+        perms = config.tool_permissions
+        for tool in (
+            "delete_source",
+            "delete_subscription",
+            "delete_pipeline",
+            "delete_template",
+        ):
+            assert perms.get(tool) == "confirm", f"{tool} must require confirmation"
+
+    def test_admin_agent_keeps_non_destructive_writes_auto(self) -> None:
+        """create_/update_ stay auto — only destructive ops need confirmation."""
+        perms = load_pipeline_config("admin-agent").tool_permissions
+        assert "create_source" not in perms
+        assert "update_source" not in perms
 
 
 class TestCreateAndRead:

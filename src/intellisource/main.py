@@ -363,7 +363,7 @@ def create_app() -> FastAPI:
     app.include_router(agent.router, prefix="/api/v1")
 
     # Minimal chat web UI served at root /chat (no /api/v1 prefix); its browser
-    # JS calls the versioned /api/v1/search/chat/stream endpoint.
+    # JS calls the versioned /api/v1/agent/chat/stream endpoint.
     app.include_router(web.router)
 
     # Health endpoints (root-level + API-versioned per AC-T042-6)

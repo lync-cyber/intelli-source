@@ -1,7 +1,7 @@
 """Tests for the minimal chat web UI router (GET /chat).
 
 The page is a static HTML+SSE frontend that streams the protected
-``/api/v1/search/chat/stream`` endpoint; the page itself must be public so a
+``/api/v1/agent/chat/stream`` endpoint; the page itself must be public so a
 browser (which cannot attach the X-API-Key header) can load it.
 """
 
@@ -37,7 +37,7 @@ async def test_chat_page_served_as_html_and_wires_sse_endpoint(
         resp = await client.get("/chat")  # deliberately no X-API-Key header
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/html")
-    assert "/api/v1/search/chat/stream" in resp.text
+    assert "/api/v1/agent/chat/stream" in resp.text
 
 
 def test_chat_path_is_auth_exempt() -> None:

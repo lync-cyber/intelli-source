@@ -7,6 +7,7 @@ rather than treating the return value as a plain dict.
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 from intellisource.agent.runner import AgentRunner
@@ -282,6 +283,72 @@ class TestRunFlexibleConsumesLLMResult:
         result = await runner.run_flexible(config, user_message="hello", session={})
 
         assert result["final_answer"] == "final answer"
+
+    async def test_default_system_prompt_injected_when_config_has_none(self) -> None:
+        """Non-stream run_flexible injects the IntelliSource identity+tools prompt.
+
+        Mirrors the streaming path (run_flexible_stream), which falls back to
+        ``_default_system_prompt`` when the pipeline declares no system_prompt.
+        Without parity here, the CLI (non-stream /search/chat) loses its
+        identity while the web (stream) keeps it — the model drifts to a
+        generic ``我是你的智能助手`` answer.
+        """
+        captured: dict[str, Any] = {}
+
+        async def _chat(*, messages: list[dict[str, Any]], **_: Any) -> LLMResult:
+            captured["messages"] = messages
+            return LLMResult(
+                content="hi",
+                metadata={"tool_calls": None, "finish_reason": "stop", "usage": {}},
+            )
+
+        llm_gw = AsyncMock()
+        llm_gw.chat = AsyncMock(side_effect=_chat)
+        registry = _make_tool_registry("search", "get_content_detail")
+        runner = AgentRunner(tool_registry=registry, llm_gateway=llm_gw)
+        config = _flexible_config(
+            "no-prompt", tools_allowed=["search", "get_content_detail"]
+        )
+
+        await runner.run_flexible(config, user_message="你是谁", session={})
+
+        system_msg = captured["messages"][0]
+        assert system_msg["role"] == "system"
+        text = system_msg["content"]
+        assert "IntelliSource" in text
+        assert "search" in text and "get_content_detail" in text
+
+    async def test_configured_system_prompt_takes_precedence(self) -> None:
+        """An explicit pipeline system_prompt is used verbatim (no fallback)."""
+        captured: dict[str, Any] = {}
+
+        async def _chat(*, messages: list[dict[str, Any]], **_: Any) -> LLMResult:
+            captured["messages"] = messages
+            return LLMResult(
+                content="ok",
+                metadata={"tool_calls": None, "finish_reason": "stop", "usage": {}},
+            )
+
+        llm_gw = AsyncMock()
+        llm_gw.chat = AsyncMock(side_effect=_chat)
+        registry = _make_tool_registry("search")
+        runner = AgentRunner(tool_registry=registry, llm_gateway=llm_gw)
+        config = PipelineConfig.from_dict(
+            {
+                "name": "custom-prompt",
+                "mode": "flexible",
+                "tools_allowed": ["search"],
+                "tools_denied": [],
+                "steps": [],
+                "max_steps": 5,
+                "on_failure": "skip",
+                "system_prompt": "CUSTOM-PROMPT-SENTINEL",
+            }
+        )
+
+        await runner.run_flexible(config, user_message="hi", session={})
+
+        assert captured["messages"][0]["content"] == "CUSTOM-PROMPT-SENTINEL"
 
     async def test_tool_result_roundtrip_has_assistant_tool_call_message(self) -> None:
         """P1-8: tool result messages keep the provider-required protocol chain."""
