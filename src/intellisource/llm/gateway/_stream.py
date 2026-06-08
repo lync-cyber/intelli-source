@@ -31,6 +31,7 @@ class _StreamMixin:
         task_type: str | None = None,
         *,
         messages: list[dict[str, Any]] | None = None,
+        tools: list[dict[str, Any]] | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """Stream LLM completion via litellm.acompletion(stream=True).
 
@@ -38,12 +39,19 @@ class _StreamMixin:
         pre-built `messages` list (multi-turn / tool history). One of the two
         must be supplied.
 
+        When `tools` is supplied the function-calling deltas are accumulated by
+        index across chunks and the final event's metadata carries the assembled
+        ``tool_calls`` list plus ``finish_reason``, so a streaming agent loop can
+        decide whether the turn ended in tool calls or a final answer.
+
         Yields dicts of shape:
         - {"content": "...", "done": False} per chunk
         - {"content": "", "done": True, "metadata": {...}} final
         """
         if messages is None and prompt is None:
             raise ValueError("stream_complete requires either prompt= or messages=")
+        if tools is not None:
+            self._validate_tools(tools)
 
         resolved_model = resolve_model(
             self._routing_config, model, task_type, fallback_default=True
@@ -60,6 +68,8 @@ class _StreamMixin:
             stream=True,
             response_format=None,
         )
+        if tools is not None:
+            call_kwargs["tools"] = tools
         call_messages = call_kwargs["messages"]
 
         start_time = time.monotonic()
@@ -67,6 +77,8 @@ class _StreamMixin:
         input_tokens = 0
         output_tokens = 0
         final_model = resolved_model
+        tool_call_parts: dict[int, dict[str, str]] = {}
+        finish_reason = ""
 
         try:
             response = await self._unified_call_with_retry(
@@ -85,6 +97,11 @@ class _StreamMixin:
                 if delta_content:
                     accumulated_content += delta_content
                     yield {"content": delta_content, "done": False}
+                if tools is not None:
+                    _accumulate_tool_call_deltas(chunk, tool_call_parts)
+                    fr = _chunk_finish_reason(chunk)
+                    if fr:
+                        finish_reason = fr
                 try:
                     usage = chunk.usage
                     if usage is not None:
@@ -131,6 +148,21 @@ class _StreamMixin:
             "latency_ms": elapsed_ms,
             "model": final_model,
         }
+        if tools is not None:
+            assembled = [
+                {
+                    "id": part["id"],
+                    "type": "function",
+                    "function": {
+                        "name": part["name"],
+                        "arguments": part["arguments"],
+                    },
+                }
+                for _, part in sorted(tool_call_parts.items())
+                if part["name"]
+            ]
+            metadata["tool_calls"] = assembled or None
+            metadata["finish_reason"] = finish_reason
 
         if self._cost_tracker is not None or self._session_factory is not None:
             input_length = (
@@ -154,3 +186,43 @@ class _StreamMixin:
             await self._emit_call_log(record)
 
         yield {"content": "", "done": True, "metadata": metadata}
+
+
+def _chunk_finish_reason(chunk: Any) -> str:
+    """Read ``choices[0].finish_reason`` from a stream chunk, or '' if absent."""
+    try:
+        return str(chunk.choices[0].finish_reason or "")
+    except (AttributeError, IndexError, TypeError):
+        return ""
+
+
+def _accumulate_tool_call_deltas(chunk: Any, parts: dict[int, dict[str, str]]) -> None:
+    """Merge a chunk's ``delta.tool_calls`` fragments into ``parts`` by index.
+
+    litellm streams each tool call as index-keyed fragments: the first carries
+    ``id`` / ``function.name``, later ones append ``function.arguments`` string
+    pieces. Fragments may arrive out of order or with missing fields, so every
+    field is merged defensively.
+    """
+    try:
+        deltas = chunk.choices[0].delta.tool_calls
+    except (AttributeError, IndexError):
+        return
+    if not deltas:
+        return
+    for frag in deltas:
+        index = getattr(frag, "index", 0)
+        if not isinstance(index, int):
+            index = 0
+        slot = parts.setdefault(index, {"id": "", "name": "", "arguments": ""})
+        frag_id = getattr(frag, "id", None)
+        if frag_id:
+            slot["id"] = str(frag_id)
+        fn = getattr(frag, "function", None)
+        if fn is not None:
+            name = getattr(fn, "name", None)
+            if name:
+                slot["name"] = str(name)
+            args = getattr(fn, "arguments", None)
+            if args:
+                slot["arguments"] += str(args)

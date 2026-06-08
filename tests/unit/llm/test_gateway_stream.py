@@ -306,3 +306,122 @@ class TestStreamCompleteWithMessages:
         with pytest.raises(ValueError, match="prompt|messages"):
             async for _ in gw.stream_complete():
                 pass
+
+
+# ---------------------------------------------------------------------------
+# tools=: accumulate function-call deltas + finish_reason into done metadata
+# ---------------------------------------------------------------------------
+
+
+def _tc_frag(
+    index: int,
+    *,
+    call_id: str | None = None,
+    name: str | None = None,
+    arguments: str | None = None,
+) -> MagicMock:
+    frag = MagicMock()
+    frag.index = index
+    frag.id = call_id
+    if name is None and arguments is None:
+        frag.function = None
+    else:
+        frag.function = MagicMock(name=name, arguments=arguments)
+        # MagicMock(name=...) sets the mock's repr name, not a .name attr.
+        frag.function.name = name
+        frag.function.arguments = arguments
+    return frag
+
+
+def _tool_chunk(
+    *,
+    tool_calls: list[MagicMock] | None = None,
+    content: str = "",
+    finish_reason: str | None = None,
+) -> MagicMock:
+    m = MagicMock()
+    m.choices = [MagicMock()]
+    m.choices[0].delta = MagicMock(content=content)
+    m.choices[0].delta.tool_calls = tool_calls
+    m.choices[0].finish_reason = finish_reason
+    m.usage = None
+    m.model = None
+    return m
+
+
+_TOOLS_ARG: list[dict[str, Any]] = [
+    {"type": "function", "function": {"name": "search", "parameters": {}}}
+]
+
+
+class TestStreamCompleteWithTools:
+    """tools= accumulates tool_call deltas and surfaces them in done metadata."""
+
+    @pytest.mark.asyncio
+    async def test_tool_call_fragments_assembled_by_index(self) -> None:
+        chunks = [
+            _tool_chunk(
+                tool_calls=[
+                    _tc_frag(0, call_id="tc-1", name="search", arguments='{"q":')
+                ]
+            ),
+            _tool_chunk(tool_calls=[_tc_frag(0, arguments=' "ai"}')]),
+            _tool_chunk(finish_reason="tool_calls"),
+        ]
+        gw = LLMGateway()
+        with patch("litellm.acompletion", new_callable=AsyncMock) as mock_ac:
+            mock_ac.return_value = _AsyncIter(chunks)
+            events = []
+            async for ev in gw.stream_complete(prompt="q", tools=_TOOLS_ARG):
+                events.append(ev)
+
+        meta = events[-1]["metadata"]
+        assert meta["finish_reason"] == "tool_calls"
+        assert meta["tool_calls"] == [
+            {
+                "id": "tc-1",
+                "type": "function",
+                "function": {"name": "search", "arguments": '{"q": "ai"}'},
+            }
+        ]
+
+    @pytest.mark.asyncio
+    async def test_tools_forwarded_to_litellm(self) -> None:
+        gw = LLMGateway()
+        captured: dict[str, Any] = {}
+        with patch("litellm.acompletion", new_callable=AsyncMock) as mock_ac:
+
+            async def capture(**kwargs: Any) -> Any:
+                captured.update(kwargs)
+                return _AsyncIter([_tool_chunk(finish_reason="stop")])
+
+            mock_ac.side_effect = capture
+            async for _ in gw.stream_complete(prompt="q", tools=_TOOLS_ARG):
+                pass
+        assert captured.get("tools") == _TOOLS_ARG
+
+    @pytest.mark.asyncio
+    async def test_no_tool_calls_gives_none_with_finish_reason(self) -> None:
+        chunks = [
+            _tool_chunk(content="answer", finish_reason=None),
+            _tool_chunk(finish_reason="stop"),
+        ]
+        gw = LLMGateway()
+        with patch("litellm.acompletion", new_callable=AsyncMock) as mock_ac:
+            mock_ac.return_value = _AsyncIter(chunks)
+            events = []
+            async for ev in gw.stream_complete(prompt="q", tools=_TOOLS_ARG):
+                events.append(ev)
+
+        content_events = [e for e in events if not e["done"]]
+        assert content_events[0]["content"] == "answer"
+        meta = events[-1]["metadata"]
+        assert meta["tool_calls"] is None
+        assert meta["finish_reason"] == "stop"
+
+    @pytest.mark.asyncio
+    async def test_invalid_tools_rejected(self) -> None:
+        gw = LLMGateway()
+        with pytest.raises(ValueError):
+            async for _ in gw.stream_complete(prompt="q", tools=[{"bad": "shape"}]):
+                pass
