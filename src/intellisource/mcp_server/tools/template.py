@@ -10,6 +10,7 @@ from intellisource.config.template_models import (
     TemplateConfig,
     TemplateValidationError,
 )
+from intellisource.mcp_server._errors import invalid_input, not_found
 from intellisource.mcp_server._serialize import only_set
 from intellisource.mcp_server._types import SessionFactory
 from intellisource.template.service import TemplateService
@@ -50,7 +51,7 @@ def register_template_tools(mcp: FastMCP, session_cm: SessionFactory) -> None:
         async with session_cm() as session:
             row = await TemplateService(session).get_by_name(name)
         if row is None:
-            return {"error": "not_found", "name": name}
+            return not_found(name=name)
         return {
             "name": row.name,
             "base_template": row.base_template,
@@ -90,7 +91,7 @@ def register_template_tools(mcp: FastMCP, session_cm: SessionFactory) -> None:
                 aggregate_config=aggregate_config or {},
             )
         except Exception as exc:
-            return {"error": "invalid_input", "reason": str(exc)}
+            return invalid_input(str(exc))
         try:
             async with session_cm() as session:
                 created = await TemplateService(session).create(cfg)
@@ -101,7 +102,7 @@ def register_template_tools(mcp: FastMCP, session_cm: SessionFactory) -> None:
                 }
                 await session.commit()
         except TemplateValidationError as exc:
-            return {"error": "invalid_input", "reason": str(exc)}
+            return invalid_input(str(exc))
         return payload
 
     @mcp.tool(
@@ -133,13 +134,13 @@ def register_template_tools(mcp: FastMCP, session_cm: SessionFactory) -> None:
             status=status,
         )
         if not fields:
-            return {"error": "invalid_input", "reason": "no fields to update"}
+            return invalid_input("no fields to update")
         try:
             async with session_cm() as session:
                 service = TemplateService(session)
                 row = await service.get_by_name(name)
                 if row is None:
-                    return {"error": "not_found", "name": name}
+                    return not_found(name=name)
                 updated = await service.patch(row.id, fields)
                 payload = {
                     "name": updated.name,  # type: ignore[union-attr]
@@ -148,7 +149,7 @@ def register_template_tools(mcp: FastMCP, session_cm: SessionFactory) -> None:
                 }
                 await session.commit()
         except TemplateValidationError as exc:
-            return {"error": "invalid_input", "reason": str(exc)}
+            return invalid_input(str(exc))
         return payload
 
     @mcp.tool(

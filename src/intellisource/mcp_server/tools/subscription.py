@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import uuid as _uuid
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
 from intellisource.config.subscription_models import SubscriptionConfig
+from intellisource.mcp_server._errors import invalid_input, not_found, parse_uuid
 from intellisource.mcp_server._serialize import only_set, subscription_dict
 from intellisource.mcp_server._types import SessionFactory
 from intellisource.subscription.service import SubscriptionService
@@ -38,14 +38,13 @@ def register_subscription_tools(mcp: FastMCP, session_cm: SessionFactory) -> Non
         ),
     )
     async def get_subscription(subscription_id: str) -> dict[str, Any]:
-        try:
-            sid = _uuid.UUID(subscription_id)
-        except ValueError:
-            return {"error": "invalid_input", "reason": f"bad id: {subscription_id!r}"}
+        sid = parse_uuid(subscription_id, "subscription_id")
+        if isinstance(sid, dict):
+            return sid
         async with session_cm() as session:
             row = await SubscriptionService(session).get(sid)
         if row is None:
-            return {"error": "not_found", "subscription_id": subscription_id}
+            return not_found(subscription_id=subscription_id)
         return subscription_dict(row)
 
     @mcp.tool(
@@ -76,7 +75,7 @@ def register_subscription_tools(mcp: FastMCP, session_cm: SessionFactory) -> Non
                 }
             )
         except Exception as exc:
-            return {"error": "invalid_input", "reason": str(exc)}
+            return invalid_input(str(exc))
         try:
             async with session_cm() as session:
                 created = await SubscriptionService(session).create(cfg)
@@ -88,7 +87,7 @@ def register_subscription_tools(mcp: FastMCP, session_cm: SessionFactory) -> Non
                 }
                 await session.commit()
         except Exception as exc:
-            return {"error": "invalid_input", "reason": str(exc)}
+            return invalid_input(str(exc))
         return payload
 
     @mcp.tool(
@@ -111,10 +110,9 @@ def register_subscription_tools(mcp: FastMCP, session_cm: SessionFactory) -> Non
         timezone: str | None = None,
         status: str | None = None,
     ) -> dict[str, Any]:
-        try:
-            sid = _uuid.UUID(subscription_id)
-        except ValueError:
-            return {"error": "invalid_input", "reason": f"bad id: {subscription_id!r}"}
+        sid = parse_uuid(subscription_id, "subscription_id")
+        if isinstance(sid, dict):
+            return sid
         fields = only_set(
             name=name,
             channel_config=channel_config,
@@ -125,11 +123,11 @@ def register_subscription_tools(mcp: FastMCP, session_cm: SessionFactory) -> Non
             status=status,
         )
         if not fields:
-            return {"error": "invalid_input", "reason": "no fields to update"}
+            return invalid_input("no fields to update")
         async with session_cm() as session:
             updated = await SubscriptionService(session).patch(sid, fields)
             if updated is None:
-                return {"error": "not_found", "subscription_id": subscription_id}
+                return not_found(subscription_id=subscription_id)
             payload = subscription_dict(updated)
             await session.commit()
         return payload
@@ -144,10 +142,9 @@ def register_subscription_tools(mcp: FastMCP, session_cm: SessionFactory) -> Non
         ),
     )
     async def delete_subscription(subscription_id: str) -> dict[str, Any]:
-        try:
-            sid = _uuid.UUID(subscription_id)
-        except ValueError:
-            return {"error": "invalid_input", "reason": f"bad id: {subscription_id!r}"}
+        sid = parse_uuid(subscription_id, "subscription_id")
+        if isinstance(sid, dict):
+            return sid
         async with session_cm() as session:
             deleted = await SubscriptionService(session).delete(sid)
             await session.commit()
