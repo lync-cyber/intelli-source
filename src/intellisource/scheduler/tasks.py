@@ -36,30 +36,8 @@ __all__ = [
     "CeleryTasks",
     "assemble_daily_weekly_digests",
     "cleanup_chat_sessions",
-    "get_queue_for_priority",
-    "get_queue_for_trigger_type",
     "run_pipeline",
 ]
-
-
-def get_queue_for_priority(priority: str) -> str:
-    """Return the queue name for the given priority level.
-
-    Raises:
-        ValueError: If *priority* is not one of low/normal/high.
-    """
-    try:
-        return PRIORITY_QUEUES[priority]
-    except KeyError:
-        raise ValueError(
-            f"Invalid priority '{priority}'. "
-            f"Must be one of: {', '.join(PRIORITY_QUEUES)}"
-        ) from None
-
-
-def get_queue_for_trigger_type(trigger_type: str) -> str:
-    """Return the queue name for the given trigger type."""
-    return TRIGGER_TYPE_QUEUES[trigger_type]
 
 
 def _run_sync(coro_or_result: Any) -> Any:

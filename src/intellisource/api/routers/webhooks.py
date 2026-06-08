@@ -12,7 +12,7 @@ from fastapi.responses import PlainTextResponse
 
 from intellisource.agent.response_utils import extract_answer
 from intellisource.api.chat_sessions import MAX_HISTORY_TURNS
-from intellisource.api.webhook_crypto import WeComCrypto, WeComCryptoError
+from intellisource.core.webhook_crypto import WeComCrypto, WeComCryptoError
 from intellisource.observability.logging import get_logger
 from intellisource.pipeline.definition_service import load_pipeline_config
 

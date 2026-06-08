@@ -509,19 +509,6 @@ class TestPriorityQueues:
         mod = _import_tasks()
         assert "high" in mod.PRIORITY_QUEUES
 
-    def test_priority_routes_to_different_queues(self):
-        """Different priorities should map to different queues."""
-        mod = _import_tasks()
-        high_q = mod.get_queue_for_priority("high")
-        low_q = mod.get_queue_for_priority("low")
-        assert high_q != low_q
-
-    def test_default_priority_is_normal(self):
-        """Normal priority should resolve to a valid queue."""
-        mod = _import_tasks()
-        queue = mod.get_queue_for_priority("normal")
-        assert queue in mod.PRIORITY_QUEUES.values()
-
 
 # ===================================================================
 # AC-035: Scheduled vs manual tasks use independent queues
@@ -532,14 +519,6 @@ class TestIndependentQueues:
     """AC-035: Scheduled and manual tasks processed via
     independent queues in parallel."""
 
-    def test_scheduled_queue_differs_from_manual(self):
-        """Scheduled and manual trigger types should map to
-        different queue names."""
-        mod = _import_tasks()
-        scheduled_q = mod.get_queue_for_trigger_type("scheduled")
-        manual_q = mod.get_queue_for_trigger_type("manual")
-        assert scheduled_q != manual_q
-
     def test_scheduled_queue_is_defined(self):
         """A dedicated queue for scheduled tasks should exist."""
         mod = _import_tasks()
@@ -549,14 +528,6 @@ class TestIndependentQueues:
         """A dedicated queue for manual tasks should exist."""
         mod = _import_tasks()
         assert "manual" in mod.TRIGGER_TYPE_QUEUES
-
-    def test_trigger_type_scheduled_returns_queue(self):
-        """get_queue_for_trigger_type('scheduled') should return
-        a non-empty queue name."""
-        mod = _import_tasks()
-        queue = mod.get_queue_for_trigger_type("scheduled")
-        assert queue is not None
-        assert len(queue) > 0
 
 
 # ===================================================================
@@ -587,12 +558,6 @@ class TestEdgeCases:
         )
         with pytest.raises(IntelliSourceError):
             celery_tasks.run_pipeline("nonexistent", params={})
-
-    def test_invalid_priority_raises_value_error(self):
-        """An invalid priority value should raise ValueError."""
-        mod = _import_tasks()
-        with pytest.raises(ValueError):
-            mod.get_queue_for_priority("critical")
 
 
 # ===================================================================

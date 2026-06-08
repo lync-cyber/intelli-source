@@ -1,43 +1,22 @@
-"""Tests for TaskStateMachine and SchedulerManager (T-028).
+"""Tests for resolve_transition and SchedulerManager (T-028).
 
 Covers:
-- AC-038: State machine supports pending/running/success/failed/paused/
-          cancelled state transitions.
-- AC-039: Supports Celery Beat scheduled, manual trigger, and message
-          trigger modes.
-- AC-T028-1: pause operation suspends running task chain (revoke
-             pending subtasks).
-- AC-T028-2: resume operation resumes execution from paused point.
-- AC-T028-3: Task timeout (configurable) automatically marks as failed.
-- AC-T028-4: SchedulerManager manages Celery Beat schedule
-             registration and removal.
+- AC-T028-4: SchedulerManager manages Celery Beat schedule registration
+  and removal.
+- Stateless resolve_transition validation for DB-backed callers
+  (PATCH /tasks/{id} action wiring).
 """
 
 from __future__ import annotations
 
 import pytest
 
-# ===================================================================
-# Lazy imports (RED pattern -- expected to fail with ImportError)
-# ===================================================================
-
 
 def _import_state_machine():
-    """Lazy import of the state_machine module under test.
-
-    Raises ``ModuleNotFoundError`` (or ``ImportError``) when the
-    implementation does not yet exist -- which is the expected RED
-    state.
-    """
+    """Lazy import of the state_machine module under test."""
     import intellisource.scheduler.state_machine as mod
 
     return mod
-
-
-def _make_state_machine(**kwargs):
-    """Instantiate TaskStateMachine with optional overrides."""
-    mod = _import_state_machine()
-    return mod.TaskStateMachine(**kwargs)
 
 
 def _make_scheduler_manager(**kwargs):
@@ -46,89 +25,8 @@ def _make_scheduler_manager(**kwargs):
     return mod.SchedulerManager(**kwargs)
 
 
-# ===================================================================
-# AC-038: State machine supports all defined state transitions
-# ===================================================================
-
-
-class TestTaskStateMachineTransitions:
-    """AC-038: pending/running/success/failed/paused/cancelled
-    state transitions."""
-
-    def test_initial_state_is_pending(self):
-        """A newly created task should start in 'pending' state."""
-        sm = _make_state_machine()
-        state = sm.get_state("task-1")
-        assert state == "pending"
-
-    def test_start_transitions_pending_to_running(self):
-        """Action 'start' should transition pending -> running."""
-        sm = _make_state_machine()
-        sm.transition("task-1", "start")
-        assert sm.get_state("task-1") == "running"
-
-    def test_complete_transitions_running_to_success(self):
-        """Action 'complete' should transition running -> success."""
-        sm = _make_state_machine()
-        sm.transition("task-1", "start")
-        sm.transition("task-1", "complete")
-        assert sm.get_state("task-1") == "success"
-
-    def test_fail_transitions_running_to_failed(self):
-        """Action 'fail' should transition running -> failed."""
-        sm = _make_state_machine()
-        sm.transition("task-1", "start")
-        sm.transition("task-1", "fail")
-        assert sm.get_state("task-1") == "failed"
-
-    def test_pause_transitions_running_to_paused(self):
-        """Action 'pause' should transition running -> paused."""
-        sm = _make_state_machine()
-        sm.transition("task-1", "start")
-        sm.transition("task-1", "pause")
-        assert sm.get_state("task-1") == "paused"
-
-    def test_resume_transitions_paused_to_running(self):
-        """Action 'resume' should transition paused -> running."""
-        sm = _make_state_machine()
-        sm.transition("task-1", "start")
-        sm.transition("task-1", "pause")
-        sm.transition("task-1", "resume")
-        assert sm.get_state("task-1") == "running"
-
-    def test_cancel_from_pending(self):
-        """Action 'cancel' should transition pending -> cancelled."""
-        sm = _make_state_machine()
-        sm.transition("task-1", "cancel")
-        assert sm.get_state("task-1") == "cancelled"
-
-    def test_cancel_from_running(self):
-        """Action 'cancel' should transition running -> cancelled."""
-        sm = _make_state_machine()
-        sm.transition("task-1", "start")
-        sm.transition("task-1", "cancel")
-        assert sm.get_state("task-1") == "cancelled"
-
-    def test_cancel_from_paused(self):
-        """Action 'cancel' should transition paused -> cancelled."""
-        sm = _make_state_machine()
-        sm.transition("task-1", "start")
-        sm.transition("task-1", "pause")
-        sm.transition("task-1", "cancel")
-        assert sm.get_state("task-1") == "cancelled"
-
-    def test_timeout_transitions_running_to_failed(self):
-        """Action 'timeout' should transition running -> failed."""
-        sm = _make_state_machine()
-        sm.transition("task-1", "start")
-        sm.transition("task-1", "timeout")
-        assert sm.get_state("task-1") == "failed"
-
-    def test_valid_states_enumerated(self):
-        """The module should expose VALID_STATES with all 6 states."""
-        mod = _import_state_machine()
-        expected = {"pending", "running", "success", "failed", "paused", "cancelled"}
-        assert set(mod.VALID_STATES) == expected
+class TestTransitionConstants:
+    """Module-level constants backing resolve_transition."""
 
     def test_valid_actions_enumerated(self):
         """The module should expose VALID_ACTIONS with all 8 actions."""
@@ -145,15 +43,6 @@ class TestTaskStateMachineTransitions:
         }
         assert set(mod.VALID_ACTIONS) == expected
 
-
-# ===================================================================
-# AC-038 (boundary): Invalid transitions raise InvalidTransitionError
-# ===================================================================
-
-
-class TestInvalidTransitions:
-    """Invalid state transitions should raise InvalidTransitionError."""
-
     def test_invalid_transition_error_inherits_base(self):
         """InvalidTransitionError should inherit IntelliSourceError."""
         mod = _import_state_machine()
@@ -161,191 +50,49 @@ class TestInvalidTransitions:
 
         assert issubclass(mod.InvalidTransitionError, IntelliSourceError)
 
-    def test_complete_from_pending_raises(self):
-        """Cannot 'complete' a task that is still 'pending'."""
-        mod = _import_state_machine()
-        sm = _make_state_machine()
-        with pytest.raises(mod.InvalidTransitionError):
-            sm.transition("task-1", "complete")
 
-    def test_start_from_running_raises(self):
-        """Cannot 'start' a task that is already 'running'."""
-        mod = _import_state_machine()
-        sm = _make_state_machine()
-        sm.transition("task-1", "start")
-        with pytest.raises(mod.InvalidTransitionError):
-            sm.transition("task-1", "start")
+class TestResolveTransition:
+    """Stateless resolve_transition mirrors the table the state machine uses."""
 
-    def test_resume_from_running_raises(self):
-        """Cannot 'resume' a task that is already 'running'."""
+    def test_pause_from_running(self):
         mod = _import_state_machine()
-        sm = _make_state_machine()
-        sm.transition("task-1", "start")
-        with pytest.raises(mod.InvalidTransitionError):
-            sm.transition("task-1", "resume")
+        assert mod.resolve_transition("running", "pause") == "paused"
+
+    def test_resume_from_paused(self):
+        mod = _import_state_machine()
+        assert mod.resolve_transition("paused", "resume") == "running"
+
+    def test_cancel_from_pending(self):
+        mod = _import_state_machine()
+        assert mod.resolve_transition("pending", "cancel") == "cancelled"
+
+    def test_cancel_from_running(self):
+        mod = _import_state_machine()
+        assert mod.resolve_transition("running", "cancel") == "cancelled"
+
+    def test_cancel_from_paused(self):
+        mod = _import_state_machine()
+        assert mod.resolve_transition("paused", "cancel") == "cancelled"
 
     def test_pause_from_pending_raises(self):
-        """Cannot 'pause' a task that is 'pending'."""
         mod = _import_state_machine()
-        sm = _make_state_machine()
         with pytest.raises(mod.InvalidTransitionError):
-            sm.transition("task-1", "pause")
+            mod.resolve_transition("pending", "pause")
 
-    def test_start_from_success_raises(self):
-        """Cannot 'start' a task that has already 'success'."""
+    def test_resume_from_running_raises(self):
         mod = _import_state_machine()
-        sm = _make_state_machine()
-        sm.transition("task-1", "start")
-        sm.transition("task-1", "complete")
         with pytest.raises(mod.InvalidTransitionError):
-            sm.transition("task-1", "start")
+            mod.resolve_transition("running", "resume")
 
-    def test_start_from_failed_raises(self):
-        """Cannot 'start' a task that has already 'failed'."""
+    def test_cancel_from_terminal_raises(self):
         mod = _import_state_machine()
-        sm = _make_state_machine()
-        sm.transition("task-1", "start")
-        sm.transition("task-1", "fail")
         with pytest.raises(mod.InvalidTransitionError):
-            sm.transition("task-1", "start")
-
-    def test_retry_from_failed_returns_to_pending(self):
-        """'retry' action moves a failed task back to 'pending'."""
-        sm = _make_state_machine()
-        sm.transition("task-1", "start")
-        sm.transition("task-1", "fail")
-        result = sm.transition("task-1", "retry")
-        assert result["from_state"] == "failed"
-        assert result["to_state"] == "pending"
-        assert sm.get_state("task-1") == "pending"
-
-    def test_cancel_from_success_raises(self):
-        """Cannot 'cancel' a task that is in terminal 'success'."""
-        mod = _import_state_machine()
-        sm = _make_state_machine()
-        sm.transition("task-1", "start")
-        sm.transition("task-1", "complete")
-        with pytest.raises(mod.InvalidTransitionError):
-            sm.transition("task-1", "cancel")
-
-    def test_cancel_from_cancelled_raises(self):
-        """Cannot 'cancel' a task that is already 'cancelled'."""
-        mod = _import_state_machine()
-        sm = _make_state_machine()
-        sm.transition("task-1", "cancel")
-        with pytest.raises(mod.InvalidTransitionError):
-            sm.transition("task-1", "cancel")
+            mod.resolve_transition("success", "cancel")
 
     def test_unknown_action_raises(self):
-        """An action not in VALID_ACTIONS should raise
-        InvalidTransitionError."""
         mod = _import_state_machine()
-        sm = _make_state_machine()
         with pytest.raises(mod.InvalidTransitionError):
-            sm.transition("task-1", "explode")
-
-
-# ===================================================================
-# AC-T028-1: pause revokes pending subtasks
-# ===================================================================
-
-
-class TestPauseOperation:
-    """AC-T028-1: pause suspends running task chain and revokes
-    pending subtasks."""
-
-    def test_pause_revokes_pending_subtasks(self):
-        """When a running task is paused, any pending subtasks
-        should be revoked."""
-        sm = _make_state_machine()
-        sm.transition("task-1", "start")
-        result = sm.transition("task-1", "pause")
-        # The transition result should indicate subtasks were revoked
-        assert result["to_state"] == "paused"
-        assert isinstance(result["revoked_subtasks"], list)
-
-    def test_pause_records_paused_at_timestamp(self):
-        """Pausing a task should record a paused_at timestamp."""
-        sm = _make_state_machine()
-        sm.transition("task-1", "start")
-        result = sm.transition("task-1", "pause")
-        assert "paused_at" in result
-
-
-# ===================================================================
-# AC-T028-2: resume from paused point
-# ===================================================================
-
-
-class TestResumeOperation:
-    """AC-T028-2: resume operation restores execution from
-    paused point."""
-
-    def test_resume_restores_running_state(self):
-        """After resume, the task state should be 'running'."""
-        sm = _make_state_machine()
-        sm.transition("task-1", "start")
-        sm.transition("task-1", "pause")
-        sm.transition("task-1", "resume")
-        assert sm.get_state("task-1") == "running"
-
-    def test_resume_records_resumed_at_timestamp(self):
-        """Resuming a task should record a resumed_at timestamp."""
-        sm = _make_state_machine()
-        sm.transition("task-1", "start")
-        sm.transition("task-1", "pause")
-        result = sm.transition("task-1", "resume")
-        assert "resumed_at" in result
-
-    def test_resume_from_non_paused_raises(self):
-        """Cannot resume a task that is not in 'paused' state."""
-        mod = _import_state_machine()
-        sm = _make_state_machine()
-        sm.transition("task-1", "start")
-        with pytest.raises(mod.InvalidTransitionError):
-            sm.transition("task-1", "resume")
-
-
-# ===================================================================
-# AC-T028-3: Task timeout auto-marks as failed
-# ===================================================================
-
-
-class TestTaskTimeout:
-    """AC-T028-3: Configurable timeout automatically marks task
-    as failed."""
-
-    def test_timeout_marks_task_as_failed(self):
-        """A running task that times out should become 'failed'."""
-        sm = _make_state_machine()
-        sm.transition("task-1", "start")
-        sm.transition("task-1", "timeout")
-        assert sm.get_state("task-1") == "failed"
-
-    def test_default_timeout_value(self):
-        """TaskStateMachine should define a DEFAULT_TIMEOUT_SECONDS."""
-        mod = _import_state_machine()
-        assert hasattr(mod, "DEFAULT_TIMEOUT_SECONDS")
-        assert isinstance(mod.DEFAULT_TIMEOUT_SECONDS, (int, float))
-        assert mod.DEFAULT_TIMEOUT_SECONDS > 0
-
-    def test_custom_timeout_configurable(self):
-        """TaskStateMachine should accept a custom timeout_seconds."""
-        sm = _make_state_machine(timeout_seconds=120)
-        assert sm.timeout_seconds == 120
-
-    def test_timeout_result_includes_reason(self):
-        """Timeout transition result should include a timeout reason."""
-        sm = _make_state_machine()
-        sm.transition("task-1", "start")
-        result = sm.transition("task-1", "timeout")
-        assert "reason" in result
-        assert "timeout" in result["reason"].lower()
-
-
-# ===================================================================
-# AC-T028-4: SchedulerManager manages Celery Beat schedules
-# ===================================================================
+            mod.resolve_transition("running", "explode")
 
 
 class TestSchedulerManagerRegistration:
@@ -402,136 +149,3 @@ class TestSchedulerManagerRegistration:
                 pipeline_name="other_pipeline",
                 params={},
             )
-
-
-# ===================================================================
-# AC-039: Three trigger modes (scheduled, manual, message)
-# ===================================================================
-
-
-class TestTriggerModes:
-    """AC-039: Supports Celery Beat scheduled, manual trigger, and
-    message trigger modes."""
-
-    def test_supported_trigger_modes(self):
-        """Module should define SUPPORTED_TRIGGER_MODES with three
-        modes."""
-        mod = _import_state_machine()
-        expected = {"scheduled", "manual", "message"}
-        assert set(mod.SUPPORTED_TRIGGER_MODES) == expected
-
-
-# ===================================================================
-# Edge cases and boundary conditions
-# ===================================================================
-
-
-class TestStateMachineEdgeCases:
-    """Boundary conditions for state machine and scheduler."""
-
-    def test_get_state_unknown_task_returns_pending(self):
-        """Getting state of an unregistered task should default
-        to 'pending'."""
-        sm = _make_state_machine()
-        assert sm.get_state("unknown-task") == "pending"
-
-    def test_multiple_tasks_independent_states(self):
-        """Different task IDs should maintain independent states."""
-        sm = _make_state_machine()
-        sm.transition("task-a", "start")
-        sm.transition("task-b", "start")
-        sm.transition("task-b", "complete")
-        assert sm.get_state("task-a") == "running"
-        assert sm.get_state("task-b") == "success"
-
-    def test_transition_returns_dict(self):
-        """transition() should return a dict with transition metadata."""
-        sm = _make_state_machine()
-        result = sm.transition("task-1", "start")
-        assert isinstance(result, dict)
-        assert "from_state" in result
-        assert "to_state" in result
-
-    def test_transition_result_from_to_states(self):
-        """The transition result should contain correct from/to
-        states."""
-        sm = _make_state_machine()
-        result = sm.transition("task-1", "start")
-        assert result["from_state"] == "pending"
-        assert result["to_state"] == "running"
-
-    def test_full_lifecycle_pending_to_success(self):
-        """A complete happy-path lifecycle:
-        pending -> running -> success."""
-        sm = _make_state_machine()
-        sm.transition("task-1", "start")
-        sm.transition("task-1", "complete")
-        assert sm.get_state("task-1") == "success"
-
-    def test_full_lifecycle_with_pause_resume(self):
-        """Lifecycle with pause/resume:
-        pending -> running -> paused -> running -> success."""
-        sm = _make_state_machine()
-        sm.transition("task-1", "start")
-        sm.transition("task-1", "pause")
-        sm.transition("task-1", "resume")
-        sm.transition("task-1", "complete")
-        assert sm.get_state("task-1") == "success"
-
-
-# ===================================================================
-# resolve_transition: stateless transition validation for DB-backed
-# callers (PATCH /tasks/{id} action wiring)
-# ===================================================================
-
-
-class TestResolveTransition:
-    """Stateless resolve_transition mirrors the table the state machine uses."""
-
-    def test_pause_from_running(self):
-        mod = _import_state_machine()
-        assert mod.resolve_transition("running", "pause") == "paused"
-
-    def test_resume_from_paused(self):
-        mod = _import_state_machine()
-        assert mod.resolve_transition("paused", "resume") == "running"
-
-    def test_cancel_from_pending(self):
-        mod = _import_state_machine()
-        assert mod.resolve_transition("pending", "cancel") == "cancelled"
-
-    def test_cancel_from_running(self):
-        mod = _import_state_machine()
-        assert mod.resolve_transition("running", "cancel") == "cancelled"
-
-    def test_cancel_from_paused(self):
-        mod = _import_state_machine()
-        assert mod.resolve_transition("paused", "cancel") == "cancelled"
-
-    def test_pause_from_pending_raises(self):
-        mod = _import_state_machine()
-        with pytest.raises(mod.InvalidTransitionError):
-            mod.resolve_transition("pending", "pause")
-
-    def test_resume_from_running_raises(self):
-        mod = _import_state_machine()
-        with pytest.raises(mod.InvalidTransitionError):
-            mod.resolve_transition("running", "resume")
-
-    def test_cancel_from_terminal_raises(self):
-        mod = _import_state_machine()
-        with pytest.raises(mod.InvalidTransitionError):
-            mod.resolve_transition("success", "cancel")
-
-    def test_unknown_action_raises(self):
-        mod = _import_state_machine()
-        with pytest.raises(mod.InvalidTransitionError):
-            mod.resolve_transition("running", "explode")
-
-    def test_state_machine_transition_delegates(self):
-        """TaskStateMachine.transition uses resolve_transition's table."""
-        sm = _make_state_machine()
-        sm.transition("task-1", "start")
-        result = sm.transition("task-1", "pause")
-        assert result["to_state"] == "paused"
-        assert result["from_state"] == "running"

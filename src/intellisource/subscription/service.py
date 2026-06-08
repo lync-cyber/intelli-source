@@ -23,14 +23,6 @@ if TYPE_CHECKING:
     from intellisource.storage.models import Subscription
 
 
-def build_subscription_version_manager() -> ConfigVersionManager:
-    """Factory for the subscription-flavoured ConfigVersionManager."""
-    return ConfigVersionManager(
-        table_name="subscription_config_versions",
-        config_cls=SubscriptionConfig,
-    )
-
-
 class SubscriptionService:
     """Business-logic facade over SubscriptionRepository + version manager.
 
@@ -50,7 +42,10 @@ class SubscriptionService:
         self._version_manager = (
             version_manager
             if version_manager is not None
-            else build_subscription_version_manager()
+            else ConfigVersionManager(
+                table_name="subscription_config_versions",
+                config_cls=SubscriptionConfig,
+            )
         )
 
     # ------------------------------------------------------------------

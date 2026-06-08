@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from intellisource.api.webhook_crypto import (
+from intellisource.core.webhook_crypto import (
     WeComCrypto,
     WeComCryptoError,
     build_encrypted_payload,

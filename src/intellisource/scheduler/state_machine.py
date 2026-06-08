@@ -1,25 +1,11 @@
-"""Task state machine and scheduler management for IntelliSource.
-
-Implements TaskStateMachine (AC-038, AC-T028-1/2/3) and
-SchedulerManager (AC-T028-4, AC-039).
-"""
+"""Task transition validation and scheduler management for IntelliSource."""
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
 from typing import Any
 
 from intellisource.core.errors import ErrorCategory, IntelliSourceError
-
-VALID_STATES: set[str] = {
-    "pending",
-    "running",
-    "success",
-    "failed",
-    "paused",
-    "cancelled",
-}
 
 VALID_ACTIONS: set[str] = {
     "start",
@@ -31,10 +17,6 @@ VALID_ACTIONS: set[str] = {
     "timeout",
     "retry",
 }
-
-SUPPORTED_TRIGGER_MODES: set[str] = {"scheduled", "manual", "message"}
-
-DEFAULT_TIMEOUT_SECONDS: int = 3600
 
 # Transition table: (current_state, action) -> next_state
 _TRANSITIONS: dict[tuple[str, str], str] = {
@@ -68,7 +50,7 @@ def resolve_transition(current_state: str, action: str) -> str:
     Raises InvalidTransitionError when *action* is unknown or the
     (current_state, action) pair has no defined transition. Stateless so
     callers holding the authoritative state elsewhere (e.g. a DB row) can
-    validate a transition without seeding a TaskStateMachine instance.
+    validate a transition directly.
     """
     if action not in VALID_ACTIONS:
         raise InvalidTransitionError(f"Unknown action '{action}'")
@@ -77,42 +59,6 @@ def resolve_transition(current_state: str, action: str) -> str:
         msg = f"Invalid transition: cannot apply '{action}' in state '{current_state}'"
         raise InvalidTransitionError(msg)
     return _TRANSITIONS[key]
-
-
-class TaskStateMachine:
-    """Manages task state transitions."""
-
-    def __init__(
-        self,
-        timeout_seconds: int | float = DEFAULT_TIMEOUT_SECONDS,
-    ) -> None:
-        self.timeout_seconds = timeout_seconds
-        self._states: dict[str, str] = {}
-
-    def get_state(self, task_id: str) -> str:
-        """Return current state of a task, defaulting to 'pending'."""
-        return self._states.get(task_id, "pending")
-
-    def transition(self, task_id: str, action: str) -> dict[str, Any]:
-        """Execute a state transition and return metadata dict."""
-        current = self.get_state(task_id)
-        new_state = resolve_transition(current, action)
-        self._states[task_id] = new_state
-
-        result: dict[str, Any] = {
-            "from_state": current,
-            "to_state": new_state,
-        }
-
-        if action == "pause":
-            result["paused_at"] = datetime.now(tz=timezone.utc).isoformat()
-            result["revoked_subtasks"] = []
-        elif action == "resume":
-            result["resumed_at"] = datetime.now(tz=timezone.utc).isoformat()
-        elif action == "timeout":
-            result["reason"] = f"Task exceeded timeout of {self.timeout_seconds}s"
-
-        return result
 
 
 class SchedulerStateBackend(ABC):

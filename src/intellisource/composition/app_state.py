@@ -53,7 +53,6 @@ class AppState(Protocol):
     shared_metrics: RedisMetricStore
     config_version_manager: ConfigVersionManager
     wechat_webhook_token: str
-    wework_webhook_token: str
     wecom_crypto: WeComCrypto | None
     wechat_cs_messenger: WeChatCustomerServiceClient | None
     wework_cs_messenger: WeWorkCustomerServiceClient | None
@@ -73,7 +72,6 @@ REQUIRED_APP_STATE_KEYS: tuple[str, ...] = (
     "shared_metrics",
     "config_version_manager",
     "wechat_webhook_token",
-    "wework_webhook_token",
     "wecom_crypto",
     "wechat_cs_messenger",
     "wework_cs_messenger",
