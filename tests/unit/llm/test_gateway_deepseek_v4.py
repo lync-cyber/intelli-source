@@ -108,7 +108,12 @@ class TestResolveCallParamsPrecedence:
 
     def test_task_cfg_wins_over_profile(self) -> None:
         _, temp, max_tokens = resolve_call_params(
-            self._routing(), "m", None, None, 0.7, 256,
+            self._routing(),
+            "m",
+            None,
+            None,
+            0.7,
+            256,
             task_cfg={"temperature": 0.0, "max_tokens": 512},
         )
         assert temp == 0.0
@@ -116,7 +121,12 @@ class TestResolveCallParamsPrecedence:
 
     def test_explicit_arg_wins_over_task_cfg(self) -> None:
         _, temp, max_tokens = resolve_call_params(
-            self._routing(), "m", 0.9, 99, 0.7, 256,
+            self._routing(),
+            "m",
+            0.9,
+            99,
+            0.7,
+            256,
             task_cfg={"temperature": 0.0, "max_tokens": 512},
         )
         assert temp == 0.9
