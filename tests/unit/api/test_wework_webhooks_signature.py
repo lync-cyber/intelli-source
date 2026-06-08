@@ -17,7 +17,7 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from intellisource.api.webhook_crypto import WeComCrypto, build_encrypted_payload
+from intellisource.core.webhook_crypto import WeComCrypto, build_encrypted_payload
 
 _TOKEN = "test_wework_token"
 _ENCODING_AES_KEY = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG"
