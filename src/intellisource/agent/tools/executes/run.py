@@ -14,6 +14,7 @@ import uuid
 from typing import Any
 
 from intellisource.agent.deps import ToolDeps
+from intellisource.agent.tools._spec import ToolDefinition
 from intellisource.agent.tools.executes._deps import resolve_factories
 from intellisource.agent.tools.results import tool_error, tool_ok
 from intellisource.observability.logging import get_logger
@@ -100,3 +101,55 @@ async def _get_task_status_execute(
             "error_message": chain.error_message,
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Tool descriptors (co-located with the execute functions above)
+# ---------------------------------------------------------------------------
+
+
+RUN_TOOL_DEFS: list[ToolDefinition] = [
+    ToolDefinition(
+        name="run_pipeline",
+        description=(
+            "Trigger a run of a persisted pipeline by name via the task queue."
+            " Returns {task_chain_id, celery_task_id}; poll task_chain_id with"
+            " get_task_status to read run progress and result."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Name of the persisted pipeline to run.",
+                },
+                "params": {
+                    "type": "object",
+                    "description": "Optional runtime params passed to the run.",
+                },
+            },
+            "required": ["name"],
+        },
+        execute=_run_pipeline_execute,
+        mutates_external_state=True,
+    ),
+    ToolDefinition(
+        name="get_task_status",
+        description=(
+            "Get the status of a pipeline run by its task_chain_id"
+            " (the task_chain_id returned by run_pipeline). Returns the run"
+            " state (status / completed_steps / total_steps / error_message)."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "task_chain_id": {
+                    "type": "string",
+                    "description": "TaskChain UUID to poll.",
+                }
+            },
+            "required": ["task_chain_id"],
+        },
+        execute=_get_task_status_execute,
+    ),
+]
