@@ -28,6 +28,10 @@ PUBLIC_EXACT_PATHS = frozenset(
         "/api/v1/metrics",
         "/api/v1/system/metrics",
         "/metrics",
+        # The chat web UI page itself carries no secrets; the data calls its JS
+        # makes to /api/v1/search/chat/stream still require X-API-Key. Exempting
+        # the page lets a browser load it (browsers cannot attach the key header).
+        "/chat",
         # Interactive API docs: the schema lists the surface but every operation
         # still requires X-API-Key, so exposing the docs aids integration without
         # weakening enforcement.

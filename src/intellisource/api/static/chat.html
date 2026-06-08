@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>IntelliSource Chat</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a212b;
+      --border: #2a3441;
+      --text: #e6edf3;
+      --muted: #8b98a5;
+      --accent: #4493f8;
+      --user: #1f6feb;
+      --assistant: #222b36;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, "Segoe UI", Roboto, "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+    header .grow { flex: 1; }
+    header input {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 13px;
+      width: 240px;
+    }
+    header .session { color: var(--muted); font-size: 12px; }
+    #log {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .msg { max-width: 760px; width: 100%; align-self: center; }
+    .msg .role { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .bubble {
+      padding: 12px 14px;
+      border-radius: 10px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.55;
+    }
+    .msg.user .bubble { background: var(--user); }
+    .msg.assistant .bubble { background: var(--assistant); border: 1px solid var(--border); }
+    .sources { margin-top: 8px; font-size: 13px; }
+    .sources a { color: var(--accent); text-decoration: none; }
+    .sources a:hover { text-decoration: underline; }
+    .sources li { margin: 2px 0; color: var(--muted); }
+    .status { font-size: 12px; color: var(--muted); font-style: italic; }
+    .error { color: #f85149; }
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 12px 16px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+    footer textarea {
+      flex: 1;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 14px;
+      font-family: inherit;
+      resize: none;
+      min-height: 44px;
+      max-height: 180px;
+      line-height: 1.5;
+    }
+    footer button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-size: 14px;
+      cursor: pointer;
+      height: 44px;
+    }
+    footer button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .hint { text-align: center; color: var(--muted); font-size: 13px; margin-top: 40px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>IntelliSource Chat</h1>
+    <span class="grow"></span>
+    <input id="apiKey" type="password" placeholder="X-API-Key (留空=本地无鉴权)" />
+    <span id="session" class="session"></span>
+  </header>
+
+  <div id="log">
+    <div class="hint">向已采集的资料库提问，回答基于检索结果（RAG）实时流式生成。</div>
+  </div>
+
+  <footer>
+    <textarea id="input" placeholder="输入问题，Enter 发送，Shift+Enter 换行" rows="1"></textarea>
+    <button id="send">发送</button>
+  </footer>
+
+  <script>
+    "use strict";
+    const STREAM_URL = "/api/v1/search/chat/stream";
+    const logEl = document.getElementById("log");
+    const inputEl = document.getElementById("input");
+    const sendBtn = document.getElementById("send");
+    const apiKeyEl = document.getElementById("apiKey");
+    const sessionEl = document.getElementById("session");
+
+    // Persist the API key locally so it survives reloads (it never leaves this browser).
+    apiKeyEl.value = localStorage.getItem("intellisource_api_key") || "";
+    apiKeyEl.addEventListener("change", () =>
+      localStorage.setItem("intellisource_api_key", apiKeyEl.value.trim())
+    );
+
+    let sessionId = null;
+    let busy = false;
+
+    function scrollDown() { logEl.scrollTop = logEl.scrollHeight; }
+
+    function addMessage(role) {
+      const hint = logEl.querySelector(".hint");
+      if (hint) hint.remove();
+      const wrap = document.createElement("div");
+      wrap.className = "msg " + role;
+      const label = document.createElement("div");
+      label.className = "role";
+      label.textContent = role === "user" ? "你" : "IntelliSource";
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      wrap.appendChild(label);
+      wrap.appendChild(bubble);
+      logEl.appendChild(wrap);
+      scrollDown();
+      return { wrap, bubble };
+    }
+
+    function renderSources(wrap, items) {
+      if (!items || !items.length) return;
+      const box = document.createElement("div");
+      box.className = "sources";
+      const ul = document.createElement("ul");
+      items.forEach((s, i) => {
+        const li = document.createElement("li");
+        if (s.url) {
+          const a = document.createElement("a");
+          a.href = s.url;
+          a.target = "_blank";
+          a.rel = "noopener noreferrer";
+          a.textContent = `[${i + 1}] ${s.title || s.url}`;
+          li.appendChild(a);
+        } else {
+          li.textContent = `[${i + 1}] ${s.title || "(无标题)"}`;
+        }
+        ul.appendChild(li);
+      });
+      box.appendChild(ul);
+      wrap.appendChild(box);
+      scrollDown();
+    }
+
+    function setStatus(bubble, text) {
+      bubble.dataset.status = text;
+      if (!bubble.textContent) {
+        bubble.innerHTML = `<span class="status">${text}</span>`;
+      }
+    }
+
+    async function send() {
+      const message = inputEl.value.trim();
+      if (!message || busy) return;
+      busy = true;
+      sendBtn.disabled = true;
+      inputEl.value = "";
+      inputEl.style.height = "auto";
+
+      addMessage("user").bubble.textContent = message;
+      const { wrap, bubble } = addMessage("assistant");
+      setStatus(bubble, "检索中…");
+
+      const body = { message };
+      if (sessionId) body.session_id = sessionId;
+      const headers = { "Content-Type": "application/json" };
+      const key = apiKeyEl.value.trim();
+      if (key) headers["X-API-Key"] = key;
+
+      let answer = "";
+      try {
+        const resp = await fetch(STREAM_URL, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+        });
+        if (!resp.ok || !resp.body) {
+          throw new Error(`HTTP ${resp.status}`);
+        }
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const parts = buf.split("\n\n");
+          buf = parts.pop() || "";
+          for (const part of parts) {
+            const line = part.split("\n").find((l) => l.startsWith("data:"));
+            if (!line) continue;
+            let evt;
+            try { evt = JSON.parse(line.slice(5).trim()); }
+            catch { continue; }
+            handleEvent(evt, wrap, bubble, () => answer, (v) => { answer = v; });
+          }
+        }
+      } catch (err) {
+        bubble.innerHTML = `<span class="error">出错: ${err.message}</span>`;
+      } finally {
+        busy = false;
+        sendBtn.disabled = false;
+        inputEl.focus();
+        scrollDown();
+      }
+    }
+
+    function handleEvent(evt, wrap, bubble, getAnswer, setAnswer) {
+      switch (evt.type) {
+        case "step":
+          if (!getAnswer()) setStatus(bubble, `第 ${evt.step} 步: ${evt.action || ""} ${evt.tool || ""}`.trim());
+          break;
+        case "sources":
+          renderSources(wrap, evt.items);
+          break;
+        case "token": {
+          const next = getAnswer() + (evt.delta || "");
+          setAnswer(next);
+          bubble.textContent = next;
+          scrollDown();
+          break;
+        }
+        case "done":
+          if (evt.metadata && evt.metadata.session_id) {
+            sessionId = evt.metadata.session_id;
+            sessionEl.textContent = "session: " + sessionId.slice(0, 8);
+          }
+          if (!getAnswer()) bubble.textContent = "(无回答)";
+          break;
+        case "error":
+          bubble.innerHTML = `<span class="error">出错: ${evt.detail || "unknown"}</span>`;
+          break;
+      }
+    }
+
+    sendBtn.addEventListener("click", send);
+    inputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        send();
+      }
+    });
+    inputEl.addEventListener("input", () => {
+      inputEl.style.height = "auto";
+      inputEl.style.height = Math.min(inputEl.scrollHeight, 180) + "px";
+    });
+  </script>
+</body>
+</html>
