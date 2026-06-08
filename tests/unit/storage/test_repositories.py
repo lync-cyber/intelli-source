@@ -489,6 +489,65 @@ class TestContentRepositoryCRUD:
         assert all(s.status == "active" for s in subs)
 
     @pytest.mark.asyncio
+    async def test_get_with_subscriptions_none_excludes_periodic_frequencies(
+        self, session: AsyncSession
+    ) -> None:
+        """The broadcast path (subscription_id=None) resolves realtime
+        subscriptions only; daily/weekly subscribers receive their bundled
+        digest from PeriodicDigestRunner and must not be double-pushed per
+        item here (B-066)."""
+        from intellisource.storage.repositories.content import ContentRepository
+
+        repo = ContentRepository(session)
+        src = _make_source()
+        session.add(src)
+        raw = _make_raw_content(src.id)
+        session.add(raw)
+        await session.flush()
+        processed = _make_processed_content(raw.id)
+        session.add(processed)
+        realtime_sub = _make_subscription(src.id, status="active", frequency="realtime")
+        session.add(realtime_sub)
+        session.add(_make_subscription(src.id, status="active", frequency="daily"))
+        session.add(_make_subscription(src.id, status="active", frequency="weekly"))
+        await session.flush()
+
+        content, subs = await repo.get_with_source_and_subscriptions(
+            content_id=processed.id, subscription_id=None
+        )
+        assert content is not None
+        assert [s.id for s in subs] == [realtime_sub.id]
+        assert all(s.frequency == "realtime" for s in subs)
+
+    @pytest.mark.asyncio
+    async def test_get_with_subscriptions_specific_id_resolves_periodic_too(
+        self, session: AsyncSession
+    ) -> None:
+        """A concrete subscription_id resolves that single row regardless of
+        frequency — explicit one-off distribute is not restricted to realtime
+        the way the broadcast path is (B-066)."""
+        from intellisource.storage.repositories.content import ContentRepository
+
+        repo = ContentRepository(session)
+        src = _make_source()
+        session.add(src)
+        raw = _make_raw_content(src.id)
+        session.add(raw)
+        await session.flush()
+        processed = _make_processed_content(raw.id)
+        session.add(processed)
+        daily_sub = _make_subscription(src.id, status="active", frequency="daily")
+        session.add(daily_sub)
+        await session.flush()
+
+        content, subs = await repo.get_with_source_and_subscriptions(
+            content_id=processed.id, subscription_id=daily_sub.id
+        )
+        assert content is not None
+        assert len(subs) == 1
+        assert subs[0].id == daily_sub.id
+
+    @pytest.mark.asyncio
     async def test_get_with_subscriptions_specific_id_and_missing_content(
         self, session: AsyncSession
     ) -> None:

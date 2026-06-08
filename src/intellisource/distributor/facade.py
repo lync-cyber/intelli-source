@@ -17,10 +17,17 @@ _logger = get_logger(__name__)
 
 # B-005: distributor-layer labeled counter name.
 _METRIC_PUSHES_TOTAL: str = "pushes_total"
+_METRIC_PUSHES_DESC: str = "Push attempts by channel and outcome"
 
 
 def _record_push_outcome(outcome: str, channel: str = "unknown") -> None:
-    """Bump pushes_total{channel=..., status=...} on the singleton MetricsCollector.
+    """Bump pushes_total{channel=..., status=...} in local + cross-process stores.
+
+    distribute runs in the prefork worker, whose local MetricsCollector is never
+    served over HTTP. The API ``/api/v1/metrics`` endpoint can therefore only
+    surface this family by reading it back from the shared Redis store, so each
+    outcome is mirrored there too (B-064). The two writes are independent — a
+    failure in one must not skip the other.
 
     outcome ∈ {"sent", "failed", "skipped"}.
     """
@@ -34,6 +41,16 @@ def _record_push_outcome(outcome: str, channel: str = "unknown") -> None:
         )
     except Exception:  # noqa: BLE001 — metric failures must not break delivery
         _logger.exception("failed to record push outcome metric")
+    try:
+        from intellisource.observability.shared_metrics import get_shared_metric_store
+
+        get_shared_metric_store().increment_counter(
+            _METRIC_PUSHES_TOTAL,
+            labels={"channel": channel, "status": outcome},
+            description=_METRIC_PUSHES_DESC,
+        )
+    except Exception:  # noqa: BLE001 — metric failures must not break delivery
+        _logger.exception("failed to mirror push outcome metric to shared store")
 
 
 class DistributorFacade:
@@ -77,10 +94,24 @@ class DistributorFacade:
             MetricsCollector.get_instance().register_labeled_counter(
                 _METRIC_PUSHES_TOTAL,
                 labelnames=["channel", "status"],
-                description="Push attempts by channel and outcome",
+                description=_METRIC_PUSHES_DESC,
             )
         except Exception:  # noqa: BLE001 — metric failures must not break delivery
             _logger.exception("failed to register distributor metrics")
+        try:
+            from intellisource.observability.shared_metrics import (
+                get_shared_metric_store,
+            )
+
+            # Register meta only (no unlabeled "" sample) so the API /metrics
+            # endpoint lists pushes_total from worker boot, before the first push
+            # records a labeled series. A seeded unlabeled sample would illegally
+            # mix with the labeled samples this family emits.
+            get_shared_metric_store().register_counter(
+                _METRIC_PUSHES_TOTAL, _METRIC_PUSHES_DESC
+            )
+        except Exception:  # noqa: BLE001 — metric failures must not break delivery
+            _logger.exception("failed to register distributor metrics in shared store")
 
     async def distribute(
         self,

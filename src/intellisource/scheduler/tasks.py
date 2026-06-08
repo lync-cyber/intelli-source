@@ -198,12 +198,14 @@ class CeleryTasks:
         result: uuid.UUID = _run_sync(_do())
         return result
 
-    def _update_chain_status(self, chain_id: uuid.UUID, status: str) -> None:
-        """Update the status of an existing TaskChain record."""
+    def _update_chain_status(
+        self, chain_id: uuid.UUID, status: str, completed_steps: int | None = None
+    ) -> None:
+        """Update the status (and optionally completed_steps) of a TaskChain."""
 
         async def _do() -> None:
             async with self._chain_repo_session() as repo:
-                await repo.update_status(str(chain_id), status)
+                await repo.update_status(str(chain_id), status, completed_steps)
 
         _run_sync(_do())
 
@@ -336,7 +338,9 @@ class CeleryTasks:
                             self._fingerprint_checker.record(fingerprint, content_id)
                         )
                     if chain_id is not None:
-                        self._update_chain_status(chain_id, "success")
+                        self._update_chain_status(
+                            chain_id, "success", completed_steps=total_steps
+                        )
                     self._set_task_status(
                         params.get("task_id"), "success", only_from=("running",)
                     )

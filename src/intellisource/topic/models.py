@@ -79,6 +79,13 @@ class Topic(BaseModel):
         tmpl = self.subscription_template
         sub_name = name or (tmpl.name if tmpl and tmpl.name else f"{self.name} 订阅")
         match_rules = dict(tmpl.match_rules) if tmpl else {}
+        # Bind the subscription to this pack's own sources by name. The matcher
+        # treats source_names as a strong constraint, so the subscription matches
+        # the pack's collected content directly — without depending on tag
+        # propagation from source to ProcessedContent (which does not happen).
+        # An explicit source_names in the template still wins (setdefault).
+        if self.sources:
+            match_rules.setdefault("source_names", [s.name for s in self.sources])
         frequency = tmpl.frequency if tmpl else "daily"
         discipline_tags = tmpl.discipline_tags if tmpl else self.discipline_tags
         return SubscriptionConfig(

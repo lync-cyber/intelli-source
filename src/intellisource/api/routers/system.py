@@ -24,16 +24,25 @@ logger = get_logger(__name__)
 router = APIRouter(tags=["system"])
 
 
-def _format_prometheus(metrics_collector: Any) -> str:
+def _format_prometheus(
+    metrics_collector: Any, suppress_empty_labeled: set[str] | None = None
+) -> str:
     """Render MetricsCollector counters / gauges / histograms as Prom text.
 
     Output follows ``# HELP`` + ``# TYPE`` + sample-line shape so a Prometheus
     scraper can consume the per-process exposition directly. Per-process
     aggregation is by design; cross-process roll-up belongs in the
     deployment-level Prometheus aggregator (out of scope for T-099).
+
+    ``suppress_empty_labeled`` names labeled-counter families that are also
+    rendered from the shared store (pushes_total). When the local series for
+    such a family is empty, its ``# TYPE`` line is dropped here so the shared
+    store can own it — otherwise the merged exposition would carry a duplicate
+    ``# TYPE`` line and Prometheus would reject the whole scrape.
     """
     if metrics_collector is None:
         return ""
+    suppress = suppress_empty_labeled or set()
 
     lines: list[str] = []
     for name, desc, value in metrics_collector.iter_counters():
@@ -60,6 +69,10 @@ def _format_prometheus(metrics_collector: Any) -> str:
             )
             lines.append(f"{name}{{{label_str}}} {int(value)}")
     for name, series in metrics_collector.iter_labeled_counters():
+        if not series and name in suppress:
+            # The shared store owns this family's exposition; skipping the empty
+            # local TYPE line avoids a duplicate that would break the scrape.
+            continue
         lines.append(f"# TYPE {name} counter")
         for label_key, value in sorted(series.items()):
             label_str = ",".join(
@@ -117,21 +130,27 @@ def metrics_response(request: Request) -> PlainTextResponse:
     """Build Prometheus text from app.state.metrics_collector + shared store.
 
     The local collector covers API-process families (``http_*`` / ``llm_*`` /
-    ``pushes_total`` / ``llm_circuit_open`` / health); worker-process families
-    (``celery_*``) are merged in from the shared Redis store so one scrape of
-    ``/api/v1/metrics`` surfaces every advertised family across processes.
+    ``llm_circuit_open`` / health); worker-process families (``celery_*`` and
+    ``pushes_total``, both recorded in the prefork worker) are merged in from
+    the shared Redis store so one scrape of ``/api/v1/metrics`` surfaces every
+    advertised family across processes.
     """
     from intellisource.observability.shared_metrics import (
         get_shared_metric_store,
         render_shared_metrics_text,
     )
 
-    collector = getattr(request.app.state, "metrics_collector", None)
-    text = _format_prometheus(collector)
     store = getattr(request.app.state, "shared_metrics", None)
     if store is None:
         store = get_shared_metric_store()
-    text += render_shared_metrics_text(store.read_all())
+    shared_entries = store.read_all()
+    shared_names = {entry["name"] for entry in shared_entries}
+
+    collector = getattr(request.app.state, "metrics_collector", None)
+    # Drop the empty local TYPE line for any family the shared store also owns
+    # (pushes_total) so the merged output carries a single TYPE per family.
+    text = _format_prometheus(collector, suppress_empty_labeled=shared_names)
+    text += render_shared_metrics_text(shared_entries)
     return PlainTextResponse(content=text, media_type="text/plain; version=0.0.4")
 
 

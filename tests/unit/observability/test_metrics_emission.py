@@ -299,6 +299,81 @@ class TestDistributorMetrics:
             == 0.0
         )
 
+    @pytest.mark.asyncio
+    async def test_sent_push_mirrors_into_shared_store(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """B-064: the push outcome is mirrored into the cross-process store so the
+        API /metrics endpoint can surface it (the prefork worker's local collector
+        is never served over HTTP)."""
+        import uuid
+
+        from intellisource.distributor.facade import DistributorFacade
+        from intellisource.distributor.matcher import SubscriptionMatcher
+        from intellisource.observability.shared_metrics import RedisMetricStore
+
+        class _FakeRedis:
+            def __init__(self) -> None:
+                self.store: dict[str, dict[str, str]] = {}
+
+            def hset(
+                self,
+                name: str,
+                key: str | None = None,
+                value: Any = None,
+                mapping: dict[str, Any] | None = None,
+            ) -> int:
+                h = self.store.setdefault(name, {})
+                if mapping:
+                    for k, v in mapping.items():
+                        h[k] = str(v)
+                if key is not None:
+                    h[key] = str(value)
+                return 1
+
+            def hincrbyfloat(self, name: str, key: str, amount: float) -> str:
+                h = self.store.setdefault(name, {})
+                cur = float(h.get(key, "0")) + float(amount)
+                h[key] = str(cur)
+                return h[key]
+
+            def hgetall(self, name: str) -> dict[str, str]:
+                return dict(self.store.get(name, {}))
+
+        shared = RedisMetricStore(_FakeRedis())
+        monkeypatch.setattr(
+            "intellisource.observability.shared_metrics.get_shared_metric_store",
+            lambda: shared,
+        )
+
+        cid = str(uuid.uuid4())
+        content = MagicMock()
+        content.id = uuid.UUID(cid)
+
+        sub = MagicMock()
+        sub.id = uuid.uuid4()
+        sub.status = "active"
+        sub.channel = "email"
+        sub.channel_config = {"to_addr": "u@example.com"}
+
+        matcher = MagicMock(spec=SubscriptionMatcher)
+        matcher.match.return_value = [sub]
+
+        channel = MagicMock()
+        channel.distribute = AsyncMock(return_value={"status": "sent"})
+
+        facade = DistributorFacade(
+            session_factory=_make_session_factory(content, [sub]),
+            matcher=matcher,
+            channels={"email": channel},
+        )
+
+        await facade.distribute(content_id=cid)
+
+        entries = {e["name"]: e for e in shared.read_all()}
+        assert "pushes_total" in entries
+        assert entries["pushes_total"]["series"].get("channel=email,status=sent") == 1.0
+
 
 # ---------------------------------------------------------------------------
 # B-030 R-004: register labeled counters at __init__ time, not in hot path

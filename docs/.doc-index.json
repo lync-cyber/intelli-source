@@ -1,15 +1,15 @@
 {
   "version": "1",
-  "generated_at": "2026-06-01T03:13:43.907588+00:00",
+  "generated_at": "2026-06-08T06:32:47.987025+00:00",
   "documents": {
     "backlog-intellisource-v1": {
       "file_path": "docs/BACKLOG-intellisource-v1.md",
       "doc_type": "backlog",
       "volume": "main",
       "status": "approved",
-      "total_lines": 552,
-      "est_tokens": 20672,
-      "content_hash": "2d53bdca",
+      "total_lines": 61,
+      "est_tokens": 1072,
+      "content_hash": "52c01091",
       "sections": {}
     },
     "history-intellisource-v1": {
@@ -17,9 +17,9 @@
       "doc_type": "history",
       "volume": "main",
       "status": "approved",
-      "total_lines": 70,
-      "est_tokens": 4260,
-      "content_hash": "4a9894e8",
+      "total_lines": 95,
+      "est_tokens": 5384,
+      "content_hash": "e8e01073",
       "sections": {}
     },
     "arch-intellisource-v1-api": {
@@ -27,17 +27,17 @@
       "doc_type": "arch",
       "volume": "main",
       "status": "approved",
-      "total_lines": 742,
-      "est_tokens": 7928,
-      "content_hash": "494f914e",
+      "total_lines": 752,
+      "est_tokens": 8181,
+      "content_hash": "e196332a",
       "sections": {
         "3": {
           "heading": "## 3. 接口契约",
-          "level": 2,
           "line_start": 21,
-          "line_end": 742,
-          "est_tokens": 7739,
+          "line_end": 752,
+          "est_tokens": 7993,
           "deps": [],
+          "level": 2,
           "items": {
             "API-001": {
               "heading": "### API-001: 获取信源列表",
@@ -182,21 +182,21 @@
             "API-023": {
               "heading": "### API-023: 创建订阅规则",
               "line_start": 610,
-              "line_end": 652,
-              "est_tokens": 480,
+              "line_end": 662,
+              "est_tokens": 734,
               "deps": []
             },
             "API-024": {
               "heading": "### API-024: 更新订阅规则",
-              "line_start": 653,
-              "line_end": 679,
+              "line_start": 663,
+              "line_end": 689,
               "est_tokens": 331,
               "deps": []
             },
             "API-025": {
               "heading": "### API-025: 删除订阅规则",
-              "line_start": 680,
-              "line_end": 699,
+              "line_start": 690,
+              "line_end": 709,
               "est_tokens": 137,
               "deps": []
             }
@@ -215,17 +215,17 @@
       "doc_type": "arch",
       "volume": "main",
       "status": "approved",
-      "total_lines": 295,
-      "est_tokens": 4300,
-      "content_hash": "bc1ee800",
+      "total_lines": 297,
+      "est_tokens": 4352,
+      "content_hash": "953aff60",
       "sections": {
         "4": {
           "heading": "## 4. 数据模型",
-          "level": 2,
           "line_start": 21,
-          "line_end": 295,
-          "est_tokens": 4104,
+          "line_end": 297,
+          "est_tokens": 4156,
           "deps": [],
+          "level": 2,
           "items": {
             "4.1": {
               "heading": "### 4.1 实体关系",
@@ -300,14 +300,14 @@
             "E-010": {
               "heading": "### E-010: PushRecord (推送记录)",
               "line_start": 236,
-              "line_end": 252,
-              "est_tokens": 280,
+              "line_end": 254,
+              "est_tokens": 332,
               "deps": []
             },
             "E-011": {
               "heading": "### E-011: ChatSession (对话会话)",
-              "line_start": 253,
-              "line_end": 295,
+              "line_start": 255,
+              "line_end": 297,
               "est_tokens": 574,
               "deps": []
             }
@@ -327,16 +327,16 @@
       "volume": "main",
       "status": "approved",
       "total_lines": 249,
-      "est_tokens": 3801,
-      "content_hash": "29d390a9",
+      "est_tokens": 3877,
+      "content_hash": "34d83b60",
       "sections": {
         "2": {
           "heading": "## 2. 模块划分",
-          "level": 2,
           "line_start": 21,
           "line_end": 249,
-          "est_tokens": 3621,
+          "est_tokens": 3697,
           "deps": [],
+          "level": 2,
           "items": {
             "M-001": {
               "heading": "### M-001: 配置管理模块 (config)",
@@ -370,7 +370,7 @@
               "heading": "### M-005: LLM 服务治理模块 (llm.gateway)",
               "line_start": 94,
               "line_end": 115,
-              "est_tokens": 516,
+              "est_tokens": 592,
               "deps": []
             },
             "M-006": {
@@ -430,17 +430,17 @@
       "doc_type": "arch",
       "volume": "main",
       "status": "approved",
-      "total_lines": 510,
-      "est_tokens": 5987,
-      "content_hash": "800bfdec",
+      "total_lines": 511,
+      "est_tokens": 6020,
+      "content_hash": "e0bd90f6",
       "sections": {
         "1": {
           "heading": "## 1. 架构概览",
-          "level": 2,
           "line_start": 27,
           "line_end": 113,
           "est_tokens": 1329,
           "deps": [],
+          "level": 2,
           "items": {
             "1.1": {
               "heading": "### 1.1 项目类型",
@@ -474,38 +474,38 @@
         },
         "2": {
           "heading": "## 2. 模块划分",
-          "level": 2,
           "line_start": 114,
           "line_end": 135,
           "est_tokens": 180,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "3": {
           "heading": "## 3. 接口契约",
-          "level": 2,
           "line_start": 136,
           "line_end": 167,
           "est_tokens": 498,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "4": {
           "heading": "## 4. 数据模型",
-          "level": 2,
           "line_start": 168,
           "line_end": 187,
           "est_tokens": 204,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "5": {
           "heading": "## 5. 非功能架构",
-          "level": 2,
           "line_start": 188,
           "line_end": 329,
           "est_tokens": 1223,
           "deps": [],
+          "level": 2,
           "items": {
             "5.1": {
               "heading": "### 5.1 性能方案",
@@ -532,39 +532,39 @@
         },
         "6": {
           "heading": "## 6. 目录结构",
-          "level": 2,
           "line_start": 330,
-          "line_end": 469,
-          "est_tokens": 1903,
+          "line_end": 470,
+          "est_tokens": 1936,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "7": {
           "heading": "## 7. 开发约定",
-          "level": 2,
-          "line_start": 470,
-          "line_end": 510,
+          "line_start": 471,
+          "line_end": 511,
           "est_tokens": 393,
           "deps": [],
+          "level": 2,
           "items": {
             "7.1": {
               "heading": "### 7.1 命名规范",
-              "line_start": 472,
-              "line_end": 485,
+              "line_start": 473,
+              "line_end": 486,
               "est_tokens": 161,
               "deps": []
             },
             "7.2": {
               "heading": "### 7.2 代码风格",
-              "line_start": 486,
-              "line_end": 493,
+              "line_start": 487,
+              "line_end": 494,
               "est_tokens": 72,
               "deps": []
             },
             "7.3": {
               "heading": "### 7.3 Git 约定",
-              "line_start": 494,
-              "line_end": 510,
+              "line_start": 495,
+              "line_end": 511,
               "est_tokens": 155,
               "deps": []
             }
@@ -583,9 +583,9 @@
       "doc_type": "changelog",
       "volume": "main",
       "status": "approved",
-      "total_lines": 37,
-      "est_tokens": 739,
-      "content_hash": "fef4f9d0",
+      "total_lines": 57,
+      "est_tokens": 1293,
+      "content_hash": "6401865a",
       "sections": {}
     },
     "deploy-spec-intellisource-v1": {
@@ -593,17 +593,17 @@
       "doc_type": "deploy-spec",
       "volume": "main",
       "status": "approved",
-      "total_lines": 755,
-      "est_tokens": 8511,
-      "content_hash": "4d10e3c1",
+      "total_lines": 797,
+      "est_tokens": 9135,
+      "content_hash": "bc9a1374",
       "sections": {
         "1": {
           "heading": "## 1. 构建流程",
-          "level": 2,
           "line_start": 27,
           "line_end": 87,
           "est_tokens": 563,
           "deps": [],
+          "level": 2,
           "items": {
             "1.1": {
               "heading": "### 1.1 前置条件",
@@ -637,11 +637,11 @@
         },
         "2": {
           "heading": "## 2. 环境配置",
-          "level": 2,
           "line_start": 88,
-          "line_end": 310,
-          "est_tokens": 3084,
+          "line_end": 352,
+          "est_tokens": 3708,
           "deps": [],
+          "level": 2,
           "items": {
             "2.1": {
               "heading": "### 2.1 部署架构",
@@ -660,73 +660,80 @@
             "2.3": {
               "heading": "### 2.3 环境变量清单",
               "line_start": 149,
-              "line_end": 224,
-              "est_tokens": 940,
+              "line_end": 227,
+              "est_tokens": 1050,
               "deps": []
             },
             "2.4": {
               "heading": "### 2.4 密钥清单与轮换",
-              "line_start": 225,
-              "line_end": 263,
-              "est_tokens": 560,
+              "line_start": 228,
+              "line_end": 267,
+              "est_tokens": 597,
               "deps": []
             },
             "2.5": {
               "heading": "### 2.5 容量与扩展性",
-              "line_start": 264,
-              "line_end": 310,
-              "est_tokens": 507,
+              "line_start": 268,
+              "line_end": 312,
+              "est_tokens": 506,
+              "deps": []
+            },
+            "2.6": {
+              "heading": "### 2.6 MCP 控制面服务（stdio）",
+              "line_start": 313,
+              "line_end": 352,
+              "est_tokens": 479,
               "deps": []
             }
           }
         },
         "3": {
           "heading": "## 3. CI/CD流水线",
-          "level": 2,
-          "line_start": 311,
-          "line_end": 686,
+          "line_start": 353,
+          "line_end": 728,
           "est_tokens": 4044,
           "deps": [],
+          "level": 2,
           "items": {
             "3.1": {
               "heading": "### 3.1 CI/CD 阶段定义（GitHub Actions）",
-              "line_start": 313,
-              "line_end": 337,
+              "line_start": 355,
+              "line_end": 379,
               "est_tokens": 264,
               "deps": []
             },
             "3.2": {
               "heading": "### 3.2 Staging 部署步骤",
-              "line_start": 338,
-              "line_end": 358,
+              "line_start": 380,
+              "line_end": 400,
               "est_tokens": 167,
               "deps": []
             },
             "3.3": {
               "heading": "### 3.3 Prod 灰度发布步骤",
-              "line_start": 359,
-              "line_end": 394,
+              "line_start": 401,
+              "line_end": 436,
               "est_tokens": 267,
               "deps": []
             },
             "3.4": {
               "heading": "### 3.4 Smoke 测试清单",
-              "line_start": 395,
-              "line_end": 476,
+              "line_start": 437,
+              "line_end": 518,
               "est_tokens": 952,
               "deps": []
             },
             "3.5": {
               "heading": "### 3.5 监控 SLO 与告警",
-              "line_start": 477,
-              "line_end": 581,
+              "line_start": 519,
+              "line_end": 623,
               "est_tokens": 1502,
               "deps": []
             },
             "3.6": {
               "heading": "### 3.6 回滚 SOP",
-              "line_start": 582,
-              "line_end": 686,
+              "line_start": 624,
+              "line_end": 728,
               "est_tokens": 884,
               "deps": []
             }
@@ -734,65 +741,65 @@
         },
         "4": {
           "heading": "## 4. 发布检查清单",
-          "level": 2,
-          "line_start": 687,
-          "line_end": 755,
+          "line_start": 729,
+          "line_end": 797,
           "est_tokens": 647,
           "deps": [],
+          "level": 2,
           "items": {
             "4.1": {
               "heading": "### 4.1 数据库迁移",
-              "line_start": 691,
-              "line_end": 698,
+              "line_start": 733,
+              "line_end": 740,
               "est_tokens": 112,
               "deps": []
             },
             "4.2": {
               "heading": "### 4.2 .env 与凭据签字",
-              "line_start": 699,
-              "line_end": 706,
+              "line_start": 741,
+              "line_end": 748,
               "est_tokens": 107,
               "deps": []
             },
             "4.3": {
               "heading": "### 4.3 镜像 Tag",
-              "line_start": 707,
-              "line_end": 712,
+              "line_start": 749,
+              "line_end": 754,
               "est_tokens": 41,
               "deps": []
             },
             "4.4": {
               "heading": "### 4.4 Smoke 套件",
-              "line_start": 713,
-              "line_end": 720,
+              "line_start": 755,
+              "line_end": 762,
               "est_tokens": 78,
               "deps": []
             },
             "4.5": {
               "heading": "### 4.5 监控验证",
-              "line_start": 721,
-              "line_end": 734,
+              "line_start": 763,
+              "line_end": 776,
               "est_tokens": 115,
               "deps": []
             },
             "4.6": {
               "heading": "### 4.6 安全门禁",
-              "line_start": 735,
-              "line_end": 741,
+              "line_start": 777,
+              "line_end": 783,
               "est_tokens": 90,
               "deps": []
             },
             "4.7": {
               "heading": "### 4.7 回滚演练记录",
-              "line_start": 742,
-              "line_end": 747,
+              "line_start": 784,
+              "line_end": 789,
               "est_tokens": 50,
               "deps": []
             },
             "4.8": {
               "heading": "### 4.8 人工签字",
-              "line_start": 748,
-              "line_end": 755,
+              "line_start": 790,
+              "line_end": 797,
               "est_tokens": 39,
               "deps": []
             }
@@ -803,7 +810,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "800bfdec"
+        "arch-intellisource-v1": "e0bd90f6"
       }
     },
     "pre-deploy-walkthrough-v1": {
@@ -811,50 +818,50 @@
       "doc_type": "deploy-spec",
       "volume": "main",
       "status": "draft",
-      "total_lines": 1069,
-      "est_tokens": 13774,
-      "content_hash": "693470fe",
+      "total_lines": 1128,
+      "est_tokens": 14669,
+      "content_hash": "2fb842bd",
       "sections": {
         "0": {
           "heading": "## 0. 前置条件",
-          "level": 2,
-          "line_start": 18,
-          "line_end": 73,
-          "est_tokens": 1000,
+          "line_start": 20,
+          "line_end": 75,
+          "est_tokens": 1001,
           "deps": [],
+          "level": 2,
           "items": {
             "0.1": {
               "heading": "### 0.1 工具清单",
-              "line_start": 20,
-              "line_end": 30,
+              "line_start": 22,
+              "line_end": 32,
               "est_tokens": 125,
               "deps": []
             },
             "0.2": {
               "heading": "### 0.2 环境变量（`docker/.env` 或导出到 shell）",
-              "line_start": 31,
-              "line_end": 54,
-              "est_tokens": 703,
+              "line_start": 33,
+              "line_end": 56,
+              "est_tokens": 704,
               "deps": []
             },
             "0.3": {
               "heading": "### 0.3 信源配置文件",
-              "line_start": 55,
-              "line_end": 63,
+              "line_start": 57,
+              "line_end": 65,
               "est_tokens": 82,
               "deps": []
             },
             "0.4": {
               "heading": "### 0.4 LLM 配置",
-              "line_start": 64,
-              "line_end": 67,
+              "line_start": 66,
+              "line_end": 69,
               "est_tokens": 41,
               "deps": []
             },
             "0.5": {
               "heading": "### 0.5 host 主机端口占用",
-              "line_start": 68,
-              "line_end": 73,
+              "line_start": 70,
+              "line_end": 75,
               "est_tokens": 42,
               "deps": []
             }
@@ -867,9 +874,9 @@
         "backlog-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1-modules": "29d390a9",
-        "arch-intellisource-v1-api": "494f914e",
-        "backlog-intellisource-v1": "2d53bdca"
+        "arch-intellisource-v1-modules": "34d83b60",
+        "arch-intellisource-v1-api": "e196332a",
+        "backlog-intellisource-v1": "52c01091"
       }
     },
     "dev-plan-intellisource-v1-s1": {
@@ -883,11 +890,11 @@
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
-          "level": 2,
           "line_start": 21,
           "line_end": 241,
           "est_tokens": 2974,
           "deps": [],
+          "level": 2,
           "items": {
             "T-001": {
               "heading": "### T-001: 项目骨架与基础配置",
@@ -959,7 +966,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "800bfdec"
+        "arch-intellisource-v1": "e0bd90f6"
       }
     },
     "dev-plan-intellisource-v1-s2": {
@@ -973,11 +980,11 @@
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
-          "level": 2,
           "line_start": 21,
           "line_end": 220,
           "est_tokens": 2606,
           "deps": [],
+          "level": 2,
           "items": {
             "T-010": {
               "heading": "### T-010: 采集器抽象基类与注册中心（含自动发现）",
@@ -1049,7 +1056,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "800bfdec"
+        "arch-intellisource-v1": "e0bd90f6"
       }
     },
     "dev-plan-intellisource-v1-s3": {
@@ -1063,11 +1070,11 @@
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
-          "level": 2,
           "line_start": 21,
           "line_end": 210,
           "est_tokens": 2464,
           "deps": [],
+          "level": 2,
           "items": {
             "T-019": {
               "heading": "### T-019: LLM统一网关(litellm封装+模型路由配置)",
@@ -1132,7 +1139,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "800bfdec"
+        "arch-intellisource-v1": "e0bd90f6"
       }
     },
     "dev-plan-intellisource-v1-s4": {
@@ -1146,11 +1153,11 @@
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
-          "level": 2,
           "line_start": 21,
           "line_end": 262,
           "est_tokens": 3187,
           "deps": [],
+          "level": 2,
           "items": {
             "T-027": {
               "heading": "### T-027: Celery任务定义与调度触发",
@@ -1229,7 +1236,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "800bfdec"
+        "arch-intellisource-v1": "e0bd90f6"
       }
     },
     "dev-plan-intellisource-v1-s5": {
@@ -1243,11 +1250,11 @@
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
-          "level": 2,
           "line_start": 21,
           "line_end": 260,
           "est_tokens": 3128,
           "deps": [],
+          "level": 2,
           "items": {
             "T-037": {
               "heading": "### T-037: 混合检索引擎",
@@ -1326,7 +1333,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "800bfdec"
+        "arch-intellisource-v1": "e0bd90f6"
       }
     },
     "dev-plan-intellisource-v1-s6": {
@@ -1340,11 +1347,11 @@
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
-          "level": 2,
           "line_start": 15,
           "line_end": 257,
           "est_tokens": 3353,
           "deps": [],
+          "level": 2,
           "items": {
             "T-047": {
               "heading": "### T-047: 架构文档修订与Sprint 6 dev-plan",
@@ -1423,7 +1430,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "800bfdec"
+        "arch-intellisource-v1": "e0bd90f6"
       }
     },
     "dev-plan-intellisource-v1-s7": {
@@ -1437,11 +1444,11 @@
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
-          "level": 2,
           "line_start": 37,
           "line_end": 354,
           "est_tokens": 7046,
           "deps": [],
+          "level": 2,
           "items": {
             "T-057": {
               "heading": "### T-057: LLM 调用指数退避重试 ✅ done",
@@ -1528,7 +1535,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "800bfdec"
+        "arch-intellisource-v1": "e0bd90f6"
       }
     },
     "dev-plan-intellisource-v1-s7r": {
@@ -1542,11 +1549,11 @@
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
-          "level": 2,
           "line_start": 25,
           "line_end": 167,
           "est_tokens": 3017,
           "deps": [],
+          "level": 2,
           "items": {
             "T-080": {
               "heading": "### T-080: runner.py DB_URL 环境变量化（12-factor §III Config）",
@@ -1578,7 +1585,7 @@
         "test-report-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "800bfdec",
+        "arch-intellisource-v1": "e0bd90f6",
         "test-report-intellisource-v1": "a8e32335"
       }
     },
@@ -1593,11 +1600,11 @@
       "sections": {
         "3": {
           "heading": "## 3. 任务卡详细",
-          "level": 2,
           "line_start": 39,
           "line_end": 388,
           "est_tokens": 5835,
           "deps": [],
+          "level": 2,
           "items": {
             "T-064": {
               "heading": "### T-064: Agent 模式系统",
@@ -1698,7 +1705,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "800bfdec"
+        "arch-intellisource-v1": "e0bd90f6"
       }
     },
     "dev-plan-intellisource-v1-s8r": {
@@ -1712,20 +1719,20 @@
       "sections": {
         "2": {
           "heading": "## 2. 依赖图",
-          "level": 2,
           "line_start": 37,
           "line_end": 76,
           "est_tokens": 281,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "3": {
           "heading": "## 3. 任务卡详细",
-          "level": 2,
           "line_start": 77,
           "line_end": 691,
           "est_tokens": 14382,
           "deps": [],
+          "level": 2,
           "items": {
             "T-083": {
               "heading": "### T-083: 应用组合根与 Celery 链路真实初始化（B-01 + B-12 基础层）",
@@ -1815,11 +1822,11 @@
         },
         "4": {
           "heading": "## 4. 风险项",
-          "level": 2,
           "line_start": 692,
           "line_end": 716,
           "est_tokens": 625,
           "deps": [],
+          "level": 2,
           "items": {
             "R-001": {
               "heading": "### R-001: 应用组合根改动影响面广（CRITICAL）",
@@ -1872,7 +1879,7 @@
         "prd-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "800bfdec",
+        "arch-intellisource-v1": "e0bd90f6",
         "prd-intellisource-v1": "6e78fb00"
       }
     },
@@ -1887,20 +1894,20 @@
       "sections": {
         "2": {
           "heading": "## 2. 依赖图",
-          "level": 2,
           "line_start": 30,
           "line_end": 51,
           "est_tokens": 161,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "3": {
           "heading": "## 3. 任务卡详细",
-          "level": 2,
           "line_start": 52,
           "line_end": 373,
           "est_tokens": 8807,
           "deps": [],
+          "level": 2,
           "items": {
             "T-095": {
               "heading": "### T-095: 统一组合根 (composition.py) + Celery 单例统一 + PipelineLoader + tasks API 触发契约",
@@ -1948,11 +1955,11 @@
         },
         "4": {
           "heading": "## 4. 风险项",
-          "level": 2,
           "line_start": 374,
           "line_end": 383,
           "est_tokens": 221,
           "deps": [],
+          "level": 2,
           "items": {}
         }
       },
@@ -1963,7 +1970,7 @@
         "dev-plan-intellisource-v1-s8r"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "800bfdec",
+        "arch-intellisource-v1": "e0bd90f6",
         "prd-intellisource-v1": "6e78fb00",
         "dev-plan-intellisource-v1-s8r": "fc1a82e6"
       }
@@ -1979,47 +1986,47 @@
       "sections": {
         "1": {
           "heading": "## 1. 迭代规划",
-          "level": 2,
           "line_start": 25,
           "line_end": 150,
           "est_tokens": 2294,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "2": {
           "heading": "## 2. 依赖图",
-          "level": 2,
           "line_start": 151,
           "line_end": 295,
           "est_tokens": 1042,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "3": {
           "heading": "## 3. 任务卡详细",
-          "level": 2,
           "line_start": 296,
           "line_end": 308,
           "est_tokens": 269,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "4": {
           "heading": "## 4. 关键路径",
-          "level": 2,
           "line_start": 309,
           "line_end": 339,
           "est_tokens": 573,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "5": {
           "heading": "## 5. 风险项",
-          "level": 2,
           "line_start": 340,
           "line_end": 358,
           "est_tokens": 692,
           "deps": [],
+          "level": 2,
           "items": {}
         }
       },
@@ -2027,7 +2034,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "800bfdec"
+        "arch-intellisource-v1": "e0bd90f6"
       }
     },
     "feedback-bug-eventlog-session-end-20260505": {
@@ -2071,11 +2078,11 @@
       "sections": {
         "1": {
           "heading": "## 1. 概述",
-          "level": 2,
           "line_start": 25,
           "line_end": 49,
           "est_tokens": 244,
           "deps": [],
+          "level": 2,
           "items": {
             "1.1": {
               "heading": "### 1.1 背景与动机",
@@ -2102,11 +2109,11 @@
         },
         "2": {
           "heading": "## 2. 功能需求",
-          "level": 2,
           "line_start": 50,
           "line_end": 217,
           "est_tokens": 2026,
           "deps": [],
+          "level": 2,
           "items": {
             "F-001": {
               "heading": "### F-001: 信息源声明式配置",
@@ -2210,11 +2217,11 @@
         },
         "3": {
           "heading": "## 3. 非功能需求",
-          "level": 2,
           "line_start": 218,
           "line_end": 243,
           "est_tokens": 220,
           "deps": [],
+          "level": 2,
           "items": {
             "3.1": {
               "heading": "### 3.1 性能",
@@ -2241,20 +2248,20 @@
         },
         "4": {
           "heading": "## 4. 约束与假设",
-          "level": 2,
           "line_start": 244,
           "line_end": 261,
           "est_tokens": 171,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "5": {
           "heading": "## 5. 术语表",
-          "level": 2,
           "line_start": 262,
           "line_end": 284,
           "est_tokens": 328,
           "deps": [],
+          "level": 2,
           "items": {}
         }
       }
@@ -2270,11 +2277,11 @@
       "sections": {
         "1": {
           "heading": "## 1. 执行摘要",
-          "level": 2,
           "line_start": 18,
           "line_end": 57,
           "est_tokens": 599,
           "deps": [],
+          "level": 2,
           "items": {
             "1.1": {
               "heading": "### 1.1 IntelliSource 当前架构成熟度判断",
@@ -2294,11 +2301,11 @@
         },
         "2": {
           "heading": "## 2. 差距分析（Gap Analysis）与改进建议",
-          "level": 2,
           "line_start": 58,
           "line_end": 198,
           "est_tokens": 3538,
           "deps": [],
+          "level": 2,
           "items": {
             "2.1": {
               "heading": "### 2.1 架构层改进",
@@ -2325,20 +2332,20 @@
         },
         "3": {
           "heading": "## 3. 优先级路线图",
-          "level": 2,
           "line_start": 199,
           "line_end": 249,
           "est_tokens": 699,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "4": {
           "heading": "## 4. 修改变更计划",
-          "level": 2,
           "line_start": 250,
           "line_end": 431,
           "est_tokens": 1964,
           "deps": [],
+          "level": 2,
           "items": {
             "4.1": {
               "heading": "### 4.1 Sprint 6 调整建议（对现有 T-047~T-056 的增补）",
@@ -2407,11 +2414,11 @@
         },
         "5": {
           "heading": "## 5. IntelliSource 优于 OpenCode 的领域（重要：避免单向对标）",
-          "level": 2,
           "line_start": 432,
           "line_end": 452,
           "est_tokens": 416,
           "deps": [],
+          "level": 2,
           "items": {}
         }
       }
@@ -2427,11 +2434,11 @@
       "sections": {
         "1": {
           "heading": "## 1. 关键发现",
-          "level": 2,
           "line_start": 14,
           "line_end": 51,
           "est_tokens": 576,
           "deps": [],
+          "level": 2,
           "items": {
             "1.1": {
               "heading": "### 1.1 选 B (现成复合镜像) 不存在",
@@ -2458,29 +2465,29 @@
         },
         "2": {
           "heading": "## 2. 选项对比矩阵",
-          "level": 2,
           "line_start": 52,
           "line_end": 63,
           "est_tokens": 177,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "3": {
           "heading": "## 3. 推荐 — 选 A1",
-          "level": 2,
           "line_start": 64,
           "line_end": 73,
           "est_tokens": 120,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "4": {
           "heading": "## 4. 实施草案 (供 B-032 实施任务参考)",
-          "level": 2,
           "line_start": 74,
           "line_end": 159,
           "est_tokens": 701,
           "deps": [],
+          "level": 2,
           "items": {
             "4.1": {
               "heading": "### 4.1 新建 `docker/db.Dockerfile`",
@@ -2521,29 +2528,29 @@
         },
         "5": {
           "heading": "## 5. 风险与回滚",
-          "level": 2,
           "line_start": 160,
           "line_end": 171,
           "est_tokens": 156,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "6": {
           "heading": "## 6. 决策记录",
-          "level": 2,
           "line_start": 172,
           "line_end": 178,
           "est_tokens": 82,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "7": {
           "heading": "## 7. 来源",
-          "level": 2,
           "line_start": 179,
           "line_end": 185,
           "est_tokens": 226,
           "deps": [],
+          "level": 2,
           "items": {}
         }
       },
@@ -2562,47 +2569,47 @@
       "sections": {
         "1": {
           "heading": "## 1. 代码层 — 两条通路对称度",
-          "level": 2,
           "line_start": 14,
           "line_end": 25,
           "est_tokens": 457,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "2": {
           "heading": "## 2. 配置层 — env 变量映射",
-          "level": 2,
           "line_start": 26,
           "line_end": 36,
           "est_tokens": 217,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "3": {
           "heading": "## 3. 默认渠道概念 — 当前不存在",
-          "level": 2,
           "line_start": 37,
           "line_end": 43,
           "est_tokens": 91,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "4": {
           "heading": "## 4. 用户视角对比（产品维度）",
-          "level": 2,
           "line_start": 44,
           "line_end": 62,
           "est_tokens": 349,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "5": {
           "heading": "## 5. \"默认优先 wework\" 的实施面",
-          "level": 2,
           "line_start": 63,
           "line_end": 83,
           "est_tokens": 336,
           "deps": [],
+          "level": 2,
           "items": {
             "5.1": {
               "heading": "### 5.1 文档层（无代码改动）",
@@ -2629,20 +2636,20 @@
         },
         "6": {
           "heading": "## 6. 立项建议",
-          "level": 2,
           "line_start": 84,
           "line_end": 89,
           "est_tokens": 51,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "7": {
           "heading": "## 7. 顺带发现的小问题",
-          "level": 2,
           "line_start": 90,
           "line_end": 93,
           "est_tokens": 89,
           "deps": [],
+          "level": 2,
           "items": {}
         }
       },
@@ -2650,7 +2657,7 @@
         "backlog-intellisource-v1"
       ],
       "dep_hashes": {
-        "backlog-intellisource-v1": "2d53bdca"
+        "backlog-intellisource-v1": "52c01091"
       }
     },
     "research-b051-config-bootstrap-ux": {
@@ -2664,20 +2671,20 @@
       "sections": {
         "1": {
           "heading": "## 1. 当前配置面盘点",
-          "level": 2,
           "line_start": 14,
           "line_end": 35,
           "est_tokens": 462,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "2": {
           "heading": "## 2. 痛点分类",
-          "level": 2,
           "line_start": 36,
           "line_end": 61,
           "est_tokens": 283,
           "deps": [],
+          "level": 2,
           "items": {
             "2.1": {
               "heading": "### 2.1 信息散布",
@@ -2704,38 +2711,38 @@
         },
         "3": {
           "heading": "## 3. 候选方案",
-          "level": 2,
           "line_start": 62,
           "line_end": 141,
           "est_tokens": 785,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "4": {
           "heading": "## 4. 建议组合",
-          "level": 2,
           "line_start": 142,
           "line_end": 160,
           "est_tokens": 151,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "5": {
           "heading": "## 5. 决策点",
-          "level": 2,
           "line_start": 161,
           "line_end": 169,
           "est_tokens": 46,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "6": {
           "heading": "## 6. 顺带发现",
-          "level": 2,
           "line_start": 170,
           "line_end": 174,
           "est_tokens": 100,
           "deps": [],
+          "level": 2,
           "items": {}
         }
       },
@@ -2743,7 +2750,7 @@
         "backlog-intellisource-v1"
       ],
       "dep_hashes": {
-        "backlog-intellisource-v1": "2d53bdca"
+        "backlog-intellisource-v1": "52c01091"
       }
     },
     "prompt-management-analysis": {
@@ -2757,11 +2764,11 @@
       "sections": {
         "1": {
           "heading": "## 1. IntelliSource 当前设计评估",
-          "level": 2,
           "line_start": 14,
           "line_end": 51,
           "est_tokens": 481,
           "deps": [],
+          "level": 2,
           "items": {
             "1.1": {
               "heading": "### 1.1 架构概述",
@@ -2788,11 +2795,11 @@
         },
         "2": {
           "heading": "## 2. OpenCode 提示词管理方案分析",
-          "level": 2,
           "line_start": 52,
           "line_end": 145,
           "est_tokens": 864,
           "deps": [],
+          "level": 2,
           "items": {
             "2.1": {
               "heading": "### 2.1 多层级 System Prompt 组装",
@@ -2833,11 +2840,11 @@
         },
         "3": {
           "heading": "## 3. 可借鉴的改进建议",
-          "level": 2,
           "line_start": 146,
           "line_end": 322,
           "est_tokens": 1648,
           "deps": [],
+          "level": 2,
           "items": {
             "3.1": {
               "heading": "### 3.1 [推荐] Prompt 模板外置化",
@@ -2885,11 +2892,11 @@
         },
         "4": {
           "heading": "## 4. 总结",
-          "level": 2,
           "line_start": 323,
           "line_end": 344,
           "est_tokens": 249,
           "deps": [],
+          "level": 2,
           "items": {}
         }
       }
@@ -2899,1027 +2906,148 @@
       "doc_type": "correction-log",
       "volume": "main",
       "status": "approved",
-      "total_lines": 564,
-      "est_tokens": 23254,
-      "content_hash": "767e718b",
+      "total_lines": 601,
+      "est_tokens": 25564,
+      "content_hash": "b2bc94da",
       "sections": {}
     },
-    "code-review-B-007-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-B-007-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 64,
-      "est_tokens": 972,
-      "content_hash": "6d463d9b",
-      "sections": {},
-      "deps": [
-        "B-007"
-      ]
-    },
-    "code-review-T-057-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-057-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 96,
-      "est_tokens": 1768,
-      "content_hash": "4aaec811",
-      "sections": {},
-      "deps": [
-        "T-057",
-        "dev-plan-intellisource-v1-s7",
-        "arch-intellisource-v1"
-      ],
-      "dep_hashes": {
-        "dev-plan-intellisource-v1-s7": "24117919",
-        "arch-intellisource-v1": "800bfdec"
-      }
-    },
-    "code-review-T-057-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-057-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 46,
-      "est_tokens": 743,
-      "content_hash": "f4b42fe1",
-      "sections": {},
-      "deps": [
-        "T-057",
-        "code-review-T-057-r1",
-        "dev-plan-intellisource-v1-s7",
-        "arch-intellisource-v1"
-      ],
-      "dep_hashes": {
-        "code-review-T-057-r1": "4aaec811",
-        "dev-plan-intellisource-v1-s7": "24117919",
-        "arch-intellisource-v1": "800bfdec"
-      }
-    },
-    "code-review-T-058-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-058-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 133,
-      "est_tokens": 2055,
-      "content_hash": "13e26d65",
-      "sections": {},
-      "deps": [
-        "T-058"
-      ]
-    },
-    "code-review-T-058-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-058-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 78,
-      "est_tokens": 1393,
-      "content_hash": "289bff7e",
-      "sections": {},
-      "deps": [
-        "T-058"
-      ]
-    },
-    "code-review-T-059-T-061-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-059-T-061-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 172,
-      "est_tokens": 3583,
-      "content_hash": "e1e751bb",
-      "sections": {},
-      "deps": [
-        "T-059",
-        "T-061"
-      ]
-    },
-    "code-review-T-059-T-061-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-059-T-061-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 127,
-      "est_tokens": 2327,
-      "content_hash": "1eca9d7e",
-      "sections": {},
-      "deps": [
-        "T-059",
-        "T-061"
-      ]
-    },
-    "code-review-T-059-T-061-r3": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-059-T-061-r3.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 113,
-      "est_tokens": 2056,
-      "content_hash": "9ce5b36a",
-      "sections": {},
-      "deps": [
-        "T-059",
-        "T-061"
-      ]
-    },
-    "code-review-T-060-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-060-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 96,
-      "est_tokens": 1812,
-      "content_hash": "d7b82a07",
-      "sections": {},
-      "deps": [
-        "T-060"
-      ]
-    },
-    "code-review-T-060-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-060-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 96,
-      "est_tokens": 1335,
-      "content_hash": "5de08253",
-      "sections": {},
-      "deps": [
-        "T-060"
-      ]
-    },
-    "code-review-T-060-r3": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-060-r3.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 135,
-      "est_tokens": 1884,
-      "content_hash": "917d3c80",
-      "sections": {},
-      "deps": [
-        "T-060"
-      ]
-    },
-    "code-review-t-062-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-062-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 64,
-      "est_tokens": 1148,
-      "content_hash": "ab84cdef",
-      "sections": {},
-      "deps": [
-        "T-062"
-      ]
-    },
-    "code-review-t-062-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-062-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 48,
-      "est_tokens": 562,
-      "content_hash": "00ef94f0",
-      "sections": {},
-      "deps": [
-        "T-062"
-      ]
-    },
-    "code-review-t-063-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-063-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 78,
-      "est_tokens": 1707,
-      "content_hash": "a56804bc",
-      "sections": {},
-      "deps": [
-        "T-063"
-      ]
-    },
-    "code-review-T-072-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-072-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 186,
-      "est_tokens": 2515,
-      "content_hash": "8d8beddb",
-      "sections": {},
-      "deps": [
-        "T-072"
-      ]
-    },
-    "code-review-T-072-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-072-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 114,
-      "est_tokens": 1490,
-      "content_hash": "b475f5fb",
-      "sections": {},
-      "deps": [
-        "T-072"
-      ]
-    },
-    "code-review-T-072-r3": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-072-r3.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 157,
-      "est_tokens": 1643,
-      "content_hash": "50e008cf",
-      "sections": {},
-      "deps": [
-        "T-072"
-      ]
-    },
-    "code-review-t-073-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-073-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 76,
-      "est_tokens": 1533,
-      "content_hash": "af8c41bc",
-      "sections": {},
-      "deps": [
-        "T-073"
-      ]
-    },
-    "code-review-t-073-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-073-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 166,
-      "est_tokens": 2261,
-      "content_hash": "ce1fad0a",
-      "sections": {},
-      "deps": [
-        "T-073"
-      ]
-    },
-    "code-review-t-073-r3": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-073-r3.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 32,
-      "est_tokens": 455,
-      "content_hash": "5492450e",
-      "sections": {},
-      "deps": [
-        "T-073"
-      ]
-    },
-    "code-review-T-074-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-074-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 113,
-      "est_tokens": 2253,
-      "content_hash": "d8fbea58",
-      "sections": {},
-      "deps": [
-        "T-074"
-      ]
-    },
-    "code-review-T-074-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-074-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 167,
-      "est_tokens": 2670,
-      "content_hash": "dd866e2d",
-      "sections": {},
-      "deps": [
-        "T-074"
-      ]
-    },
-    "code-review-t-075-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-075-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 98,
-      "est_tokens": 1999,
-      "content_hash": "76d2eeaa",
-      "sections": {},
-      "deps": [
-        "T-075"
-      ]
-    },
-    "code-review-t-075-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-075-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 80,
-      "est_tokens": 1173,
-      "content_hash": "32b6253a",
-      "sections": {},
-      "deps": [
-        "T-075"
-      ]
-    },
-    "code-review-T-083-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-083-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 163,
-      "est_tokens": 2771,
-      "content_hash": "6cecd16b",
-      "sections": {},
-      "deps": [
-        "T-083"
-      ]
-    },
-    "code-review-T-083-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-083-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 109,
-      "est_tokens": 1450,
-      "content_hash": "0e7d4c06",
-      "sections": {},
-      "deps": [
-        "T-083"
-      ]
-    },
-    "code-review-T-083-r3": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-083-r3.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 114,
-      "est_tokens": 1134,
-      "content_hash": "79e94fe1",
-      "sections": {},
-      "deps": [
-        "T-083"
-      ]
-    },
-    "code-review-T-084-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-084-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 159,
-      "est_tokens": 2336,
-      "content_hash": "57e697ac",
-      "sections": {},
-      "deps": [
-        "T-084"
-      ]
-    },
-    "code-review-T-084-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-084-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 82,
-      "est_tokens": 1702,
-      "content_hash": "8801d1ef",
-      "sections": {},
-      "deps": [
-        "T-084"
-      ]
-    },
-    "code-review-T-084-r3": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-084-r3.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 83,
-      "est_tokens": 1262,
-      "content_hash": "1575efa5",
-      "sections": {},
-      "deps": [
-        "T-084"
-      ]
-    },
-    "code-review-T-085-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-085-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 79,
-      "est_tokens": 1197,
-      "content_hash": "19466c9b",
-      "sections": {},
-      "deps": [
-        "T-085"
-      ]
-    },
-    "code-review-T-085-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-085-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 117,
-      "est_tokens": 1251,
-      "content_hash": "fee062a6",
-      "sections": {},
-      "deps": [
-        "T-085"
-      ]
-    },
-    "code-review-T-086-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-086-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 137,
-      "est_tokens": 2585,
-      "content_hash": "51a6fe8f",
-      "sections": {},
-      "deps": [
-        "T-086"
-      ]
-    },
-    "code-review-T-086-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-086-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 95,
-      "est_tokens": 1589,
-      "content_hash": "22eb4f1e",
-      "sections": {},
-      "deps": [
-        "T-086"
-      ]
-    },
-    "code-review-T-087-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-087-r1.md",
+    "code-scan-arch-20260605-r1": {
+      "file_path": "docs/reviews/code/CODE-SCAN-arch-20260605-r1.md",
       "doc_type": "code-review",
       "volume": "main",
       "status": "draft",
-      "total_lines": 110,
-      "est_tokens": 1464,
-      "content_hash": "e4172daf",
-      "sections": {},
-      "deps": [
-        "T-087"
-      ]
-    },
-    "code-review-T-087-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-087-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 99,
-      "est_tokens": 983,
-      "content_hash": "93edf5e8",
-      "sections": {},
-      "deps": [
-        "T-087"
-      ]
-    },
-    "code-review-T-088-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-088-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 83,
-      "est_tokens": 1633,
-      "content_hash": "d435dd3c",
-      "sections": {},
-      "deps": [
-        "T-088"
-      ]
-    },
-    "code-review-T-088-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-088-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 82,
-      "est_tokens": 1420,
-      "content_hash": "c7d4a184",
-      "sections": {},
-      "deps": [
-        "T-088"
-      ]
-    },
-    "code-review-T-088-r3": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-088-r3.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 157,
-      "est_tokens": 2028,
-      "content_hash": "af849374",
-      "sections": {},
-      "deps": [
-        "T-088"
-      ]
-    },
-    "code-review-T-089-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-089-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "draft",
-      "total_lines": 120,
-      "est_tokens": 1587,
-      "content_hash": "cffc6476",
-      "sections": {},
-      "deps": [
-        "T-089"
-      ]
-    },
-    "code-review-T-089-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-089-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 170,
-      "est_tokens": 2140,
-      "content_hash": "24f7c6ed",
-      "sections": {},
-      "deps": [
-        "T-089"
-      ]
-    },
-    "code-review-T-090-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-090-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 114,
-      "est_tokens": 2183,
-      "content_hash": "2339dcbe",
-      "sections": {},
-      "deps": [
-        "T-090"
-      ]
-    },
-    "code-review-T-090-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-090-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 95,
-      "est_tokens": 1621,
-      "content_hash": "4ed0a996",
-      "sections": {},
-      "deps": [
-        "T-090"
-      ]
-    },
-    "code-review-T-091-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-091-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 129,
-      "est_tokens": 2631,
-      "content_hash": "28f696b0",
-      "sections": {},
-      "deps": [
-        "T-091"
-      ]
-    },
-    "code-review-T-091-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-091-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 86,
-      "est_tokens": 1778,
-      "content_hash": "4ce67157",
-      "sections": {},
-      "deps": [
-        "T-091"
-      ]
-    },
-    "code-review-T-092-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-092-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 181,
-      "est_tokens": 3673,
-      "content_hash": "50730e6f",
-      "sections": {},
-      "deps": [
-        "T-092"
-      ]
-    },
-    "code-review-T-092-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-092-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 135,
-      "est_tokens": 2423,
-      "content_hash": "407e2201",
-      "sections": {},
-      "deps": [
-        "T-092"
-      ]
-    },
-    "code-review-T-093-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-093-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 132,
-      "est_tokens": 2441,
-      "content_hash": "d9803d9a",
-      "sections": {},
-      "deps": [
-        "T-093"
-      ]
-    },
-    "code-review-T-093-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-093-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 95,
-      "est_tokens": 1238,
-      "content_hash": "503d7f9b",
-      "sections": {},
-      "deps": [
-        "T-093"
-      ]
-    },
-    "code-review-T-095-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-095-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "draft",
-      "total_lines": 207,
-      "est_tokens": 3793,
-      "content_hash": "676cf362",
-      "sections": {},
-      "deps": [
-        "T-095"
-      ]
-    },
-    "code-review-T-095-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-095-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 106,
-      "est_tokens": 2115,
-      "content_hash": "82968231",
-      "sections": {},
-      "deps": [
-        "T-095"
-      ]
-    },
-    "code-review-T-096-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-096-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 113,
-      "est_tokens": 2571,
-      "content_hash": "6da595a7",
-      "sections": {},
-      "deps": [
-        "T-096"
-      ]
-    },
-    "code-review-T-097-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-097-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 196,
-      "est_tokens": 4209,
-      "content_hash": "8edcab2b",
-      "sections": {},
-      "deps": [
-        "T-097"
-      ]
-    },
-    "code-review-T-097-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-097-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 106,
-      "est_tokens": 1484,
-      "content_hash": "fe9955f1",
-      "sections": {},
-      "deps": [
-        "T-097"
-      ]
-    },
-    "code-review-T-098-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-098-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 260,
-      "est_tokens": 5250,
-      "content_hash": "697d3899",
-      "sections": {},
-      "deps": [
-        "T-098"
-      ]
-    },
-    "code-review-T-098-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-098-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 141,
-      "est_tokens": 2825,
-      "content_hash": "4a922f7d",
-      "sections": {},
-      "deps": [
-        "T-098"
-      ]
-    },
-    "code-review-T-099-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-099-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 126,
-      "est_tokens": 1628,
-      "content_hash": "8b791470",
-      "sections": {},
-      "deps": [
-        "T-099"
-      ]
-    },
-    "code-review-T-099-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-099-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 101,
-      "est_tokens": 1426,
-      "content_hash": "998bdaf5",
-      "sections": {},
-      "deps": [
-        "T-099"
-      ]
-    },
-    "code-review-T-100-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-100-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 159,
-      "est_tokens": 2505,
-      "content_hash": "213b485d",
-      "sections": {},
-      "deps": [
-        "T-100"
-      ]
-    },
-    "code-review-T-100-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-T-100-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 101,
-      "est_tokens": 1548,
-      "content_hash": "f8669f66",
-      "sections": {},
-      "deps": [
-        "T-100"
-      ]
-    },
-    "code-review-backlog-p1-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-backlog-p1-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 134,
-      "est_tokens": 2585,
-      "content_hash": "8c81be4e",
-      "sections": {},
-      "deps": [
-        "B-003",
-        "B-004",
-        "B-005",
-        "B-006"
-      ]
-    },
-    "code-review-deliverable-compliance-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-deliverable-compliance-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 138,
-      "est_tokens": 1706,
-      "content_hash": "a56fe037",
-      "sections": {},
-      "deps": [
-        "deliverable-compliance"
-      ]
-    },
-    "code-review-deliverable-compliance-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-deliverable-compliance-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 143,
-      "est_tokens": 1895,
-      "content_hash": "25540cc0",
-      "sections": {},
-      "deps": [
-        "deliverable-compliance"
-      ]
-    },
-    "code-review-sprint2-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-sprint2-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 116,
-      "est_tokens": 1790,
-      "content_hash": "d54d168c",
-      "sections": {},
-      "deps": [
-        "sprint2"
-      ]
-    },
-    "code-review-sprint3-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-sprint3-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 149,
-      "est_tokens": 2526,
-      "content_hash": "70ffb7b2",
-      "sections": {},
-      "deps": [
-        "sprint3"
-      ]
-    },
-    "code-review-sprint4-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-sprint4-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 158,
-      "est_tokens": 3395,
-      "content_hash": "56408679",
-      "sections": {},
-      "deps": [
-        "sprint4"
-      ]
-    },
-    "code-review-sprint4-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-sprint4-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 142,
-      "est_tokens": 1643,
-      "content_hash": "bc89172d",
-      "sections": {},
-      "deps": [
-        "sprint4"
-      ]
-    },
-    "code-review-sprint5-r1": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-sprint5-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 129,
-      "est_tokens": 1777,
-      "content_hash": "ca6a3da1",
-      "sections": {},
-      "deps": [
-        "sprint5"
-      ]
-    },
-    "code-review-sprint5-r2": {
-      "file_path": "docs/reviews/code/CODE-REVIEW-sprint5-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 89,
-      "est_tokens": 952,
-      "content_hash": "cc34949e",
-      "sections": {},
-      "deps": [
-        "sprint5"
-      ]
-    },
-    "code-scan-20260503-r1": {
-      "file_path": "docs/reviews/code/CODE-SCAN-20260503-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 182,
-      "est_tokens": 3223,
-      "content_hash": "2cafc023",
-      "sections": {}
-    },
-    "code-scan-20260503-r2": {
-      "file_path": "docs/reviews/code/CODE-SCAN-20260503-r2.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "approved",
-      "total_lines": 175,
-      "est_tokens": 3425,
-      "content_hash": "cd170c7a",
-      "sections": {}
-    },
-    "code-scan-arch-20260524-r1": {
-      "file_path": "docs/reviews/code/CODE-SCAN-arch-20260524-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "draft",
-      "total_lines": 306,
-      "est_tokens": 3795,
-      "content_hash": "b732278b",
+      "total_lines": 373,
+      "est_tokens": 10984,
+      "content_hash": "b56f4a19",
       "sections": {
-        "0": {
-          "heading": "## 0. 工具汇总",
-          "level": 2,
-          "line_start": 19,
-          "line_end": 31,
-          "est_tokens": 187,
-          "deps": [],
-          "items": {}
-        },
         "1": {
-          "heading": "## 1. 契约执行总览",
-          "level": 2,
-          "line_start": 39,
-          "line_end": 55,
-          "est_tokens": 253,
+          "heading": "## 1. 现状评估",
+          "line_start": 13,
+          "line_end": 89,
+          "est_tokens": 3348,
           "deps": [],
-          "items": {}
+          "level": 2,
+          "items": {
+            "1.1": {
+              "heading": "### 1.1 包结构与分层边界 (package-structure / layering-boundaries)",
+              "line_start": 17,
+              "line_end": 25,
+              "est_tokens": 538,
+              "deps": []
+            },
+            "1.2": {
+              "heading": "### 1.2 耦合与抽象 (coupling-abstraction)",
+              "line_start": 26,
+              "line_end": 38,
+              "est_tokens": 773,
+              "deps": []
+            },
+            "1.3": {
+              "heading": "### 1.3 类型契约 (typing-contracts)",
+              "line_start": 39,
+              "line_end": 50,
+              "est_tokens": 583,
+              "deps": []
+            },
+            "1.4": {
+              "heading": "### 1.4 死代码与冗余 (dead-code-redundancy / pythonic-quality)",
+              "line_start": 51,
+              "line_end": 65,
+              "est_tokens": 515,
+              "deps": []
+            },
+            "1.5": {
+              "heading": "### 1.5 依赖与技术债 (dependencies-techdebt)",
+              "line_start": 66,
+              "line_end": 76,
+              "est_tokens": 446,
+              "deps": []
+            },
+            "1.6": {
+              "heading": "### 1.6 测试质量 (tests)",
+              "line_start": 77,
+              "line_end": 89,
+              "est_tokens": 477,
+              "deps": []
+            }
+          }
         },
         "2": {
-          "heading": "## 2. 违规清单与归因",
-          "level": 2,
-          "line_start": 56,
-          "line_end": 185,
-          "est_tokens": 1621,
+          "heading": "## 2. 目标架构",
+          "line_start": 90,
+          "line_end": 177,
+          "est_tokens": 1289,
           "deps": [],
-          "items": {}
+          "level": 2,
+          "items": {
+            "2.1": {
+              "heading": "### 2.1 目标包结构（含与现状差异）",
+              "line_start": 92,
+              "line_end": 147,
+              "est_tokens": 978,
+              "deps": []
+            },
+            "2.2": {
+              "heading": "### 2.2 分层与单向依赖方向",
+              "line_start": 148,
+              "line_end": 177,
+              "est_tokens": 306,
+              "deps": []
+            }
+          }
         },
         "3": {
-          "heading": "## 3. 违规归并与 Backlog 立项",
-          "level": 2,
-          "line_start": 186,
-          "line_end": 202,
-          "est_tokens": 239,
+          "heading": "## 3. 重构方案",
+          "line_start": 178,
+          "line_end": 263,
+          "est_tokens": 2463,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "4": {
-          "heading": "## 4. DEP003: 直接 import 但是传递依赖 × 24（→ B-026）",
-          "level": 2,
-          "line_start": 221,
-          "line_end": 234,
-          "est_tokens": 300,
+          "heading": "## 4. 测试改造计划",
+          "line_start": 264,
+          "line_end": 280,
+          "est_tokens": 615,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "5": {
-          "heading": "## 5. DEP002: 声明但未使用 × 6（→ B-027）",
-          "level": 2,
-          "line_start": 235,
-          "line_end": 248,
-          "est_tokens": 130,
+          "heading": "## 5. 执行计划",
+          "line_start": 281,
+          "line_end": 311,
+          "est_tokens": 713,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "6": {
-          "heading": "## 6. `_unified_call_with_retry` 三个参数定义未使用（→ B-028）",
-          "level": 2,
-          "line_start": 254,
-          "line_end": 280,
-          "est_tokens": 279,
+          "heading": "## 6. 死代码清理清单",
+          "line_start": 312,
+          "line_end": 333,
+          "est_tokens": 863,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "7": {
-          "heading": "## 7. verdict",
-          "level": 2,
-          "line_start": 293,
-          "line_end": 306,
-          "est_tokens": 209,
+          "heading": "## 7. 工具与门禁建议",
+          "line_start": 334,
+          "line_end": 348,
+          "est_tokens": 473,
           "deps": [],
+          "level": 2,
+          "items": {}
+        },
+        "8": {
+          "heading": "## 8. 执行进度跟踪（截至 commit 5f76d0c）",
+          "line_start": 349,
+          "line_end": 373,
+          "est_tokens": 1059,
+          "deps": [],
+          "level": 2,
           "items": {}
         }
       },
@@ -3928,90 +3056,8 @@
         "backlog-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1-modules": "29d390a9",
-        "backlog-intellisource-v1": "2d53bdca"
-      }
-    },
-    "code-scan-arch-20260529-r1": {
-      "file_path": "docs/reviews/code/CODE-SCAN-arch-20260529-r1.md",
-      "doc_type": "code-review",
-      "volume": "main",
-      "status": "draft",
-      "total_lines": 73,
-      "est_tokens": 1787,
-      "content_hash": "8b0190d2",
-      "sections": {
-        "0": {
-          "heading": "## 0. 关键结论",
-          "level": 2,
-          "line_start": 14,
-          "line_end": 17,
-          "est_tokens": 54,
-          "deps": [],
-          "items": {}
-        },
-        "1": {
-          "heading": "## 1. 问题清单（位置 / 严重程度 / 分类）",
-          "level": 2,
-          "line_start": 18,
-          "line_end": 34,
-          "est_tokens": 510,
-          "deps": [],
-          "items": {}
-        },
-        "2": {
-          "heading": "## 2. 配置散落清单（实测环境变量 + 默认值）",
-          "level": 2,
-          "line_start": 35,
-          "line_end": 38,
-          "est_tokens": 197,
-          "deps": [],
-          "items": {}
-        },
-        "3": {
-          "heading": "## 3. 日志清单（54 处 `logging.getLogger`，代表文件）",
-          "level": 2,
-          "line_start": 39,
-          "line_end": 42,
-          "est_tokens": 190,
-          "deps": [],
-          "items": {}
-        },
-        "4": {
-          "heading": "## 4. 重构方案与优先级（风险低 → 高）",
-          "level": 2,
-          "line_start": 43,
-          "line_end": 55,
-          "est_tokens": 207,
-          "deps": [],
-          "items": {}
-        },
-        "5": {
-          "heading": "## 5. 验证方式",
-          "level": 2,
-          "line_start": 56,
-          "line_end": 61,
-          "est_tokens": 140,
-          "deps": [],
-          "items": {}
-        },
-        "6": {
-          "heading": "## 6. 实施状态（本次工程）",
-          "level": 2,
-          "line_start": 62,
-          "line_end": 73,
-          "est_tokens": 334,
-          "deps": [],
-          "items": {}
-        }
-      },
-      "deps": [
-        "arch-intellisource-v1-modules",
-        "backlog-intellisource-v1"
-      ],
-      "dep_hashes": {
-        "arch-intellisource-v1-modules": "29d390a9",
-        "backlog-intellisource-v1": "2d53bdca"
+        "arch-intellisource-v1-modules": "34d83b60",
+        "backlog-intellisource-v1": "52c01091"
       }
     },
     "review-arch-intellisource-v1-r1": {
@@ -4027,7 +3073,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "800bfdec"
+        "arch-intellisource-v1": "e0bd90f6"
       }
     },
     "review-arch-intellisource-v1-r2": {
@@ -4043,7 +3089,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "800bfdec"
+        "arch-intellisource-v1": "e0bd90f6"
       }
     },
     "review-arch-intellisource-v1-r3": {
@@ -4059,7 +3105,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "800bfdec"
+        "arch-intellisource-v1": "e0bd90f6"
       }
     },
     "review-deploy-spec-intellisource-v1-r1": {
@@ -4075,7 +3121,7 @@
         "deploy-spec-intellisource-v1"
       ],
       "dep_hashes": {
-        "deploy-spec-intellisource-v1": "4d10e3c1"
+        "deploy-spec-intellisource-v1": "bc9a1374"
       }
     },
     "review-deploy-spec-intellisource-v1-r2": {
@@ -4091,7 +3137,7 @@
         "deploy-spec-intellisource-v1"
       ],
       "dep_hashes": {
-        "deploy-spec-intellisource-v1": "4d10e3c1"
+        "deploy-spec-intellisource-v1": "bc9a1374"
       }
     },
     "review-dev-plan-intellisource-v1-r1": {
@@ -4281,47 +3327,47 @@
       "sections": {
         "1": {
           "heading": "## 1. r1 → r2 修订对照表",
-          "level": 2,
           "line_start": 17,
           "line_end": 29,
           "est_tokens": 496,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "2": {
           "heading": "## 2. 新发现问题",
-          "level": 2,
           "line_start": 30,
           "line_end": 49,
           "est_tokens": 352,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "3": {
           "heading": "## 3. 范围外 r1 项当前状态备注",
-          "level": 2,
           "line_start": 50,
           "line_end": 64,
           "est_tokens": 214,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "4": {
           "heading": "## 4. r2 verdict 严重等级统计",
-          "level": 2,
           "line_start": 65,
           "line_end": 81,
           "est_tokens": 171,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "5": {
           "heading": "## 5. 结论",
-          "level": 2,
           "line_start": 82,
           "line_end": 89,
           "est_tokens": 122,
           "deps": [],
+          "level": 2,
           "items": {}
         }
       },
@@ -4736,11 +3782,11 @@
       "sections": {
         "1": {
           "heading": "## 1. 测试策略",
-          "level": 2,
           "line_start": 33,
           "line_end": 61,
           "est_tokens": 505,
           "deps": [],
+          "level": 2,
           "items": {
             "1.1": {
               "heading": "### 1.1 测试金字塔",
@@ -4760,38 +3806,38 @@
         },
         "2": {
           "heading": "## 2. 测试用例矩阵",
-          "level": 2,
           "line_start": 62,
           "line_end": 182,
           "est_tokens": 2779,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "3": {
           "heading": "## 3. 覆盖率目标",
-          "level": 2,
           "line_start": 183,
           "line_end": 237,
           "est_tokens": 975,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "4": {
           "heading": "## 4. 测试环境",
-          "level": 2,
           "line_start": 238,
           "line_end": 258,
           "est_tokens": 212,
           "deps": [],
+          "level": 2,
           "items": {}
         },
         "5": {
           "heading": "## 5. 测试执行结果",
-          "level": 2,
           "line_start": 259,
           "line_end": 294,
           "est_tokens": 526,
           "deps": [],
+          "level": 2,
           "items": {
             "5.1": {
               "heading": "### 5.1 执行汇总",
@@ -4811,11 +3857,11 @@
         },
         "6": {
           "heading": "## 6. 缺陷清单",
-          "level": 2,
           "line_start": 295,
           "line_end": 326,
           "est_tokens": 868,
           "deps": [],
+          "level": 2,
           "items": {
             "6.1": {
               "heading": "### 6.1 残留 LOW 缺陷（来自 CODE-REVIEW 报告，已知非阻塞）",
@@ -4842,11 +3888,11 @@
         },
         "7": {
           "heading": "## 7. 结论与建议",
-          "level": 2,
           "line_start": 327,
           "line_end": 395,
           "est_tokens": 836,
           "deps": [],
+          "level": 2,
           "items": {}
         }
       },
