@@ -696,6 +696,85 @@ def search(
 
 
 # ---------------------------------------------------------------------------
+# chat command (RAG conversation over /search/chat)
+# ---------------------------------------------------------------------------
+
+
+def _print_chat_answer(data: dict[str, Any]) -> None:
+    """Print the assistant answer followed by its cited sources, if any."""
+    typer.echo(str(data.get("answer", "")))
+    sources = data.get("sources") or []
+    if sources:
+        typer.echo("\nSources:")
+        for i, src in enumerate(sources, 1):
+            title = src.get("title") or "(untitled)"
+            url = src.get("url")
+            typer.echo(f"  [{i}] {title}" + (f"  {url}" if url else ""))
+
+
+def _chat_once(message: str, session_id: str | None) -> dict[str, Any]:
+    """Send one message to /search/chat; exit non-zero on an error response."""
+    payload: dict[str, Any] = {"message": message}
+    if session_id:
+        payload["session_id"] = session_id
+    resp = _post_json("/api/v1/search/chat", payload)
+    if resp.status_code >= 400:
+        try:
+            detail = _error_message(resp)
+        except Exception:
+            detail = resp.text
+        typer.echo(f"Error ({resp.status_code}): {detail}")
+        raise typer.Exit(code=1)
+    result: dict[str, Any] = resp.json()
+    return result
+
+
+@app.command("chat")
+def chat(
+    message: str | None = typer.Argument(
+        None, help="Question to ask; omit to start an interactive session"
+    ),
+    session_id: str | None = typer.Option(
+        None, "--session-id", help="Continue an existing chat session"
+    ),
+    json_output: bool = typer.Option(
+        False, "--json", help="Output raw JSON (single-shot only)"
+    ),
+) -> None:
+    """Chat with your collected sources (RAG) via POST /search/chat.
+
+    With a MESSAGE it answers once and exits; without one it opens an
+    interactive REPL that keeps the conversation's session across turns
+    (blank line, 'exit'/'quit', or Ctrl-D to leave).
+    """
+    if message is not None:
+        data = _chat_once(message, session_id)
+        if json_output:
+            typer.echo(json.dumps(data))
+        else:
+            _print_chat_answer(data)
+        return
+
+    typer.echo("IntelliSource chat — blank line, 'exit', or Ctrl-D to quit.\n")
+    current_session = session_id
+    while True:
+        try:
+            line = typer.prompt(
+                "you", prompt_suffix="> ", default="", show_default=False
+            )
+        except (typer.Abort, EOFError):
+            typer.echo("")
+            break
+        msg = line.strip()
+        if not msg or msg.lower() in {"exit", "quit"}:
+            break
+        data = _chat_once(msg, current_session)
+        current_session = data.get("session_id") or current_session
+        _print_chat_answer(data)
+        typer.echo("")
+
+
+# ---------------------------------------------------------------------------
 # doctor command (Phase C — config self-check)
 # ---------------------------------------------------------------------------
 

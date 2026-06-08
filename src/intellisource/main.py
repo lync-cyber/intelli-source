@@ -34,6 +34,7 @@ from intellisource.api.routers import (
     tasks,
     templates,
     topics,
+    web,
     webhooks,
 )
 from intellisource.api.schemas.observability import HealthResponse
@@ -360,6 +361,10 @@ def create_app() -> FastAPI:
     app.include_router(distribution.router, prefix="/api/v1")
     app.include_router(templates.router, prefix="/api/v1")
     app.include_router(agent.router, prefix="/api/v1")
+
+    # Minimal chat web UI served at root /chat (no /api/v1 prefix); its browser
+    # JS calls the versioned /api/v1/search/chat/stream endpoint.
+    app.include_router(web.router)
 
     # Health endpoints (root-level + API-versioned per AC-T042-6)
     @app.get("/health", response_model=HealthResponse)

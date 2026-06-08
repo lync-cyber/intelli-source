@@ -305,6 +305,113 @@ class TestSearchCommand:
 
 
 # ===========================================================================
+# chat command: RAG conversation over POST /search/chat
+# ===========================================================================
+
+
+def _chat_response(
+    *,
+    answer: str = "Python is a programming language.",
+    session_id: str = "sess-1",
+    sources: list[dict[str, Any]] | None = None,
+) -> MagicMock:
+    return _mock_response(
+        json_data={
+            "session_id": session_id,
+            "answer": answer,
+            "sources": sources
+            if sources is not None
+            else [{"title": "Python Guide", "url": "https://example.com/py"}],
+            "query_time_ms": 12,
+            "steps_executed": 2,
+            "task_chain_id": "tc-1",
+        }
+    )
+
+
+class TestChatCommand:
+    """chat command wraps POST /search/chat (single-shot + interactive REPL)."""
+
+    @patch("intellisource.cli.main.httpx")
+    def test_chat_single_shot_prints_answer_and_sources(
+        self, mock_httpx: MagicMock, runner: Any
+    ) -> None:
+        """chat MESSAGE should POST /search/chat and print the answer + sources."""
+        _skip_if_missing()
+        mock_httpx.post.return_value = _chat_response()
+
+        result = runner.invoke(app, ["chat", "what is python"])
+
+        assert result.exit_code == 0
+        assert "Python is a programming language." in result.output
+        assert "Python Guide" in result.output
+        url = mock_httpx.post.call_args.args[0]
+        assert url.endswith("/api/v1/search/chat")
+        assert mock_httpx.post.call_args.kwargs["json"]["message"] == "what is python"
+
+    @patch("intellisource.cli.main.httpx")
+    def test_chat_json_output_emits_raw_body(
+        self, mock_httpx: MagicMock, runner: Any
+    ) -> None:
+        """--json should emit the raw response body for scripting."""
+        _skip_if_missing()
+        mock_httpx.post.return_value = _chat_response(answer="hi", sources=[])
+
+        result = runner.invoke(app, ["chat", "hi", "--json"])
+
+        assert result.exit_code == 0
+        assert json.loads(result.output)["answer"] == "hi"
+
+    @patch("intellisource.cli.main.httpx")
+    def test_chat_session_id_forwarded(
+        self, mock_httpx: MagicMock, runner: Any
+    ) -> None:
+        """--session-id continues an existing conversation server-side."""
+        _skip_if_missing()
+        mock_httpx.post.return_value = _chat_response(session_id="sess-9")
+
+        result = runner.invoke(app, ["chat", "again", "--session-id", "sess-9"])
+
+        assert result.exit_code == 0
+        assert mock_httpx.post.call_args.kwargs["json"]["session_id"] == "sess-9"
+
+    @patch("intellisource.cli.main.httpx")
+    def test_chat_error_response_exits_nonzero(
+        self, mock_httpx: MagicMock, runner: Any
+    ) -> None:
+        """A 503 from the API surfaces the error message and exits non-zero."""
+        _skip_if_missing()
+        mock_httpx.post.return_value = _mock_response(
+            status_code=503,
+            json_data={"error": {"message": "agent_runner not initialised"}},
+        )
+
+        result = runner.invoke(app, ["chat", "hello"])
+
+        assert result.exit_code == 1
+        assert "agent_runner not initialised" in result.output
+
+    @patch("intellisource.cli.main.httpx")
+    def test_chat_interactive_repl_carries_session(
+        self, mock_httpx: MagicMock, runner: Any
+    ) -> None:
+        """REPL answers each turn and reuses the session id captured from the reply."""
+        _skip_if_missing()
+        mock_httpx.post.return_value = _chat_response(
+            answer="answer-A", session_id="sess-repl", sources=[]
+        )
+
+        result = runner.invoke(app, ["chat"], input="first\nsecond\n\n")
+
+        assert result.exit_code == 0
+        assert "answer-A" in result.output
+        assert mock_httpx.post.call_count == 2
+        # the second turn carries the session id returned by the first reply
+        assert mock_httpx.post.call_args.kwargs["json"]["message"] == "second"
+        assert mock_httpx.post.call_args.kwargs["json"]["session_id"] == "sess-repl"
+
+
+# ===========================================================================
 # AC-T044-5: output format (table default, --json)
 # ===========================================================================
 

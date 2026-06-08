@@ -56,6 +56,24 @@ Windows PowerShell / macOS / Linux 命令**完全一致**——`intellisource up
 
 > `diff` / `config status` 的 reload 预览会区分两种语义：**subscriptions reload 是全量同步**（YAML 删掉的订阅被 PAUSE）；**sources reload 是加法 upsert**（YAML 没有的 DB 信源 PRESERVE 保留）。`subscriptions show` 额外标注 digest 的 **configured render_mode** 与"协作者缺失时降级 code"提示。
 
+## 对话检索（chat）
+
+对已采集的资料库做基于检索的对话（RAG）。CLI 与 Web 两个入口对接同一组 `/search/chat` 端点：
+
+**CLI** — `intellisource chat`：
+
+```bash
+# 单次问答（打印回答 + 引用来源；--json 输出原始响应）
+uv run intellisource chat "最近有哪些关于 LLM 的进展？"
+
+# 交互式会话（自动保持上下文 session_id；空行 / exit / Ctrl-D 退出）
+uv run intellisource chat
+```
+
+**Web** — 浏览器访问 `http://localhost:8000/chat`：
+
+一个最简前端（HTML + SSE），用 `fetch` 流式消费 `/api/v1/search/chat/stream`，逐 token 渲染回答并列出引用来源。页面本身公开可加载；若配置了 `IS_API_KEY`，在右上角输入框填入即可（只存于本地浏览器，随每次请求以 `X-API-Key` 头发送）。
+
 ## 开发环境
 
 ```bash
