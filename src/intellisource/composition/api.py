@@ -144,7 +144,7 @@ def _install_webhook_state(app: FastAPI, *, redis_client: Any) -> None:
 
     Env presence rules:
 
-    - `IS_WECHAT_WEBHOOK_TOKEN` / `IS_WEWORK_WEBHOOK_TOKEN` — when missing,
+    - `IS_WECHAT_WEBHOOK_TOKEN` — when missing,
       the corresponding token state is set to "" and the router's signature
       check rejects every callback with 403 (no silent bypass). A startup
       warning is logged so operators notice the gap.
@@ -168,9 +168,7 @@ def _install_webhook_state(app: FastAPI, *, redis_client: Any) -> None:
 
     settings = get_settings()
     wechat_token = settings.wechat_webhook_token
-    wework_token = settings.wework_webhook_token
     app.state.wechat_webhook_token = wechat_token
-    app.state.wework_webhook_token = wework_token
 
     _wecom_token = settings.wecom_token
     _wecom_aes_key = settings.wecom_encoding_aes_key
@@ -216,10 +214,10 @@ def _install_webhook_state(app: FastAPI, *, redis_client: Any) -> None:
     else:
         app.state.wework_cs_messenger = None
 
-    if not wechat_token and not wework_token:
+    if not wechat_token:
         logger.warning(
-            "Both IS_WECHAT_WEBHOOK_TOKEN and IS_WEWORK_WEBHOOK_TOKEN are unset"
-            " — /api/v1/webhooks/{wechat,wework} will reject all callbacks (403)"
+            "IS_WECHAT_WEBHOOK_TOKEN is unset"
+            " — /api/v1/webhooks/wechat will reject all callbacks (403)"
         )
 
 

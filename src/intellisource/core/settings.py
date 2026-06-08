@@ -73,7 +73,6 @@ class Settings(BaseSettings):
         None, validation_alias="IS_WEWORK_CORP_SECRET"
     )
     wework_agent_id: str | None = Field(None, validation_alias="IS_WEWORK_AGENT_ID")
-    wework_webhook_token: str = Field("", validation_alias="IS_WEWORK_WEBHOOK_TOKEN")
 
     # --- WeCom webhook crypto ---
     wecom_corp_id: str = Field("", validation_alias="IS_WECOM_CORP_ID")

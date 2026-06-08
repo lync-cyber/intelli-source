@@ -2,8 +2,8 @@
 
 Closes the EXP-005 assembly gap surfaced in T-098 r1 code-review: the
 webhook router reads `app.state.wechat_webhook_token` /
-`wework_webhook_token` / `wechat_cs_messenger` / `wework_cs_messenger` /
-`background_tasks` but no production code path was setting them. These
+`wechat_cs_messenger` / `wework_cs_messenger` / `background_tasks` but no
+production code path was setting them. These
 tests assert composition.build_api_composition sets each slot.
 """
 
@@ -72,19 +72,17 @@ class TestWebhookStateAssembly:
     """R-001: build_api_composition must populate webhook state slots."""
 
     def test_tokens_set_when_env_present(self) -> None:
-        """Both webhook tokens land on app.state when env vars are configured."""
+        """WeChat webhook token lands on app.state when env var is configured."""
         from intellisource.composition import build_api_composition
 
         app = FastAPI()
         env = _clean_env()
         env["IS_WECHAT_WEBHOOK_TOKEN"] = "wx_token_value"
-        env["IS_WEWORK_WEBHOOK_TOKEN"] = "ww_token_value"
 
         with _isolated_composition_env(env):
             build_api_composition(app, _make_db_manager(), MagicMock())
 
         assert app.state.wechat_webhook_token == "wx_token_value"
-        assert app.state.wework_webhook_token == "ww_token_value"
 
     def test_tokens_empty_when_env_absent(self) -> None:
         """Tokens default to '' when env vars are unset — router will 403."""
@@ -96,7 +94,6 @@ class TestWebhookStateAssembly:
             build_api_composition(app, _make_db_manager(), MagicMock())
 
         assert app.state.wechat_webhook_token == ""
-        assert app.state.wework_webhook_token == ""
 
     def test_cs_messenger_none_when_fully_unset(self) -> None:
         """CS messengers stay None when IS_WECHAT_APP_* / IS_WEWORK_* unset."""
