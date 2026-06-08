@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "IntelliSource pipeline config",
+  "description": "Schema for config/pipelines/*.yaml — one pipeline per file.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "name",
+    "mode",
+    "steps"
+  ],
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "strict",
+        "flexible",
+        "batch"
+      ]
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tool": {
+            "type": "string"
+          },
+          "processor": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "params": {
+            "type": "object"
+          },
+          "condition": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "max_steps": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 50
+    },
+    "on_failure": {
+      "enum": [
+        "abort",
+        "skip",
+        "retry"
+      ],
+      "default": "abort"
+    },
+    "agent_mode": {
+      "enum": [
+        "process",
+        "analyze",
+        "preview"
+      ],
+      "default": "process"
+    },
+    "tools_allowed": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "tools_denied": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "system_prompt": {
+      "type": "string"
+    },
+    "max_tokens_budget": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "tool_permissions": {
+      "type": "object",
+      "additionalProperties": {
+        "enum": [
+          "auto",
+          "confirm",
+          "deny"
+        ]
+      }
+    }
+  }
+}

@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../schema/pipeline.schema.json
 name: push-optimize
 mode: flexible
 max_steps: 10

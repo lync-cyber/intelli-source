@@ -6,47 +6,43 @@ They live in the config module (M-001) as per arch-modules §2.M-001.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 ThinkingMode = Literal["enabled", "disabled"]
 ReasoningEffort = Literal["high", "max"]
+
+# Shared constrained aliases so the task layer and the profile layer validate
+# identically. profiles is authoritative for temperature/max_tokens, so it must
+# carry the same bounds as the task layer rather than accepting any number.
+Temperature = Annotated[float, Field(ge=0.0, le=2.0)]
+PositiveInt = Annotated[int, Field(gt=0)]
 
 
 class ModelTaskConfig(BaseModel):
     """Pydantic model for a single task-type model configuration."""
 
+    model_config = ConfigDict(extra="forbid")
+
     model: str
     provider: str
-    temperature: float | None = None
-    max_tokens: int | None = None
+    temperature: Temperature | None = None
+    max_tokens: PositiveInt | None = None
     thinking: ThinkingMode | None = None
     reasoning_effort: ReasoningEffort | None = None
-
-    @field_validator("temperature")
-    @classmethod
-    def temperature_in_range(cls, v: float | None) -> float | None:
-        if v is not None and not (0.0 <= v <= 2.0):
-            raise ValueError("temperature 必须在 0.0~2.0 之间")
-        return v
-
-    @field_validator("max_tokens")
-    @classmethod
-    def max_tokens_positive(cls, v: int | None) -> int | None:
-        if v is not None and v <= 0:
-            raise ValueError("max_tokens 必须大于 0")
-        return v
 
 
 class ModelProfileConfig(BaseModel):
     """Pydantic model for a per-model profile configuration."""
 
-    temperature: float
-    max_tokens: int
-    context_window: int
+    model_config = ConfigDict(extra="forbid")
+
+    temperature: Temperature
+    max_tokens: PositiveInt
+    context_window: PositiveInt
     prompt_style: str = "default"
-    timeout_seconds: int = 60
+    timeout_seconds: PositiveInt = 60
     thinking: ThinkingMode | None = None
     reasoning_effort: ReasoningEffort | None = None
 
@@ -54,12 +50,16 @@ class ModelProfileConfig(BaseModel):
 class DefaultModelConfig(BaseModel):
     """Pydantic model for the default_model section."""
 
+    model_config = ConfigDict(extra="forbid")
+
     model: str
     provider: str
 
 
 class LLMModelsConfig(BaseModel):
     """Pydantic schema for the full llm_models.yaml configuration."""
+
+    model_config = ConfigDict(extra="forbid")
 
     default_model: DefaultModelConfig
     models: dict[str, ModelTaskConfig] = Field(default_factory=dict)

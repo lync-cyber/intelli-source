@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "IntelliSource sources config",
+  "description": "Schema for config/sources/*.yaml — a mapping with a 'sources' list.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "sources": {
+      "type": "array",
+      "items": {
+        "description": "Configuration for a single data source.",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "rss",
+              "api",
+              "web"
+            ],
+            "title": "Type",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "discipline_tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Discipline Tags",
+            "type": "array"
+          },
+          "schedule_interval": {
+            "default": 3600,
+            "title": "Schedule Interval",
+            "type": "integer"
+          },
+          "schedule_adaptive": {
+            "default": true,
+            "title": "Schedule Adaptive",
+            "type": "boolean"
+          },
+          "proxy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Proxy"
+          },
+          "rate_limit_qps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Rate Limit Qps"
+          },
+          "rate_limit_concurrency": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Rate Limit Concurrency"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "url"
+        ],
+        "title": "SourceConfig",
+        "type": "object"
+      }
+    }
+  },
+  "required": [
+    "sources"
+  ]
+}

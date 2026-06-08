@@ -28,10 +28,6 @@ RUN uv sync --frozen --no-dev --no-install-project
 # ---------------------------------------------------------------------------
 FROM python:3.11-slim AS runtime
 
-# curl is needed for the HEALTHCHECK; procps for signal handling diagnostics
-RUN apt-get update && apt-get install -y --no-install-recommends curl && \
-    rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
 
 # Copy the pre-built venv from builder (same path → shebangs valid)
@@ -42,6 +38,14 @@ COPY src/ ./src/
 COPY config/ ./config/
 COPY alembic/ ./alembic/
 COPY alembic/alembic.ini ./alembic.ini
+
+# Drop root: every service (api, worker, beat, migrate) runs as this user.
+# /app stays owned by it because the worker/beat write runtime artifacts into
+# the working directory (celery beat schedule, pipeline-events.jsonl); the
+# config bind-mount is layered over /app/config read-only and never written.
+RUN groupadd --system app && useradd --system --gid app --no-create-home app \
+    && chown -R app:app /app
+USER app
 
 # Put venv binaries first on PATH so uv run resolves to the venv.
 # PYTHONUTF8 / PYTHONIOENCODING are the process-level floor of the UTF-8
@@ -57,12 +61,13 @@ ENV PATH="/app/.venv/bin:$PATH" \
 
 EXPOSE 8000
 
+# Health probe uses the venv's Python (no curl in the image) — exit 0 only on HTTP 200.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD curl -fsS http://localhost:8000/health || exit 1
+    CMD ["python", "-c", "import urllib.request,sys\ntry: sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health',timeout=5).status==200 else 1)\nexcept Exception: sys.exit(1)"]
 
 # Default entrypoint: API server.
-# Override CMD to run worker or beat:
-#   worker: uv run celery -A intellisource.scheduler.celery_app worker --loglevel=info
-#   beat:   uv run celery -A intellisource.scheduler.celery_app beat --loglevel=info
+# Override CMD to run worker or beat (compose uses the scheduler.boot app):
+#   worker: celery -A intellisource.scheduler.boot worker --loglevel=info
+#   beat:   celery -A intellisource.scheduler.boot beat --loglevel=info
 CMD ["uvicorn", "intellisource.main:create_app", "--factory", \
      "--host", "0.0.0.0", "--port", "8000"]

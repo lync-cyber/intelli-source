@@ -9,13 +9,17 @@
 #
 # Build:    docker build -t intellisource/db:pg16-pgvector-zhparser -f docker/db.Dockerfile .
 # Compose:  docker-compose.yml `db` service builds this image automatically.
-# Reference: https://github.com/abcfy2/docker_zhparser (SCWS+zhparser build recipe).
+# Sources:  SCWS + zhparser are built from pinned upstream git tags over HTTPS
+#           (see ARGs below) — no plain-HTTP tarball, reproducible across rebuilds.
 
 FROM pgvector/pgvector:pg16
 
-ARG SCWS_VERSION=1.2.3
+# SCWS git tree ships configure.ac (no generated ./configure), so it is
+# bootstrapped with autoreconf before build; zhparser uses a PGXS Makefile.
+ARG SCWS_REPO=https://github.com/hightman/scws.git
+ARG SCWS_REF=1.2.3
 ARG ZHPARSER_REPO=https://github.com/amutu/zhparser.git
-ARG ZHPARSER_REF=master
+ARG ZHPARSER_REF=v2.3
 
 RUN set -eux; \
     apt-get update; \
@@ -23,13 +27,15 @@ RUN set -eux; \
         build-essential \
         postgresql-server-dev-16 \
         ca-certificates \
-        wget \
+        autoconf \
+        automake \
+        libtool \
         git; \
     \
     cd /tmp; \
-    wget -q "http://www.xunsearch.com/scws/down/scws-${SCWS_VERSION}.tar.bz2"; \
-    tar -xjf "scws-${SCWS_VERSION}.tar.bz2"; \
-    cd "scws-${SCWS_VERSION}"; \
+    git clone --depth=1 --branch "${SCWS_REF}" "${SCWS_REPO}" scws; \
+    cd scws; \
+    autoreconf -i; \
     ./configure --prefix=/usr/local; \
     make -j"$(nproc)"; \
     make install; \
@@ -40,7 +46,8 @@ RUN set -eux; \
     SCWS_HOME=/usr/local make -j"$(nproc)"; \
     SCWS_HOME=/usr/local make install; \
     \
-    apt-get remove -y --purge build-essential postgresql-server-dev-16 wget git; \
+    apt-get remove -y --purge \
+        build-essential postgresql-server-dev-16 autoconf automake libtool git; \
     apt-get autoremove -y; \
-    rm -rf /var/lib/apt/lists/* /tmp/scws-* /tmp/zhparser; \
+    rm -rf /var/lib/apt/lists/* /tmp/scws /tmp/zhparser; \
     ldconfig

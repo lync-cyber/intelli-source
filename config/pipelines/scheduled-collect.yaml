@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../schema/pipeline.schema.json
 name: scheduled-collect
 mode: strict
 max_steps: 20

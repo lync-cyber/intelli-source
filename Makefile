@@ -7,7 +7,7 @@ UTF8_ENV := PYTHONUTF8=1 PYTHONIOENCODING=utf-8
 
 .PHONY: up down migrate logs ps clean rollback bootstrap \
         arch deps deadcode deps-graph check check-all lint-fix help \
-        test-unit test-integration contract-check
+        test-unit test-integration contract-check gen-schemas
 
 # ---------------------------------------------------------------------------
 # Docker dev stack
@@ -52,6 +52,7 @@ help:
 	@echo "  check             arch + deps + deadcode + ruff + mypy + unit tests"
 	@echo "  check-all         check + integration tests (needs 'make up' first)"
 	@echo "  contract-check    Suggest which test categories to run based on diff vs main"
+	@echo "  gen-schemas       Regenerate config/schema/*.json from the config models"
 	@echo "  lint-fix          ruff format + ruff check --fix"
 	@echo "Tests:"
 	@echo "  test-unit         Run unit tests only (no PG/Redis required)"
@@ -106,6 +107,10 @@ test-integration:
 #   - src/intellisource/llm/gateway/   (model resolution / streaming paths)
 contract-check:
 	@uv run python scripts/contract_check.py
+
+# Regenerate config/schema/*.json from the config Pydantic models / constants.
+gen-schemas:
+	uv run python scripts/gen_config_schemas.py
 
 lint-fix:
 	uv run ruff format .

@@ -8,3 +8,4 @@ Generate a JSON digest for the following clustered documents.
 Output format: {"title": str, "summary": str, "timeline": [{"date": str, "event": str}], "key_points": [str]}
 
 {{ untrusted("documents", docs_text) }}
+Return only valid JSON. Do not include any explanation or markdown fences.

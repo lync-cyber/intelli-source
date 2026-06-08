@@ -16,7 +16,7 @@
 | `summarizer.structured`（base `summarizer` 为回退） | docs_text | 文档簇 JSON 摘要 | ✅ live — [summarize_cluster.py](../../agent/tools/executes/summarize_cluster.py)（`style="structured"`；pipeline 处理器经 agent.factory 注入间接调用） |
 | `extraction` / `.concise` / `.structured` | schema, body_text | 结构化抽取 | 🅿️ planned — 当前抽取由正则实现，无 LLM 调用 |
 | `dedup` | title, body_text, candidate_info | LLM 去重判定 | 🅿️ planned — 当前去重由指纹哈希实现 |
-| `tagger` | title, body_text | 标签分类 | 🅿️ planned — 当前打标由 tfidf 关键词实现 |
+| `tagger` | title, body_text（可选 library_hint） | 标签分类 | 🅿️ planned — 当前打标由 tfidf 关键词实现 |
 | `cluster` | title, body_text | 聚类主题标签 | 🅿️ planned — 无生产调用 |
 | `context_compress` | conversation | 对话上下文压缩 | 🅿️ planned — 无生产调用 |
 

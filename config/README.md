@@ -31,7 +31,7 @@ IntelliSource 里"配置型"的东西分**三类**，物理上分别住在不同
 config/
 ├── README.md          # 你正在看的这张地图
 ├── examples/          # 所有 *.example.yaml 模板集中处（只读样例，照着抄）
-├── schema/            # JSON Schema（编辑器据 yaml-language-server modeline 自动补全/校验）
+├── schema/            # JSON Schema（llm_models / sources / subscriptions / pipeline；编辑器据 modeline 补全/校验）
 ├── llm_models.yaml    # [gitignore] 实际生效的 LLM 路由；intellisource init 从 examples 播种
 ├── sources/           # [*.yaml gitignore] 你的信源定义（复制 examples/sources.example.yaml 进来）
 ├── subscriptions/     # [*.yaml gitignore] 你的订阅定义
@@ -39,7 +39,9 @@ config/
 └── templates/         # 用户自定义 digest 模板，覆盖 B 类内置模板
 ```
 
-> 编辑 `llm_models.yaml` 时，文件顶部的 `# yaml-language-server: $schema=schema/llm_models.schema.json` 让支持的编辑器（VS Code + YAML 插件等）即时补全字段、校验拼写与取值范围。`intellisource doctor` 也会在加载时做一次完整校验。
+> 四类配置（`llm_models` / `sources` / `subscriptions` / `pipelines`）的样例与文件顶部都带 `# yaml-language-server: $schema=…` modeline，支持的编辑器（VS Code + YAML 插件等）据此即时补全字段、校验拼写与取值范围（如 source 的 `type` 只能 rss/api/web、profile 的 `temperature` 必须 0~2）。`intellisource doctor` 也会在加载时做一次完整校验。
+>
+> `config/schema/*.json` 全部由 `uv run python scripts/gen_config_schemas.py` 从 `src/intellisource/config/` 的 Pydantic 模型 / 常量生成；改了模型就重跑该脚本（`tests/unit/config/test_config_schemas.py` 会在漂移时报错）。
 
 ### 命名约定（一句话记住）
 

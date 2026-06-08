@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../schema/pipeline.schema.json
 name: content-process
 mode: batch
 max_steps: 20

@@ -831,6 +831,8 @@ def chat(
 # ---------------------------------------------------------------------------
 
 _API_KEY_PLACEHOLDER = "change-me-in-production"
+_DB_PASSWORD_PLACEHOLDER = "change-me-strong-db-password"
+_REDIS_PASSWORD_PLACEHOLDER = "change-me-strong-redis-password"
 
 _REQUIRED_CHANNEL_VARS: list[tuple[str, list[str]]] = [
     ("wework", ["IS_WEWORK_CORP_ID", "IS_WEWORK_CORP_SECRET", "IS_WEWORK_AGENT_ID"]),
@@ -1079,11 +1081,13 @@ def doctor(
 # ---------------------------------------------------------------------------
 
 _DEFAULT_HN_SOURCE = """\
-- name: Hacker News
-  type: rss
-  url: https://news.ycombinator.com/rss
-  schedule_interval: 1800
-  tags: [tech, news]
+# yaml-language-server: $schema=../schema/sources.schema.json
+sources:
+  - name: Hacker News
+    type: rss
+    url: https://news.ycombinator.com/rss
+    schedule_interval: 1800
+    tags: [tech, news]
 """
 
 _PROVIDER_ENV: dict[str, str] = {
@@ -1115,7 +1119,10 @@ def _materialize_topic_sources(topic: Any, sources_dir: pathlib.Path) -> pathlib
     sources_dir.mkdir(parents=True, exist_ok=True)
     path = sources_dir / f"topic-{topic.id}.yaml"
     payload = {"sources": [_topic_source_entry(s) for s in topic.sources]}
-    header = f"# IntelliSource 内置主题信源: {topic.name} ({topic.id})\n"
+    header = (
+        "# yaml-language-server: $schema=../schema/sources.schema.json\n"
+        f"# IntelliSource 内置主题信源: {topic.name} ({topic.id})\n"
+    )
     body = yaml.safe_dump(payload, allow_unicode=True, sort_keys=False)
     path.write_text(header + body, encoding="utf-8")
     return path
@@ -1195,6 +1202,70 @@ def _write_env_file(path: pathlib.Path, updates: dict[str, str]) -> None:
             out.append(f"{key}={val}")
 
     write_text(path, "\n".join(out) + "\n")
+
+
+def _password_keeping_existing(
+    existing: dict[str, str], var: str, placeholder: str
+) -> tuple[str, bool]:
+    """Return (password, regenerated): keep an existing real value, else generate.
+
+    Idempotent across init re-runs (the persisted db/redis volumes were
+    initialized with the existing password); only regenerates when the value is
+    absent or still the placeholder.
+    """
+    value = os.environ.get(var) or existing.get(var, "")
+    if not value or value == placeholder:
+        return secrets.token_hex(16), True
+    return value, False
+
+
+def _resolve_db_credentials(env_path: pathlib.Path) -> dict[str, str]:
+    """Return IS_DB_PASSWORD + IS_DATABASE_URL for the .env, strong and consistent.
+
+    IS_DATABASE_URL is rebuilt whenever the password changes so the db service
+    and the app DSN never drift apart.
+    """
+    existing = _load_dotenv_file(str(env_path))
+    db_user = (
+        os.environ.get("IS_DB_USER") or existing.get("IS_DB_USER") or "intellisource"
+    )
+    db_name = (
+        os.environ.get("IS_DB_NAME") or existing.get("IS_DB_NAME") or "intellisource"
+    )
+    password, regenerated = _password_keeping_existing(
+        existing, "IS_DB_PASSWORD", _DB_PASSWORD_PLACEHOLDER
+    )
+
+    url = os.environ.get("IS_DATABASE_URL") or existing.get("IS_DATABASE_URL", "")
+    if regenerated or not url or _DB_PASSWORD_PLACEHOLDER in url:
+        url = f"postgresql+asyncpg://{db_user}:{password}@db:5432/{db_name}"
+
+    return {"IS_DB_PASSWORD": password, "IS_DATABASE_URL": url}
+
+
+def _resolve_redis_credentials(env_path: pathlib.Path) -> dict[str, str]:
+    """Return IS_REDIS_PASSWORD + the three redis URLs (general / broker / result).
+
+    redis-server runs with --requirepass, so every URL must embed the password;
+    all are rebuilt together when the password changes to avoid auth drift.
+    """
+    existing = _load_dotenv_file(str(env_path))
+    password, regenerated = _password_keeping_existing(
+        existing, "IS_REDIS_PASSWORD", _REDIS_PASSWORD_PLACEHOLDER
+    )
+
+    def _url(var: str, db: int) -> str:
+        url = os.environ.get(var) or existing.get(var, "")
+        if regenerated or not url or _REDIS_PASSWORD_PLACEHOLDER in url:
+            url = f"redis://:{password}@redis:6379/{db}"
+        return url
+
+    return {
+        "IS_REDIS_PASSWORD": password,
+        "IS_REDIS_URL": _url("IS_REDIS_URL", 0),
+        "IS_CELERY_BROKER_URL": _url("IS_CELERY_BROKER_URL", 0),
+        "IS_CELERY_RESULT_BACKEND": _url("IS_CELERY_RESULT_BACKEND", 1),
+    }
 
 
 _PROVIDER_BY_CHOICE = {"1": "deepseek", "2": "openai", "3": "anthropic"}
@@ -1346,9 +1417,18 @@ def init(
     # --- Distribution channel (interactive only) ---
     channel_updates = {} if non_interactive else _prompt_channel()
 
+    # --- Database / Redis credentials ---
+    # Generate strong passwords instead of shipping weak defaults; both stay
+    # idempotent (reuse the existing real value the persisted volumes were
+    # initialized with) and only regenerate when absent/placeholder.
+    db_creds = _resolve_db_credentials(env_path)
+    redis_creds = _resolve_redis_credentials(env_path)
+
     # --- Write .env ---
     env_path.parent.mkdir(parents=True, exist_ok=True)
     updates: dict[str, str] = {"IS_API_KEY": api_key, llm_key_var: llm_key_val}
+    updates.update(db_creds)
+    updates.update(redis_creds)
     updates.update(channel_updates)
     _write_env_file(env_path, updates)
     typer.echo(f"\n[OK] Written {env_path}")

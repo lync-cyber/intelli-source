@@ -817,6 +817,112 @@ class TestInitHardening:
         assert key_line.split("=", 1)[1] not in ("", "change-me-in-production")
 
     @patch("intellisource.cli.main.project_root")
+    def test_non_interactive_generates_strong_db_password(
+        self,
+        mock_root: MagicMock,
+        runner: Any,
+        tmp_path: pathlib.Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _skip_if_missing()
+        from intellisource.cli.main import _load_dotenv_file
+
+        mock_root.return_value = tmp_path
+        _seed_example_tree(tmp_path)
+        for var in ("IS_DB_PASSWORD", "IS_DATABASE_URL"):
+            monkeypatch.delenv(var, raising=False)
+
+        result = runner.invoke(app, ["init", "--non-interactive"])
+
+        assert result.exit_code == 0, result.output
+        env = _load_dotenv_file(str(tmp_path / "docker" / ".env"))
+        password = env["IS_DB_PASSWORD"]
+        assert password not in ("", "intellisource", "change-me-strong-db-password")
+        assert len(password) >= 16
+        # The app DSN must embed exactly the generated password (no drift between
+        # the db service auth and the application connection string).
+        assert password in env["IS_DATABASE_URL"]
+        assert env["IS_DATABASE_URL"].startswith("postgresql+asyncpg://")
+
+    @patch("intellisource.cli.main.project_root")
+    def test_db_password_stable_across_reruns(
+        self,
+        mock_root: MagicMock,
+        runner: Any,
+        tmp_path: pathlib.Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _skip_if_missing()
+        from intellisource.cli.main import _load_dotenv_file
+
+        mock_root.return_value = tmp_path
+        _seed_example_tree(tmp_path)
+        for var in ("IS_DB_PASSWORD", "IS_DATABASE_URL"):
+            monkeypatch.delenv(var, raising=False)
+
+        runner.invoke(app, ["init", "--non-interactive"])
+        first = _load_dotenv_file(str(tmp_path / "docker" / ".env"))["IS_DB_PASSWORD"]
+        runner.invoke(app, ["init", "--non-interactive"])
+        second = _load_dotenv_file(str(tmp_path / "docker" / ".env"))["IS_DB_PASSWORD"]
+
+        # The persisted db volume was initialized with the first password —
+        # re-running init must not rotate it out from under the volume.
+        assert first == second
+
+    @patch("intellisource.cli.main.project_root")
+    def test_non_interactive_generates_strong_redis_password(
+        self,
+        mock_root: MagicMock,
+        runner: Any,
+        tmp_path: pathlib.Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _skip_if_missing()
+        from intellisource.cli.main import _load_dotenv_file
+
+        mock_root.return_value = tmp_path
+        _seed_example_tree(tmp_path)
+        for var in (
+            "IS_REDIS_PASSWORD",
+            "IS_REDIS_URL",
+            "IS_CELERY_BROKER_URL",
+            "IS_CELERY_RESULT_BACKEND",
+        ):
+            monkeypatch.delenv(var, raising=False)
+
+        result = runner.invoke(app, ["init", "--non-interactive"])
+
+        assert result.exit_code == 0, result.output
+        env = _load_dotenv_file(str(tmp_path / "docker" / ".env"))
+        password = env["IS_REDIS_PASSWORD"]
+        assert password not in ("", "change-me-strong-redis-password")
+        assert len(password) >= 16
+        # The password must be embedded in every redis URL (broker/result/general)
+        # so --requirepass never drifts from the clients.
+        for var, db in [
+            ("IS_REDIS_URL", "0"),
+            ("IS_CELERY_BROKER_URL", "0"),
+            ("IS_CELERY_RESULT_BACKEND", "1"),
+        ]:
+            assert env[var] == f"redis://:{password}@redis:6379/{db}"
+
+    def test_default_starter_source_loads_through_validator(self) -> None:
+        """The init starter source must parse as {sources: [...]}, not a bare list.
+
+        A bare list crashes ConfigValidator with AttributeError (.get on a list),
+        so the starter would be silently dropped by load_source_configs.
+        """
+        _skip_if_missing()
+        from intellisource.cli.main import _DEFAULT_HN_SOURCE
+        from intellisource.config.validator import ConfigValidator
+
+        loaded = ConfigValidator().validate_sources_file(
+            _DEFAULT_HN_SOURCE, format="yaml"
+        )
+        assert [s.name for s in loaded] == ["Hacker News"]
+        assert loaded[0].type == "rss"
+
+    @patch("intellisource.cli.main.project_root")
     def test_invalid_provider_rejected_without_writing(
         self, mock_root: MagicMock, runner: Any, tmp_path: pathlib.Path
     ) -> None:

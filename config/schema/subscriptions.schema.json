@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "IntelliSource subscriptions config",
+  "description": "Schema for config/subscriptions/*.yaml — a mapping with a 'subscriptions' list.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "subscriptions": {
+      "type": "array",
+      "items": {
+        "description": "Configuration for a single subscription, mirrored from Subscription ORM.",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "channel": {
+            "enum": [
+              "wechat",
+              "wework",
+              "email"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "channel_config": {
+            "additionalProperties": true,
+            "title": "Channel Config",
+            "type": "object"
+          },
+          "match_rules": {
+            "additionalProperties": true,
+            "title": "Match Rules",
+            "type": "object"
+          },
+          "frequency": {
+            "default": "realtime",
+            "title": "Frequency",
+            "type": "string"
+          },
+          "quiet_hours": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Quiet Hours"
+          },
+          "timezone": {
+            "default": "Asia/Shanghai",
+            "title": "Timezone",
+            "type": "string"
+          },
+          "discipline_tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Discipline Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "channel"
+        ],
+        "title": "SubscriptionConfig",
+        "type": "object"
+      }
+    }
+  },
+  "required": [
+    "subscriptions"
+  ]
+}

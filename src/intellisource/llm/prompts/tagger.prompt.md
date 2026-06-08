@@ -5,8 +5,11 @@ required_vars: [title, body_text]
 ---
 {% from "_fragments/injection_guard.md" import untrusted %}
 Analyze the following content and return a JSON array of relevant tags.
+Use the same language as the content for the tags.
 If the content cannot be classified, return ["未分类"].
+Example: ["开源", "数据库"]
 {{ library_hint | default("") }}
 
 Title: {{ title }}
 {{ untrusted("content", body_text) }}
+Return only valid JSON. Do not include any explanation or markdown fences.

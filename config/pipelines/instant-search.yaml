@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../schema/pipeline.schema.json
 name: instant-search
 mode: flexible
 max_steps: 5
