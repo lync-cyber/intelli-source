@@ -17,7 +17,6 @@ from intellisource.agent.executors.persistence import TaskChainPersister
 from intellisource.agent.executors.strict import (
     StrictExecutor,
     ToolDegradedError,
-    _retry_step,
 )
 from intellisource.core.errors import CompositionNotInitialisedError
 from intellisource.observability.logging import get_logger
@@ -47,8 +46,6 @@ class AgentMode(str, enum.Enum):
 
 class AgentRunner:
     """Dual-mode agent execution engine."""
-
-    _MAX_RETRIES: int = 3
 
     def __init__(
         self,
@@ -332,17 +329,6 @@ class AgentRunner:
             task_chain_id=chain_id,
             error=error,
         )
-
-    # -- private helpers ---------------------------------------------
-
-    async def _retry_step(
-        self,
-        tool_fn: Any,
-        params: dict[str, Any],
-        tool_name: str,
-    ) -> dict[str, Any]:
-        """Retry a failed step up to _MAX_RETRIES times."""
-        return await _retry_step(tool_fn, params, tool_name, self._MAX_RETRIES)
 
 
 class AgentRunnerHolder:
