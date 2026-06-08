@@ -831,6 +831,7 @@ def chat(
 # ---------------------------------------------------------------------------
 
 _API_KEY_PLACEHOLDER = "change-me-in-production"
+_DB_PASSWORD_PLACEHOLDER = "change-me-strong-db-password"
 
 _REQUIRED_CHANNEL_VARS: list[tuple[str, list[str]]] = [
     ("wework", ["IS_WEWORK_CORP_ID", "IS_WEWORK_CORP_SECRET", "IS_WEWORK_AGENT_ID"]),
@@ -1197,6 +1198,35 @@ def _write_env_file(path: pathlib.Path, updates: dict[str, str]) -> None:
     write_text(path, "\n".join(out) + "\n")
 
 
+def _resolve_db_credentials(env_path: pathlib.Path) -> dict[str, str]:
+    """Return IS_DB_PASSWORD + IS_DATABASE_URL for the .env, strong and consistent.
+
+    Precedence per field: explicit environment override → existing real value in
+    docker/.env → freshly generated. The password is regenerated only when it is
+    missing or still the placeholder, and IS_DATABASE_URL is rebuilt whenever the
+    password changes so the db service and the app DSN never drift apart.
+    """
+    existing = _load_dotenv_file(str(env_path))
+    db_user = (
+        os.environ.get("IS_DB_USER") or existing.get("IS_DB_USER") or "intellisource"
+    )
+    db_name = (
+        os.environ.get("IS_DB_NAME") or existing.get("IS_DB_NAME") or "intellisource"
+    )
+
+    password = os.environ.get("IS_DB_PASSWORD") or existing.get("IS_DB_PASSWORD", "")
+    regenerated = False
+    if not password or password == _DB_PASSWORD_PLACEHOLDER:
+        password = secrets.token_hex(16)
+        regenerated = True
+
+    url = os.environ.get("IS_DATABASE_URL") or existing.get("IS_DATABASE_URL", "")
+    if regenerated or not url or _DB_PASSWORD_PLACEHOLDER in url:
+        url = f"postgresql+asyncpg://{db_user}:{password}@db:5432/{db_name}"
+
+    return {"IS_DB_PASSWORD": password, "IS_DATABASE_URL": url}
+
+
 _PROVIDER_BY_CHOICE = {"1": "deepseek", "2": "openai", "3": "anthropic"}
 
 
@@ -1346,9 +1376,16 @@ def init(
     # --- Distribution channel (interactive only) ---
     channel_updates = {} if non_interactive else _prompt_channel()
 
+    # --- Database credentials ---
+    # Generate a strong password instead of shipping the weak default, but stay
+    # idempotent: reuse an existing real password (the persisted db volume was
+    # initialized with it) and only regenerate when it is absent/placeholder.
+    db_creds = _resolve_db_credentials(env_path)
+
     # --- Write .env ---
     env_path.parent.mkdir(parents=True, exist_ok=True)
     updates: dict[str, str] = {"IS_API_KEY": api_key, llm_key_var: llm_key_val}
+    updates.update(db_creds)
     updates.update(channel_updates)
     _write_env_file(env_path, updates)
     typer.echo(f"\n[OK] Written {env_path}")

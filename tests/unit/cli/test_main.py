@@ -817,6 +817,59 @@ class TestInitHardening:
         assert key_line.split("=", 1)[1] not in ("", "change-me-in-production")
 
     @patch("intellisource.cli.main.project_root")
+    def test_non_interactive_generates_strong_db_password(
+        self,
+        mock_root: MagicMock,
+        runner: Any,
+        tmp_path: pathlib.Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _skip_if_missing()
+        from intellisource.cli.main import _load_dotenv_file
+
+        mock_root.return_value = tmp_path
+        _seed_example_tree(tmp_path)
+        for var in ("IS_DB_PASSWORD", "IS_DATABASE_URL"):
+            monkeypatch.delenv(var, raising=False)
+
+        result = runner.invoke(app, ["init", "--non-interactive"])
+
+        assert result.exit_code == 0, result.output
+        env = _load_dotenv_file(str(tmp_path / "docker" / ".env"))
+        password = env["IS_DB_PASSWORD"]
+        assert password not in ("", "intellisource", "change-me-strong-db-password")
+        assert len(password) >= 16
+        # The app DSN must embed exactly the generated password (no drift between
+        # the db service auth and the application connection string).
+        assert password in env["IS_DATABASE_URL"]
+        assert env["IS_DATABASE_URL"].startswith("postgresql+asyncpg://")
+
+    @patch("intellisource.cli.main.project_root")
+    def test_db_password_stable_across_reruns(
+        self,
+        mock_root: MagicMock,
+        runner: Any,
+        tmp_path: pathlib.Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _skip_if_missing()
+        from intellisource.cli.main import _load_dotenv_file
+
+        mock_root.return_value = tmp_path
+        _seed_example_tree(tmp_path)
+        for var in ("IS_DB_PASSWORD", "IS_DATABASE_URL"):
+            monkeypatch.delenv(var, raising=False)
+
+        runner.invoke(app, ["init", "--non-interactive"])
+        first = _load_dotenv_file(str(tmp_path / "docker" / ".env"))["IS_DB_PASSWORD"]
+        runner.invoke(app, ["init", "--non-interactive"])
+        second = _load_dotenv_file(str(tmp_path / "docker" / ".env"))["IS_DB_PASSWORD"]
+
+        # The persisted db volume was initialized with the first password —
+        # re-running init must not rotate it out from under the volume.
+        assert first == second
+
+    @patch("intellisource.cli.main.project_root")
     def test_invalid_provider_rejected_without_writing(
         self, mock_root: MagicMock, runner: Any, tmp_path: pathlib.Path
     ) -> None:

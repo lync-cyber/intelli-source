@@ -43,6 +43,14 @@ COPY config/ ./config/
 COPY alembic/ ./alembic/
 COPY alembic/alembic.ini ./alembic.ini
 
+# Drop root: every service (api, worker, beat, migrate) runs as this user.
+# /app stays owned by it because the worker/beat write runtime artifacts into
+# the working directory (celery beat schedule, pipeline-events.jsonl); the
+# config bind-mount is layered over /app/config read-only and never written.
+RUN groupadd --system app && useradd --system --gid app --no-create-home app \
+    && chown -R app:app /app
+USER app
+
 # Put venv binaries first on PATH so uv run resolves to the venv.
 # PYTHONUTF8 / PYTHONIOENCODING are the process-level floor of the UTF-8
 # encoding contract: they pin stdout/stderr, subprocess text streams and the

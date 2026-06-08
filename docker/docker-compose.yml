@@ -7,7 +7,7 @@ services:
     image: intellisource/db:pg16-pgvector-zhparser
     environment:
       POSTGRES_USER: ${IS_DB_USER:-intellisource}
-      POSTGRES_PASSWORD: ${IS_DB_PASSWORD:-intellisource}
+      POSTGRES_PASSWORD: ${IS_DB_PASSWORD:?set IS_DB_PASSWORD in docker/.env}
       POSTGRES_DB: ${IS_DB_NAME:-intellisource}
     volumes:
       - db_data:/var/lib/postgresql/data
@@ -39,7 +39,7 @@ services:
     env_file:
       - .env
     environment:
-      IS_DATABASE_URL: ${IS_DATABASE_URL:-postgresql+asyncpg://${IS_DB_USER:-intellisource}:${IS_DB_PASSWORD:-intellisource}@db:5432/${IS_DB_NAME:-intellisource}}
+      IS_DATABASE_URL: ${IS_DATABASE_URL:-postgresql+asyncpg://${IS_DB_USER:-intellisource}:${IS_DB_PASSWORD:?set IS_DB_PASSWORD in docker/.env}@db:5432/${IS_DB_NAME:-intellisource}}
     depends_on:
       db:
         condition: service_healthy
@@ -64,7 +64,7 @@ services:
     env_file:
       - .env
     environment:
-      IS_DATABASE_URL: ${IS_DATABASE_URL:-postgresql+asyncpg://${IS_DB_USER:-intellisource}:${IS_DB_PASSWORD:-intellisource}@db:5432/${IS_DB_NAME:-intellisource}}
+      IS_DATABASE_URL: ${IS_DATABASE_URL:-postgresql+asyncpg://${IS_DB_USER:-intellisource}:${IS_DB_PASSWORD:?set IS_DB_PASSWORD in docker/.env}@db:5432/${IS_DB_NAME:-intellisource}}
       IS_REDIS_URL: ${IS_REDIS_URL:-redis://redis:6379/0}
     depends_on:
       db:
@@ -96,7 +96,7 @@ services:
     env_file:
       - .env
     environment:
-      IS_DATABASE_URL: ${IS_DATABASE_URL:-postgresql+asyncpg://${IS_DB_USER:-intellisource}:${IS_DB_PASSWORD:-intellisource}@db:5432/${IS_DB_NAME:-intellisource}}
+      IS_DATABASE_URL: ${IS_DATABASE_URL:-postgresql+asyncpg://${IS_DB_USER:-intellisource}:${IS_DB_PASSWORD:?set IS_DB_PASSWORD in docker/.env}@db:5432/${IS_DB_NAME:-intellisource}}
       IS_REDIS_URL: ${IS_REDIS_URL:-redis://redis:6379/0}
       IS_CELERY_BROKER_URL: ${IS_CELERY_BROKER_URL:-redis://redis:6379/0}
       IS_CELERY_RESULT_BACKEND: ${IS_CELERY_RESULT_BACKEND:-redis://redis:6379/1}
@@ -126,7 +126,7 @@ services:
     env_file:
       - .env
     environment:
-      IS_DATABASE_URL: ${IS_DATABASE_URL:-postgresql+asyncpg://${IS_DB_USER:-intellisource}:${IS_DB_PASSWORD:-intellisource}@db:5432/${IS_DB_NAME:-intellisource}}
+      IS_DATABASE_URL: ${IS_DATABASE_URL:-postgresql+asyncpg://${IS_DB_USER:-intellisource}:${IS_DB_PASSWORD:?set IS_DB_PASSWORD in docker/.env}@db:5432/${IS_DB_NAME:-intellisource}}
       IS_REDIS_URL: ${IS_REDIS_URL:-redis://redis:6379/0}
       IS_CELERY_BROKER_URL: ${IS_CELERY_BROKER_URL:-redis://redis:6379/0}
       IS_CELERY_RESULT_BACKEND: ${IS_CELERY_RESULT_BACKEND:-redis://redis:6379/1}

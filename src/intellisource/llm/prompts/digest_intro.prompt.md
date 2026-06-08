@@ -5,9 +5,9 @@ required_vars:
   - title
   - items
 ---
+{% from "_fragments/injection_guard.md" import untrusted %}
 {% include "_fragments/editor_persona.md" %}
 下面是本期《{{ title }}》收录的条目标题：
-{{ items }}
-
+{{ untrusted("item_titles", items) }}
 请用中文写一段不超过 80 字的开场导语，概括本期主题与最值得关注的亮点，吸引读者继续阅读。
 只输出导语正文，不要加标题、不要使用 markdown、不要加引号。
