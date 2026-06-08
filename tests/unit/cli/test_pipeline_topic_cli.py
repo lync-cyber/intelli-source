@@ -31,7 +31,7 @@ def runner() -> CliRunner:
 
 
 class TestPipelineShow:
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_show_renders_detail(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -48,7 +48,7 @@ class TestPipelineShow:
         assert mock_httpx.get.call_args.args[0].endswith("/api/v1/pipelines/default")
         assert "name: default" in result.stdout
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_show_json_flag_emits_json(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -60,7 +60,7 @@ class TestPipelineShow:
         body = json.loads(result.stdout.strip())
         assert body["mode"] == "flexible"
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_show_404_exits_1(self, mock_httpx: MagicMock, runner: CliRunner) -> None:
         mock_httpx.get.return_value = _mock_response(status_code=404)
         result = runner.invoke(app, ["pipeline", "show", "ghost"])
@@ -74,7 +74,7 @@ class TestPipelineShow:
 
 
 class TestPipelineRun:
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_run_posts_to_run_endpoint(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -89,7 +89,7 @@ class TestPipelineRun:
         assert body["task_id"] == "t-1"
         assert body["task_chain_id"] == "c-1"
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_run_with_params_sends_parsed_json(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -103,7 +103,7 @@ class TestPipelineRun:
         payload = mock_httpx.post.call_args.kwargs["json"]
         assert payload["params"] == {"limit": 10}
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_run_invalid_params_exits_2(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -114,7 +114,7 @@ class TestPipelineRun:
         assert "--params must be valid JSON" in result.stdout
         mock_httpx.post.assert_not_called()
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_run_404_exits_1(self, mock_httpx: MagicMock, runner: CliRunner) -> None:
         mock_httpx.post.return_value = _mock_response(
             status_code=404, json_data={"detail": "pipeline 'ghost' not found"}
@@ -130,7 +130,7 @@ class TestPipelineRun:
 
 
 class TestPipelineCreate:
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_create_posts_pipeline_config_payload(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -164,7 +164,7 @@ class TestPipelineCreate:
         assert payload["tools_allowed"] == ["collect", "process"]
         assert payload["agent_mode"] == "process"
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_create_invalid_steps_json_exits_2(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -176,7 +176,7 @@ class TestPipelineCreate:
         assert "--steps must be valid JSON" in result.stdout
         mock_httpx.post.assert_not_called()
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_create_propagates_422_with_validator_message(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -198,7 +198,7 @@ class TestPipelineCreate:
 
 
 class TestPipelineUpdate:
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_update_sends_only_provided_fields(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -224,7 +224,7 @@ class TestPipelineUpdate:
         body = mock_httpx.patch.call_args.kwargs["json"]
         assert body == {"mode": "strict", "max_steps": 10}, "patch must omit unset"
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_update_steps_parsed_from_json(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -237,7 +237,7 @@ class TestPipelineUpdate:
         body = mock_httpx.patch.call_args.kwargs["json"]
         assert body["steps"] == [{"processor": "filter"}]
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_update_no_fields_exits_2(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -246,7 +246,7 @@ class TestPipelineUpdate:
         assert "Nothing to update" in result.stdout
         mock_httpx.patch.assert_not_called()
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_update_invalid_steps_json_exits_2(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -255,7 +255,7 @@ class TestPipelineUpdate:
         assert "--steps must be valid JSON" in result.stdout
         mock_httpx.patch.assert_not_called()
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_update_404_exits_1(self, mock_httpx: MagicMock, runner: CliRunner) -> None:
         mock_httpx.patch.return_value = _mock_response(status_code=404)
         result = runner.invoke(app, ["pipeline", "update", "ghost", "--mode", "strict"])
@@ -269,7 +269,7 @@ class TestPipelineUpdate:
 
 
 class TestPipelineRm:
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_rm_calls_delete_endpoint(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -280,7 +280,7 @@ class TestPipelineRm:
         url = mock_httpx.delete.call_args.args[0]
         assert url.endswith("/api/v1/pipelines/p1")
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_rm_404_exits_1(self, mock_httpx: MagicMock, runner: CliRunner) -> None:
         mock_httpx.delete.return_value = _mock_response(status_code=404)
         result = runner.invoke(app, ["pipeline", "rm", "ghost"])
@@ -294,7 +294,7 @@ class TestPipelineRm:
 
 
 class TestTopicShow:
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_show_renders_detail(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -314,7 +314,7 @@ class TestTopicShow:
         )
         assert "id: artificial-intelligence" in result.stdout
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_show_json_flag_emits_json(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -326,7 +326,7 @@ class TestTopicShow:
         body = json.loads(result.stdout.strip())
         assert body["id"] == "ai"
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_show_404_exits_1(self, mock_httpx: MagicMock, runner: CliRunner) -> None:
         mock_httpx.get.return_value = _mock_response(
             status_code=404, json_data={"error": {"message": "topic not found"}}

@@ -20,7 +20,7 @@ def _resp(*, status_code: int = 200, json_data: Any = None) -> MagicMock:
     return resp
 
 
-@patch("intellisource.cli.main.httpx")
+@patch("intellisource.cli._client.httpx")
 def test_template_list(mock_httpx: MagicMock) -> None:
     mock_httpx.get.return_value = _resp(
         json_data={
@@ -34,7 +34,7 @@ def test_template_list(mock_httpx: MagicMock) -> None:
     assert "daily-brief" in result.output
 
 
-@patch("intellisource.cli.main.httpx")
+@patch("intellisource.cli._client.httpx")
 def test_template_show(mock_httpx: MagicMock) -> None:
     mock_httpx.get.return_value = _resp(
         json_data={
@@ -49,7 +49,7 @@ def test_template_show(mock_httpx: MagicMock) -> None:
     assert "my-brief" in result.output
 
 
-@patch("intellisource.cli.main.httpx")
+@patch("intellisource.cli._client.httpx")
 def test_template_show_not_found_exits_1(mock_httpx: MagicMock) -> None:
     mock_httpx.get.return_value = _resp(
         status_code=404, json_data={"detail": "not found"}
@@ -58,7 +58,7 @@ def test_template_show_not_found_exits_1(mock_httpx: MagicMock) -> None:
     assert result.exit_code == 1
 
 
-@patch("intellisource.cli.main.httpx")
+@patch("intellisource.cli._client.httpx")
 def test_template_add_builds_expected_payload(mock_httpx: MagicMock) -> None:
     mock_httpx.post.return_value = _resp(
         status_code=201,
@@ -100,7 +100,7 @@ def test_template_add_builds_expected_payload(mock_httpx: MagicMock) -> None:
     assert payload["aggregate_config"] == {"title": "我的速览"}
 
 
-@patch("intellisource.cli.main.httpx")
+@patch("intellisource.cli._client.httpx")
 def test_template_add_error_exits_1(mock_httpx: MagicMock) -> None:
     mock_httpx.post.return_value = _resp(
         status_code=422, json_data={"detail": "base_template 'ghost' is not known"}
@@ -124,7 +124,7 @@ def test_template_add_error_exits_1(mock_httpx: MagicMock) -> None:
     assert "422" in result.output
 
 
-@patch("intellisource.cli.main.httpx")
+@patch("intellisource.cli._client.httpx")
 def test_template_rm(mock_httpx: MagicMock) -> None:
     mock_httpx.delete.return_value = _resp(status_code=204, json_data=None)
     result = runner.invoke(app, ["template", "rm", "my-brief"])
@@ -132,7 +132,7 @@ def test_template_rm(mock_httpx: MagicMock) -> None:
     assert "Deleted" in result.output
 
 
-@patch("intellisource.cli.main.httpx")
+@patch("intellisource.cli._client.httpx")
 def test_template_rm_not_found_exits_1(mock_httpx: MagicMock) -> None:
     mock_httpx.delete.return_value = _resp(
         status_code=404, json_data={"detail": "not found"}

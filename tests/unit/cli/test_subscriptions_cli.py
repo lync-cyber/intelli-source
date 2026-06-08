@@ -31,7 +31,7 @@ def runner() -> CliRunner:
 
 
 class TestList:
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_list_calls_get_endpoint(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -41,7 +41,7 @@ class TestList:
         called_url = mock_httpx.get.call_args.args[0]
         assert called_url.endswith("/api/v1/subscriptions")
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_list_emits_json_when_flag_set(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -60,7 +60,7 @@ class TestList:
 
 
 class TestAdd:
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_add_wework_posts_subscription_config_payload(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -101,7 +101,7 @@ class TestAdd:
         assert payload["match_rules"]["tags"] == ["ai"]
         assert "frequency" in payload  # SubscriptionConfig has frequency field
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_add_email_collects_to_addr(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -127,7 +127,7 @@ class TestAdd:
         payload = mock_httpx.post.call_args.kwargs["json"]
         assert payload["channel_config"]["to_addr"] == "user@example.com"
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_add_daily_folds_template_and_render_mode(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -160,7 +160,7 @@ class TestAdd:
         assert cc.get("template") == "daily-brief"
         assert cc.get("template_config", {}).get("render_mode") == "llm-freeform"
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_add_realtime_ignores_render_mode(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -190,7 +190,7 @@ class TestAdd:
         cc = mock_httpx.post.call_args.kwargs["json"]["channel_config"]
         assert "template_config" not in cc
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_add_daily_invalid_render_mode_aborts_code_2(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -216,7 +216,7 @@ class TestAdd:
         assert "render_mode must be one of" in result.stdout
         mock_httpx.post.assert_not_called()
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_add_invalid_channel_aborts_with_code_2(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -228,7 +228,7 @@ class TestAdd:
         assert "channel must be wework/wechat/email" in result.stdout
         mock_httpx.post.assert_not_called()
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_add_propagates_422_with_validator_message(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -259,7 +259,7 @@ class TestAdd:
 
 
 class TestPatchAndRm:
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_patch_sends_body_with_provided_fields_only(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -275,7 +275,7 @@ class TestPatchAndRm:
         body = mock_httpx.patch.call_args.kwargs["json"]
         assert body == {"frequency": "daily"}, "patch must omit unset fields"
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_patch_without_any_field_aborts(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -284,7 +284,7 @@ class TestPatchAndRm:
         assert "Nothing to patch" in result.stdout
         mock_httpx.patch.assert_not_called()
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_rm_calls_delete_endpoint(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -295,7 +295,7 @@ class TestPatchAndRm:
         url = mock_httpx.delete.call_args.args[0]
         assert url.endswith("/api/v1/subscriptions/abc")
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_rm_404_exits_with_code_1(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -311,7 +311,7 @@ class TestPatchAndRm:
 
 
 class TestReloadAndRollback:
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_reload_posts_to_reload_endpoint(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -325,7 +325,7 @@ class TestReloadAndRollback:
         body = json.loads(result.stdout.strip())
         assert body["version"] == "5"
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_rollback_posts_versioned_path(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -341,7 +341,7 @@ class TestReloadAndRollback:
         url = mock_httpx.post.call_args.args[0]
         assert url.endswith("/api/v1/subscriptions/config/rollback/3")
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_rollback_404_exits_with_code_1(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -359,7 +359,7 @@ class TestReloadAndRollback:
 
 
 class TestShow:
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_show_renders_detail_and_render_mode(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -383,7 +383,7 @@ class TestShow:
         assert "render_mode (configured): llm-freeform" in result.stdout
         assert "downgrades to 'code'" in result.stdout
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_show_404_exits_1(self, mock_httpx: MagicMock, runner: CliRunner) -> None:
         mock_httpx.get.return_value = _mock_response(status_code=404)
         result = runner.invoke(app, ["subscriptions", "show", "missing"])
@@ -392,7 +392,7 @@ class TestShow:
 
 
 class TestPatchDigest:
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_patch_merges_render_mode_preserving_to_addr(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -418,7 +418,7 @@ class TestPatchDigest:
         assert cc["to_addr"] == "keep@x.com", "merge must not wipe existing keys"
         assert cc["template_config"]["render_mode"] == "llm-freeform"
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_patch_invalid_render_mode_exits_2(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -432,7 +432,7 @@ class TestPatchDigest:
         assert "render_mode must be one of" in result.stdout
         mock_httpx.patch.assert_not_called()
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_patch_digest_404_on_get_exits_1(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -445,7 +445,7 @@ class TestPatchDigest:
 
 
 class TestVersionsAndDiff:
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_versions_lists_snapshots(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
@@ -465,7 +465,7 @@ class TestVersionsAndDiff:
         assert "version" in result.stdout
         assert "config_count" in result.stdout
 
-    @patch("intellisource.cli.main.httpx")
+    @patch("intellisource.cli._client.httpx")
     def test_diff_renders_reload_preview(
         self, mock_httpx: MagicMock, runner: CliRunner
     ) -> None:
