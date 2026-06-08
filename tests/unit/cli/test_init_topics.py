@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from intellisource.cli.main import (
+from intellisource.cli.commands.init import (
     _materialize_topic_sources,
     _select_topics,
 )

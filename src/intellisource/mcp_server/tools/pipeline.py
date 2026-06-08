@@ -8,6 +8,7 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 
 from intellisource.config.pipeline_models import PipelineConfig
+from intellisource.mcp_server._errors import invalid_input, not_found
 from intellisource.mcp_server._serialize import only_set, pipeline_dict
 from intellisource.mcp_server._types import SessionFactory
 from intellisource.pipeline.definition_service import PipelineDefinitionService
@@ -39,7 +40,7 @@ def register_pipeline_tools(mcp: FastMCP, session_cm: SessionFactory) -> None:
         async with session_cm() as session:
             cfg = await PipelineDefinitionService(session).get(name)
         if cfg is None:
-            return {"error": "not_found", "name": name}
+            return not_found(name=name)
         return pipeline_dict(cfg)
 
     @mcp.tool(
@@ -75,7 +76,7 @@ def register_pipeline_tools(mcp: FastMCP, session_cm: SessionFactory) -> None:
         try:
             cfg = PipelineConfig.from_dict(payload)
         except Exception as exc:
-            return {"error": "invalid_input", "reason": str(exc)}
+            return invalid_input(str(exc))
         async with session_cm() as session:
             created = await PipelineDefinitionService(session).create(cfg)
             await session.commit()
@@ -118,16 +119,16 @@ def register_pipeline_tools(mcp: FastMCP, session_cm: SessionFactory) -> None:
             tool_permissions=tool_permissions,
         )
         if not fields:
-            return {"error": "invalid_input", "reason": "no fields to update"}
+            return invalid_input("no fields to update")
         try:
             async with session_cm() as session:
                 updated = await PipelineDefinitionService(session).update(name, fields)
                 if updated is None:
-                    return {"error": "not_found", "name": name}
+                    return not_found(name=name)
                 payload = pipeline_dict(updated)
                 await session.commit()
         except Exception as exc:
-            return {"error": "invalid_input", "reason": str(exc)}
+            return invalid_input(str(exc))
         return payload
 
     @mcp.tool(
@@ -159,7 +160,7 @@ def register_pipeline_tools(mcp: FastMCP, session_cm: SessionFactory) -> None:
         async with session_cm() as session:
             exists = await PipelineDefinitionService(session).get(name)
         if exists is None:
-            return {"error": "not_found", "name": name}
+            return not_found(name=name)
         from intellisource.scheduler.celery_app import celery_app
         from intellisource.scheduler.dispatch import send_task_with_trace
 
@@ -193,7 +194,7 @@ def register_pipeline_tools(mcp: FastMCP, session_cm: SessionFactory) -> None:
         async with session_cm() as session:
             chain = await TaskChainRepository(session).get(task_chain_id)
         if chain is None:
-            return {"error": "not_found", "task_chain_id": task_chain_id}
+            return not_found(task_chain_id=task_chain_id)
         return {
             "task_chain_id": str(chain.id),
             "status": chain.status,

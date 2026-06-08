@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import uuid as _uuid
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
 from intellisource.config.models import SourceConfig
+from intellisource.mcp_server._errors import invalid_input, not_found, parse_uuid
 from intellisource.mcp_server._serialize import only_set, source_dict
 from intellisource.mcp_server._types import SessionFactory
 from intellisource.source.service import SourceConfigService
@@ -38,14 +38,13 @@ def register_source_tools(mcp: FastMCP, session_cm: SessionFactory) -> None:
         ),
     )
     async def get_source(source_id: str) -> dict[str, Any]:
-        try:
-            sid = _uuid.UUID(source_id)
-        except ValueError:
-            return {"error": "invalid_input", "reason": f"bad source_id: {source_id!r}"}
+        sid = parse_uuid(source_id, "source_id")
+        if isinstance(sid, dict):
+            return sid
         async with session_cm() as session:
             row = await SourceConfigService(session).get(sid)
         if row is None:
-            return {"error": "not_found", "source_id": source_id}
+            return not_found(source_id=source_id)
         return source_dict(row)
 
     @mcp.tool(
@@ -64,7 +63,7 @@ def register_source_tools(mcp: FastMCP, session_cm: SessionFactory) -> None:
                 {"name": name, "type": type, "url": url, "tags": tags or []}
             )
         except Exception as exc:
-            return {"error": "invalid_input", "reason": str(exc)}
+            return invalid_input(str(exc))
         async with session_cm() as session:
             created = await SourceConfigService(session).create(cfg)
             payload = {
@@ -95,10 +94,9 @@ def register_source_tools(mcp: FastMCP, session_cm: SessionFactory) -> None:
         schedule_interval: int | None = None,
         status: str | None = None,
     ) -> dict[str, Any]:
-        try:
-            sid = _uuid.UUID(source_id)
-        except ValueError:
-            return {"error": "invalid_input", "reason": f"bad source_id: {source_id!r}"}
+        sid = parse_uuid(source_id, "source_id")
+        if isinstance(sid, dict):
+            return sid
         fields = only_set(
             name=name,
             url=url,
@@ -108,11 +106,11 @@ def register_source_tools(mcp: FastMCP, session_cm: SessionFactory) -> None:
             status=status,
         )
         if not fields:
-            return {"error": "invalid_input", "reason": "no fields to update"}
+            return invalid_input("no fields to update")
         async with session_cm() as session:
             updated = await SourceConfigService(session).patch(sid, fields)
             if updated is None:
-                return {"error": "not_found", "source_id": source_id}
+                return not_found(source_id=source_id)
             payload = source_dict(updated)
             await session.commit()
         return payload
@@ -127,10 +125,9 @@ def register_source_tools(mcp: FastMCP, session_cm: SessionFactory) -> None:
         ),
     )
     async def delete_source(source_id: str) -> dict[str, Any]:
-        try:
-            sid = _uuid.UUID(source_id)
-        except ValueError:
-            return {"error": "invalid_input", "reason": f"bad source_id: {source_id!r}"}
+        sid = parse_uuid(source_id, "source_id")
+        if isinstance(sid, dict):
+            return sid
         async with session_cm() as session:
             deleted = await SourceConfigService(session).delete(sid)
             await session.commit()

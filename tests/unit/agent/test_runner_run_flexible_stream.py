@@ -1,13 +1,18 @@
 """Tests for AgentRunner.run_flexible_stream() — RAG-aware SSE streaming.
 
-Covers B-001 acceptance:
-  - simple-no-tools path: single chat() → stream_complete → token events
-  - with-tools path: chat → tool_call → chat → stream_complete; emits step
-    events and (when search returns items) a sources event
-  - budget exhaustion path: stream_complete is skipped; done carries
-    budget_exhausted=True
-  - stream_complete failure path: yields {"type": "error", ...}
+Covers:
+  - simple-no-tools path: one stream_complete turn → token events + done
+  - with-tools path: stream_complete(tool_calls) → search → stream_complete(answer);
+    emits step events and (when search returns items) a sources event
+  - tool-borne answer recovered when the terminal turn streams no free text
+  - budget exhaustion: no LLM call; done carries budget_exhausted=True
+  - streaming turn failure path: yields {"type": "error", ...}
   - preview agent mode: explicitly rejected by run_stream
+
+Each turn streams through ``llm_gateway.stream_complete(messages=, tools=)``; the
+turn's terminal chunk metadata carries the accumulated ``tool_calls`` and
+``finish_reason``, so a turn that ends in a final answer streams it directly
+without a second LLM call.
 """
 
 from __future__ import annotations
@@ -20,7 +25,6 @@ import pytest
 from intellisource.agent.runner import AgentRunner
 from intellisource.config.pipeline_models import PipelineConfig
 from intellisource.core.errors import IntelliSourceError
-from intellisource.llm.gateway import LLMResult
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -76,41 +80,61 @@ def _flex_config(
     )
 
 
-def _stream_chunk(
-    content: str = "", done: bool = False, metadata: dict[str, Any] | None = None
+def _token(content: str) -> dict[str, Any]:
+    return {"content": content, "done": False}
+
+
+def _done(
+    *,
+    tool_calls: list[dict[str, Any]] | None = None,
+    finish_reason: str = "stop",
+    input_tokens: int = 0,
+    output_tokens: int = 0,
 ) -> dict[str, Any]:
-    ev: dict[str, Any] = {"content": content, "done": done}
-    if done and metadata is not None:
-        ev["metadata"] = metadata
-    return ev
+    return {
+        "content": "",
+        "done": True,
+        "metadata": {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "latency_ms": 1.0,
+            "model": "test-model",
+            "tool_calls": tool_calls,
+            "finish_reason": finish_reason,
+        },
+    }
+
+
+def _tool_call(name: str, arguments: str, call_id: str) -> dict[str, Any]:
+    return {
+        "id": call_id,
+        "type": "function",
+        "function": {"name": name, "arguments": arguments},
+    }
+
+
+def _turns(*turns: list[dict[str, Any]]) -> MagicMock:
+    """A stream_complete mock that returns one async iterator per call (turn)."""
+    return MagicMock(side_effect=[_AsyncIter(t) for t in turns])
 
 
 # ---------------------------------------------------------------------------
-# Simple path: no tools → stream_complete only
+# Simple path: no tools → one streaming turn produces the answer
 # ---------------------------------------------------------------------------
 
 
 class TestRunFlexibleStreamSimple:
-    """No tool_calls on first chat → straight into stream_complete."""
+    """No tool_calls on the first turn → that turn streams the answer directly."""
 
     async def test_simple_stream_yields_tokens_and_done(self) -> None:
         llm = AsyncMock()
-        llm.chat = AsyncMock(
-            return_value=LLMResult(
-                content="ignored — stream rewrites",
-                metadata={"tool_calls": None, "finish_reason": "stop", "usage": {}},
-            )
-        )
-        llm.stream_complete = MagicMock(
-            return_value=_AsyncIter(
-                [
-                    _stream_chunk("Hello", done=False),
-                    _stream_chunk(" world", done=False),
-                    _stream_chunk(
-                        done=True, metadata={"input_tokens": 5, "output_tokens": 2}
-                    ),
-                ]
-            )
+        llm.chat = AsyncMock()
+        llm.stream_complete = _turns(
+            [
+                _token("Hello"),
+                _token(" world"),
+                _done(finish_reason="stop", input_tokens=5, output_tokens=2),
+            ]
         )
         registry = _make_registry("search")
         runner = AgentRunner(tool_registry=registry, llm_gateway=llm)
@@ -126,55 +150,39 @@ class TestRunFlexibleStreamSimple:
         assert [t["delta"] for t in tokens] == ["Hello", " world"]
         assert events[-1]["type"] == "done"
         assert events[-1]["metadata"]["final_answer"] == "Hello world"
-        # chat must be called once for the decide-stop hop; stream_complete once
-        llm.chat.assert_awaited_once()
+        # One streaming turn produces the answer — no separate decide-stop chat.
+        llm.chat.assert_not_called()
         llm.stream_complete.assert_called_once()
         kwargs = llm.stream_complete.call_args.kwargs
         assert "messages" in kwargs and isinstance(kwargs["messages"], list)
+        assert "tools" in kwargs and isinstance(kwargs["tools"], list)
 
 
 # ---------------------------------------------------------------------------
-# Tool-loop path: chat → tool_call(search) → chat(stop) → stream_complete
+# Tool-loop path: stream_complete(tool_calls) → search → stream_complete(answer)
 # ---------------------------------------------------------------------------
 
 
 class TestRunFlexibleStreamWithSearchTool:
-    """tool_calls path emits step + sources + tokens + done in order."""
+    """tool_calls path emits step + sources + tokens + done."""
 
     async def test_search_tool_emits_sources_and_streams(self) -> None:
-        call_count = 0
-
-        async def _chat(**_: Any) -> LLMResult:
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                tc = MagicMock()
-                tc.function.name = "search"
-                tc.function.arguments = '{"q": "ai"}'
-                tc.id = "tc-001"
-                return LLMResult(
-                    content="",
-                    metadata={
-                        "tool_calls": [tc],
-                        "finish_reason": "tool_calls",
-                        "usage": {"total_tokens": 10},
-                    },
-                )
-            return LLMResult(
-                content="ignored",
-                metadata={"tool_calls": None, "finish_reason": "stop", "usage": {}},
-            )
-
         llm = AsyncMock()
-        llm.chat = AsyncMock(side_effect=_chat)
-        llm.stream_complete = MagicMock(
-            return_value=_AsyncIter(
-                [
-                    _stream_chunk("Based on", done=False),
-                    _stream_chunk(" results", done=False),
-                    _stream_chunk(done=True, metadata={}),
-                ]
-            )
+        llm.chat = AsyncMock()
+        llm.stream_complete = _turns(
+            [
+                _done(
+                    tool_calls=[_tool_call("search", '{"q": "ai"}', "tc-001")],
+                    finish_reason="tool_calls",
+                    input_tokens=8,
+                    output_tokens=2,
+                )
+            ],
+            [
+                _token("Based on"),
+                _token(" results"),
+                _done(finish_reason="stop"),
+            ],
         )
         registry = _make_registry(
             "search",
@@ -208,11 +216,15 @@ class TestRunFlexibleStreamWithSearchTool:
         token_deltas = [e["delta"] for e in events if e["type"] == "token"]
         assert token_deltas == ["Based on", " results"]
         assert events[-1]["type"] == "done"
+        assert events[-1]["metadata"]["final_answer"] == "Based on results"
 
         step_events = [e for e in events if e["type"] == "step"]
         assert any(
             s["action"] == "tool_call" and s["tool"] == "search" for s in step_events
         )
+        # Two turns (tool decision + answer) — neither re-generates the other.
+        assert llm.stream_complete.call_count == 2
+        llm.chat.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -226,20 +238,13 @@ class TestRunFlexibleStreamDefaultSystemPrompt:
     async def test_default_system_prompt_lists_tools(self) -> None:
         captured: dict[str, Any] = {}
 
-        async def _chat(*, messages: list[dict[str, Any]], **_: Any) -> LLMResult:
+        def _capture(*, messages: list[dict[str, Any]], **__: Any) -> _AsyncIter:
             captured["messages"] = messages
-            return LLMResult(
-                content="",
-                metadata={"tool_calls": None, "finish_reason": "stop", "usage": {}},
-            )
+            return _AsyncIter([_token("hi"), _done(finish_reason="stop")])
 
         llm = AsyncMock()
-        llm.chat = AsyncMock(side_effect=_chat)
-        llm.stream_complete = MagicMock(
-            return_value=_AsyncIter(
-                [_stream_chunk("hi", done=False), _stream_chunk(done=True, metadata={})]
-            )
-        )
+        llm.chat = AsyncMock()
+        llm.stream_complete = MagicMock(side_effect=_capture)
         registry = _make_registry("search", "get_content_detail")
         runner = AgentRunner(tool_registry=registry, llm_gateway=llm)
         config = _flex_config(
@@ -260,18 +265,13 @@ class TestRunFlexibleStreamDefaultSystemPrompt:
     async def test_configured_system_prompt_takes_precedence(self) -> None:
         captured: dict[str, Any] = {}
 
-        async def _chat(*, messages: list[dict[str, Any]], **_: Any) -> LLMResult:
+        def _capture(*, messages: list[dict[str, Any]], **__: Any) -> _AsyncIter:
             captured["messages"] = messages
-            return LLMResult(
-                content="",
-                metadata={"tool_calls": None, "finish_reason": "stop", "usage": {}},
-            )
+            return _AsyncIter([_done(finish_reason="stop")])
 
         llm = AsyncMock()
-        llm.chat = AsyncMock(side_effect=_chat)
-        llm.stream_complete = MagicMock(
-            return_value=_AsyncIter([_stream_chunk(done=True, metadata={})])
-        )
+        llm.chat = AsyncMock()
+        llm.stream_complete = MagicMock(side_effect=_capture)
         registry = _make_registry("search")
         runner = AgentRunner(tool_registry=registry, llm_gateway=llm)
         config = PipelineConfig.from_dict(
@@ -301,38 +301,24 @@ class TestRunFlexibleStreamDefaultSystemPrompt:
 
 
 class TestRunFlexibleStreamToolBorneAnswer:
-    """When stream_complete yields nothing, surface the tool-borne answer."""
+    """When the terminal turn streams nothing, surface the tool-borne answer."""
 
     async def test_summarize_tool_answer_emitted_when_stream_empty(self) -> None:
-        call_count = 0
-
-        async def _chat(**_: Any) -> LLMResult:
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                tc = MagicMock()
-                tc.function.name = "summarize_for_user"
-                tc.function.arguments = '{"content": "raw"}'
-                tc.id = "tc-sum"
-                return LLMResult(
-                    content="",
-                    metadata={
-                        "tool_calls": [tc],
-                        "finish_reason": "tool_calls",
-                        "usage": {"total_tokens": 5},
-                    },
-                )
-            return LLMResult(
-                content="",
-                metadata={"tool_calls": None, "finish_reason": "stop", "usage": {}},
-            )
-
         llm = AsyncMock()
-        llm.chat = AsyncMock(side_effect=_chat)
-        # stream_complete produces no content deltas (model considers the tool the
-        # answer), so the loop would otherwise yield an empty reply.
-        llm.stream_complete = MagicMock(
-            return_value=_AsyncIter([_stream_chunk(done=True, metadata={})])
+        llm.chat = AsyncMock()
+        llm.stream_complete = _turns(
+            [
+                _done(
+                    tool_calls=[
+                        _tool_call("summarize_for_user", '{"content": "raw"}', "tc-sum")
+                    ],
+                    finish_reason="tool_calls",
+                    input_tokens=4,
+                    output_tokens=1,
+                )
+            ],
+            # terminal turn streams no content (model treats the tool as the answer)
+            [_done(finish_reason="stop")],
         )
         registry = _make_registry(
             "summarize_for_user",
@@ -360,12 +346,12 @@ class TestRunFlexibleStreamToolBorneAnswer:
 
 
 # ---------------------------------------------------------------------------
-# Budget exhaustion: skip stream, done carries budget_exhausted
+# Budget exhaustion: skip the LLM call, done carries budget_exhausted
 # ---------------------------------------------------------------------------
 
 
 class TestRunFlexibleStreamBudget:
-    """Budget=0 short-circuits before any chat / stream_complete."""
+    """Budget=0 short-circuits before any LLM call."""
 
     async def test_zero_budget_emits_done_only(self) -> None:
         llm = AsyncMock()
@@ -389,26 +375,20 @@ class TestRunFlexibleStreamBudget:
 
 
 # ---------------------------------------------------------------------------
-# stream_complete failure → error event
+# streaming turn failure → error event
 # ---------------------------------------------------------------------------
 
 
 class TestRunFlexibleStreamError:
-    """stream_complete raising → emits {type: error, detail: ...}."""
+    """A streaming turn raising → emits {type: error, detail: ...}."""
 
-    async def test_stream_complete_failure_emits_error(self) -> None:
-        llm = AsyncMock()
-        llm.chat = AsyncMock(
-            return_value=LLMResult(
-                content="",
-                metadata={"tool_calls": None, "finish_reason": "stop", "usage": {}},
-            )
-        )
-
+    async def test_stream_failure_emits_error(self) -> None:
         async def _boom_iter() -> Any:
             raise RuntimeError("upstream blew up")
             yield  # pragma: no cover
 
+        llm = AsyncMock()
+        llm.chat = AsyncMock()
         llm.stream_complete = MagicMock(return_value=_boom_iter())
         registry = _make_registry("search")
         runner = AgentRunner(tool_registry=registry, llm_gateway=llm)

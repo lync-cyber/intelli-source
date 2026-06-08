@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import uuid as _uuid
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from intellisource.mcp_server._errors import invalid_input, not_found, parse_uuid
 from intellisource.mcp_server._serialize import search_response_dict
 from intellisource.mcp_server._types import SearchEngineFactory, SessionFactory
 from intellisource.observability.logging import get_logger
@@ -31,13 +31,13 @@ def register_search_tools(
     )
     async def search(query: str, top_k: int = 10) -> dict[str, Any]:
         if not query:
-            return {"error": "invalid_input", "reason": "query must not be empty"}
+            return invalid_input("query must not be empty")
         try:
             async with session_cm() as session:
                 engine = search_factory(session)
                 response = await engine.search(query=query, limit=top_k)
         except ValueError as exc:
-            return {"error": "invalid_input", "reason": str(exc)}
+            return invalid_input(str(exc))
         except Exception as exc:
             logger.warning("mcp search failed: %s", exc)
             return {"error": "error", "reason": str(exc)}
@@ -52,17 +52,13 @@ def register_search_tools(
         ),
     )
     async def get_content_detail(content_id: str) -> dict[str, Any]:
-        try:
-            cid = _uuid.UUID(content_id)
-        except ValueError:
-            return {
-                "error": "invalid_input",
-                "reason": f"bad content_id: {content_id!r}",
-            }
+        cid = parse_uuid(content_id, "content_id")
+        if isinstance(cid, dict):
+            return cid
         async with session_cm() as session:
             row = await ContentRepository(session).get_by_id(cid)
         if row is None:
-            return {"error": "not_found", "content_id": content_id}
+            return not_found(content_id=content_id)
         return {
             "id": str(row.id),
             "title": row.title,
