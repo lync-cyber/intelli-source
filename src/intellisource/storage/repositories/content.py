@@ -133,8 +133,13 @@ class ContentRepository(BaseRepository[ProcessedContent]):
 
         ``raw_content.source`` is eager-loaded so SubscriptionMatcher can read
         ``content.raw_content.source.name`` (``match_rules.source_names``, B-057)
-        without a lazy load outside the session. ``subscription_id`` None resolves
-        to every active subscription; a concrete id resolves to that single row.
+        without a lazy load outside the session. ``subscription_id`` None is the
+        realtime broadcast path (the strict distribute step has no id): it resolves
+        to active subscriptions whose ``frequency`` is ``realtime`` only, so
+        daily/weekly subscribers receive their bundled digest exclusively from
+        PeriodicDigestRunner and are not double-pushed per item here. A concrete
+        id resolves to that single row regardless of frequency (explicit one-off
+        distribute).
         """
         content_stmt = (
             select(ProcessedContent)
@@ -148,7 +153,10 @@ class ContentRepository(BaseRepository[ProcessedContent]):
         content = (await self._session.scalars(content_stmt)).one_or_none()
 
         if subscription_id is None:
-            sub_stmt = select(Subscription).where(Subscription.status == "active")
+            sub_stmt = select(Subscription).where(
+                Subscription.status == "active",
+                Subscription.frequency == "realtime",
+            )
         else:
             sub_stmt = select(Subscription).where(Subscription.id == subscription_id)
         subscriptions: list[Subscription] = list(

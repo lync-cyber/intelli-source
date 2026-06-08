@@ -579,3 +579,23 @@ deps: []
 - 偏差类型: self-caused（B-061 distribute 装配缺口为本项目代码缺陷；B-062 async session 序列化破口）
 - go/no-go: 两缺陷已 inline 修复并端到端验证；落地（commit/PR）待用户裁定。F-RSS（collector 无重试）留作健壮性 backlog 观察
 - 关联: distributor/facade.py / storage/repositories/{source,subscription}.py / agent/tools/executes/distribute.py（subscription_id="" 来源）/ config/pipelines/manual-collect.yaml；B-061 / B-062 新立；6d685fb 链路修复未闭环证据
+
+
+### 2026-06-08 | orchestrator | 大规模重构后真起栈走查（用户触发：项目经过大规模重构，真实起栈走查测试功能是正常）
+
+- 触发信号: 用户授权 orchestrator 通过 Bash 在本地 docker 栈验证 **PR #78~#94 大规模死代码/shim 烧毁 + C1 任务生命周期接线 + S-2 chat 会话接线**后功能无回归。冷栈 `down -v` bootstrap：从当前 HEAD 重建镜像 → migrate exit0 / **17 表** / alembic head `e1f2a3b4c5d6` / api+worker+beat **healthy**；source=Hacker News rss（hnrss.org/frontpage?count=3 限流真投副作用）+ 1 active email 订阅（to_addr=huancheng.lin@foxmail.com，realtime）
+- 范围: 核心管线 collect→process→distribute→email + 重构受影响面（C1 / S-2 / metrics / search / chat）
+- 步骤逐项结论:
+  - **重构导入/装配 = GO（首要信号）**: 从当前源码重建镜像后 api 容器 startup 即 **healthy**，无 shim 烧毁导致的导入断裂；47+ 模块 structlog / SSOT 常量收敛 / 配置中心等深层重构后运行时装配无缺口（EXP-005 装配缺口风险排除）
+  - **collect / process = GO**: collect 落 raw_contents 3 行（count=3 限流生效，真实 HN 标题）；process 落 processed_contents 3 行，summarize 经 **deepseek-v4-pro completion** 生成高质量摘要并落库。**已知债重申（非回归）F-EMBED**: task_type 'embed' 无专属模型配置 → 回退 default_model `deepseek-v4-flash` → litellm `LiteLLMUnknownProvider`（deepseek 无 embedding 端点）；**graceful warning，不阻断 processed 落库**，正是 CLAUDE.md "BGE-M3 本地 embedding 暂缓"的运行时表现
+  - **distribute 逻辑 = GO（B-061/B-049/B-062 修复确认在 main）**: distribute 正确解析 active 订阅（`sub=66162eb6...`）并发起投递 —— 不再是历史 B-061 的 `content_not_found / 0 推送`；B-049 channel 失败正确归类 skipped+errors+`pushes_total{status=failed}` 指标（非静默记 sent）；B-062 `POST /sources`/`/subscriptions` 同名 upsert UPDATE 路径 **500→201**
+  - **distribute 真实投递 = [ENV-LIMITATION] + 宿主侧达成**: worker 容器连 `smtp.gmail.com:587/465` 均 **timeout**，而同容器 `google.com:443` OK（collect 拉 hnrss 亦成功）→ **容器 NAT 出口 SMTP 端口被网络策略阻断**（Asia/Shanghai 形态下宿主走代理可达、容器直连不通），**非代码缺陷**。宿主侧 SMTP 烟测（connect+STARTTLS+AUTH）PASS；用生产 `EmailDistributor.send_email` 从宿主真实投递 1 封（含 deepseek 摘要的真实 HN 内容）到 huancheng.lin@foxmail.com → `{'status':'sent'}` Gmail 接受。**用户明确选择的"真实投递 Gmail→FoxMail"在生产代码层达成**
+  - **distribute 成功路径全栈闭环（mailhog 补证）= GO**: 因容器无法达 Gmail、可达 docker 网络内 mailhog，切 `IS_SMTP_HOST=mailhog:1025` 重跑 → push_records **3 行 status=sent / recipient=`h***@foxmail.com`（PII 脱敏生效）** + mailhog total=3（真实 HN 标题）；facade._record_push + B-049 成功分支全栈验证
+  - **幂等去重 = GO（澄清一处自造假象）**: 后续重跑一度出现 push_records=6/mailhog=6，初判疑似去重回归；查证为**测试副作用非缺陷** —— 期间执行的 `POST /subscriptions` 同名建了**第二个订阅** da295040（`SubscriptionService.create`→`_repo.create()` 纯 INSERT，subscriptions 按设计允许重名；B-062 的 subscription upsert 修复只在 `reload` bulk-sync 路径触达，POST 走 INSERT），故 2 订阅各推 3 内容=6。push_records 每个 (content_id, subscription_id, channel) 元组恰 1 行、无重复元组 → `PushRepository.exists` 去重 per-subscription 正确。第四次跑（两订阅各 3 内容均已推）全部命中 skip → push_records/mailhog 仍 6，去重 skip 路径实证。**注**: 因此本走查的 B-062 再验证仅 **sources 侧有效**（`POST /sources` 同名走 upsert UPDATE → 500→201）；subscriptions 侧 POST 是 INSERT 未触达 B-062 修复路径
+  - **search / chat = GO**: `POST /search "surveillance cameras"` 返回 3 条 ranked（SDSU 项首位，zhparser FTS + storage 查询无 500）；`POST /search/chat {message}` sources=3 + deepseek answer 2214 字符（**RAG 上下文走 FTS 检索，即便 embedding 缺失仍取到 sources**，B-001 RAG 上下文缺失已解决）
+  - **C1 任务生命周期 = GO**: `POST /tasks/collect` 后 DB `celery_task_id` 正确回填（`b7c267f4...`，C1-B；API serializer 不暴露该内部句柄字段属设计）；`PATCH /tasks/{id}` pause→`paused`、cancel→`cancelled` 状态机正确，revoke 读 ORM 对象的 celery_task_id 故 targeting 有效
+  - **S-2 chat 会话 = GO**: chat_sessions 表存在；cleanup_chat_sessions beat 任务注册且在真实 worker 进程（factory 已装配）执行返回 `{'deleted':0}`（队列名 `queue.priority.normal`）
+  - **metrics + B-014 跨进程 = GO + 1 观测性缺口**: `/api/v1/metrics` 暴露 `http_requests_total`/`llm_circuit_open`（eager 注册）+ **`celery_tasks_total`/`celery_task_failures_total`（worker 进程经 RedisMetricStore 跨进程汇入，B-014 成立）**。**缺口 F-PUSHMETRIC**: `pushes_total` 仅 worker 进程本地增量（未纳入 B-014 跨进程 Redis 集），worker 不暴露 HTTP → 失败推送在 push_records（仅 sent 台账）+ API /metrics（pushes_total 仅 TYPE 行无数据）**双双不可见**，仅 worker 日志 + 任务结果 errors 可见 → 立 **B-064**（P3，非回归——pushes_total 自 B-005 即 worker 本地，B-014 只搬 celery_*）
+- 偏差类型: 无 self-caused 回归（全部重构受影响面 GREEN）；F-PUSHMETRIC 为 pre-existing 观测性缺口；ENV-LIMITATION（容器 SMTP 出口）+ F-EMBED（已知 BGE-M3 deferral）非代码缺陷
+- go/no-go: **走查全绿，未发现重构回归**。distribute 真实 Gmail 投递受容器出口限制走宿主路径达成 + mailhog 补证全栈成功路径。B-064（P3 observability）非阻塞
+- 关联: docker 全栈（17 表 / alembic e1f2a3b4c5d6）；distributor/facade.py（_record_push 仅成功写 sent）/ observability/shared_metrics.py（pushes_total 未纳入跨进程集）/ api/routers/tasks.py（C1）/ scheduler/tasks.py（S-2 cleanup）；B-064 新立；B-061/B-062 修复确认在 main；F-EMBED=BGE-M3 deferred 重申

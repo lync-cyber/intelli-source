@@ -10,7 +10,7 @@ deps: []
 
 > CLAUDE.md §项目状态 归档 — 历史闭环条目的详细 prose 留在此文件，CLAUDE.md 仅保留摘要 + 链接。
 > 写入顺序：旧 → 新；最新闭环保留在 CLAUDE.md 直到归档轮替。
-> 最后归档：2026-05-28 (B-057+B-058 闭环后整理；同步移除 CLAUDE.md 中过期长 prose)
+> 最后归档：2026-06-08 (PR #69~#94 + 大规模重构走查后整理；CLAUDE.md/BACKLOG 精简，闭环 prose 收口到本文件 + CORRECTIONS-LOG + git)
 
 ## audit-fix
 - **audit-fix-pr53** (commit 7e10e77): F-01~F-11 P0 + F-12~F-27 P1 + F-28~F-48 P2/P3 — 39 项，详见 PR #53 描述
@@ -60,6 +60,31 @@ deps: []
   - **Layer 1+2 重构** (修 real bug + 抽 service): 删 SubscriptionCreate/Update Request；POST /subscriptions 直接接 SubscriptionConfig（修复 API 缺 frequency/quiet_hours/timezone/discipline_tags 漂移）；新增 [src/intellisource/subscription/service.py](../src/intellisource/subscription/service.py) `SubscriptionService` 集中调度；router 退化为薄 HTTP 转发；**修真 bug** — 旧 API 不跑 SubscriptionValidator 致 yaml/API 校验严格度不一致
   - **Phase 3 B-055 CLI 薄壳**: [cli/main.py](../src/intellisource/cli/main.py) `intellisource subscriptions list/add/patch/rm/reload/rollback` 子命令；HTTP 自调本地 API 复用 middleware + metrics
 - **B-050** (文档+默认值倾斜, 无业务代码改动, 依赖 B-033): [docker/.env.example](../docker/.env.example) 段重排 WeWork → WeChat → Email + 补 IS_WECOM_TOKEN/AES_KEY/CORP_ID；[docs/deploy/PRE-DEPLOY-WALKTHROUGH.md §0.2](../docs/deploy/PRE-DEPLOY-WALKTHROUGH.md) Distribution channels 矩阵。PRD §F-006 / ARCH M-007 保持 wework/wechat 平等列举，不做主路径倾斜 amendment
+
+## backlog-b056 ~ b066 + PR #69~#94（2026-05-28 → 2026-06-08 归档）
+
+> 单行索引；详细 prose 在各 PR / commit + [CORRECTIONS-LOG](reviews/CORRECTIONS-LOG.md)。
+
+- **B-057**: matcher `_matches` 加 `source_names` 强约束维度 + `_resolve_source_name` 双路径（直列 / raw_content.source.name relation）
+- **B-058 (+ follow-up)**: 抽 `SourceConfigService` — reload 写 version snapshot (B-058a 漂移) + rollback 真写回 DB (B-058b real bug)；follow-up router 全走 `Depends(_get_service)` + ReloadRequest.config_name 死字段拆除
+- **B-059** (P1, PR #69): Celery broker/result-backend 宕机时 collect 派发 fast-fail（双侧 socket 超时 + `result_backend_always_retry=False` → `BrokerUnavailableError` → 503 + task 行回滚）；stop redis 503/7.9s 非挂起
+- **编码可移植性** (PR #70): 全 src read-side 补 `encoding="utf-8"`（gbk locale 不再 UnicodeDecodeError）
+- **B-040** (回填): worker trace_id 可见（celery `worker_hijack_root_logger=False` + `worker_redirect_stdouts=False` + setup_logging 提到 guard 前 + signals/middleware 语义 INFO 承载行）
+- **B-060** (回填): 失败 LLM 调用落 `llm_call_logs`（`error_message` 列 + `_unified_call_with_retry` 中央失败 emit `circuit_open`/`timeout`/`error`）
+- **B-013 / B-035** (CI): integration job 强制跑 docker 复合镜像（0 deselected）+ `docker-compose-smoke` job zhparser SQL 探针
+- **B-015**: CI Lint job `promtool check rules` gate alerts.yml
+- **B-011** (PR #72/#74): AST 检测器清扫 46 处修饰性弱断言为语义断言；规约入双 COMMON-RULES
+- **B-012**: `keyword_tag` 空串/空白/重复 tag 三缺陷修复 + `DEFAULT_KEYWORD_TAG` 常量
+- **B-043 / B-046 / B-047 / B-049** (PR #72): chat() 接 LLMCache / `processed_contents.published_at` 回填 / sync `/search/chat` sources 提取 + LLM answer 整形 / distributor channel 失败 silent-success 修正（facade 检查 `status=="failed"`）
+- **B-014** (PR 闭环): 跨进程 worker 指标暴露 — 新增 [observability/shared_metrics.py](../src/intellisource/observability/shared_metrics.py) `RedisMetricStore`；signals 写 `celery_*`；API `metrics_response` merge；http/circuit eager 注册
+- **B-020 ~ B-028** (PR #76 架构治理): SSOT 常量收敛 + 统一配置中心 `core/settings.py` + 47 模块 structlog + `BaseDistributor._build_result` 上移 + import-linter/deptry/vulture 三工具退出码 0 + CI 强制门禁（删 `continue-on-error`）
+- **B-034**: PRE-DEPLOY-WALKTHROUGH 全量订正（health degraded / X-API-Key×33 / to_addr / 指标家族 / push 入口）
+- **B-016 ~ B-019 / B-036 / B-038**: 框架级条目打包 [上游 feedback bundle](feedback/feedback-suggest-framework-batch-20260529.md) 移交 CataForge
+- **B-061** (PR 闭环): distribute step falsy `subscription_id` → 全部 active 订阅（修 manual-collect 链路 0 推送）
+- **B-062** (PR 闭环): `upsert` UPDATE 分支 flush 后 `refresh`（修 `POST /sources` 同名 500 MissingGreenlet）
+- **B-063** (commit 0c189ef): RSS collector `collect_with_retry` 有界指数退避（仅瞬时传输错误重试）
+- **PR #78 ~ #94** (大规模死代码/shim 烧毁 + 新功能): scheduler `TaskStateMachine`/`RedisStateBackend`/`PushDeduplicator` · llm `PriorityQueue`/`FallbackManager`/`PromptBuilder`/`LLMCache` 死方法 · `llm.processors` 包 · storage/config/mcp_server/collector/observability 死副本与再导出 shim 全部烧毁；新接线 **C1**（`celery_task_id` 生命周期 + PATCH /tasks pause/resume/cancel）/ **S-2**（CS 客服回话接 `ChatSession` + `cleanup_chat_sessions` beat）/ `ConditionalProcessor` 装配 / pipeline CRUD CLI。unit 基线随死测试烧毁回落
+- **大规模重构后真起栈走查** (2026-06-08): 冷栈 down -v bootstrap，核心管线 collect→process→distribute→email + 重构受影响面（C1/S-2/metrics/search/chat）全 GREEN 无回归；真实投递因 [ENV-LIMITATION] 容器→Gmail SMTP 出口阻断走宿主 + mailhog 补证；详见 [CORRECTIONS-LOG 2026-06-08](reviews/CORRECTIONS-LOG.md)。新发现 **B-064**（pushes_total 跨进程暴露，P3）
 
 ## Learnings Registry (详细见各 RETRO 报告)
 

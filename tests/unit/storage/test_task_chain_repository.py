@@ -269,6 +269,48 @@ class TestTaskChainRepositoryUpdateStatus:
 
         assert result is None
 
+    async def test_update_status_advances_completed_steps_when_given(
+        self, session: AsyncSession
+    ) -> None:
+        """A terminal transition that passes completed_steps advances the counter
+        in the same write, so a finished chain reads N/N not the 0/N it carried
+        from creation."""
+        from intellisource.storage.repositories.task_chain import TaskChainRepository
+
+        repo = TaskChainRepository(session)
+        chain_id = uuid.uuid4()
+        task_chain = _make_task_chain(
+            id=chain_id, status="running", total_steps=3, completed_steps=0
+        )
+        await repo.create(task_chain)
+
+        await repo.update_status(str(chain_id), "success", completed_steps=3)
+
+        result = await repo.get(str(chain_id))
+        assert result is not None
+        assert result.status == "success"
+        assert result.completed_steps == 3
+
+    async def test_update_status_without_completed_steps_leaves_counter(
+        self, session: AsyncSession
+    ) -> None:
+        """Omitting completed_steps must not reset the existing progress counter."""
+        from intellisource.storage.repositories.task_chain import TaskChainRepository
+
+        repo = TaskChainRepository(session)
+        chain_id = uuid.uuid4()
+        task_chain = _make_task_chain(
+            id=chain_id, status="running", total_steps=3, completed_steps=2
+        )
+        await repo.create(task_chain)
+
+        await repo.update_status(str(chain_id), "failed")
+
+        result = await repo.get(str(chain_id))
+        assert result is not None
+        assert result.status == "failed"
+        assert result.completed_steps == 2
+
 
 # ---------------------------------------------------------------------------
 # AC-T074-4: scheduler/tasks.py must not have module-level TaskChainRepository:Any=None

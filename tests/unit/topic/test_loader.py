@@ -9,7 +9,7 @@ from intellisource.config.subscription_models import SubscriptionConfig
 from intellisource.config.subscription_validator import SubscriptionValidator
 from intellisource.config.validator import ConfigValidator
 from intellisource.topic.loader import TopicLoader
-from intellisource.topic.models import Topic, TopicSubscriptionTemplate
+from intellisource.topic.models import Topic, TopicSource, TopicSubscriptionTemplate
 
 _EXPECTED_IDS = {
     "electrical-engineering",
@@ -110,6 +110,40 @@ class TestBuildSubscription:
         sub = topic.build_subscription(channel="wework", channel_config={})
         assert sub.name == "裸主题 订阅"
         assert sub.match_rules == {}
+
+    def _topic_with_sources(self) -> Topic:
+        return Topic(
+            id="t3",
+            name="带源主题",
+            dimension="industry",
+            sources=[
+                TopicSource(name="源甲", type="rss", url="https://a.example/feed"),
+                TopicSource(name="源乙", type="rss", url="https://b.example/feed"),
+            ],
+            subscription_template=TopicSubscriptionTemplate(
+                match_rules={"tags": ["科技"]},
+                frequency="daily",
+            ),
+        )
+
+    def test_injects_source_names_from_pack_sources(self) -> None:
+        sub = self._topic_with_sources().build_subscription(
+            channel="email", channel_config={"to_addr": "u@example.com"}
+        )
+        assert sub.match_rules["source_names"] == ["源甲", "源乙"]
+        # the template's own rules are preserved alongside the injected names
+        assert sub.match_rules["tags"] == ["科技"]
+
+    def test_explicit_source_names_in_template_preserved(self) -> None:
+        topic = self._topic_with_sources()
+        assert topic.subscription_template is not None
+        topic.subscription_template.match_rules = {"source_names": ["仅源甲"]}
+        sub = topic.build_subscription(channel="wework", channel_config={})
+        assert sub.match_rules["source_names"] == ["仅源甲"]
+
+    def test_no_sources_leaves_match_rules_without_source_names(self) -> None:
+        sub = self._topic().build_subscription(channel="wework", channel_config={})
+        assert "source_names" not in sub.match_rules
 
 
 class TestEmptyDir:

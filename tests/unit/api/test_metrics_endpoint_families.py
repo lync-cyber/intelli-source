@@ -62,8 +62,6 @@ class _FakeRedis:
 def _build_app_with_metrics() -> FastAPI:
     """Assemble a minimal app whose /api/v1/metrics mirrors production wiring."""
     from intellisource.api.middleware import RequestLoggerMiddleware
-    from intellisource.distributor.facade import DistributorFacade
-    from intellisource.distributor.matcher import SubscriptionMatcher
     from intellisource.llm.circuit_breaker import CircuitBreaker
     from intellisource.llm.gateway import LLMGateway
     from intellisource.observability.shared_metrics import RedisMetricStore
@@ -74,19 +72,17 @@ def _build_app_with_metrics() -> FastAPI:
     #   - http_requests_total via RequestLoggerMiddleware.__init__
     #   - llm_calls_total / llm_call_failures_total via LLMGateway.__init__
     #   - llm_circuit_open via CircuitBreaker.__init__
-    #   - pushes_total via DistributorFacade.__init__
     LLMGateway(circuit_breaker=CircuitBreaker(redis=MagicMock()))
-    DistributorFacade(
-        session_factory=MagicMock(),
-        matcher=MagicMock(spec=SubscriptionMatcher),
-        channels={},
-    )
 
     # Worker-owned families surfaced via the shared Redis store.
     fake_redis = _FakeRedis()
     shared = RedisMetricStore(fake_redis)
     shared.seed_counter("celery_tasks_total", "Total Celery tasks executed")
     shared.seed_counter("celery_task_failures_total", "Total Celery tasks failed")
+    # pushes_total{channel,status} is recorded in the prefork worker and merged
+    # in from the shared store (a labeled family — meta registered here, sample
+    # lines come from real pushes).
+    shared.register_counter("pushes_total", "Push attempts by channel and outcome")
 
     app.state.metrics_collector = MetricsCollector.get_instance()
     app.state.shared_metrics = shared

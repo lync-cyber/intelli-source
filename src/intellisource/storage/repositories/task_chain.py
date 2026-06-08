@@ -43,11 +43,22 @@ class TaskChainRepository(BaseRepository[TaskChain]):
             return None
         return await self._session.get(TaskChain, uid)
 
-    async def update_status(self, chain_id: str, status: str) -> None:
-        """Update the status field of a TaskChain; silently no-ops if not found."""
+    async def update_status(
+        self, chain_id: str, status: str, completed_steps: int | None = None
+    ) -> None:
+        """Update a TaskChain's status; silently no-ops if not found.
+
+        ``completed_steps`` advances the progress counter in the same write —
+        the terminal transition passes ``total_steps`` so a finished chain reads
+        ``N/N`` instead of the ``0/N`` it carried from creation through to the
+        run-level success/failure write.
+        """
         try:
             uid = uuid.UUID(chain_id)
         except ValueError:
             return
-        stmt = update(TaskChain).where(TaskChain.id == uid).values(status=status)
+        values: dict[str, Any] = {"status": status}
+        if completed_steps is not None:
+            values["completed_steps"] = completed_steps
+        stmt = update(TaskChain).where(TaskChain.id == uid).values(**values)
         await self._session.execute(stmt)

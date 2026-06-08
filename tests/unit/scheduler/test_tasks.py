@@ -335,6 +335,48 @@ class TestTaskChainPersistence:
             f"Expected update_status(..., 'success') call, got: {update_calls}"
         )
 
+    def test_task_chain_completed_steps_backfilled_on_success(
+        self, mock_agent_runner, mock_pipeline_config
+    ):
+        """The terminal success write advances completed_steps to total_steps so a
+        finished chain reads N/N instead of the 0/N it carried from creation."""
+        import uuid
+
+        mock_repo = AsyncMock()
+        persisted_id = uuid.uuid4()
+
+        async def fake_create(**kwargs):
+            return SimpleNamespace(id=kwargs.get("id") or persisted_id)
+
+        mock_repo.create = AsyncMock(side_effect=fake_create)
+        mock_session = AsyncMock()
+        mock_session.close = AsyncMock()
+
+        async def fake_session_factory():
+            return mock_session
+
+        with patch(
+            "intellisource.scheduler.tasks.TaskChainRepository",
+            return_value=mock_repo,
+        ):
+            tasks = _make_celery_tasks_with_session_factory(
+                mock_agent_runner, mock_pipeline_config, fake_session_factory
+            )
+            tasks.run_pipeline("news_collect", params={})
+
+        success_calls = [
+            c
+            for c in mock_repo.update_status.call_args_list
+            if len(c.args) >= 2 and c.args[1] == "success"
+        ]
+        assert success_calls, "expected a success update_status call"
+        call = success_calls[0]
+        completed = (
+            call.args[2] if len(call.args) >= 3 else call.kwargs.get("completed_steps")
+        )
+        # mock_pipeline_config.load() returns a config with 2 steps.
+        assert completed == 2
+
     def test_task_chain_status_updated_on_failure(
         self, mock_agent_runner, mock_pipeline_config
     ):
