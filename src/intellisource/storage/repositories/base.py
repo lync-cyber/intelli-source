@@ -101,7 +101,9 @@ class BaseRepository(Generic[ModelT]):
         **before** calling this helper.  ``_paginate`` appends the cursor
         filter, ORDER BY, and LIMIT, then executes the query.
         """
-        limit = min(limit, MAX_PAGE_SIZE)
+        # max(0, ...) floor: a negative limit reaches SQL as `LIMIT <neg>`,
+        # which Postgres rejects (500); clamp to an empty page instead.
+        limit = max(0, min(limit, MAX_PAGE_SIZE))
 
         if cursor is not None:
             stmt = stmt.where(self._model_class.id > uuid.UUID(cursor))  # type: ignore[attr-defined]
