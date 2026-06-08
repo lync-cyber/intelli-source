@@ -216,6 +216,150 @@ class TestRunFlexibleStreamWithSearchTool:
 
 
 # ---------------------------------------------------------------------------
+# Default system prompt: derived from the live tool registry (no config needed)
+# ---------------------------------------------------------------------------
+
+
+class TestRunFlexibleStreamDefaultSystemPrompt:
+    """No configured system_prompt → identity+tools prompt rendered from templates."""
+
+    async def test_default_system_prompt_lists_tools(self) -> None:
+        captured: dict[str, Any] = {}
+
+        async def _chat(*, messages: list[dict[str, Any]], **_: Any) -> LLMResult:
+            captured["messages"] = messages
+            return LLMResult(
+                content="",
+                metadata={"tool_calls": None, "finish_reason": "stop", "usage": {}},
+            )
+
+        llm = AsyncMock()
+        llm.chat = AsyncMock(side_effect=_chat)
+        llm.stream_complete = MagicMock(
+            return_value=_AsyncIter(
+                [_stream_chunk("hi", done=False), _stream_chunk(done=True, metadata={})]
+            )
+        )
+        registry = _make_registry("search", "get_content_detail")
+        runner = AgentRunner(tool_registry=registry, llm_gateway=llm)
+        config = _flex_config(
+            "default-prompt", tools_allowed=["search", "get_content_detail"]
+        )
+
+        async for _ in runner.run_flexible_stream(
+            config, user_message="你是谁", session={}
+        ):
+            pass
+
+        system_msg = captured["messages"][0]
+        assert system_msg["role"] == "system"
+        text = system_msg["content"]
+        assert "IntelliSource" in text
+        assert "search" in text and "get_content_detail" in text
+
+    async def test_configured_system_prompt_takes_precedence(self) -> None:
+        captured: dict[str, Any] = {}
+
+        async def _chat(*, messages: list[dict[str, Any]], **_: Any) -> LLMResult:
+            captured["messages"] = messages
+            return LLMResult(
+                content="",
+                metadata={"tool_calls": None, "finish_reason": "stop", "usage": {}},
+            )
+
+        llm = AsyncMock()
+        llm.chat = AsyncMock(side_effect=_chat)
+        llm.stream_complete = MagicMock(
+            return_value=_AsyncIter([_stream_chunk(done=True, metadata={})])
+        )
+        registry = _make_registry("search")
+        runner = AgentRunner(tool_registry=registry, llm_gateway=llm)
+        config = PipelineConfig.from_dict(
+            {
+                "name": "custom-prompt",
+                "mode": "flexible",
+                "tools_allowed": ["search"],
+                "tools_denied": [],
+                "steps": [],
+                "max_steps": 5,
+                "on_failure": "skip",
+                "system_prompt": "CUSTOM-PROMPT-SENTINEL",
+            }
+        )
+
+        async for _ in runner.run_flexible_stream(
+            config, user_message="hi", session={}
+        ):
+            pass
+
+        assert captured["messages"][0]["content"] == "CUSTOM-PROMPT-SENTINEL"
+
+
+# ---------------------------------------------------------------------------
+# Tool-borne answer: model answers via summarize_for_user, streams no free text
+# ---------------------------------------------------------------------------
+
+
+class TestRunFlexibleStreamToolBorneAnswer:
+    """When stream_complete yields nothing, surface the tool-borne answer."""
+
+    async def test_summarize_tool_answer_emitted_when_stream_empty(self) -> None:
+        call_count = 0
+
+        async def _chat(**_: Any) -> LLMResult:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                tc = MagicMock()
+                tc.function.name = "summarize_for_user"
+                tc.function.arguments = '{"content": "raw"}'
+                tc.id = "tc-sum"
+                return LLMResult(
+                    content="",
+                    metadata={
+                        "tool_calls": [tc],
+                        "finish_reason": "tool_calls",
+                        "usage": {"total_tokens": 5},
+                    },
+                )
+            return LLMResult(
+                content="",
+                metadata={"tool_calls": None, "finish_reason": "stop", "usage": {}},
+            )
+
+        llm = AsyncMock()
+        llm.chat = AsyncMock(side_effect=_chat)
+        # stream_complete produces no content deltas (model considers the tool the
+        # answer), so the loop would otherwise yield an empty reply.
+        llm.stream_complete = MagicMock(
+            return_value=_AsyncIter([_stream_chunk(done=True, metadata={})])
+        )
+        registry = _make_registry(
+            "summarize_for_user",
+            tool_results={
+                "summarize_for_user": {
+                    "status": "ok",
+                    "tool": "summarize_for_user",
+                    "summary": "这是基于知识库的总结答案。",
+                }
+            },
+        )
+        runner = AgentRunner(tool_registry=registry, llm_gateway=llm)
+        config = _flex_config("tool-answer", tools_allowed=["summarize_for_user"])
+
+        events: list[dict[str, Any]] = []
+        async for ev in runner.run_flexible_stream(
+            config, user_message="总结", session={}
+        ):
+            events.append(ev)
+
+        token_deltas = [e["delta"] for e in events if e["type"] == "token"]
+        assert token_deltas == ["这是基于知识库的总结答案。"]
+        assert events[-1]["type"] == "done"
+        assert events[-1]["metadata"]["final_answer"] == "这是基于知识库的总结答案。"
+
+
+# ---------------------------------------------------------------------------
 # Budget exhaustion: skip stream, done carries budget_exhausted
 # ---------------------------------------------------------------------------
 

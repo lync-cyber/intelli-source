@@ -10,12 +10,37 @@ from typing import Any, AsyncGenerator, Callable, Coroutine
 
 from intellisource.agent.deps import ToolDeps
 from intellisource.agent.executors.strict import _resolve_callable
+from intellisource.agent.response_utils import extract_answer
 from intellisource.agent.tool_gating import ToolPermissionResolver, _is_preview_mode
 from intellisource.agent.tools import PermissionLevel, ToolDefinition
 from intellisource.core.errors import ErrorCategory, IntelliSourceError
+from intellisource.llm.prompts import load_prompt
 from intellisource.observability.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+def _default_system_prompt(tool_descriptors: list[dict[str, Any]]) -> str:
+    """Render the flexible agent's identity + tools system prompt from templates.
+
+    The streamed final answer is produced by a tools-less ``stream_complete``
+    call (streaming completions carry no ``tools=`` argument), so without this it
+    has no idea what tools exist or who it is — which is why a streamed reply
+    drifts to a generic model identity. The prompt text lives in the shared
+    ``llm.prompts`` template store; here we only shape the live tool registry
+    into its ``tools`` variable, so the streaming path gets the same tool
+    awareness the non-stream path gets from its ``tools=`` argument.
+    """
+    tools: list[dict[str, str]] = []
+    for descriptor in tool_descriptors:
+        fn = descriptor.get("function", {}) if isinstance(descriptor, dict) else {}
+        name = fn.get("name")
+        if not name:
+            continue
+        tools.append(
+            {"name": name, "description": (fn.get("description") or "").strip()}
+        )
+    return load_prompt("flexible_agent_system", tools=tools)
 
 
 class FlexibleLoop:
@@ -400,7 +425,13 @@ class FlexibleLoop:
         tool_results: list[dict[str, Any]] = []
         sources_yielded = False
 
-        sys_prompt = getattr(config, "system_prompt", None)
+        # The terminating answer streams from a tools-less stream_complete, so
+        # fall back to a registry-derived identity+tools prompt when the pipeline
+        # declares none — otherwise the streamed reply has no tool awareness and
+        # drifts to a generic model identity (unlike the non-stream path).
+        sys_prompt = getattr(config, "system_prompt", None) or _default_system_prompt(
+            tool_descriptors
+        )
         if sys_prompt:
             messages.append({"role": "system", "content": sys_prompt})
 
@@ -683,6 +714,16 @@ class FlexibleLoop:
             except Exception as exc:
                 logger.warning("stream_complete failed: %s", exc)
                 stream_error = str(exc)
+
+        # The model can deliver its answer through a tool (e.g. summarize_for_user)
+        # and then stream no free text, leaving final_answer empty. Recover the
+        # tool-borne answer the same way the non-stream path does (extract_answer)
+        # and emit it as one token so the SSE client never shows an empty reply.
+        if not final_answer and stream_error is None and not budget_exhausted:
+            fallback = extract_answer({"results": tool_results})
+            if fallback:
+                final_answer = fallback
+                yield {"type": "token", "delta": fallback}
 
         persist_result = await self._persist(
             status="success" if stream_error is None else "error",
