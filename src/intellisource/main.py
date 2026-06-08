@@ -150,7 +150,7 @@ def _collect_startup_warnings() -> list[str]:
     if not os.path.isdir(src_dir):
         warnings.append(
             f"sources directory {src_dir!r} missing — no sources will be loaded"
-            " (run: mkdir -p config/sources && cp config/sources.example.yaml"
+            " (run: mkdir -p config/sources && cp config/examples/sources.example.yaml"
             " config/sources/sources.yaml)"
         )
     else:

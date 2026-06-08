@@ -450,10 +450,13 @@ intellisource/
 │   ├── unit/                          # 按模块组织单元测试
 │   ├── integration/                   # 集成测试
 │   └── conftest.py
-├── config/
-│   ├── sources.example.yaml          # 信源配置示例
-│   ├── settings.example.toml         # 系统配置示例
-│   ├── defaults.yaml                 # 全局默认配置（ConfigResolver 基准层）
+├── config/                           # 用户运行时配置（详见 config/README.md）
+│   ├── README.md                     # 配置总地图（A/B/C 三类资产）
+│   ├── examples/                     # *.example.yaml 模板集中处（init 据此播种）
+│   ├── llm_models.yaml               # LLM 模型路由（gitignore）
+│   ├── sources/                      # 信源定义目录（gitignore）
+│   ├── subscriptions/                # 订阅定义目录（gitignore）
+│   ├── templates/                    # 用户 digest 模板覆盖层
 │   └── pipelines/                    # 管道配置文件
 │       ├── scheduled-collect.yaml    # 定时采集管道（strict 模式）
 │       ├── manual-collect.yaml       # 手动触发管道（strict 模式）

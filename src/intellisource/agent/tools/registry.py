@@ -55,6 +55,7 @@ from intellisource.agent.tools.executes.search_and_content import (
     _search_execute,
     _summarize_for_user_execute,
 )
+from intellisource.agent.tools.executes.summarize_cluster import summarize_cluster
 from intellisource.observability.logging import get_logger
 from intellisource.pipeline.processors import tools as atomic_tools
 
@@ -343,7 +344,7 @@ def _atomic_tool_defs() -> list[ToolDefinition]:
                 },
                 "required": ["cluster_contents"],
             },
-            execute=atomic_tools.truncate_summary,
+            execute=summarize_cluster,
         ),
         ToolDefinition(
             name="keyword_tag",

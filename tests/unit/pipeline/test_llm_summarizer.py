@@ -1,26 +1,15 @@
-"""B-044: LLMSummarizer processor integrates into content-process pipeline.
+"""LLMSummarizer processor populates ctx['summary'] from a cluster digest.
 
-Backlog: docs/BACKLOG-intellisource-v1.md §B-044.
-
-ProcessedContent.summary is currently NULL for every row because the
-content-process YAML steps are pure batch processors (HTMLParser, ContentDedup,
-KeywordTagger) — none call into the LLM gateway. This task adds an
-LLMSummarizer processor that reads title/body_text from the pipeline context,
-invokes ``truncate_summary`` with the gateway, and writes the digest summary
-back into the context so ``_process_execute`` can persist it.
-
-Tests verify:
-- LLMSummarizer class exists, subclasses BaseProcessor, and is registered.
-- _build_processors_from_config injects llm_gateway into LLMSummarizer.
-- LLMSummarizer.process(ctx) populates ctx["summary"] via the gateway.
-- Gateway failure / missing gateway falls back to truncation (no crash).
-- content-process.yaml includes the new step (config drift guard).
+The processor calls an injected ``summarize_fn`` (bound to the LLM gateway by
+agent.factory); the LLM path itself lives in
+agent.tools.executes.summarize_cluster. Without an injected summarizer it falls
+back to truncation. ``_process_execute`` then persists summary / structured_data.
 """
 
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -60,12 +49,14 @@ class TestLLMSummarizerRegistered:
 # ---------------------------------------------------------------------------
 
 
-def _make_complete_result(summary_json: str) -> MagicMock:
-    """LLMResult shape: .content and .metadata."""
-    result = MagicMock()
-    result.content = summary_json
-    result.metadata = {"input_tokens": 50, "output_tokens": 30}
-    return result
+def _digest(summary: str, **extra: Any) -> dict[str, Any]:
+    """A digest dict as returned by the injected summarize_fn."""
+    return {
+        "title": extra.get("title", "T"),
+        "summary": summary,
+        "timeline": extra.get("timeline", []),
+        "key_points": extra.get("key_points", []),
+    }
 
 
 class TestLLMSummarizerProcess:
@@ -75,15 +66,16 @@ class TestLLMSummarizerProcess:
             LLMSummarizer,
         )
 
-        gw = MagicMock()
-        gw.complete = AsyncMock(
-            return_value=_make_complete_result(
-                '{"title": "T", "summary": "concise summary text",'
-                ' "timeline": [], "key_points": []}'
-            )
-        )
+        async def fake_summarize(cluster: list[dict[str, str]]) -> dict[str, Any]:
+            assert cluster == [
+                {
+                    "title": "Hello world",
+                    "body_text": "Some long article body text here.",
+                }
+            ]
+            return _digest("concise summary text")
 
-        summarizer = LLMSummarizer(llm_gateway=gw)
+        summarizer = LLMSummarizer(summarize_fn=fake_summarize)
         ctx = PipelineContext()
         ctx.set("title", "Hello world")
         ctx.set("body_text", "Some long article body text here.")
@@ -91,44 +83,32 @@ class TestLLMSummarizerProcess:
         ctx = summarizer.process(ctx)
 
         assert ctx.get("summary") == "concise summary text"
-        gw.complete.assert_awaited_once()
 
-    def test_process_falls_back_when_gateway_returns_invalid_json(self) -> None:
+    def test_process_summary_empty_when_digest_lacks_summary(self) -> None:
         from intellisource.core.processor import PipelineContext  # noqa: PLC0415
         from intellisource.pipeline.processors.summarizer import (  # noqa: PLC0415
             LLMSummarizer,
         )
 
-        gw = MagicMock()
-        gw.complete = AsyncMock(
-            return_value=_make_complete_result("not valid json at all")
-        )
+        async def no_summary(cluster: list[dict[str, str]]) -> dict[str, Any]:
+            return {"title": "T", "timeline": [], "key_points": []}
 
-        summarizer = LLMSummarizer(llm_gateway=gw)
+        summarizer = LLMSummarizer(summarize_fn=no_summary)
         ctx = PipelineContext()
-        ctx.set(
-            "title",
-            "Article title",
-        )
-        ctx.set(
-            "body_text",
-            "First sentence. Second sentence. Third sentence. Fourth sentence.",
-        )
+        ctx.set("title", "Article title")
+        ctx.set("body_text", "First. Second. Third.")
 
         ctx = summarizer.process(ctx)
 
-        summary_val = ctx.get("summary")
-        assert isinstance(summary_val, str)
-        assert summary_val  # non-empty fallback
-        assert summary_val != ""
+        assert ctx.get("summary") == ""
 
-    def test_process_without_gateway_falls_back_to_truncation(self) -> None:
+    def test_process_without_summarizer_falls_back_to_truncation(self) -> None:
         from intellisource.core.processor import PipelineContext  # noqa: PLC0415
         from intellisource.pipeline.processors.summarizer import (  # noqa: PLC0415
             LLMSummarizer,
         )
 
-        summarizer = LLMSummarizer(llm_gateway=None)
+        summarizer = LLMSummarizer(summarize_fn=None)
         ctx = PipelineContext()
         ctx.set("title", "T")
         ctx.set(
@@ -140,26 +120,25 @@ class TestLLMSummarizerProcess:
 
         summary_val = ctx.get("summary")
         assert isinstance(summary_val, str)
-        assert summary_val  # non-empty fallback text
+        assert summary_val  # non-empty truncation fallback
 
-    def test_process_swallows_gateway_exception(self) -> None:
+    def test_process_swallows_summarizer_exception(self) -> None:
         from intellisource.core.processor import PipelineContext  # noqa: PLC0415
         from intellisource.pipeline.processors.summarizer import (  # noqa: PLC0415
             LLMSummarizer,
         )
 
-        gw = MagicMock()
-        gw.complete = AsyncMock(side_effect=RuntimeError("LLM down"))
+        async def boom(cluster: list[dict[str, str]]) -> dict[str, Any]:
+            raise RuntimeError("summarizer down")
 
-        summarizer = LLMSummarizer(llm_gateway=gw)
+        summarizer = LLMSummarizer(summarize_fn=boom)
         ctx = PipelineContext()
         ctx.set("title", "T")
         ctx.set("body_text", "Body text.")
 
         ctx = summarizer.process(ctx)
 
-        summary_val = ctx.get("summary")
-        assert isinstance(summary_val, str)
+        assert ctx.get("summary") == ""
 
 
 # ---------------------------------------------------------------------------
@@ -167,8 +146,8 @@ class TestLLMSummarizerProcess:
 # ---------------------------------------------------------------------------
 
 
-class TestFactoryInjectsLLMGateway:
-    def test_build_processors_injects_gateway_into_llm_summarizer(self) -> None:
+class TestFactoryInjectsSummarizer:
+    def test_build_processors_injects_summarizer_into_llm_summarizer(self) -> None:
         from intellisource.agent.factory import (  # noqa: PLC0415
             _build_processors_from_config,
         )
@@ -189,9 +168,9 @@ class TestFactoryInjectsLLMGateway:
 
         assert len(processors) == 1
         assert isinstance(processors[0], LLMSummarizer)
-        # Internal attribute exposed for test verification; pinning the name
-        # lets us catch silent removals.
-        assert processors[0]._llm_gateway is gw
+        # Factory injects a gateway-bound summarizer callable; pinning the
+        # attribute name lets us catch silent removals.
+        assert callable(processors[0]._summarize_fn)
 
     def test_build_processors_llm_summarizer_without_gateway(self) -> None:
         from intellisource.agent.factory import (  # noqa: PLC0415
@@ -360,15 +339,15 @@ class TestLLMSummarizerPopulatesDigest:
             LLMSummarizer,
         )
 
-        gw = MagicMock()
-        gw.complete = AsyncMock(
-            return_value=_make_complete_result(
-                '{"title": "DT", "summary": "DS",'
-                ' "timeline": [{"date": "2026-01-01", "event": "E"}],'
-                ' "key_points": ["k1", "k2"]}'
-            )
-        )
-        summarizer = LLMSummarizer(llm_gateway=gw)
+        async def fake_summarize(cluster: list[dict[str, str]]) -> dict[str, Any]:
+            return {
+                "title": "DT",
+                "summary": "DS",
+                "timeline": [{"date": "2026-01-01", "event": "E"}],
+                "key_points": ["k1", "k2"],
+            }
+
+        summarizer = LLMSummarizer(summarize_fn=fake_summarize)
         ctx = PipelineContext()
         ctx.set("title", "Hello")
         ctx.set("body_text", "Body.")

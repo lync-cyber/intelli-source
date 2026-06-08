@@ -1,0 +1,190 @@
+{
+  "$defs": {
+    "DefaultModelConfig": {
+      "description": "Pydantic model for the default_model section.",
+      "properties": {
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "provider": {
+          "title": "Provider",
+          "type": "string"
+        }
+      },
+      "required": [
+        "model",
+        "provider"
+      ],
+      "title": "DefaultModelConfig",
+      "type": "object"
+    },
+    "ModelProfileConfig": {
+      "description": "Pydantic model for a per-model profile configuration.",
+      "properties": {
+        "temperature": {
+          "title": "Temperature",
+          "type": "number"
+        },
+        "max_tokens": {
+          "title": "Max Tokens",
+          "type": "integer"
+        },
+        "context_window": {
+          "title": "Context Window",
+          "type": "integer"
+        },
+        "prompt_style": {
+          "default": "default",
+          "title": "Prompt Style",
+          "type": "string"
+        },
+        "timeout_seconds": {
+          "default": 60,
+          "title": "Timeout Seconds",
+          "type": "integer"
+        },
+        "thinking": {
+          "anyOf": [
+            {
+              "enum": [
+                "enabled",
+                "disabled"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Thinking"
+        },
+        "reasoning_effort": {
+          "anyOf": [
+            {
+              "enum": [
+                "high",
+                "max"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning Effort"
+        }
+      },
+      "required": [
+        "temperature",
+        "max_tokens",
+        "context_window"
+      ],
+      "title": "ModelProfileConfig",
+      "type": "object"
+    },
+    "ModelTaskConfig": {
+      "description": "Pydantic model for a single task-type model configuration.",
+      "properties": {
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "provider": {
+          "title": "Provider",
+          "type": "string"
+        },
+        "temperature": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Temperature"
+        },
+        "max_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Tokens"
+        },
+        "thinking": {
+          "anyOf": [
+            {
+              "enum": [
+                "enabled",
+                "disabled"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Thinking"
+        },
+        "reasoning_effort": {
+          "anyOf": [
+            {
+              "enum": [
+                "high",
+                "max"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning Effort"
+        }
+      },
+      "required": [
+        "model",
+        "provider"
+      ],
+      "title": "ModelTaskConfig",
+      "type": "object"
+    }
+  },
+  "description": "Pydantic schema for the full llm_models.yaml configuration.",
+  "properties": {
+    "default_model": {
+      "$ref": "#/$defs/DefaultModelConfig"
+    },
+    "models": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ModelTaskConfig"
+      },
+      "title": "Models",
+      "type": "object"
+    },
+    "profiles": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ModelProfileConfig"
+      },
+      "title": "Profiles",
+      "type": "object"
+    }
+  },
+  "required": [
+    "default_model"
+  ],
+  "title": "IntelliSource LLM models routing config",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

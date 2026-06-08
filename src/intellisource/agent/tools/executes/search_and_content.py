@@ -7,6 +7,7 @@ from typing import Any
 
 from intellisource.agent.deps import ToolDeps
 from intellisource.agent.tools.results import tool_degraded
+from intellisource.llm.prompts import load_prompt
 from intellisource.observability.logging import get_logger
 
 logger = get_logger(__name__)
@@ -111,7 +112,7 @@ async def _summarize_for_user_execute(
 ) -> dict[str, Any]:
     """Invoke LLMGateway.complete() to generate a user-facing summary."""
     if tool_deps is not None and tool_deps.llm_gateway is not None:
-        prompt = f"Summarize the following content:\n\n{content}"
+        prompt = load_prompt("summarize_for_user", content=content)
         result = await tool_deps.llm_gateway.complete(
             prompt=prompt, task_type="summarize"
         )

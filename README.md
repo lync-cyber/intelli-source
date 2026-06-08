@@ -42,6 +42,8 @@ Windows PowerShell / macOS / Linux 命令**完全一致**——`intellisource up
 
 ## 配置管理（查看 / 修改 / 回滚）
 
+> 📍 **配置全貌**（哪类配置在哪、谁改、怎么改）见 [`config/README.md`](config/README.md)——新手先看这张地图。
+
 配置是 **YAML 为准（SSOT）+ 运行时 DB** 双层模型：编辑 `config/**/*.yaml` 后 `reload` 生效并记录版本快照；API/CLI 的热编辑是临时态，下次 `reload` 会被 YAML 覆盖。
 
 | 操作 | 命令 |

@@ -23,7 +23,8 @@ from intellisource.llm.gateway._extra_body import (
     build_extra_body,
     extract_reasoning_content,
 )
-from intellisource.llm.model_config import ModelProfile
+from intellisource.llm.gateway._routing import resolve_call_params
+from intellisource.llm.model_config import ModelProfile, ModelRoutingConfig
 
 # ---------------------------------------------------------------------------
 # build_extra_body — pure function
@@ -80,6 +81,73 @@ class TestBuildExtraBody:
         )
         assert "reasoning_effort" not in out
         assert out["thinking"] == {"type": "disabled"}
+
+
+# ---------------------------------------------------------------------------
+# resolve_call_params — temperature/max_tokens precedence mirrors thinking:
+# explicit caller arg > task_cfg (models[task]) > profile > gateway default
+# ---------------------------------------------------------------------------
+
+
+class TestResolveCallParamsPrecedence:
+    @staticmethod
+    def _routing() -> ModelRoutingConfig:
+        return ModelRoutingConfig(
+            {
+                "default_model": {"model": "m", "provider": "p"},
+                "models": {},
+                "profiles": {
+                    "m": {
+                        "temperature": 0.1,
+                        "max_tokens": 4096,
+                        "context_window": 1000,
+                    }
+                },
+            }
+        )
+
+    def test_task_cfg_wins_over_profile(self) -> None:
+        _, temp, max_tokens = resolve_call_params(
+            self._routing(),
+            "m",
+            None,
+            None,
+            0.7,
+            256,
+            task_cfg={"temperature": 0.0, "max_tokens": 512},
+        )
+        assert temp == 0.0
+        assert max_tokens == 512
+
+    def test_explicit_arg_wins_over_task_cfg(self) -> None:
+        _, temp, max_tokens = resolve_call_params(
+            self._routing(),
+            "m",
+            0.9,
+            99,
+            0.7,
+            256,
+            task_cfg={"temperature": 0.0, "max_tokens": 512},
+        )
+        assert temp == 0.9
+        assert max_tokens == 99
+
+    def test_profile_used_when_task_cfg_silent(self) -> None:
+        _, temp, max_tokens = resolve_call_params(
+            self._routing(), "m", None, None, 0.7, 256, task_cfg={}
+        )
+        assert temp == 0.1
+        assert max_tokens == 4096
+
+    def test_default_when_no_profile_no_task_cfg(self) -> None:
+        routing = ModelRoutingConfig(
+            {"default_model": {"model": "x", "provider": "p"}, "profiles": {}}
+        )
+        _, temp, max_tokens = resolve_call_params(
+            routing, "x", None, None, 0.7, 256, task_cfg=None
+        )
+        assert temp == 0.7
+        assert max_tokens == 256
 
 
 # ---------------------------------------------------------------------------

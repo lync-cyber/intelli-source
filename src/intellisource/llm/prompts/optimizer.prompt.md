@@ -1,12 +1,12 @@
 ---
 name: optimizer
-description: Rewrite content for a target distribution channel, as JSON.
-required_vars: [channel, title, body_text]
+description: Rewrite a draft title/summary for a push notification, as JSON.
+required_vars: [subscription_name, original_title, body_text, draft_title, draft_summary]
 ---
 {% from "_fragments/injection_guard.md" import untrusted %}
-Optimize the following content for distribution on the '{{ channel }}' channel.
-Adjust tone, length, and format for the channel's constraints.
-Return JSON: {"title": str, "summary": str}
-
-Title: {{ title }}
-{{ untrusted("content", body_text) }}
+Subscription: {{ subscription_name }}
+Original title: {{ original_title }}
+{{ untrusted("body", body_text) }}
+Draft title: {{ draft_title }}
+Draft summary: {{ draft_summary }}
+Return JSON with keys title (max 80 chars) and summary (max 200 chars) optimized for a push notification.

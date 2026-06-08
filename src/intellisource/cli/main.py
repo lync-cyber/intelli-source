@@ -1355,12 +1355,12 @@ def init(
 
     # --- Seed config templates (fixes provider mismatch via llm_models.yaml) ---
     if _seed_from_example(
-        root / "config" / "llm_models.example.yaml",
+        root / "config" / "examples" / "llm_models.example.yaml",
         root / "config" / "llm_models.yaml",
     ):
         typer.echo("[OK] Created config/llm_models.yaml")
     if _seed_from_example(
-        root / "config" / "subscriptions.example.yaml",
+        root / "config" / "examples" / "subscriptions.example.yaml",
         root / "config" / "subscriptions" / "subscriptions.yaml",
     ):
         typer.echo("[OK] Created config/subscriptions/subscriptions.yaml")

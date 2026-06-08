@@ -56,20 +56,26 @@ def resolve_call_params(
     max_tokens: int | None,
     default_temperature: float,
     default_max_tokens: int,
+    task_cfg: dict[str, Any] | None = None,
 ) -> tuple[ModelProfile | None, float, int]:
     """Resolve (profile, temperature, max_tokens) for a model.
 
-    Looks up the model's profile and fills temperature / max_tokens from the
-    profile when the caller passed None, falling back to the supplied gateway
-    defaults when there is no profile.
+    Precedence, first non-None wins: explicit caller arg → task-level config
+    (``models[task_type]``) → model profile → gateway default. This matches the
+    thinking / reasoning_effort precedence in :func:`build_extra_body`.
     """
     profile = model_routing.get_profile(model)
+    overrides = task_cfg or {}
     resolved_temperature = temperature
+    if resolved_temperature is None:
+        resolved_temperature = overrides.get("temperature")
     if resolved_temperature is None:
         resolved_temperature = (
             profile.temperature if profile is not None else default_temperature
         )
     resolved_max_tokens = max_tokens
+    if resolved_max_tokens is None:
+        resolved_max_tokens = overrides.get("max_tokens")
     if resolved_max_tokens is None:
         resolved_max_tokens = (
             profile.max_tokens if profile is not None else default_max_tokens
