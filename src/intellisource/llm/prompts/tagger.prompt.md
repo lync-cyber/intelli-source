@@ -10,3 +10,4 @@ If the content cannot be classified, return ["未分类"].
 
 Title: {{ title }}
 {{ untrusted("content", body_text) }}
+Return only valid JSON. Do not include any explanation or markdown fences.

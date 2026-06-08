@@ -28,7 +28,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 # ---------------------------------------------------------------------------
 FROM python:3.11-slim AS runtime
 
-# curl is needed for the HEALTHCHECK; procps for signal handling diagnostics
+# curl is needed for the HEALTHCHECK.
 RUN apt-get update && apt-get install -y --no-install-recommends curl && \
     rm -rf /var/lib/apt/lists/*
 
@@ -69,8 +69,8 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD curl -fsS http://localhost:8000/health || exit 1
 
 # Default entrypoint: API server.
-# Override CMD to run worker or beat:
-#   worker: uv run celery -A intellisource.scheduler.celery_app worker --loglevel=info
-#   beat:   uv run celery -A intellisource.scheduler.celery_app beat --loglevel=info
+# Override CMD to run worker or beat (compose uses the scheduler.boot app):
+#   worker: celery -A intellisource.scheduler.boot worker --loglevel=info
+#   beat:   celery -A intellisource.scheduler.boot beat --loglevel=info
 CMD ["uvicorn", "intellisource.main:create_app", "--factory", \
      "--host", "0.0.0.0", "--port", "8000"]

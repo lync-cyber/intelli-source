@@ -1,6 +1,7 @@
 {
   "$defs": {
     "DefaultModelConfig": {
+      "additionalProperties": false,
       "description": "Pydantic model for the default_model section.",
       "properties": {
         "model": {
@@ -20,17 +21,22 @@
       "type": "object"
     },
     "ModelProfileConfig": {
+      "additionalProperties": false,
       "description": "Pydantic model for a per-model profile configuration.",
       "properties": {
         "temperature": {
+          "maximum": 2.0,
+          "minimum": 0.0,
           "title": "Temperature",
           "type": "number"
         },
         "max_tokens": {
+          "exclusiveMinimum": 0,
           "title": "Max Tokens",
           "type": "integer"
         },
         "context_window": {
+          "exclusiveMinimum": 0,
           "title": "Context Window",
           "type": "integer"
         },
@@ -41,6 +47,7 @@
         },
         "timeout_seconds": {
           "default": 60,
+          "exclusiveMinimum": 0,
           "title": "Timeout Seconds",
           "type": "integer"
         },
@@ -86,6 +93,7 @@
       "type": "object"
     },
     "ModelTaskConfig": {
+      "additionalProperties": false,
       "description": "Pydantic model for a single task-type model configuration.",
       "properties": {
         "model": {
@@ -99,6 +107,8 @@
         "temperature": {
           "anyOf": [
             {
+              "maximum": 2.0,
+              "minimum": 0.0,
               "type": "number"
             },
             {
@@ -111,6 +121,7 @@
         "max_tokens": {
           "anyOf": [
             {
+              "exclusiveMinimum": 0,
               "type": "integer"
             },
             {
@@ -161,6 +172,7 @@
       "type": "object"
     }
   },
+  "additionalProperties": false,
   "description": "Pydantic schema for the full llm_models.yaml configuration.",
   "properties": {
     "default_model": {

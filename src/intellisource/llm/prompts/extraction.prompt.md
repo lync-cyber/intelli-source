@@ -8,3 +8,4 @@ Extract structured data from the following text as JSON.
 Schema: {{ schema }}
 
 {{ untrusted("text", body_text) }}
+Return only valid JSON. Do not include any explanation or markdown fences.

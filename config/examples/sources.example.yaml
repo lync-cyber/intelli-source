@@ -1,3 +1,6 @@
+# yaml-language-server: $schema=../schema/sources.schema.json
+# ↑ 编辑器据此补全/校验 type(rss|api|web)、必填 url 等；路径相对本文件，复制到
+#   config/sources/ 后同样指向 config/schema/sources.schema.json（同为 config/ 下一级）。
 # ============================================================
 # 信源配置 (source) 示例  —  内容从哪来（rss / api / web）
 # ------------------------------------------------------------

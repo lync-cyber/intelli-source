@@ -1,3 +1,6 @@
+# yaml-language-server: $schema=../schema/subscriptions.schema.json
+# ↑ 编辑器据此补全/校验 channel(wechat|wework|email)、必填字段等；路径相对本文件，
+#   复制到 config/subscriptions/ 后同样指向 config/schema/subscriptions.schema.json。
 # ============================================================
 # 订阅配置 (subscription) 示例  —  把匹配内容推给谁、走哪个渠道
 # ------------------------------------------------------------

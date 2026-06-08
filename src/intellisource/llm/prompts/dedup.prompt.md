@@ -12,3 +12,4 @@ Title: {{ title }}
 Candidates:
 {{ untrusted("candidates", candidate_info) }}
 Respond with JSON: {"is_duplicate": bool, "confidence": float}
+Return only valid JSON. Do not include any explanation or markdown fences.

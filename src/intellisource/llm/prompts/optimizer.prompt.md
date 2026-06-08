@@ -10,3 +10,4 @@ Subscription: {{ subscription_name }}
 {{ untrusted("draft_title", draft_title) }}
 {{ untrusted("draft_summary", draft_summary) }}
 Return JSON with keys title (max 80 chars) and summary (max 200 chars) optimized for a push notification.
+Do not include any explanation or markdown fences.

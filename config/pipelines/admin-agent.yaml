@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../schema/pipeline.schema.json
 name: admin-agent
 mode: flexible
 agent_mode: process
