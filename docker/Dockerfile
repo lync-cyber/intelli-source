@@ -28,10 +28,6 @@ RUN uv sync --frozen --no-dev --no-install-project
 # ---------------------------------------------------------------------------
 FROM python:3.11-slim AS runtime
 
-# curl is needed for the HEALTHCHECK.
-RUN apt-get update && apt-get install -y --no-install-recommends curl && \
-    rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
 
 # Copy the pre-built venv from builder (same path → shebangs valid)
@@ -65,8 +61,9 @@ ENV PATH="/app/.venv/bin:$PATH" \
 
 EXPOSE 8000
 
+# Health probe uses the venv's Python (no curl in the image) — exit 0 only on HTTP 200.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD curl -fsS http://localhost:8000/health || exit 1
+    CMD ["python", "-c", "import urllib.request,sys\ntry: sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health',timeout=5).status==200 else 1)\nexcept Exception: sys.exit(1)"]
 
 # Default entrypoint: API server.
 # Override CMD to run worker or beat (compose uses the scheduler.boot app):

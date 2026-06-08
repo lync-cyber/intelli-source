@@ -8,4 +8,4 @@ Generate a short cluster topic label for the following content.
 
 Title: {{ title }}
 {{ untrusted("body", body_text) }}
-Respond with only the topic label.
+Respond with only the topic label, in the same language as the content.

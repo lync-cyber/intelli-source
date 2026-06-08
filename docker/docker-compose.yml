@@ -1,3 +1,9 @@
+# Project name → containers/network/volumes are prefixed `intellisource-*`
+# (e.g. intellisource-api-1) instead of inheriting the compose file's parent
+# dir name (`docker`). Applies to both `make` and `intellisource up`, which
+# invoke `docker compose -f docker/docker-compose.yml` without `-p`.
+name: intellisource
+
 services:
 
   db:
@@ -21,6 +27,11 @@ services:
 
   redis:
     image: redis:7-alpine
+    command: ["redis-server", "--requirepass", "${IS_REDIS_PASSWORD:?set IS_REDIS_PASSWORD in docker/.env}"]
+    environment:
+      # redis-cli (healthcheck) reads REDISCLI_AUTH, keeping the password off the
+      # command line / process list.
+      REDISCLI_AUTH: ${IS_REDIS_PASSWORD:?set IS_REDIS_PASSWORD in docker/.env}
     volumes:
       - redis_data:/data
     healthcheck:
@@ -65,7 +76,7 @@ services:
       - .env
     environment:
       IS_DATABASE_URL: ${IS_DATABASE_URL:-postgresql+asyncpg://${IS_DB_USER:-intellisource}:${IS_DB_PASSWORD:?set IS_DB_PASSWORD in docker/.env}@db:5432/${IS_DB_NAME:-intellisource}}
-      IS_REDIS_URL: ${IS_REDIS_URL:-redis://redis:6379/0}
+      IS_REDIS_URL: ${IS_REDIS_URL:-redis://:${IS_REDIS_PASSWORD:?set IS_REDIS_PASSWORD in docker/.env}@redis:6379/0}
     depends_on:
       db:
         condition: service_healthy
@@ -74,7 +85,7 @@ services:
       migrate:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      test: ["CMD", "python", "-c", "import urllib.request,sys\ntry: sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health',timeout=5).status==200 else 1)\nexcept Exception: sys.exit(1)"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -97,9 +108,9 @@ services:
       - .env
     environment:
       IS_DATABASE_URL: ${IS_DATABASE_URL:-postgresql+asyncpg://${IS_DB_USER:-intellisource}:${IS_DB_PASSWORD:?set IS_DB_PASSWORD in docker/.env}@db:5432/${IS_DB_NAME:-intellisource}}
-      IS_REDIS_URL: ${IS_REDIS_URL:-redis://redis:6379/0}
-      IS_CELERY_BROKER_URL: ${IS_CELERY_BROKER_URL:-redis://redis:6379/0}
-      IS_CELERY_RESULT_BACKEND: ${IS_CELERY_RESULT_BACKEND:-redis://redis:6379/1}
+      IS_REDIS_URL: ${IS_REDIS_URL:-redis://:${IS_REDIS_PASSWORD:?set IS_REDIS_PASSWORD in docker/.env}@redis:6379/0}
+      IS_CELERY_BROKER_URL: ${IS_CELERY_BROKER_URL:-redis://:${IS_REDIS_PASSWORD:?set IS_REDIS_PASSWORD in docker/.env}@redis:6379/0}
+      IS_CELERY_RESULT_BACKEND: ${IS_CELERY_RESULT_BACKEND:-redis://:${IS_REDIS_PASSWORD:?set IS_REDIS_PASSWORD in docker/.env}@redis:6379/1}
     depends_on:
       db:
         condition: service_healthy
@@ -127,9 +138,9 @@ services:
       - .env
     environment:
       IS_DATABASE_URL: ${IS_DATABASE_URL:-postgresql+asyncpg://${IS_DB_USER:-intellisource}:${IS_DB_PASSWORD:?set IS_DB_PASSWORD in docker/.env}@db:5432/${IS_DB_NAME:-intellisource}}
-      IS_REDIS_URL: ${IS_REDIS_URL:-redis://redis:6379/0}
-      IS_CELERY_BROKER_URL: ${IS_CELERY_BROKER_URL:-redis://redis:6379/0}
-      IS_CELERY_RESULT_BACKEND: ${IS_CELERY_RESULT_BACKEND:-redis://redis:6379/1}
+      IS_REDIS_URL: ${IS_REDIS_URL:-redis://:${IS_REDIS_PASSWORD:?set IS_REDIS_PASSWORD in docker/.env}@redis:6379/0}
+      IS_CELERY_BROKER_URL: ${IS_CELERY_BROKER_URL:-redis://:${IS_REDIS_PASSWORD:?set IS_REDIS_PASSWORD in docker/.env}@redis:6379/0}
+      IS_CELERY_RESULT_BACKEND: ${IS_CELERY_RESULT_BACKEND:-redis://:${IS_REDIS_PASSWORD:?set IS_REDIS_PASSWORD in docker/.env}@redis:6379/1}
     depends_on:
       db:
         condition: service_healthy

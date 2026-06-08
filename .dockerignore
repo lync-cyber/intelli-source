@@ -18,3 +18,8 @@ build/
 *.coverage
 .coverage
 coverage.xml
+# Secrets / CI / logs — never ship in the build context (.env.example is kept).
+.env
+*.env
+.github/
+*.log
