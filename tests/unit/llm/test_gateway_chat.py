@@ -642,8 +642,37 @@ class TestT086ChatRetry:
         assert call_count == 2
 
     @pytest.mark.asyncio
-    async def test_unsupported_params_error_downgrades_without_tools(self) -> None:
-        """R-004b: UnsupportedParamsError triggers a degraded retry without tools."""
+    async def test_unsupported_params_error_with_tools_raises(self) -> None:
+        """With tools present, UnsupportedParamsError must raise LLMError — never
+        silently strip tools (which degrades the agent into tool-less hallucination)."""
+        from intellisource.core.errors import LLMError
+
+        gw = _make_gateway()
+        call_count = 0
+
+        class _FakeUnsupportedParamsError(Exception):
+            pass
+
+        _FakeUnsupportedParamsError.__name__ = "UnsupportedParamsError"
+
+        async def _side_effect(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            raise _FakeUnsupportedParamsError("tools not supported")
+
+        with patch("intellisource.llm.gateway.litellm") as mock_litellm:
+            mock_litellm.acompletion = AsyncMock(side_effect=_side_effect)
+            with pytest.raises(LLMError):
+                await gw.chat(messages=_SAMPLE_MESSAGES, tools=_SAMPLE_TOOLS)
+
+        assert call_count == 1, (
+            "tools-present UnsupportedParamsError must not retry without tools"
+        )
+
+    @pytest.mark.asyncio
+    async def test_unsupported_params_error_response_format_only_degrades(self) -> None:
+        """Without tools, a response_format-only UnsupportedParamsError still
+        degrades by stripping response_format and retrying."""
         from intellisource.llm.gateway import LLMResult
 
         gw = _make_gateway()
@@ -662,23 +691,20 @@ class TestT086ChatRetry:
             call_count += 1
             captured_kwargs.append(dict(kwargs))
             if call_count == 1:
-                raise _FakeUnsupportedParamsError("tools not supported")
+                raise _FakeUnsupportedParamsError("response_format not supported")
             return degraded_resp
 
         with patch("intellisource.llm.gateway.litellm") as mock_litellm:
             mock_litellm.acompletion = AsyncMock(side_effect=_side_effect)
             result = await gw.chat(
                 messages=_SAMPLE_MESSAGES,
-                tools=_SAMPLE_TOOLS,
+                tools=None,
                 response_format={"type": "json_object"},
             )
 
         assert isinstance(result, LLMResult)
         assert result.content == "degraded response"
         assert call_count == 2
-        assert "tools" not in captured_kwargs[1], (
-            "Second call should not contain 'tools'"
-        )
         assert "response_format" not in captured_kwargs[1], (
             "Second call should not contain 'response_format'"
         )

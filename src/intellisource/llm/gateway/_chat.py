@@ -7,6 +7,7 @@ import json
 import time
 from typing import TYPE_CHECKING, Any, cast
 
+from intellisource.core.errors import ErrorCategory, LLMError
 from intellisource.llm.cost_tracker import LLMCallRecord
 from intellisource.llm.gateway._extra_body import (
     apply_extra_body,
@@ -128,8 +129,6 @@ class _ChatMixin:
             if "chat" in models:
                 resolved_model = models["chat"]["model"]
             else:
-                from intellisource.core.errors import ErrorCategory, LLMError
-
                 default_cfg = self._routing_config.get("default_model")
                 if default_cfg is None:
                     raise LLMError(
@@ -158,15 +157,19 @@ class _ChatMixin:
                 return await self._acompletion(**call_kwargs)
             except Exception as exc:
                 if type(exc).__name__ == "UnsupportedParamsError":
+                    if "tools" in call_kwargs:
+                        raise LLMError(
+                            f"模型 {resolved_model!r} 不支持 tools/function calling；"
+                            "拒绝静默剥离 tools 降级（会使 agent 退化为无工具幻觉）",
+                            category=ErrorCategory.UNRECOVERABLE,
+                        ) from exc
                     logger.warning(
-                        "Provider does not support tools/response_format; "
-                        "retrying without them: %s",
+                        "Provider does not support response_format; "
+                        "retrying without it: %s",
                         exc,
                     )
                     degraded_kwargs = {
-                        k: v
-                        for k, v in call_kwargs.items()
-                        if k not in ("tools", "response_format")
+                        k: v for k, v in call_kwargs.items() if k != "response_format"
                     }
                     return await self._acompletion(**degraded_kwargs)
                 raise
