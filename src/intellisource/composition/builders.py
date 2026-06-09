@@ -11,6 +11,7 @@ import asyncio
 import concurrent.futures
 from typing import Any, Callable
 
+import litellm
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from intellisource.collector.adapters.api import APICollector
@@ -109,6 +110,23 @@ def build_collector_registry(redis_client: Any | None = None) -> CollectorRegist
     return registry
 
 
+def _assert_chat_model_supports_tools(routing_config: dict[str, Any]) -> None:
+    """Fail loud at composition when the chat model cannot do function calling.
+
+    The admin / RAG agents are tool-loops; a chat model without function-calling
+    support degrades them into tool-less hallucination, so reject it at startup
+    rather than failing silently per request.
+    """
+    chat_model = (routing_config.get("models", {}).get("chat") or {}).get("model")
+    if not chat_model:
+        return
+    if not litellm.supports_function_calling(model=chat_model):
+        raise CompositionError(
+            f"chat 模型 {chat_model!r} 不支持 function calling；agent 工具回路将失效。"
+            "请在 model_capabilities 注册其能力或改用支持 function calling 的模型"
+        )
+
+
 def build_llm_gateway(
     redis_client: Any,
     session_factory: Any | None = None,
@@ -123,10 +141,12 @@ def build_llm_gateway(
     construction), the gateway runs without log_call persistence.
     """
     circuit_breaker = CircuitBreaker(redis=redis_client)
-    return LLMGateway(
+    gateway = LLMGateway(
         circuit_breaker=circuit_breaker,
         session_factory=session_factory,
     )
+    _assert_chat_model_supports_tools(gateway._routing_config)
+    return gateway
 
 
 def build_search_engine_factory(

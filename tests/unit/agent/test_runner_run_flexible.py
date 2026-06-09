@@ -285,13 +285,14 @@ class TestRunFlexibleConsumesLLMResult:
         assert result["final_answer"] == "final answer"
 
     async def test_default_system_prompt_injected_when_config_has_none(self) -> None:
-        """Non-stream run_flexible injects the IntelliSource identity+tools prompt.
+        """Non-stream run_flexible injects the IntelliSource identity prompt.
 
         Mirrors the streaming path (run_flexible_stream), which falls back to
         ``_default_system_prompt`` when the pipeline declares no system_prompt.
         Without parity here, the CLI (non-stream /search/chat) loses its
         identity while the web (stream) keeps it — the model drifts to a
-        generic ``我是你的智能助手`` answer.
+        generic ``我是你的智能助手`` answer. The tool list is NOT rendered into
+        the prompt — callable tools reach the model via the tools= param.
         """
         captured: dict[str, Any] = {}
 
@@ -316,7 +317,10 @@ class TestRunFlexibleConsumesLLMResult:
         assert system_msg["role"] == "system"
         text = system_msg["content"]
         assert "IntelliSource" in text
-        assert "search" in text and "get_content_detail" in text
+        assert "get_content_detail" not in text, (
+            "tool list must not be rendered into the system prompt; tools reach "
+            "the model via the tools= param"
+        )
 
     async def test_configured_system_prompt_takes_precedence(self) -> None:
         """An explicit pipeline system_prompt is used verbatim (no fallback)."""

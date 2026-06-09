@@ -20,25 +20,16 @@ from intellisource.observability.logging import get_logger
 logger = get_logger(__name__)
 
 
-def _default_system_prompt(tool_descriptors: list[dict[str, Any]]) -> str:
-    """Render the flexible agent's identity + tools system prompt from templates.
+def _default_system_prompt() -> str:
+    """Render the flexible agent's identity system prompt from templates.
 
     Used by both ``run`` and ``run_stream`` as the fallback when a pipeline
     declares no ``system_prompt``: without an identity message the model drifts
-    to a generic assistant persona (e.g. ``我是你的智能助手``). The prompt text
-    lives in the shared ``llm.prompts`` template store; here we only shape the
-    live tool registry into its ``tools`` variable.
+    to a generic assistant persona (e.g. ``我是你的智能助手``). The callable
+    tools reach the model through the ``tools=`` request param, so they are not
+    duplicated into the prompt text.
     """
-    tools: list[dict[str, str]] = []
-    for descriptor in tool_descriptors:
-        fn = descriptor.get("function", {}) if isinstance(descriptor, dict) else {}
-        name = fn.get("name")
-        if not name:
-            continue
-        tools.append(
-            {"name": name, "description": (fn.get("description") or "").strip()}
-        )
-    return load_prompt("flexible_agent_system", tools=tools)
+    return load_prompt("flexible_agent_system")
 
 
 class FlexibleLoop:
@@ -186,9 +177,7 @@ class FlexibleLoop:
 
         # Fall back to the identity+tools prompt so the agent keeps the
         # IntelliSource persona instead of drifting to a generic model identity.
-        sys_prompt = getattr(config, "system_prompt", None) or _default_system_prompt(
-            tool_descriptors
-        )
+        sys_prompt = getattr(config, "system_prompt", None) or _default_system_prompt()
         if sys_prompt:
             messages.append({"role": "system", "content": sys_prompt})
 

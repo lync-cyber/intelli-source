@@ -7,6 +7,7 @@ import time
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Any
 
+from intellisource.core.errors import ErrorCategory, LLMError
 from intellisource.llm.cost_tracker import LLMCallRecord
 from intellisource.llm.gateway._metrics import _record_llm_call
 from intellisource.llm.gateway._routing import resolve_model
@@ -122,12 +123,18 @@ class _StreamMixin:
                 model=resolved_model,
             )
             return
-        except BaseException:
+        except BaseException as exc:
             _record_llm_call(
                 latency_seconds=time.monotonic() - start_time,
                 success=False,
                 model=resolved_model,
             )
+            if type(exc).__name__ == "UnsupportedParamsError" and tools is not None:
+                raise LLMError(
+                    f"模型 {resolved_model!r} 不支持 tools/function calling；"
+                    "拒绝静默降级（会使 agent 退化为无工具幻觉）",
+                    category=ErrorCategory.UNRECOVERABLE,
+                ) from exc
             raise
 
         if input_tokens == 0:

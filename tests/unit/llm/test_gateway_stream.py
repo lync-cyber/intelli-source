@@ -108,6 +108,38 @@ class TestStreamCompleteChunks:
         assert captured.get("stream") is True
 
 
+class TestStreamCompleteUnsupportedToolsRaises:
+    """With tools, UnsupportedParamsError surfaces as LLMError (parity with chat())."""
+
+    @pytest.mark.asyncio
+    async def test_unsupported_params_with_tools_raises_llm_error(self) -> None:
+        from intellisource.core.errors import LLMError
+
+        class _FakeUnsupportedParamsError(Exception):
+            pass
+
+        _FakeUnsupportedParamsError.__name__ = "UnsupportedParamsError"
+
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "f",
+                    "description": "d",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            }
+        ]
+        gw = LLMGateway()
+        with patch("litellm.acompletion", new_callable=AsyncMock) as mock_ac:
+            mock_ac.side_effect = _FakeUnsupportedParamsError("tools not supported")
+            with pytest.raises(LLMError):
+                async for _ in gw.stream_complete(
+                    messages=[{"role": "user", "content": "hi"}], tools=tools
+                ):
+                    pass
+
+
 # ---------------------------------------------------------------------------
 # AC-T070-4: final event with done=True and metadata
 # ---------------------------------------------------------------------------

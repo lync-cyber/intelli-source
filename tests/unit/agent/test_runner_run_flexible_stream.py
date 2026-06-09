@@ -233,9 +233,9 @@ class TestRunFlexibleStreamWithSearchTool:
 
 
 class TestRunFlexibleStreamDefaultSystemPrompt:
-    """No configured system_prompt → identity+tools prompt rendered from templates."""
+    """No configured system_prompt → identity prompt rendered from templates."""
 
-    async def test_default_system_prompt_lists_tools(self) -> None:
+    async def test_default_system_prompt_has_identity_without_tool_list(self) -> None:
         captured: dict[str, Any] = {}
 
         def _capture(*, messages: list[dict[str, Any]], **__: Any) -> _AsyncIter:
@@ -260,7 +260,10 @@ class TestRunFlexibleStreamDefaultSystemPrompt:
         assert system_msg["role"] == "system"
         text = system_msg["content"]
         assert "IntelliSource" in text
-        assert "search" in text and "get_content_detail" in text
+        assert "get_content_detail" not in text, (
+            "tool list must not be rendered into the system prompt; tools reach "
+            "the model via the tools= param"
+        )
 
     async def test_configured_system_prompt_takes_precedence(self) -> None:
         captured: dict[str, Any] = {}

@@ -26,6 +26,7 @@ from intellisource.llm.gateway._types import (
     SchemaEnforcer,
     SchemaValidationError,
 )
+from intellisource.llm.model_capabilities import register_known_model_capabilities
 from intellisource.llm.model_config import ModelRoutingConfig
 from intellisource.observability.logging import get_logger
 
@@ -70,6 +71,7 @@ class LLMGateway(
         circuit_breaker: CircuitBreaker | None = None,
         session_factory: SessionFactory | None = None,
     ) -> None:
+        register_known_model_capabilities()
         self._default_temperature: float = 0.7
         self._default_max_tokens: int = 4096
         self._routing_config: dict[str, Any] = _load_routing_config()
