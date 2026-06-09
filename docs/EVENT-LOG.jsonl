@@ -387,3 +387,4 @@
 {"ts": "2026-06-09T05:00:04+00:00", "event": "review_verdict", "phase": "development", "detail": "T-EMB-2 code-review: approved (R-001 HIGH RAG wiring + R-002..R-005 fixed & verified)"}
 {"ts": "2026-06-09T05:02:09+00:00", "event": "tdd_phase", "phase": "development", "detail": "T-EMB-3 config/docs (skip TDD): TEI deploy + yaml embed + docs"}
 {"ts": "2026-06-09T05:14:03+00:00", "event": "tdd_phase", "phase": "development", "detail": "T-EMB-3 done (config/docs): TEI deploy + yaml embed template + docs synced"}
+{"ts": "2026-06-09T06:03:53+00:00", "event": "state_change", "phase": "development", "detail": "PR #102 merged → main HEAD dc399b1; BGE-M3 feature 归档已闭环；基线刷新（unit 3421 + integration 160）"}
