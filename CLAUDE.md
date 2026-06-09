@@ -18,10 +18,10 @@
  cataforge setup --emit-env-block}
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: backlog-burndown；release gate = approved（B-031 用户 2026-05-29 签字 + 2026-06-08 重构后真起栈走查全绿）。PR #95~#101 新增 chat CLI/web 前端 + agent 控制面统一 + MCP CLI 重构 + 多轮安全加固；BGE-M3 本地 embedding 接入新增 TEI 容器；T-MCP-GW：MCP 默认 search factory 懒注入 LLMGateway → MCP 搜索升级 semantic/hybrid —— 下次 prod 发布前需复跑 PRE-DEPLOY-WALKTHROUGH（含 TEI /v1/embeddings 起栈验证）
-- 当前回归基线: T-MCP-GW 已提交于 feature 分支 **feat/mcp-default-gateway** (commit **f1ad74e**) 并开 **[PR #103](https://github.com/lync-cyber/intelli-source/pull/103)**（含前置 9171b1d 状态对账），待合并；合并后需 docs(state) 复跑对账更新 main HEAD。全门禁绿：unit **3425 PASS** (xdist) + integration **160 PASS / 1 skip** + mypy --strict **263 files** + ruff (check+format) + lint-imports **12/12 KEPT**，无回归（审查 [CODE-REVIEW-T-MCP-GW-r1](docs/reviews/code/CODE-REVIEW-T-MCP-GW-r1.md) approved）
+- 当前阶段: backlog-burndown；release gate = approved（B-031 + 2026-06-08 重构走查全绿）。**2026-06-09 TEI/MCP 新特性首次真起栈走查（PR #102 BGE-M3 + PR #103 MCP gateway）抓到核心缺陷 R-EMB：litellm→TEI embedding 因 ① encoding_format 缺失 ② response.data[0] dict 取值 双 bug 全失效（单测不忠实 mock 漏网，全绿但真路径全断），已 inline 修复 + 回归测试 + 端到端验证（embedding 20/20 写入 1024 维 / semantic·hybrid·MCP 真向量兑现），修复已合并入 main（[PR #105](https://github.com/lync-cyber/intelli-source/pull/105)）**。失败注入(步骤18-20)+可观测性(步骤15-17)本次未跑（scope=核心冒烟），prod 发布前仍需补跑
+- 当前回归基线: **PR #103（T-MCP-GW f1ad74e）+ PR #104（agent tool-calling 加固 6193a3b）+ PR #105（R-EMB embedding 修复 246d603）已合并入 main（HEAD 68d569f），docs(state) 对账完成**。R-EMB 修复触达 src/intellisource/llm/gateway/_embed.py + tests/unit/llm/test_gateway_embed_tei.py。全门禁绿：unit **3426 PASS**（3425+1 回归测试，xdist）+ ruff (check+format) + mypy --strict（_embed.py）；前次基线 integration 160 PASS/1 skip + lint-imports 12/12 KEPT
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report / deploy-spec = approved；ui-spec = N/A；dev-plan-s8 = draft；backlog = approved
-- 剩余项目级真债（非阻塞）: 无项目级真债，无已知 scope 限制（MCP keyword-only 限制由 T-MCP-GW 消除）
+- 剩余项目级真债（非阻塞）: **R-EMB 修复已合并入 main（[PR #105](https://github.com/lync-cyber/intelli-source/pull/105)）**；观测性 backlog 候选 — TEI healthcheck start_period 偏小（冷启拉 ONNX ~1105s 致瞬态 unhealthy）/ process.py embedding 无 backfill 路径 / /health version 未戳。MCP keyword-only 限制由 T-MCP-GW 消除（R-EMB 修复后真生效）
 - 详情索引: 闭环历史 → [HISTORY](docs/HISTORY-intellisource-v1.md)｜走查/订正记录 → [CORRECTIONS-LOG](docs/reviews/CORRECTIONS-LOG.md)｜剩余 backlog → [BACKLOG](docs/BACKLOG-intellisource-v1.md)｜学习沉淀 → [docs/reviews/retro/](docs/reviews/retro/)
 - 上游反馈: [docs/feedback/](docs/feedback/) — 框架级条目已移交 CataForge 上游
 
