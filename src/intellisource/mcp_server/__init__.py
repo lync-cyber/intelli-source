@@ -33,6 +33,7 @@ from intellisource.search.hybrid import HybridSearchEngine
 __all__ = ["build_mcp_server", "main"]
 
 _db_manager: Any = None
+_llm_gateway_singleton: Any = None
 
 
 def _default_session_factory() -> Any:
@@ -45,8 +46,21 @@ def _default_session_factory() -> Any:
     return _db_manager.get_session()
 
 
+def _default_llm_gateway() -> Any:
+    """Return the process-wide LLMGateway singleton, constructing it on first call."""
+    global _llm_gateway_singleton
+    if _llm_gateway_singleton is None:
+        from intellisource.composition.builders import build_llm_gateway
+
+        _llm_gateway_singleton = build_llm_gateway(
+            redis_client=None,
+            session_factory=_default_session_factory,
+        )
+    return _llm_gateway_singleton
+
+
 def _default_search_engine_factory(session: AsyncSession) -> HybridSearchEngine:
-    return HybridSearchEngine(session)
+    return HybridSearchEngine(session, llm_gateway=_default_llm_gateway())
 
 
 def build_mcp_server(
