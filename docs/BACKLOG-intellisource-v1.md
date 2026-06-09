@@ -30,9 +30,9 @@ deps: []
 
 ---
 
-## 已完成待提交 — BGE-M3 本地 embedding（feat/bge-m3-local-embedding）
+## PR #102 待合并 — BGE-M3 本地 embedding（feat/bge-m3-local-embedding）
 
-> T-EMB-1/2/3 全部 done + code-review approved；全门禁绿（unit 3421 PASS + mypy --strict 263 + ruff + lint-imports 12/12），未提交。合入后整块归档到「已闭环」。
+> T-EMB-1/2/3 全部 done + code-review approved；全门禁绿（unit 3421 PASS + mypy --strict 263 + ruff + lint-imports 12/12）。已提交（commit d9ffeec），[PR #102](https://github.com/lync-cyber/intelli-source/pull/102) 待合并。合入后整块归档到「已闭环」。
 > 选型：BGE-M3 经 **HuggingFace TEI** 容器（OpenAI 兼容 /v1/embeddings），litellm 走 `openai/bge-m3` + 显式 api_base；CPU 默认、GPU 经 env 可切换。维度 1536→1024（arch 钦定的换模型路径，[arch-data §E-004](arch/arch-intellisource-v1-data.md)）。api_base/key/dimension 走 `Settings`（`ModelTaskConfig` 是 extra=forbid，yaml 装不下）。
 
 - **T-EMB-1** ✅ done（standard TDD + code-review approved）：embed 路由 + 配置 + 1024 迁移 —— `_embed.py` 从 settings 读 `embedding_api_base`/`embedding_api_key`，api_base 非空才显式传 litellm（`api_key or "tei"` 兜底 keyless TEI）；`Settings` +`embedding_dimension(1024)`/`embedding_api_base`/`embedding_api_key`；`storage/models.py` `EMBEDDING_DIM=1024` 两列 `Vector(EMBEDDING_DIM)` + 迁移 `g0h1i2j3k4l5`（down_revision=a2b3c4d5e6f7，重建 HNSW，NULL 无回填）。降级契约保留：api_base 空 → embed 返回 None 不发请求。⚠️ `config/llm_models.yaml` 的 `embed:` 条目顺延到 T-EMB-3 随部署接线一起加。审查：[CODE-REVIEW-T-EMB-1-r1](reviews/code/CODE-REVIEW-T-EMB-1-r1.md)
