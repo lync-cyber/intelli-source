@@ -451,3 +451,86 @@ def test_console_script_registered() -> None:
     data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
     scripts = data["project"]["scripts"]
     assert scripts.get("intellisource-mcp") == "intellisource.mcp_server:main"
+
+
+# ---------------------------------------------------------------------------
+# T-MCP-GW: default gateway injection
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def reset_gateway_singleton(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Reset the MCP default-gateway singleton for the test; auto-restored after."""
+    import intellisource.mcp_server as mcp_mod
+
+    monkeypatch.setattr(mcp_mod, "_llm_gateway_singleton", None)
+
+
+def test_default_search_engine_has_llm_gateway(reset_gateway_singleton: None) -> None:
+    """AC-1: HybridSearchEngine produced by the default factory carries a LLMGateway."""
+    from unittest.mock import MagicMock
+
+    import intellisource.mcp_server as mcp_mod
+    from intellisource.llm.gateway import LLMGateway
+
+    engine = mcp_mod._default_search_engine_factory(MagicMock())
+    assert isinstance(engine._llm_gateway, LLMGateway)
+
+
+def test_default_gateway_is_singleton(reset_gateway_singleton: None) -> None:
+    """AC-2: calling _default_search_engine_factory twice shares one gateway."""
+    from unittest.mock import MagicMock
+
+    import intellisource.mcp_server as mcp_mod
+    from intellisource.llm.gateway import LLMGateway
+
+    engine_a = mcp_mod._default_search_engine_factory(MagicMock())
+    engine_b = mcp_mod._default_search_engine_factory(MagicMock())
+    # Both must be real LLMGateway and the exact same object.
+    assert isinstance(engine_a._llm_gateway, LLMGateway)
+    assert engine_a._llm_gateway is engine_b._llm_gateway
+
+
+@pytest.mark.asyncio
+async def test_explicit_search_factory_overrides_default(
+    session_factory: Any, reset_gateway_singleton: None
+) -> None:
+    """AC-3: build_mcp_server honours an explicit search_engine_factory over default."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    from intellisource.search.hybrid import SearchResponse
+
+    custom_engine = MagicMock()
+    custom_engine.search = AsyncMock(
+        return_value=SearchResponse(items=[], total=0, query_time_ms=1)
+    )
+    mcp = build_mcp_server(
+        session_factory=session_factory,
+        search_engine_factory=lambda _session: custom_engine,
+    )
+    payload = _parse(await mcp.call_tool("search", {"query": "test-ac3"}))
+    assert payload["total"] == 0
+    custom_engine.search.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_default_engine_embed_triggers_semantic_branch(
+    reset_gateway_singleton: None,
+) -> None:
+    """AC-4: with a stubbed gateway.embed the semantic branch is reached."""
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    import intellisource.mcp_server as mcp_mod
+
+    engine = mcp_mod._default_search_engine_factory(MagicMock())
+
+    fake_vector = [0.1] * 8
+    engine._llm_gateway.embed = AsyncMock(return_value=fake_vector)
+
+    with patch(
+        "intellisource.storage.vector.HybridIndex.search", new_callable=AsyncMock
+    ) as mock_index_search:
+        mock_index_search.return_value = []
+        await engine.search(query="semantic test", mode="hybrid")
+
+    engine._llm_gateway.embed.assert_awaited_once_with("semantic test")

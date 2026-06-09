@@ -1,15 +1,15 @@
 {
   "version": "1",
-  "generated_at": "2026-06-08T06:32:47.987025+00:00",
+  "generated_at": "2026-06-09T12:50:08.107850+00:00",
   "documents": {
     "backlog-intellisource-v1": {
       "file_path": "docs/BACKLOG-intellisource-v1.md",
       "doc_type": "backlog",
       "volume": "main",
       "status": "approved",
-      "total_lines": 61,
-      "est_tokens": 1072,
-      "content_hash": "52c01091",
+      "total_lines": 53,
+      "est_tokens": 920,
+      "content_hash": "3c3b848f",
       "sections": {}
     },
     "history-intellisource-v1": {
@@ -216,14 +216,14 @@
       "volume": "main",
       "status": "approved",
       "total_lines": 297,
-      "est_tokens": 4352,
-      "content_hash": "953aff60",
+      "est_tokens": 4354,
+      "content_hash": "14e33ea3",
       "sections": {
         "4": {
           "heading": "## 4. 数据模型",
           "line_start": 21,
           "line_end": 297,
-          "est_tokens": 4156,
+          "est_tokens": 4158,
           "deps": [],
           "level": 2,
           "items": {
@@ -259,7 +259,7 @@
               "heading": "### E-004: ProcessedContent (处理后内容)",
               "line_start": 122,
               "line_end": 145,
-              "est_tokens": 522,
+              "est_tokens": 523,
               "deps": []
             },
             "E-005": {
@@ -326,92 +326,92 @@
       "doc_type": "arch",
       "volume": "main",
       "status": "approved",
-      "total_lines": 249,
-      "est_tokens": 3877,
-      "content_hash": "34d83b60",
+      "total_lines": 248,
+      "est_tokens": 3871,
+      "content_hash": "a5e24d54",
       "sections": {
         "2": {
           "heading": "## 2. 模块划分",
           "line_start": 21,
-          "line_end": 249,
-          "est_tokens": 3697,
+          "line_end": 248,
+          "est_tokens": 3691,
           "deps": [],
           "level": 2,
           "items": {
             "M-001": {
               "heading": "### M-001: 配置管理模块 (config)",
               "line_start": 23,
-              "line_end": 38,
-              "est_tokens": 266,
+              "line_end": 37,
+              "est_tokens": 260,
               "deps": []
             },
             "M-002": {
               "heading": "### M-002: 采集引擎模块 (collector)",
-              "line_start": 39,
-              "line_end": 57,
+              "line_start": 38,
+              "line_end": 56,
               "est_tokens": 506,
               "deps": []
             },
             "M-003": {
               "heading": "### M-003: 处理管道模块 (pipeline)",
-              "line_start": 58,
-              "line_end": 72,
+              "line_start": 57,
+              "line_end": 71,
               "est_tokens": 234,
               "deps": []
             },
             "M-004": {
               "heading": "### M-004: 原子化处理工具模块 (pipeline.processors.tools)",
-              "line_start": 73,
-              "line_end": 93,
+              "line_start": 72,
+              "line_end": 92,
               "est_tokens": 328,
               "deps": []
             },
             "M-005": {
               "heading": "### M-005: LLM 服务治理模块 (llm.gateway)",
-              "line_start": 94,
-              "line_end": 115,
+              "line_start": 93,
+              "line_end": 114,
               "est_tokens": 592,
               "deps": []
             },
             "M-006": {
               "heading": "### M-006: 任务编排与 Agent 调度模块 (scheduler + agent)",
-              "line_start": 116,
-              "line_end": 133,
+              "line_start": 115,
+              "line_end": 132,
               "est_tokens": 541,
               "deps": []
             },
             "M-007": {
               "heading": "### M-007: 分发渠道模块 (distributor)",
-              "line_start": 134,
-              "line_end": 150,
+              "line_start": 133,
+              "line_end": 149,
               "est_tokens": 276,
               "deps": []
             },
             "M-008": {
               "heading": "### M-008: 检索与对话模块 (search)",
-              "line_start": 151,
-              "line_end": 160,
+              "line_start": 150,
+              "line_end": 159,
               "est_tokens": 160,
               "deps": []
             },
             "M-009": {
               "heading": "### M-009: 存储与检索模块 (storage)",
-              "line_start": 161,
-              "line_end": 176,
+              "line_start": 160,
+              "line_end": 175,
               "est_tokens": 187,
               "deps": []
             },
             "M-010": {
               "heading": "### M-010: 可观测性模块 (observability)",
-              "line_start": 177,
-              "line_end": 189,
+              "line_start": 176,
+              "line_end": 188,
               "est_tokens": 157,
               "deps": []
             },
             "M-011": {
               "heading": "### M-011: API 与 CLI 模块 (api + cli)",
-              "line_start": 190,
-              "line_end": 205,
+              "line_start": 189,
+              "line_end": 204,
               "est_tokens": 158,
               "deps": []
             }
@@ -430,9 +430,9 @@
       "doc_type": "arch",
       "volume": "main",
       "status": "approved",
-      "total_lines": 511,
-      "est_tokens": 6020,
-      "content_hash": "e0bd90f6",
+      "total_lines": 514,
+      "est_tokens": 6106,
+      "content_hash": "2cb58a9d",
       "sections": {
         "1": {
           "heading": "## 1. 架构概览",
@@ -533,38 +533,38 @@
         "6": {
           "heading": "## 6. 目录结构",
           "line_start": 330,
-          "line_end": 470,
-          "est_tokens": 1936,
+          "line_end": 473,
+          "est_tokens": 2022,
           "deps": [],
           "level": 2,
           "items": {}
         },
         "7": {
           "heading": "## 7. 开发约定",
-          "line_start": 471,
-          "line_end": 511,
+          "line_start": 474,
+          "line_end": 514,
           "est_tokens": 393,
           "deps": [],
           "level": 2,
           "items": {
             "7.1": {
               "heading": "### 7.1 命名规范",
-              "line_start": 473,
-              "line_end": 486,
+              "line_start": 476,
+              "line_end": 489,
               "est_tokens": 161,
               "deps": []
             },
             "7.2": {
               "heading": "### 7.2 代码风格",
-              "line_start": 487,
-              "line_end": 494,
+              "line_start": 490,
+              "line_end": 497,
               "est_tokens": 72,
               "deps": []
             },
             "7.3": {
               "heading": "### 7.3 Git 约定",
-              "line_start": 495,
-              "line_end": 511,
+              "line_start": 498,
+              "line_end": 514,
               "est_tokens": 155,
               "deps": []
             }
@@ -593,9 +593,9 @@
       "doc_type": "deploy-spec",
       "volume": "main",
       "status": "approved",
-      "total_lines": 797,
-      "est_tokens": 9135,
-      "content_hash": "bc9a1374",
+      "total_lines": 823,
+      "est_tokens": 9834,
+      "content_hash": "b4e44710",
       "sections": {
         "1": {
           "heading": "## 1. 构建流程",
@@ -638,50 +638,50 @@
         "2": {
           "heading": "## 2. 环境配置",
           "line_start": 88,
-          "line_end": 352,
-          "est_tokens": 3708,
+          "line_end": 378,
+          "est_tokens": 4386,
           "deps": [],
           "level": 2,
           "items": {
             "2.1": {
               "heading": "### 2.1 部署架构",
               "line_start": 90,
-              "line_end": 133,
-              "est_tokens": 841,
+              "line_end": 150,
+              "est_tokens": 1313,
               "deps": []
             },
             "2.2": {
               "heading": "### 2.2 环境差异矩阵 (dev / staging / prod)",
-              "line_start": 134,
-              "line_end": 148,
+              "line_start": 151,
+              "line_end": 165,
               "est_tokens": 229,
               "deps": []
             },
             "2.3": {
               "heading": "### 2.3 环境变量清单",
-              "line_start": 149,
-              "line_end": 227,
-              "est_tokens": 1050,
+              "line_start": 166,
+              "line_end": 253,
+              "est_tokens": 1256,
               "deps": []
             },
             "2.4": {
               "heading": "### 2.4 密钥清单与轮换",
-              "line_start": 228,
-              "line_end": 267,
+              "line_start": 254,
+              "line_end": 293,
               "est_tokens": 597,
               "deps": []
             },
             "2.5": {
               "heading": "### 2.5 容量与扩展性",
-              "line_start": 268,
-              "line_end": 312,
+              "line_start": 294,
+              "line_end": 338,
               "est_tokens": 506,
               "deps": []
             },
             "2.6": {
               "heading": "### 2.6 MCP 控制面服务（stdio）",
-              "line_start": 313,
-              "line_end": 352,
+              "line_start": 339,
+              "line_end": 378,
               "est_tokens": 479,
               "deps": []
             }
@@ -689,51 +689,51 @@
         },
         "3": {
           "heading": "## 3. CI/CD流水线",
-          "line_start": 353,
-          "line_end": 728,
-          "est_tokens": 4044,
+          "line_start": 379,
+          "line_end": 754,
+          "est_tokens": 4066,
           "deps": [],
           "level": 2,
           "items": {
             "3.1": {
               "heading": "### 3.1 CI/CD 阶段定义（GitHub Actions）",
-              "line_start": 355,
-              "line_end": 379,
+              "line_start": 381,
+              "line_end": 405,
               "est_tokens": 264,
               "deps": []
             },
             "3.2": {
               "heading": "### 3.2 Staging 部署步骤",
-              "line_start": 380,
-              "line_end": 400,
-              "est_tokens": 167,
+              "line_start": 406,
+              "line_end": 426,
+              "est_tokens": 189,
               "deps": []
             },
             "3.3": {
               "heading": "### 3.3 Prod 灰度发布步骤",
-              "line_start": 401,
-              "line_end": 436,
+              "line_start": 427,
+              "line_end": 462,
               "est_tokens": 267,
               "deps": []
             },
             "3.4": {
               "heading": "### 3.4 Smoke 测试清单",
-              "line_start": 437,
-              "line_end": 518,
+              "line_start": 463,
+              "line_end": 544,
               "est_tokens": 952,
               "deps": []
             },
             "3.5": {
               "heading": "### 3.5 监控 SLO 与告警",
-              "line_start": 519,
-              "line_end": 623,
+              "line_start": 545,
+              "line_end": 649,
               "est_tokens": 1502,
               "deps": []
             },
             "3.6": {
               "heading": "### 3.6 回滚 SOP",
-              "line_start": 624,
-              "line_end": 728,
+              "line_start": 650,
+              "line_end": 754,
               "est_tokens": 884,
               "deps": []
             }
@@ -741,65 +741,65 @@
         },
         "4": {
           "heading": "## 4. 发布检查清单",
-          "line_start": 729,
-          "line_end": 797,
+          "line_start": 755,
+          "line_end": 823,
           "est_tokens": 647,
           "deps": [],
           "level": 2,
           "items": {
             "4.1": {
               "heading": "### 4.1 数据库迁移",
-              "line_start": 733,
-              "line_end": 740,
+              "line_start": 759,
+              "line_end": 766,
               "est_tokens": 112,
               "deps": []
             },
             "4.2": {
               "heading": "### 4.2 .env 与凭据签字",
-              "line_start": 741,
-              "line_end": 748,
+              "line_start": 767,
+              "line_end": 774,
               "est_tokens": 107,
               "deps": []
             },
             "4.3": {
               "heading": "### 4.3 镜像 Tag",
-              "line_start": 749,
-              "line_end": 754,
+              "line_start": 775,
+              "line_end": 780,
               "est_tokens": 41,
               "deps": []
             },
             "4.4": {
               "heading": "### 4.4 Smoke 套件",
-              "line_start": 755,
-              "line_end": 762,
+              "line_start": 781,
+              "line_end": 788,
               "est_tokens": 78,
               "deps": []
             },
             "4.5": {
               "heading": "### 4.5 监控验证",
-              "line_start": 763,
-              "line_end": 776,
+              "line_start": 789,
+              "line_end": 802,
               "est_tokens": 115,
               "deps": []
             },
             "4.6": {
               "heading": "### 4.6 安全门禁",
-              "line_start": 777,
-              "line_end": 783,
+              "line_start": 803,
+              "line_end": 809,
               "est_tokens": 90,
               "deps": []
             },
             "4.7": {
               "heading": "### 4.7 回滚演练记录",
-              "line_start": 784,
-              "line_end": 789,
+              "line_start": 810,
+              "line_end": 815,
               "est_tokens": 50,
               "deps": []
             },
             "4.8": {
               "heading": "### 4.8 人工签字",
-              "line_start": 790,
-              "line_end": 797,
+              "line_start": 816,
+              "line_end": 823,
               "est_tokens": 39,
               "deps": []
             }
@@ -810,7 +810,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "e0bd90f6"
+        "arch-intellisource-v1": "2cb58a9d"
       }
     },
     "pre-deploy-walkthrough-v1": {
@@ -819,14 +819,14 @@
       "volume": "main",
       "status": "draft",
       "total_lines": 1128,
-      "est_tokens": 14669,
-      "content_hash": "2fb842bd",
+      "est_tokens": 14678,
+      "content_hash": "6be721df",
       "sections": {
         "0": {
           "heading": "## 0. 前置条件",
           "line_start": 20,
           "line_end": 75,
-          "est_tokens": 1001,
+          "est_tokens": 1010,
           "deps": [],
           "level": 2,
           "items": {
@@ -848,7 +848,7 @@
               "heading": "### 0.3 信源配置文件",
               "line_start": 57,
               "line_end": 65,
-              "est_tokens": 82,
+              "est_tokens": 91,
               "deps": []
             },
             "0.4": {
@@ -874,9 +874,9 @@
         "backlog-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1-modules": "34d83b60",
+        "arch-intellisource-v1-modules": "a5e24d54",
         "arch-intellisource-v1-api": "e196332a",
-        "backlog-intellisource-v1": "52c01091"
+        "backlog-intellisource-v1": "3c3b848f"
       }
     },
     "dev-plan-intellisource-v1-s1": {
@@ -966,7 +966,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "e0bd90f6"
+        "arch-intellisource-v1": "2cb58a9d"
       }
     },
     "dev-plan-intellisource-v1-s2": {
@@ -1056,7 +1056,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "e0bd90f6"
+        "arch-intellisource-v1": "2cb58a9d"
       }
     },
     "dev-plan-intellisource-v1-s3": {
@@ -1139,7 +1139,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "e0bd90f6"
+        "arch-intellisource-v1": "2cb58a9d"
       }
     },
     "dev-plan-intellisource-v1-s4": {
@@ -1236,7 +1236,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "e0bd90f6"
+        "arch-intellisource-v1": "2cb58a9d"
       }
     },
     "dev-plan-intellisource-v1-s5": {
@@ -1333,7 +1333,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "e0bd90f6"
+        "arch-intellisource-v1": "2cb58a9d"
       }
     },
     "dev-plan-intellisource-v1-s6": {
@@ -1430,7 +1430,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "e0bd90f6"
+        "arch-intellisource-v1": "2cb58a9d"
       }
     },
     "dev-plan-intellisource-v1-s7": {
@@ -1535,7 +1535,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "e0bd90f6"
+        "arch-intellisource-v1": "2cb58a9d"
       }
     },
     "dev-plan-intellisource-v1-s7r": {
@@ -1585,7 +1585,7 @@
         "test-report-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "e0bd90f6",
+        "arch-intellisource-v1": "2cb58a9d",
         "test-report-intellisource-v1": "a8e32335"
       }
     },
@@ -1705,7 +1705,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "e0bd90f6"
+        "arch-intellisource-v1": "2cb58a9d"
       }
     },
     "dev-plan-intellisource-v1-s8r": {
@@ -1879,7 +1879,7 @@
         "prd-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "e0bd90f6",
+        "arch-intellisource-v1": "2cb58a9d",
         "prd-intellisource-v1": "6e78fb00"
       }
     },
@@ -1970,7 +1970,7 @@
         "dev-plan-intellisource-v1-s8r"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "e0bd90f6",
+        "arch-intellisource-v1": "2cb58a9d",
         "prd-intellisource-v1": "6e78fb00",
         "dev-plan-intellisource-v1-s8r": "fc1a82e6"
       }
@@ -2034,7 +2034,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "e0bd90f6"
+        "arch-intellisource-v1": "2cb58a9d"
       }
     },
     "feedback-bug-eventlog-session-end-20260505": {
@@ -2657,7 +2657,7 @@
         "backlog-intellisource-v1"
       ],
       "dep_hashes": {
-        "backlog-intellisource-v1": "52c01091"
+        "backlog-intellisource-v1": "3c3b848f"
       }
     },
     "research-b051-config-bootstrap-ux": {
@@ -2750,7 +2750,7 @@
         "backlog-intellisource-v1"
       ],
       "dep_hashes": {
-        "backlog-intellisource-v1": "52c01091"
+        "backlog-intellisource-v1": "3c3b848f"
       }
     },
     "prompt-management-analysis": {
@@ -2911,6 +2911,45 @@
       "content_hash": "b2bc94da",
       "sections": {}
     },
+    "code-review-T-EMB-1-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-EMB-1-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 116,
+      "est_tokens": 2294,
+      "content_hash": "465e85be",
+      "sections": {},
+      "deps": [
+        "T-EMB-1"
+      ]
+    },
+    "code-review-T-EMB-2-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-EMB-2-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 122,
+      "est_tokens": 1956,
+      "content_hash": "0a98e970",
+      "sections": {},
+      "deps": [
+        "T-EMB-2"
+      ]
+    },
+    "code-review-T-MCP-GW-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-MCP-GW-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 89,
+      "est_tokens": 1739,
+      "content_hash": "18dd472a",
+      "sections": {},
+      "deps": [
+        "T-MCP-GW"
+      ]
+    },
     "code-scan-arch-20260605-r1": {
       "file_path": "docs/reviews/code/CODE-SCAN-arch-20260605-r1.md",
       "doc_type": "code-review",
@@ -3056,8 +3095,8 @@
         "backlog-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1-modules": "34d83b60",
-        "backlog-intellisource-v1": "52c01091"
+        "arch-intellisource-v1-modules": "a5e24d54",
+        "backlog-intellisource-v1": "3c3b848f"
       }
     },
     "review-arch-intellisource-v1-r1": {
@@ -3073,7 +3112,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "e0bd90f6"
+        "arch-intellisource-v1": "2cb58a9d"
       }
     },
     "review-arch-intellisource-v1-r2": {
@@ -3089,7 +3128,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "e0bd90f6"
+        "arch-intellisource-v1": "2cb58a9d"
       }
     },
     "review-arch-intellisource-v1-r3": {
@@ -3105,7 +3144,7 @@
         "arch-intellisource-v1"
       ],
       "dep_hashes": {
-        "arch-intellisource-v1": "e0bd90f6"
+        "arch-intellisource-v1": "2cb58a9d"
       }
     },
     "review-deploy-spec-intellisource-v1-r1": {
@@ -3121,7 +3160,7 @@
         "deploy-spec-intellisource-v1"
       ],
       "dep_hashes": {
-        "deploy-spec-intellisource-v1": "bc9a1374"
+        "deploy-spec-intellisource-v1": "b4e44710"
       }
     },
     "review-deploy-spec-intellisource-v1-r2": {
@@ -3137,7 +3176,7 @@
         "deploy-spec-intellisource-v1"
       ],
       "dep_hashes": {
-        "deploy-spec-intellisource-v1": "bc9a1374"
+        "deploy-spec-intellisource-v1": "b4e44710"
       }
     },
     "review-dev-plan-intellisource-v1-r1": {
