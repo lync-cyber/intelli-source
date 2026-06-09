@@ -51,7 +51,7 @@ def _build_deps_bundle(
         distributor=build_distributor_facade(
             session_factory, redis_client, llm_gateway=llm_gateway
         ),
-        search_engine_factory=build_search_engine_factory(),
+        search_engine_factory=build_search_engine_factory(llm_gateway=llm_gateway),
     )
 
 

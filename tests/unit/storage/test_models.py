@@ -552,12 +552,12 @@ class TestJSONBDefaults:
 
 
 # ===========================================================================
-# AC-T003-4: pgvector VECTOR(1536) field definition
+# AC-T003-4: pgvector VECTOR(1024) field definition
 # ===========================================================================
 
 
 class TestVectorFields:
-    """Verify pgvector VECTOR(1536) columns."""
+    """Verify pgvector VECTOR columns."""
 
     @pytest.mark.parametrize(
         "model,col_name",
@@ -580,10 +580,10 @@ class TestVectorFields:
         ],
         ids=["ProcessedContent.embedding_dim", "ContentCluster.centroid_dim"],
     )
-    def test_vector_dimension_1536(self, model, col_name):
+    def test_vector_dimension_1024(self, model, col_name):
         col = _col(model, col_name)
         dim = getattr(col.type, "dim", None)
-        assert dim == 1536, f"Expected dim=1536, got {dim}"
+        assert dim == 1024, f"Expected dim=1024, got {dim}"
 
 
 # ===========================================================================

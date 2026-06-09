@@ -1,12 +1,18 @@
-"""Tests for T-085: HybridSearchEngine real query wiring + chat method.
+"""Tests for HybridSearchEngine query wiring and gateway embed injection.
 
-Covers:
-  AC-1: search() calls HybridIndex.search() with query + query_vector
-  AC-2: chat() method exists and does not raise AttributeError
-  AC-3: keyword_weight / vector_weight are forwarded to HybridIndex.search()
-  AC-4: search() with mock HybridIndex returns a non-empty result list
-  AC-5: chat() returns API-013 ChatResponse shape
-        (session_id, answer, sources, query_time_ms)
+Covers (T-EMB-2 AC-1..AC-7):
+  AC-1: semantic mode with gateway calls embed() and passes resulting vector to index
+  AC-2: embed() returning None → effective_mode degrades to keyword
+  AC-3: embed() raising an exception → exception swallowed, degrades to keyword
+  AC-4: keyword mode must not call gateway.embed at all
+  AC-5: when query_vector is supplied explicitly, embed must not be called
+  AC-6: HybridSearchEngine without gateway degrades to keyword for semantic/hybrid
+  AC-7: POST /search endpoint constructs HybridSearchEngine with gateway from app.state
+
+Also covers (T-085 legacy):
+  search() calls HybridIndex.search() with query + query_vector
+  keyword_weight / vector_weight are forwarded to HybridIndex.search()
+  search() with mock HybridIndex returns a non-empty result list
 """
 
 from __future__ import annotations
@@ -347,3 +353,181 @@ class TestSearchReturnsResults:
 # ===========================================================================
 # AC-5: chat() returns API-013 ChatResponse shape
 # ===========================================================================
+
+
+# ===========================================================================
+# T-EMB-2: query-side semantic wiring (gateway embed injection)
+# ===========================================================================
+
+
+def _make_fake_gateway(
+    embed_return: list[float] | None = None,
+    embed_raises: Exception | None = None,
+) -> AsyncMock:
+    """Return an async fake gateway whose embed() behaves as specified."""
+    gw = AsyncMock()
+    if embed_raises is not None:
+        gw.embed = AsyncMock(side_effect=embed_raises)
+    else:
+        gw.embed = AsyncMock(return_value=embed_return)
+    return gw
+
+
+def _make_fake_vector(dim: int = 1024) -> list[float]:
+    return [0.01 * (i % 100) for i in range(dim)]
+
+
+class TestGatewayEmbedInjection:
+    """AC-1..AC-6: HybridSearchEngine gateway embed injection behaviour."""
+
+    async def test_ac1_semantic_mode_calls_embed_and_passes_vector(self) -> None:
+        """AC-1: semantic mode with gateway calls embed and passes vector to index."""
+        from intellisource.search.hybrid import HybridSearchEngine
+        from intellisource.storage.vector import HybridIndex
+
+        session = _make_session_mock()
+        vector = _make_fake_vector()
+        gateway = _make_fake_gateway(embed_return=vector)
+
+        index_mock = _make_hybrid_index_mock()
+        captured_calls: list = []
+
+        async def capturing_search(*args, **kwargs):  # type: ignore[no-untyped-def]
+            captured_calls.append({"args": args, "kwargs": kwargs})
+            return []
+
+        with patch.object(HybridIndex, "search", capturing_search):
+            engine = HybridSearchEngine(session=session, llm_gateway=gateway)
+            await engine.search(query="中文查询", mode="semantic")
+
+        gateway.embed.assert_called_once_with("中文查询")
+        assert len(captured_calls) == 1
+        call = captured_calls[0]
+        # patch.object on a method: args[0]=self, args[1]=query, args[2]=query_vector
+        args = call["args"]
+        passed_vector = args[2] if len(args) > 2 else call["kwargs"].get("query_vector")
+        assert passed_vector == vector, (
+            "index must receive the vector returned by gateway.embed"
+        )
+        passed_mode = call["kwargs"].get("mode")
+        assert passed_mode == "semantic", (
+            "effective_mode must stay 'semantic' when embed succeeds"
+        )
+        _ = index_mock  # suppress unused warning
+
+    async def test_ac2_embed_returns_none_falls_back_to_keyword(self) -> None:
+        """AC-2: embed() returning None → effective_mode becomes 'keyword'."""
+        from intellisource.search.hybrid import HybridSearchEngine
+        from intellisource.storage.vector import HybridIndex
+
+        session = _make_session_mock()
+        gateway = _make_fake_gateway(embed_return=None)
+        captured_calls: list = []
+
+        async def capturing_search(*args, **kwargs):  # type: ignore[no-untyped-def]
+            captured_calls.append(kwargs)
+            return []
+
+        with patch.object(HybridIndex, "search", capturing_search):
+            engine = HybridSearchEngine(session=session, llm_gateway=gateway)
+            response = await engine.search(query="test query", mode="hybrid")
+
+        assert len(captured_calls) == 1
+        assert captured_calls[0].get("mode") == "keyword", (
+            "effective_mode must be 'keyword' when embed returns None"
+        )
+        assert isinstance(response.items, list), "search must not raise"
+
+    async def test_ac3_embed_raises_swallowed_falls_back_to_keyword(self) -> None:
+        """AC-3: embed() raising → exception swallowed, effective_mode='keyword'."""
+        from intellisource.search.hybrid import HybridSearchEngine
+        from intellisource.storage.vector import HybridIndex
+
+        session = _make_session_mock()
+        gateway = _make_fake_gateway(
+            embed_raises=RuntimeError("embedding service down")
+        )
+        captured_calls: list = []
+
+        async def capturing_search(*args, **kwargs):  # type: ignore[no-untyped-def]
+            captured_calls.append(kwargs)
+            return []
+
+        with patch.object(HybridIndex, "search", capturing_search):
+            engine = HybridSearchEngine(session=session, llm_gateway=gateway)
+            response = await engine.search(query="some query", mode="semantic")
+
+        assert len(captured_calls) == 1
+        assert captured_calls[0].get("mode") == "keyword", (
+            "effective_mode must degrade to 'keyword' after embed exception"
+        )
+        assert isinstance(response.items, list), (
+            "search must not raise when embed fails"
+        )
+
+    async def test_ac4_keyword_mode_never_calls_embed(self) -> None:
+        """AC-4: keyword mode must not call gateway.embed at all."""
+        from intellisource.search.hybrid import HybridSearchEngine
+        from intellisource.storage.vector import HybridIndex
+
+        session = _make_session_mock()
+        gateway = _make_fake_gateway(embed_return=_make_fake_vector())
+
+        with patch.object(HybridIndex, "search", AsyncMock(return_value=[])):
+            engine = HybridSearchEngine(session=session, llm_gateway=gateway)
+            await engine.search(query="keyword only", mode="keyword")
+
+        gateway.embed.assert_not_called()
+
+    async def test_ac5_explicit_query_vector_skips_embed(self) -> None:
+        """AC-5: when query_vector is supplied explicitly, embed must not be called."""
+        from intellisource.search.hybrid import HybridSearchEngine
+        from intellisource.storage.vector import HybridIndex
+
+        session = _make_session_mock()
+        explicit_vector = _make_fake_vector()
+        gateway = _make_fake_gateway(embed_return=_make_fake_vector(1024))
+        captured_calls: list = []
+
+        async def capturing_search(*args, **kwargs):  # type: ignore[no-untyped-def]
+            captured_calls.append({"args": args, "kwargs": kwargs})
+            return []
+
+        with patch.object(HybridIndex, "search", capturing_search):
+            engine = HybridSearchEngine(session=session, llm_gateway=gateway)
+            await engine.search(
+                query="explicit vec", mode="semantic", query_vector=explicit_vector
+            )
+
+        gateway.embed.assert_not_called()
+        assert len(captured_calls) == 1
+        call = captured_calls[0]
+        # patch.object on a method: args[0]=self, args[1]=query, args[2]=query_vector
+        args = call["args"]
+        passed_vector = args[2] if len(args) > 2 else call["kwargs"].get("query_vector")
+        assert passed_vector == explicit_vector, (
+            "index must receive the explicitly passed vector,"
+            " not a freshly embedded one"
+        )
+
+    async def test_ac6_no_gateway_degrades_to_keyword(self) -> None:
+        """AC-6: HybridSearchEngine(session) without gateway degrades to keyword."""
+        from intellisource.search.hybrid import HybridSearchEngine
+        from intellisource.storage.vector import HybridIndex
+
+        session = _make_session_mock()
+        captured_calls: list = []
+
+        async def capturing_search(*args, **kwargs):  # type: ignore[no-untyped-def]
+            captured_calls.append(kwargs)
+            return []
+
+        with patch.object(HybridIndex, "search", capturing_search):
+            engine = HybridSearchEngine(session=session)
+            response = await engine.search(query="no gateway", mode="semantic")
+
+        assert len(captured_calls) == 1
+        assert captured_calls[0].get("mode") == "keyword", (
+            "without a gateway, semantic mode must fall back to keyword"
+        )
+        assert isinstance(response.items, list), "search must not raise without gateway"

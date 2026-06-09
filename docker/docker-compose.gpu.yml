@@ -1,0 +1,18 @@
+# GPU override for the embedding service.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.gpu.yml up
+#
+# Also set IS_EMBEDDING_IMAGE to a CUDA-enabled TEI tag, e.g.:
+#   IS_EMBEDDING_IMAGE=ghcr.io/huggingface/text-embeddings-inference:1.6
+#
+# The base docker-compose.yml defaults to the CPU image; this file adds GPU
+# device reservations.  No other services are affected.
+
+services:
+  embedding:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

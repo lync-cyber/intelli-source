@@ -18,11 +18,11 @@
  cataforge setup --emit-env-block}
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: backlog-burndown；release gate = approved（B-031 用户 2026-05-29 签字 + 2026-06-08 大规模重构后真起栈走查全绿无回归）
-- 当前回归基线: main HEAD = **9949914 (PR #94)**；unit **3346 PASS** (xdist) + mypy --strict (238 files) + ruff + lint-imports **12/12 KEPT**
-- 本会话未提交改动: **B-064 / B-065 / B-066 / TaskChain 进度回填** 四项已修复（代码 + 测试 + 全门禁绿），工作区在 main 未提交（提交前需拉 feature 分支）。详见 [BACKLOG §本会话已修复待提交](docs/BACKLOG-intellisource-v1.md)
+- 当前阶段: backlog-burndown；release gate = approved（B-031 用户 2026-05-29 签字 + 2026-06-08 重构后真起栈走查全绿）。PR #95~#101 新增 chat CLI/web 前端 + agent 控制面统一 + MCP CLI 重构 + 多轮安全加固；BGE-M3 本地 embedding 接入新增 TEI 容器 —— 下次 prod 发布前需复跑 PRE-DEPLOY-WALKTHROUGH（含 TEI /v1/embeddings 起栈验证）
+- 当前回归基线: main HEAD = **a277e7b (PR #101)**；feature 分支 **feat/bge-m3-local-embedding** 工作区全门禁绿：unit **3421 PASS** (xdist, 5 deselected) + mypy --strict **263 files** + ruff (check+format) + lint-imports **12/12 KEPT**，无回归
+- 本会话未提交改动: **BGE-M3 本地 embedding feature**（T-EMB-1/2/3）已落地在 feature 分支 feat/bge-m3-local-embedding，未提交（审查 [CODE-REVIEW-T-EMB-1-r1](docs/reviews/code/CODE-REVIEW-T-EMB-1-r1.md) / [T-EMB-2-r1](docs/reviews/code/CODE-REVIEW-T-EMB-2-r1.md) 均 approved）
 - 文档状态: prd / arch / dev-plan(主卷+s1~s7+s7r+s8r+s9) / test-report / deploy-spec = approved；ui-spec = N/A；dev-plan-s8 = draft；backlog = approved
-- 剩余项目级真债（非阻塞）: BGE-M3 本地 embedding 暂缓（deepseek 无 embedding 端点，graceful 降级 + zhparser FTS 补偿）
+- 剩余项目级真债（非阻塞）: 无项目级真债（MCP `_default_search_engine_factory` 仍无 gateway → MCP 搜索 keyword-only，属 stdio 无 app.state 的已知 scope 限制，可由调用方启动时注入）
 - 详情索引: 闭环历史 → [HISTORY](docs/HISTORY-intellisource-v1.md)｜走查/订正记录 → [CORRECTIONS-LOG](docs/reviews/CORRECTIONS-LOG.md)｜剩余 backlog → [BACKLOG](docs/BACKLOG-intellisource-v1.md)｜学习沉淀 → [docs/reviews/retro/](docs/reviews/retro/)
 - 上游反馈: [docs/feedback/](docs/feedback/) — 框架级条目已移交 CataForge 上游
 

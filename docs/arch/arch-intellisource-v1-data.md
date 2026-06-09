@@ -131,7 +131,7 @@ erDiagram
 | tags | JSONB | DEFAULT '[]' | 语义标签数组 |
 | cluster_id | UUID | FK → ContentCluster.id, NULL | 所属聚类 |
 | fingerprint | VARCHAR(64) | NOT NULL | 内容指纹（继承自 RawContent） |
-| embedding | VECTOR(1536) | NULL | 内容向量表示（pgvector）[ASSUMPTION: v1 默认使用 1536 维度的 embedding 模型（如 OpenAI text-embedding-ada-002），维度值通过 M-001 配置管理模块的 embedding_dimension 配置项管理，切换 embedding 模型时需同步调整并执行 Alembic 迁移] |
+| embedding | VECTOR(1024) | NULL | 内容向量表示（pgvector）；1024 维，对应 BGE-M3 经 HuggingFace TEI 本地推理；维度值通过 M-001 配置管理模块的 `embedding_dimension` 配置项管理，切换 embedding 模型时需同步调整并执行 Alembic 迁移（迁移 `g0h1i2j3k4l5` 已设置 `VECTOR(1024)`） |
 | structured_data | JSONB | NULL | LLM 结构化提取结果 |
 | processing_status | VARCHAR(20) | NOT NULL, DEFAULT 'pending', CHECK IN ('pending', 'processing', 'completed', 'failed', 'fallback') | 处理状态 |
 | processed_by | VARCHAR(20) | NOT NULL, DEFAULT 'llm', CHECK IN ('llm', 'fallback', 'manual') | 处理方式 |

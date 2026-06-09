@@ -90,6 +90,11 @@ class Settings(BaseSettings):
         None, validation_alias="IS_PUSH_OPTIMIZE_ENABLED"
     )
 
+    # --- Embedding service (TEI / BGE-M3) ---
+    embedding_api_base: str = Field("", validation_alias="IS_EMBEDDING_API_BASE")
+    embedding_api_key: str = Field("", validation_alias="IS_EMBEDDING_API_KEY")
+    embedding_dimension: int = Field(1024, validation_alias="IS_EMBEDDING_DIMENSION")
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

@@ -47,9 +47,21 @@ class _EmbedMixin:
             logger.warning("embed model not resolved from routing config")
             return None
 
+        from intellisource.core.settings import get_settings  # noqa: PLC0415
+
+        settings = get_settings()
+        api_base = settings.embedding_api_base
+        if not api_base:
+            return None
+
         start = time.monotonic()
         try:
-            response = await self._aembedding(model=model, input=text)
+            response = await self._aembedding(
+                model=model,
+                input=text,
+                api_base=api_base,
+                api_key=settings.embedding_api_key or "tei",
+            )
         except Exception:
             logger.warning(
                 "LLMGateway.embed _aembedding failed for model=%s", model, exc_info=True

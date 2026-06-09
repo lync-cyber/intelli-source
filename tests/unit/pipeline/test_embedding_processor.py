@@ -67,7 +67,7 @@ class TestEmbeddingProcessorProcess:
             EmbeddingProcessor,
         )
 
-        vec = [0.1] * 1536
+        vec = [0.1] * 1024
         gw = MagicMock()
         gw.embed = AsyncMock(return_value=vec)
 
@@ -80,7 +80,7 @@ class TestEmbeddingProcessorProcess:
 
         out = ctx.get("embedding")
         assert isinstance(out, list)
-        assert len(out) == 1536
+        assert len(out) == 1024
         gw.embed.assert_awaited_once()
 
     def test_process_without_gateway_leaves_embedding_none(self) -> None:
@@ -123,7 +123,7 @@ class TestEmbeddingProcessorProcess:
         )
 
         gw = MagicMock()
-        gw.embed = AsyncMock(return_value=[0.0] * 1536)
+        gw.embed = AsyncMock(return_value=[0.0] * 1024)
 
         proc = EmbeddingProcessor(llm_gateway=gw)
         ctx = PipelineContext()
@@ -234,7 +234,7 @@ async def test_process_execute_persists_embedding_from_context() -> None:
     from intellisource.core.processor import PipelineContext  # noqa: PLC0415
 
     raw_id = uuid4()
-    embedding_vec = [0.42] * 1536
+    embedding_vec = [0.42] * 1024
 
     raw_stub = MagicMock()
     raw_stub.id = raw_id
