@@ -599,3 +599,34 @@ deps: []
 - 偏差类型: 无 self-caused 回归（全部重构受影响面 GREEN）；F-PUSHMETRIC 为 pre-existing 观测性缺口；ENV-LIMITATION（容器 SMTP 出口）+ F-EMBED（已知 BGE-M3 deferral）非代码缺陷
 - go/no-go: **走查全绿，未发现重构回归**。distribute 真实 Gmail 投递受容器出口限制走宿主路径达成 + mailhog 补证全栈成功路径。B-064（P3 observability）非阻塞
 - 关联: docker 全栈（17 表 / alembic e1f2a3b4c5d6）；distributor/facade.py（_record_push 仅成功写 sent）/ observability/shared_metrics.py（pushes_total 未纳入跨进程集）/ api/routers/tasks.py（C1）/ scheduler/tasks.py（S-2 cleanup）；B-064 新立；B-061/B-062 修复确认在 main；F-EMBED=BGE-M3 deferred 重申
+
+
+### 2026-06-09 | orchestrator | BGE-M3/TEI embedding 真起栈走查（用户触发：起栈走查测试功能是否正确完整）
+
+- 触发信号: 用户授权 orchestrator 通过 Bash 在本地 docker 栈复跑 PRE-DEPLOY-WALKTHROUGH 核心+新特性面（scope=核心+新特性冒烟），重点验证 **PR #102（BGE-M3 本地 embedding via TEI）+ PR #103（MCP 默认 search 懒注入 LLMGateway）** 两个 delta —— 前次 2026-06-08 走查时 embedding 尚 deferred（F-EMBED），本次为 TEI 接入后首次真起栈。栈含 embedding 服务（TEI cpu-1.6 + BAAI/bge-m3）；source=Hacker News rss
+- 环境前置修复（非代码缺陷）: 本地 `docker/.env` 早于 redis-auth 加固（acbe996），缺 `IS_REDIS_PASSWORD` + 三个 redis URL 未带密码 → compose 插值 fail 起栈阻塞。按 `.env.example` 约定补 `IS_REDIS_PASSWORD` + 带密码 URL（.env 为 gitignore 本地副本，非提交物）
+- 基础设施 = GO: db/redis/migrate/api/worker/beat healthy；17 表 + vector/pg_trgm/zhparser；/health 三入口 200 + celery healthy；OpenAPI 46 paths；x-trace-id 头存在
+- collect / process = GO: raw_contents 20 行 + fingerprint 去重；LLMSummarizer 经 deepseek 落 summary 20/20；llm_call_logs 落库（B-042 成立）；trace_id 跨 api→worker 传播
+- **TEI embedding 写入 = NO-GO（核心缺陷 R-EMB，2 处运行时 bug 叠加）→ 已 inline 修复 + 回归测试**:
+  - TEI `/v1/embeddings` 服务级直测 PASS（dim=1024，L2~1.0）—— 服务本身正常
+  - 但 `LLMGateway.embed()` 经 litellm 路由全失败 → `processed_contents.embedding` 20/20 NULL（即便 TEI healthy）。两处叠加根因:
+    - **R-EMB-1（encoding_format）**: litellm 1.83.2 默认 embeddings 请求将 `encoding_format` 序列化为非法 JSON token，TEI serde 拒绝（`Failed to parse the request body as JSON: encoding_format: expected value`）→ `_aembedding` 抛 BadRequestError；`_embed.py` 未显式传 `encoding_format`
+    - **R-EMB-2（dict 取值）**: 修 R-EMB-1 后 litellm 调用成功，但 `response.data[0]` 是 **dict**，`_embed.py` 用 `.embedding` 属性访问 → AttributeError 被 `except` 吞 → 仍返回 None
+  - **两 bug 均被不忠实的单测 mock 掩盖**: `test_gateway_embed_tei.py::_make_embedding_response` 用 `MagicMock(embedding=vec)`（有属性、无 encoding_format 断言），与真 litellm 的 dict-data + encoding_format 行为不符 → 单测全绿但真路径全断。正是 CLAUDE.md "TEI /v1/embeddings 起栈验证" 门禁要拦的场景
+  - **同根因连带 PR #103 失效**: gateway.embed 失败 → MCP/REST 的 semantic/hybrid 静默降级 keyword（PR #103 注入的 gateway 虽 build 成功但 embed 不可用，意图未兑现）
+- 修复（feature 分支 fix/tei-embedding-encoding-format → [PR #105](https://github.com/lync-cyber/intelli-source/pull/105)，2 文件 +46/-3）:
+  - `_embed.py`: `_aembedding(...)` 显式 `encoding_format="float"`；`response.data[0]` 取值兼容 dict（`item["embedding"] if isinstance(item,dict) else item.embedding`）+ except 增 KeyError
+  - `test_gateway_embed_tei.py`: `_make_embedding_response` 改 dict 形状（忠实于 litellm）使既有 AC-1 测试真覆盖 dict 取值；新增 `test_embed_passes_encoding_format_float_to_aembedding` 断言 encoding_format 被传入（RED→GREEN）
+- 验证证据（重建镜像后真起栈复测）:
+  - gateway.embed() → dim=1024 L2~1.0；清表重跑 run_pipeline `success` → processed_contents **20/20 embedding 写入，vector_dims=1024**（R-EMB 端到端闭环）
+  - `/search` **semantic top_score=0.529 / hybrid 0.2645 vs keyword 0.0**（真向量检索，非降级）；语义专属探针（无字面重叠）命中相关项
+  - sync `/search/chat` sources=10 + grounded answer；SSE `/search/chat/stream` token+step(search tool_call)+sources(items 非空) RAG-aware
+  - **[PR #103] MCP `_default_search_engine_factory`**: gateway injected=True；semantic top_score=0.456 vs keyword 0.0（MCP 真 semantic 兑现）
+  - 门禁: 全量 unit 0 失败（基线 3425+1=3426）+ ruff(check+format) + mypy --strict（_embed.py）全绿
+- 观测性/调优观察（非阻塞，backlog 候选）:
+  - TEI healthcheck `start_period=120s` 远小于 BGE-M3 冷启首拉 ONNX 权重耗时（实测下载 1105s）→ 首启必经 unhealthy 后自愈（depends_on 用 service_started 故无功能影响，但监控误报）
+  - `_process_execute` 对已存在 processed_content 复用旧行不回填 embedding（process.py:111）→ TEI 宕机期处理的内容恢复后无 embedding backfill 路径
+  - /health version="0.0.0+unknown"（容器未戳版本号）
+- 偏差类型: self-caused（R-EMB-1/2 为 PR #102/#103 集成期代码缺陷，单测 mock 不忠实致漏网）
+- go/no-go: 核心缺陷 R-EMB 已 inline 修复 + 回归测试 + 端到端验证；新特性 PR #102/#103 修复后功能成立。落地于 [PR #105](https://github.com/lync-cyber/intelli-source/pull/105)（待合并）。失败注入(步骤18-20)与可观测性(步骤15-17)本次未跑（scope=核心+新特性冒烟）
+- 关联: src/intellisource/llm/gateway/_embed.py / tests/unit/llm/test_gateway_embed_tei.py；PR #102(d9ffeec) / PR #103(f1ad74e) 集成缺陷；docker/.env redis-auth 漂移；TEI healthcheck/start_period + process.py embedding backfill 观察留 backlog
