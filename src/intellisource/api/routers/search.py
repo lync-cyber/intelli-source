@@ -57,10 +57,12 @@ class SearchRequest(BaseModel):
 
 @router.post("/search")
 async def search(
+    request: Request,
     body: SearchRequest,
     session: AsyncSession = Depends(get_db_session),
 ) -> SearchResponse:
-    engine = HybridSearchEngine(session)
+    llm_gateway = getattr(request.app.state, "llm_gateway", None)
+    engine = HybridSearchEngine(session, llm_gateway=llm_gateway)
     return await engine.search(
         query=body.query,
         mode=body.search_mode,

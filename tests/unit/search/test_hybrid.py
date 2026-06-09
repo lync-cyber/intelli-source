@@ -41,7 +41,7 @@ def _mock_db_session() -> AsyncMock:
     return session
 
 
-def _random_vector(dim: int = 1536) -> list[float]:
+def _random_vector(dim: int = 1024) -> list[float]:
     """Return a deterministic pseudo-random unit vector."""
     import hashlib
 

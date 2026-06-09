@@ -33,7 +33,7 @@ consumers: [tech-lead, developer, devops]
   - `ConfigWatcher` — 文件变更监听器（基于 watchfiles），实现热加载（AC-002）
   - `ConfigVersionManager` — 配置版本管理，支持回退到历史版本（AC-004）
   - `LLMModelsConfig` — LLM 配置 Pydantic Schema 验证模型（`config/llm_schema.py`），校验 llm_models.yaml 中的 task_type 映射、ModelProfile 参数合法性和模型 ID 格式；LLM 配置经 `IS_LLM_CONFIG_PATH` 单文件加载，环境变量覆盖由 `core/settings.py` 的 `Settings` 承担
-  - 配置项包含 `embedding_dimension`（默认 1536），切换 embedding 模型时需调整此值并执行数据库迁移
+  - 配置项包含 `embedding_dimension`（默认 1024，对应 BGE-M3 经 TEI 本地推理），切换 embedding 模型时需调整此值并执行数据库迁移
 
 ### M-002: 采集引擎模块 (collector)
 

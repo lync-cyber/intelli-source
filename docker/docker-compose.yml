@@ -77,6 +77,9 @@ services:
     environment:
       IS_DATABASE_URL: ${IS_DATABASE_URL:-postgresql+asyncpg://${IS_DB_USER:-intellisource}:${IS_DB_PASSWORD:?set IS_DB_PASSWORD in docker/.env}@db:5432/${IS_DB_NAME:-intellisource}}
       IS_REDIS_URL: ${IS_REDIS_URL:-redis://:${IS_REDIS_PASSWORD:?set IS_REDIS_PASSWORD in docker/.env}@redis:6379/0}
+      IS_EMBEDDING_API_BASE: ${IS_EMBEDDING_API_BASE:-http://embedding/v1}
+      IS_EMBEDDING_API_KEY: ${IS_EMBEDDING_API_KEY:-tei}
+      IS_EMBEDDING_DIMENSION: ${IS_EMBEDDING_DIMENSION:-1024}
     depends_on:
       db:
         condition: service_healthy
@@ -84,6 +87,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      embedding:
+        condition: service_started
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys\ntry: sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health',timeout=5).status==200 else 1)\nexcept Exception: sys.exit(1)"]
       interval: 30s
@@ -111,11 +116,16 @@ services:
       IS_REDIS_URL: ${IS_REDIS_URL:-redis://:${IS_REDIS_PASSWORD:?set IS_REDIS_PASSWORD in docker/.env}@redis:6379/0}
       IS_CELERY_BROKER_URL: ${IS_CELERY_BROKER_URL:-redis://:${IS_REDIS_PASSWORD:?set IS_REDIS_PASSWORD in docker/.env}@redis:6379/0}
       IS_CELERY_RESULT_BACKEND: ${IS_CELERY_RESULT_BACKEND:-redis://:${IS_REDIS_PASSWORD:?set IS_REDIS_PASSWORD in docker/.env}@redis:6379/1}
+      IS_EMBEDDING_API_BASE: ${IS_EMBEDDING_API_BASE:-http://embedding/v1}
+      IS_EMBEDDING_API_KEY: ${IS_EMBEDDING_API_KEY:-tei}
+      IS_EMBEDDING_DIMENSION: ${IS_EMBEDDING_DIMENSION:-1024}
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+      embedding:
+        condition: service_started
     healthcheck:
       test: ["CMD", "celery", "-A", "intellisource.scheduler.boot", "status"]
       interval: 30s
@@ -150,6 +160,19 @@ services:
       disable: true
     restart: unless-stopped
 
+  embedding:
+    image: ${IS_EMBEDDING_IMAGE:-ghcr.io/huggingface/text-embeddings-inference:cpu-1.6}
+    command: --model-id BAAI/bge-m3
+    volumes:
+      - embedding_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    restart: unless-stopped
+
   mailhog:
     image: mailhog/mailhog:v1.0.1
     profiles:
@@ -181,3 +204,4 @@ volumes:
   db_data:
   redis_data:
   prometheus_data:
+  embedding_data:

@@ -12,10 +12,13 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from intellisource.observability.logging import get_logger
 from intellisource.storage.vector import HybridIndex
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = get_logger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,10 +86,12 @@ class HybridSearchEngine:
         session: AsyncSession,
         keyword_weight: float = 0.5,
         semantic_weight: float = 0.5,
+        llm_gateway: Any | None = None,
     ) -> None:
         self._session = session
         self.keyword_weight = keyword_weight
         self.semantic_weight = semantic_weight
+        self._llm_gateway = llm_gateway
 
     async def search(
         self,
@@ -113,6 +118,24 @@ class HybridSearchEngine:
 
         kw = keyword_weight if keyword_weight is not None else self.keyword_weight
         vw = vector_weight if vector_weight is not None else self.semantic_weight
+
+        # Embed the query when a vector mode is requested but no vector provided.
+        if (
+            query_vector is None
+            and mode in ("hybrid", "semantic")
+            and self._llm_gateway is not None
+        ):
+            # 仅包裹 embed 调用；勿在 try 内加其它逻辑（避免吞掉无关异常）
+            try:
+                query_vector = await self._llm_gateway.embed(query)
+            except Exception as exc:
+                logger.warning(
+                    "embed() failed for query=%r; degrading to keyword: %s",
+                    query,
+                    exc,
+                    exc_info=True,
+                )
+                query_vector = None
 
         # Fall back to keyword-only when a vector mode is requested without a vector.
         effective_mode = mode

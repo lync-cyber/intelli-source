@@ -377,3 +377,13 @@
 {"ts": "2026-06-01T03:42:04+00:00", "event": "state_change", "phase": "development", "detail": "skill-run: doc-review Layer 1 passed", "agent": "reviewer", "status": "completed", "ref": "skill:doc-review/doc_check"}
 {"ts": "2026-06-01T03:42:06+00:00", "event": "state_change", "phase": "development", "detail": "skill-run: doc-review Layer 1 reported issues", "agent": "reviewer", "status": "needs_revision", "ref": "skill:doc-review/doc_check"}
 {"ts": "2026-06-01T03:42:08+00:00", "event": "state_change", "phase": "development", "detail": "skill-run: doc-review Layer 1 passed", "agent": "reviewer", "status": "completed", "ref": "skill:doc-review/doc_check"}
+{"ts": "2026-06-09T03:46:06+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD RED: T-EMB-1 embed routing + 1024 schema"}
+{"ts": "2026-06-09T03:56:28+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD GREEN: T-EMB-1 embed routing + 1024 schema"}
+{"ts": "2026-06-09T04:18:58+00:00", "event": "revision_start", "phase": "development", "detail": "T-EMB-1 revision r1: fix R-001 HIGH + R-002..R-007 consistency"}
+{"ts": "2026-06-09T04:30:41+00:00", "event": "review_verdict", "phase": "development", "detail": "T-EMB-1 code-review: approved (R-001 HIGH + R-002..R-007 fixed & verified)"}
+{"ts": "2026-06-09T04:34:00+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD LIGHT-DISPATCH: T-EMB-2 query-side semantic wiring"}
+{"ts": "2026-06-09T04:47:25+00:00", "event": "tdd_phase", "phase": "development", "detail": "code-review L2: T-EMB-2"}
+{"ts": "2026-06-09T04:50:52+00:00", "event": "revision_start", "phase": "development", "detail": "T-EMB-2 revision r1: R-001 builder gateway wiring + R-002..R-005"}
+{"ts": "2026-06-09T05:00:04+00:00", "event": "review_verdict", "phase": "development", "detail": "T-EMB-2 code-review: approved (R-001 HIGH RAG wiring + R-002..R-005 fixed & verified)"}
+{"ts": "2026-06-09T05:02:09+00:00", "event": "tdd_phase", "phase": "development", "detail": "T-EMB-3 config/docs (skip TDD): TEI deploy + yaml embed + docs"}
+{"ts": "2026-06-09T05:14:03+00:00", "event": "tdd_phase", "phase": "development", "detail": "T-EMB-3 done (config/docs): TEI deploy + yaml embed template + docs synced"}

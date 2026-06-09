@@ -25,6 +25,8 @@ from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import VARCHAR
 
+EMBEDDING_DIM: int = 1024
+
 
 class Base(DeclarativeBase):
     pass
@@ -259,7 +261,7 @@ class ContentCluster(TimestampMixin, Base):
     topic: Mapped[str] = mapped_column(Text, nullable=False)
     tags: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list)
     content_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    centroid = mapped_column(Vector(1536), nullable=True)
+    centroid = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
     status: Mapped[str] = mapped_column(VARCHAR(20), nullable=False, default="active")
 
     # Relationships
@@ -302,7 +304,7 @@ class ProcessedContent(CreatedAtMixin, Base):
         UUID(as_uuid=True), ForeignKey("content_clusters.id"), nullable=True
     )
     fingerprint: Mapped[Optional[str]] = mapped_column(VARCHAR(64), nullable=True)
-    embedding = mapped_column(Vector(1536), nullable=True)
+    embedding = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
     structured_data: Mapped[Optional[dict[str, Any]]] = mapped_column(
         JSONB, nullable=True
     )

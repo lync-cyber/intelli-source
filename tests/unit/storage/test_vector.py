@@ -3,7 +3,7 @@
 Covers:
   AC-055:     Vector data stored correctly; cosine similarity retrieval works
   AC-056:     Hybrid search (keyword + vector) returns relevance-sorted results
-  AC-T005-1:  VectorStore.upsert() stores 1536-dim vectors correctly
+  AC-T005-1:  VectorStore.upsert() stores 1024-dim vectors correctly
   AC-T005-2:  VectorStore.search() supports Top-K similarity search with score
   AC-T005-3:  HybridIndex.search() supports keyword/semantic/hybrid modes
   AC-T005-4:  PostgreSQL full-text search (zhparser) fuses with vector results
@@ -26,7 +26,7 @@ import pytest
 # ---------------------------------------------------------------------------
 
 
-def _random_vector(dim: int = 1536) -> list[float]:
+def _random_vector(dim: int = 1024) -> list[float]:
     """Return a deterministic pseudo-random unit vector of the given dimension."""
     import hashlib
 
@@ -49,12 +49,12 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
 
 
 # ===========================================================================
-# AC-055 / AC-T005-1: VectorStore.upsert() stores 1536-dim vectors
+# AC-055 / AC-T005-1: VectorStore.upsert() stores 1024-dim vectors
 # ===========================================================================
 
 
 class TestVectorStoreUpsert:
-    """AC-055 + AC-T005-1: VectorStore.upsert() correctly stores 1536-dim vectors."""
+    """AC-055 + AC-T005-1: VectorStore.upsert() correctly stores 1024-dim vectors."""
 
     @pytest.mark.asyncio
     async def test_import_vector_store(self) -> None:
@@ -72,7 +72,7 @@ class TestVectorStoreUpsert:
         store = VectorStore(mock_session)
 
         content_id = uuid.uuid4()
-        embedding = _random_vector(1536)
+        embedding = _random_vector(1024)
 
         await store.upsert(content_id, embedding)
 
@@ -80,17 +80,17 @@ class TestVectorStoreUpsert:
         assert mock_session.execute.called or mock_session.merge.called
 
     @pytest.mark.asyncio
-    async def test_upsert_accepts_1536_dim_vector(self) -> None:
-        """upsert() accepts exactly 1536-dimensional vectors without error."""
+    async def test_upsert_accepts_1024_dim_vector(self) -> None:
+        """upsert() accepts exactly 1024-dimensional vectors without error."""
         from intellisource.storage.vector import VectorStore
 
         mock_session = AsyncMock()
         store = VectorStore(mock_session)
 
         content_id = uuid.uuid4()
-        embedding = _random_vector(1536)
+        embedding = _random_vector(1024)
 
-        assert len(embedding) == 1536
+        assert len(embedding) == 1024
         # Should not raise
         await store.upsert(content_id, embedding)
 
@@ -103,8 +103,8 @@ class TestVectorStoreUpsert:
         store = VectorStore(mock_session)
 
         content_id = uuid.uuid4()
-        embedding_v1 = _random_vector(1536)
-        embedding_v2 = [x * 0.5 for x in _random_vector(1536)]
+        embedding_v1 = _random_vector(1024)
+        embedding_v2 = [x * 0.5 for x in _random_vector(1024)]
 
         await store.upsert(content_id, embedding_v1)
         await store.upsert(content_id, embedding_v2)
@@ -149,7 +149,7 @@ class TestVectorStoreSearch:
         mock_session.execute.return_value = mock_result
 
         store = VectorStore(mock_session)
-        query_vector = _random_vector(1536)
+        query_vector = _random_vector(1024)
         results = await store.search(query_vector, top_k=2)
 
         assert isinstance(results, list)
@@ -170,7 +170,7 @@ class TestVectorStoreSearch:
         mock_session.execute.return_value = mock_result
 
         store = VectorStore(mock_session)
-        results = await store.search(_random_vector(1536), top_k=1)
+        results = await store.search(_random_vector(1024), top_k=1)
 
         assert len(results) == 1
         result = results[0]
@@ -196,7 +196,7 @@ class TestVectorStoreSearch:
         mock_session.execute.return_value = mock_result
 
         store = VectorStore(mock_session)
-        results = await store.search(_random_vector(1536), top_k=3)
+        results = await store.search(_random_vector(1024), top_k=3)
 
         assert len(results) <= 3
 
@@ -211,7 +211,7 @@ class TestVectorStoreSearch:
         mock_session.execute.return_value = mock_result
 
         store = VectorStore(mock_session)
-        await store.search(_random_vector(1536))
+        await store.search(_random_vector(1024))
 
         # Verify the query was constructed — the session.execute was called
         assert mock_session.execute.called
@@ -232,7 +232,7 @@ class TestVectorStoreSearch:
         mock_session.execute.return_value = mock_result
 
         store = VectorStore(mock_session)
-        results = await store.search(_random_vector(1536), top_k=3)
+        results = await store.search(_random_vector(1024), top_k=3)
 
         scores = [r.score for r in results]
         assert scores == sorted(scores, reverse=True)
@@ -267,7 +267,7 @@ class TestHybridIndexSearch:
         index = HybridIndex(mock_session)
         results = await index.search(
             query=None,
-            query_vector=_random_vector(1536),
+            query_vector=_random_vector(1024),
             mode="semantic",
             top_k=5,
         )
@@ -320,7 +320,7 @@ class TestHybridIndexSearch:
         index = HybridIndex(mock_session)
         results = await index.search(
             query="machine learning",
-            query_vector=_random_vector(1536),
+            query_vector=_random_vector(1024),
             mode="hybrid",
             top_k=5,
         )
@@ -350,7 +350,7 @@ class TestHybridIndexSearch:
         index = HybridIndex(mock_session)
         results = await index.search(
             query="deep learning",
-            query_vector=_random_vector(1536),
+            query_vector=_random_vector(1024),
             mode="hybrid",
             top_k=4,
         )
@@ -371,7 +371,7 @@ class TestHybridIndexSearch:
         with pytest.raises(ValueError):
             await index.search(
                 query="test",
-                query_vector=_random_vector(1536),
+                query_vector=_random_vector(1024),
                 mode="invalid_mode",
                 top_k=5,
             )
@@ -406,7 +406,7 @@ class TestHybridFusion:
         with pytest.raises((ValueError, TypeError)):
             await index.search(
                 query=None,
-                query_vector=_random_vector(1536),
+                query_vector=_random_vector(1024),
                 mode="hybrid",
                 top_k=5,
             )
@@ -461,7 +461,7 @@ class TestHybridFusion:
         index = HybridIndex(mock_session)
         results = await index.search(
             query="test",
-            query_vector=_random_vector(1536),
+            query_vector=_random_vector(1024),
             mode="semantic",
             top_k=3,
         )

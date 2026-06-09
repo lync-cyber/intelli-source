@@ -1,7 +1,9 @@
-"""RED-phase tests for T-081: pgvector cosine similarity search + JSONB @> operator.
+"""T-EMB-1 AC-6 + T-081: pgvector cosine similarity search + JSONB @> operator.
 
 Covers AC-4 (vector search via POST /api/v1/search) and AC-5 (JSONB @> filter
 against content_clusters.tags).
+
+AC-6: _DIM updated from 1536 → 1024 to match BGE-M3 embedding dimension.
 
 All tests FAIL at the RED phase because the pg_session fixture is not yet
 defined in tests/integration/conftest.py (GREEN phase responsibility).
@@ -33,11 +35,11 @@ from intellisource.storage.models import (
 # Helpers shared across tests
 # ---------------------------------------------------------------------------
 
-_DIM = 1536  # must match Vector(1536) in ProcessedContent.embedding
+_DIM = 1024  # must match Vector(1024) in ProcessedContent.embedding (BGE-M3)
 
 
 def _unit_vec(hot_index: int) -> list[float]:
-    """Return a 1536-dimensional unit vector with 1.0 at *hot_index*, 0.0 elsewhere."""
+    """Return a 1024-dimensional unit vector with 1.0 at *hot_index*, 0.0 elsewhere."""
     v = [0.0] * _DIM
     v[hot_index] = 1.0
     return v
@@ -140,7 +142,7 @@ class TestVectorSearch:
         # mock returns a real SearchResponse instance so FastAPI's strict
         # response_model validation (router signature `-> SearchResponse`) sees
         # the same shape as the production engine's return value.
-        def _fake_search_engine(session: Any) -> Any:
+        def _fake_search_engine(session: Any, **kwargs: Any) -> Any:
             from unittest.mock import AsyncMock, MagicMock
 
             engine = MagicMock()
@@ -214,7 +216,7 @@ class TestVectorSearch:
         # cosine similarity (most similar first). The mock returns a real
         # SearchResponse instance to satisfy FastAPI's strict response_model
         # validation on the router signature.
-        def _fake_search_engine(session: Any) -> Any:
+        def _fake_search_engine(session: Any, **kwargs: Any) -> Any:
             from unittest.mock import AsyncMock, MagicMock
 
             engine = MagicMock()
@@ -307,7 +309,7 @@ class TestVectorSearch:
         # Scores derived from cosine similarity of each embedding to _unit_vec(0).
         scores = {str(pc1.id): 1.0, str(pc2.id): 0.995, str(pc3.id): 0.0}
 
-        def _fake_search_engine(session: Any) -> Any:
+        def _fake_search_engine(session: Any, **kwargs: Any) -> Any:
             from unittest.mock import AsyncMock, MagicMock
 
             engine = MagicMock()

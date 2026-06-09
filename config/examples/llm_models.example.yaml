@@ -38,6 +38,10 @@ models:
     model: deepseek/deepseek-v4-flash
     provider: deepseek
     thinking: disabled
+  # —— embedding：本地 BGE-M3 经 TEI（OpenAI 兼容端点）；api_base/key 经 IS_EMBEDDING_API_BASE/KEY 注入，未配则 graceful 降级 ——
+  embed:
+    model: openai/bge-m3
+    provider: openai
   # —— 以下任务当前由非 LLM 算法处理（extract=正则 / dedup=指纹 / tag=关键词）——
   # —— 路由配置为未来切换 LLM 预留，当前不参与调用 ——
   extract:

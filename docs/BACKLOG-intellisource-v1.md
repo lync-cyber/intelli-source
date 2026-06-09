@@ -30,20 +30,20 @@ deps: []
 
 ---
 
-## 本会话已修复（待提交）
+## PR #102 待合并 — BGE-M3 本地 embedding（feat/bge-m3-local-embedding）
 
-> 代码 + 测试 + 全门禁（mypy --strict / ruff / lint-imports 12/12）均绿；工作区在 main 未提交，提交前需拉 feature 分支。提交合入后删除本节对应条目。
+> T-EMB-1/2/3 全部 done + code-review approved；全门禁绿（unit 3421 PASS + mypy --strict 263 + ruff + lint-imports 12/12）。已提交（commit d9ffeec），[PR #102](https://github.com/lync-cyber/intelli-source/pull/102) 待合并。合入后整块归档到「已闭环」。
+> 选型：BGE-M3 经 **HuggingFace TEI** 容器（OpenAI 兼容 /v1/embeddings），litellm 走 `openai/bge-m3` + 显式 api_base；CPU 默认、GPU 经 env 可切换。维度 1536→1024（arch 钦定的换模型路径，[arch-data §E-004](arch/arch-intellisource-v1-data.md)）。api_base/key/dimension 走 `Settings`（`ModelTaskConfig` 是 extra=forbid，yaml 装不下）。
 
-- **B-064** (P3, observability)：`pushes_total` 跨进程暴露 —— [facade.py](../src/intellisource/distributor/facade.py) `_record_push_outcome`/`_register_metrics` 镜像写 `RedisMetricStore`；[system.py](../src/intellisource/api/routers/system.py) `_format_prometheus` 精准抑制"shared 已拥有的空 labeled counter"以避免重复 `# TYPE`（不误伤 llm_calls_total 等 B-014 族）
-- **B-065** (P2, 开箱可用性)：内置 topic `enable` 开箱即空 digest —— [topic/models.py](../src/intellisource/topic/models.py) `build_subscription` 在 match_rules 缺 `source_names` 时注入本主题全部源名（强约束，不依赖 source→processed 标签传播）
-- **B-066** (P2, 推送正确性)：realtime distribute 把 daily/weekly 订阅双发 —— [content.py](../src/intellisource/storage/repositories/content.py) `get_with_source_and_subscriptions` 的 `subscription_id=None` 广播分支加 `frequency=='realtime'` 过滤（显式 id 分支不受限）
-- **TaskChain 进度回填** (LOW)：长链路 `completed_steps` 全程 0/N —— [task_chain.py](../src/intellisource/storage/repositories/task_chain.py) `update_status` 加可选 `completed_steps`，[tasks.py](../src/intellisource/scheduler/tasks.py) 成功分支传 `total_steps`（终态显示 N/N）
+- **T-EMB-1** ✅ done（standard TDD + code-review approved）：embed 路由 + 配置 + 1024 迁移 —— `_embed.py` 从 settings 读 `embedding_api_base`/`embedding_api_key`，api_base 非空才显式传 litellm（`api_key or "tei"` 兜底 keyless TEI）；`Settings` +`embedding_dimension(1024)`/`embedding_api_base`/`embedding_api_key`；`storage/models.py` `EMBEDDING_DIM=1024` 两列 `Vector(EMBEDDING_DIM)` + 迁移 `g0h1i2j3k4l5`（down_revision=a2b3c4d5e6f7，重建 HNSW，NULL 无回填）。降级契约保留：api_base 空 → embed 返回 None 不发请求。⚠️ `config/llm_models.yaml` 的 `embed:` 条目顺延到 T-EMB-3 随部署接线一起加。审查：[CODE-REVIEW-T-EMB-1-r1](reviews/code/CODE-REVIEW-T-EMB-1-r1.md)
+- **T-EMB-2** ✅ done（light-dispatch + code-review approved）：`HybridSearchEngine` 加可选 `llm_gateway` 注入，`search()` 在 `mode∈{semantic,hybrid}` 且 query_vector 缺失且 gateway 存在时 embed query（try/except 吞错 → 既有 keyword 降级兜底）。已接线入口：HTTP `/search`（`app.state.llm_gateway`）+ RAG 路径（`deps.py` builder 工厂 → agent `_search_execute`）。MCP `_default_search_engine_factory` 维持无 gateway（stdio 无 app.state，可由调用方注入）。审查：[CODE-REVIEW-T-EMB-2-r1](reviews/code/CODE-REVIEW-T-EMB-2-r1.md)
+- **T-EMB-3** ✅ done（config/docs，L2 短路）：`config/examples/llm_models.example.yaml` +`embed:{model:openai/bge-m3, provider:openai}`（提交侧模板；运行时 `config/llm_models.yaml` 被 gitignore）；`docker/docker-compose.yml` 加 `embedding`(TEI cpu-1.6 默认，`--model-id BAAI/bge-m3`，healthcheck，软依赖) + api/worker 注入 `IS_EMBEDDING_API_BASE=http://embedding/v1`/KEY/DIMENSION；`docker/docker-compose.gpu.yml`（nvidia device override）；`docker/.env.example` 四项；deploy-spec + arch data/modules 维度假设同步 1024/BGE-M3-via-TEI。真实起栈验证归 PRE-DEPLOY-WALKTHROUGH（B-031）
 
 ---
 
 ## 剩余项目级真债（非阻塞，保留跟踪）
 
-- **BGE-M3 本地 embedding 暂缓**：deepseek 无 embedding 端点，`task_type=embed` graceful 降级（向量检索降级，zhparser FTS 补偿）。引入本地 embedding 服务后接 `_EmbedMixin.embed` 路由即可恢复 `processed_contents.embedding` 写入与 semantic 检索
+- 无项目级真债。已知 scope 限制（非阻塞）：MCP `_default_search_engine_factory` 无 gateway → MCP 搜索 keyword-only（stdio 无 app.state，可由 `build_mcp_server(search_engine_factory=...)` 调用方注入）。
 
 ---
 
@@ -59,3 +59,4 @@ deps: []
 - **稳定性 + 走查回归**：B-059 / B-061 / B-062 / B-063
 - **框架级（移交上游 CataForge）**：B-016 ~ B-019 / B-036 / B-038 — [feedback bundle](feedback/feedback-suggest-framework-batch-20260529.md)
 - **PR #78 ~ #94**：大规模死代码/shim 烧毁 + C1（任务生命周期）+ S-2（chat 会话）+ ConditionalProcessor + pipeline CRUD CLI
+- **PR #95 ~ #101**：B-064 / B-065 / B-066 / TaskChain 进度回填（PR #96）+ chat CLI/web 前端 + agent 控制面统一（stream/non-stream + CLI/web 收敛）+ config/prompt SSOT 治理 + P0/P1/P2 安全加固 + agent/tools 包化重构 + MCP CLI 模块拆分

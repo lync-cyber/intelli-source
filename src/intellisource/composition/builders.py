@@ -129,17 +129,22 @@ def build_llm_gateway(
     )
 
 
-def build_search_engine_factory() -> Callable[[AsyncSession], HybridSearchEngine]:
+def build_search_engine_factory(
+    llm_gateway: LLMGateway | None = None,
+) -> Callable[[AsyncSession], HybridSearchEngine]:
     """Return a session-scoped factory for HybridSearchEngine.
 
     HybridSearchEngine takes an AsyncSession directly (not a session_factory)
     because each search request needs its own session lifecycle. The
     `_search_execute` agent tool opens a session via tool_deps.session_factory
     then calls this factory to wrap it.
+
+    When ``llm_gateway`` is supplied the returned engine can perform semantic
+    embedding for hybrid/semantic queries on the RAG path.
     """
 
     def _factory(session: AsyncSession) -> HybridSearchEngine:
-        return HybridSearchEngine(session)
+        return HybridSearchEngine(session, llm_gateway=llm_gateway)
 
     return _factory
 
