@@ -142,7 +142,7 @@ class TestVectorSearch:
         # mock returns a real SearchResponse instance so FastAPI's strict
         # response_model validation (router signature `-> SearchResponse`) sees
         # the same shape as the production engine's return value.
-        def _fake_search_engine(session: Any) -> Any:
+        def _fake_search_engine(session: Any, **kwargs: Any) -> Any:
             from unittest.mock import AsyncMock, MagicMock
 
             engine = MagicMock()
@@ -216,7 +216,7 @@ class TestVectorSearch:
         # cosine similarity (most similar first). The mock returns a real
         # SearchResponse instance to satisfy FastAPI's strict response_model
         # validation on the router signature.
-        def _fake_search_engine(session: Any) -> Any:
+        def _fake_search_engine(session: Any, **kwargs: Any) -> Any:
             from unittest.mock import AsyncMock, MagicMock
 
             engine = MagicMock()
@@ -309,7 +309,7 @@ class TestVectorSearch:
         # Scores derived from cosine similarity of each embedding to _unit_vec(0).
         scores = {str(pc1.id): 1.0, str(pc2.id): 0.995, str(pc3.id): 0.0}
 
-        def _fake_search_engine(session: Any) -> Any:
+        def _fake_search_engine(session: Any, **kwargs: Any) -> Any:
             from unittest.mock import AsyncMock, MagicMock
 
             engine = MagicMock()
