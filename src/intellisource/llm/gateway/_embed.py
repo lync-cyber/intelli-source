@@ -61,6 +61,9 @@ class _EmbedMixin:
                 input=text,
                 api_base=api_base,
                 api_key=settings.embedding_api_key or "tei",
+                # TEI's /v1/embeddings serde rejects litellm's default
+                # encoding_format token; pin "float" or every embed 400s.
+                encoding_format="float",
             )
         except Exception:
             logger.warning(
@@ -72,8 +75,11 @@ class _EmbedMixin:
 
         embedding: list[float] | None
         try:
-            embedding = response.data[0].embedding
-        except (AttributeError, IndexError, TypeError):
+            # litellm returns data[0] as a dict ({"embedding": [...]}), older
+            # builds as an object with .embedding — accept either shape.
+            item = response.data[0]
+            embedding = item["embedding"] if isinstance(item, dict) else item.embedding
+        except (AttributeError, IndexError, TypeError, KeyError):
             return None
 
         if not isinstance(embedding, list) or not embedding:

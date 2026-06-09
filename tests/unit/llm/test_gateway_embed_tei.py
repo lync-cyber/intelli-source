@@ -34,7 +34,8 @@ _EMBED_VEC_1024 = [float(i) / 1024 for i in range(1024)]
 
 def _make_embedding_response(vec: list[float]) -> MagicMock:
     resp = MagicMock()
-    resp.data = [MagicMock(embedding=vec)]
+    # litellm's EmbeddingResponse.data items are dicts, not attribute objects.
+    resp.data = [{"embedding": vec, "index": 0, "object": "embedding"}]
     resp.usage = MagicMock()
     resp.usage.prompt_tokens = 4
     resp.usage.total_tokens = 4
@@ -127,6 +128,42 @@ class TestEmbedForwardsApiBase:
             "embed() must return exactly the embedding list from the mock response"
         )
         assert len(result) == 1024  # type: ignore[arg-type]
+
+        get_settings.cache_clear()
+
+    @pytest.mark.asyncio
+    async def test_embed_passes_encoding_format_float_to_aembedding(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """embed() must pin encoding_format='float' for TEI /v1/embeddings.
+
+        litellm's default embeddings request serialises encoding_format into a
+        body token that TEI's serde rejects (`Failed to parse the request body
+        as JSON: encoding_format: expected value`), so every embed() degrades to
+        None at runtime. Pinning 'float' keeps the vector write path live.
+        """
+        from intellisource.core.settings import get_settings
+
+        monkeypatch.setenv("IS_EMBEDDING_API_BASE", "http://embedding/v1")
+        monkeypatch.setenv("IS_EMBEDDING_API_KEY", "tei")
+        get_settings.cache_clear()
+
+        gw = _gateway_with_routing(_TEI_ROUTING)
+
+        captured: dict[str, Any] = {}
+
+        async def fake_aembedding(**kwargs: Any) -> Any:
+            captured.update(kwargs)
+            return _make_embedding_response(_EMBED_VEC_1024)
+
+        monkeypatch.setattr(gw, "_aembedding", fake_aembedding, raising=False)
+
+        await gw.embed("encoding format probe")
+
+        assert captured.get("encoding_format") == "float", (
+            "embed() must pass encoding_format='float' so TEI can parse the "
+            f"request body; got {captured.get('encoding_format')!r}"
+        )
 
         get_settings.cache_clear()
 
