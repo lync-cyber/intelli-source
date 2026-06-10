@@ -11,7 +11,7 @@ from intellisource.agent.tool_results import ProcessItemResult
 from intellisource.agent.tools._spec import ToolDefinition
 from intellisource.agent.tools.results import tool_degraded
 from intellisource.observability.logging import get_logger
-from intellisource.storage.models import EMBEDDING_DIM
+from intellisource.storage import EMBEDDING_DIM
 
 logger = get_logger(__name__)
 

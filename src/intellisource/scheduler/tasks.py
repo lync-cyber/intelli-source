@@ -19,7 +19,7 @@ from intellisource.core.pipeline_loader import PipelineLoader
 from intellisource.observability.logging import get_logger
 from intellisource.scheduler.celery_app import celery_app
 from intellisource.scheduler.queues import PRIORITY_QUEUES, TRIGGER_TYPE_QUEUES
-from intellisource.storage.models import EMBEDDING_DIM
+from intellisource.storage import EMBEDDING_DIM
 from intellisource.storage.repositories.content import ContentRepository
 from intellisource.storage.repositories.task import TaskRepository
 from intellisource.storage.repositories.task_chain import TaskChainRepository
