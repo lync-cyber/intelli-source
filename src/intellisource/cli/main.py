@@ -13,6 +13,7 @@ from intellisource.cli import _client
 from intellisource.cli.commands import (
     chat,
     config,
+    content,
     doctor,
     init,
     pipeline,
@@ -39,6 +40,7 @@ from intellisource.core.settings import get_settings, load_provider_env
 
 app = typer.Typer()
 
+app.add_typer(content.content_app, name="content")
 app.add_typer(source.source_app, name="source")
 app.add_typer(task.task_app, name="task")
 app.add_typer(pipeline.pipeline_app, name="pipeline")

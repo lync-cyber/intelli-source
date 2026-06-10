@@ -11,6 +11,7 @@ from intellisource.agent.tool_results import ProcessItemResult
 from intellisource.agent.tools._spec import ToolDefinition
 from intellisource.agent.tools.results import tool_degraded
 from intellisource.observability.logging import get_logger
+from intellisource.storage import EMBEDDING_DIM
 
 logger = get_logger(__name__)
 
@@ -110,7 +111,18 @@ async def _process_execute(
 
             existing_processed = await repo.get_processed_by_raw_id(raw_id)
             if existing_processed is not None:
-                processed = existing_processed
+                embedding_val = ctx.get("embedding")
+                if (
+                    isinstance(embedding_val, list)
+                    and len(embedding_val) == EMBEDDING_DIM
+                    and existing_processed.embedding is None
+                ):
+                    updated = await repo.update(
+                        existing_processed.id, embedding=embedding_val
+                    )
+                    processed = updated if updated is not None else existing_processed
+                else:
+                    processed = existing_processed
             else:
                 embedding_val = ctx.get("embedding")
                 embedding_arg: list[float] | None = (

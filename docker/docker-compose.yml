@@ -170,7 +170,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 120s
+      start_period: 1200s  # TEI cold-start pulls ONNX (~1105s); start_period must exceed it
     restart: unless-stopped
 
   mailhog:

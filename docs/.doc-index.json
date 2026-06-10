@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-06-09T12:50:08.107850+00:00",
+  "generated_at": "2026-06-10T02:03:14.382089+00:00",
   "documents": {
     "backlog-intellisource-v1": {
       "file_path": "docs/BACKLOG-intellisource-v1.md",
@@ -3940,6 +3940,57 @@
       ],
       "dep_hashes": {
         "dev-plan-intellisource-v1": "0951f48d"
+      }
+    },
+    "dev-plan-intellisource-v1-s10": {
+      "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s10.md",
+      "doc_type": "dev-plan",
+      "volume": "s10",
+      "status": "draft",
+      "total_lines": 196,
+      "est_tokens": 4792,
+      "content_hash": "d163eda1",
+      "sections": {
+        "2": {
+          "heading": "## 2. 依赖图",
+          "line_start": 32,
+          "line_end": 47,
+          "est_tokens": 111,
+          "deps": [],
+          "level": 2,
+          "items": {}
+        },
+        "3": {
+          "heading": "## 3. 任务卡详细",
+          "line_start": 48,
+          "line_end": 177,
+          "est_tokens": 3950,
+          "deps": [],
+          "level": 2,
+          "items": {}
+        },
+        "4": {
+          "heading": "## 4. 风险项",
+          "line_start": 178,
+          "line_end": 196,
+          "est_tokens": 384,
+          "deps": [],
+          "level": 2,
+          "items": {}
+        }
+      },
+      "split_from": "dev-plan-intellisource-v1",
+      "deps": [
+        "arch-intellisource-v1",
+        "arch-intellisource-v1-modules",
+        "arch-intellisource-v1-api",
+        "prd-intellisource-v1"
+      ],
+      "dep_hashes": {
+        "arch-intellisource-v1": "2cb58a9d",
+        "arch-intellisource-v1-modules": "a5e24d54",
+        "arch-intellisource-v1-api": "e196332a",
+        "prd-intellisource-v1": "6e78fb00"
       }
     }
   },

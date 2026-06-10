@@ -13,6 +13,8 @@ from sqlalchemy.orm import selectinload
 from intellisource.storage.models import ProcessedContent, RawContent, Subscription
 from intellisource.storage.repositories.base import TEXT_TYPE, BaseRepository
 
+__all__ = ["ContentRepository"]
+
 
 class ContentRepository(BaseRepository[ProcessedContent]):
     """CRUD and filtered listing for :class:`ProcessedContent` entities."""
@@ -182,6 +184,20 @@ class ContentRepository(BaseRepository[ProcessedContent]):
         row.processed_at = datetime.now(tz=timezone.utc)
         await self._session.flush()
         return True
+
+    async def list_missing_embeddings(
+        self, batch_size: int, offset: int = 0
+    ) -> builtins.list[ProcessedContent]:
+        """Return ProcessedContent rows with embedding IS NULL, paginated."""
+        stmt = (
+            select(ProcessedContent)
+            .where(ProcessedContent.embedding.is_(None))
+            .order_by(ProcessedContent.created_at)
+            .limit(batch_size)
+            .offset(offset)
+        )
+        result = await self._session.execute(stmt)
+        return builtins.list(result.scalars().all())
 
     async def list_since_with_source(
         self, window_start: datetime, *, limit: int

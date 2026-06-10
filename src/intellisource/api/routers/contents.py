@@ -5,11 +5,18 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.api.deps import get_db_session
-from intellisource.api.schemas.contents import ContentListResponse
+from intellisource.api.schemas.contents import (
+    BackfillEmbeddingsResponse,
+    ContentListResponse,
+)
+from intellisource.scheduler.dispatch import (
+    BrokerUnavailableError,
+    send_task_with_trace,
+)
 from intellisource.storage.repositories.content import ContentRepository
 
 router = APIRouter(tags=["contents"])
@@ -41,6 +48,28 @@ def _serialize_content(obj: Any) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/content/backfill-embeddings",
+    status_code=202,
+    response_model=BackfillEmbeddingsResponse,
+)
+async def backfill_embeddings(request: Request) -> BackfillEmbeddingsResponse:
+    """Dispatch the backfill-embeddings Celery task and return 202 Accepted."""
+    celery_instance = getattr(request.app.state, "celery_app", None)
+    if celery_instance is None:
+        raise HTTPException(status_code=503, detail="celery_app not initialised")
+    try:
+        result = send_task_with_trace(
+            "backfill_embeddings",
+            celery_instance=celery_instance,
+        )
+    except BrokerUnavailableError as exc:
+        raise HTTPException(
+            status_code=503, detail=f"broker unavailable: {exc}"
+        ) from exc
+    return BackfillEmbeddingsResponse(status="accepted", task_id=str(result.id))
 
 
 @router.get("/contents", response_model=ContentListResponse)
