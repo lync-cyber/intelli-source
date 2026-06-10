@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -76,6 +77,21 @@ _SAMPLE_TOOLS = [
         },
     }
 ]
+
+# Deterministic routing for failover tests: the active config/llm_models.yaml is
+# gitignored (env-specific), so failover tests must inject their own config
+# instead of depending on a chat fallback being present on disk.
+_CHAT_FAILOVER_CONFIG: dict[str, Any] = {
+    "default_model": {"model": "primary/chat", "provider": "p"},
+    "models": {
+        "chat": {
+            "model": "primary/chat",
+            "provider": "p",
+            "fallback_models": ["fallback/chat"],
+        },
+    },
+    "profiles": {},
+}
 
 
 # ===========================================================================
@@ -721,7 +737,11 @@ class TestChatModelFailover:
 
         from intellisource.llm.gateway import LLMResult
 
-        gw = _make_gateway(_retry_wait=wait_none())
+        with patch(
+            "intellisource.llm.gateway._load_routing_config",
+            return_value=_CHAT_FAILOVER_CONFIG,
+        ):
+            gw = _make_gateway(_retry_wait=wait_none())
         primary = gw._model_routing.get_model("chat")["model"]
         fallbacks = gw._model_routing.get_fallback_models("chat")
         assert fallbacks, "test requires a configured chat fallback model"
@@ -755,7 +775,11 @@ class TestChatModelFailover:
         primary that failed — else failover rate is masked under the primary."""
         from tenacity import wait_none
 
-        gw = _make_gateway(_retry_wait=wait_none())
+        with patch(
+            "intellisource.llm.gateway._load_routing_config",
+            return_value=_CHAT_FAILOVER_CONFIG,
+        ):
+            gw = _make_gateway(_retry_wait=wait_none())
         primary = gw._model_routing.get_model("chat")["model"]
         fallbacks = gw._model_routing.get_fallback_models("chat")
         assert fallbacks, "test requires a configured chat fallback model"
