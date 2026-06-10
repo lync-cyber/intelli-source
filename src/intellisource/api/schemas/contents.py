@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from intellisource.api.schemas.common import APIModel
 
@@ -30,3 +31,10 @@ class ContentListResponse(APIModel):
     items: list[ContentItem]
     next_cursor: str | None = None
     has_more: bool
+
+
+class BackfillEmbeddingsResponse(APIModel):
+    """Response for the backfill-embeddings async task dispatch."""
+
+    status: Literal["accepted"]
+    task_id: str

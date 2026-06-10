@@ -19,6 +19,8 @@ from intellisource.core.pipeline_loader import PipelineLoader
 from intellisource.observability.logging import get_logger
 from intellisource.scheduler.celery_app import celery_app
 from intellisource.scheduler.queues import PRIORITY_QUEUES, TRIGGER_TYPE_QUEUES
+from intellisource.storage.models import EMBEDDING_DIM
+from intellisource.storage.repositories.content import ContentRepository
 from intellisource.storage.repositories.task import TaskRepository
 from intellisource.storage.repositories.task_chain import TaskChainRepository
 
@@ -35,6 +37,7 @@ __all__ = [
     "TRIGGER_TYPE_QUEUES",
     "CeleryTasks",
     "assemble_daily_weekly_digests",
+    "backfill_embeddings",
     "cleanup_chat_sessions",
     "run_pipeline",
 ]
@@ -363,6 +366,115 @@ class CeleryTasks:
         finally:
             if self._idempotency_guard is not None and lock_acquired:
                 _run_sync(self._idempotency_guard.release(task_id))
+
+
+# ---------------------------------------------------------------------------
+# Backfill embeddings — T-BF-1
+# ---------------------------------------------------------------------------
+
+
+def _get_backfill_deps() -> tuple[Any, Any]:
+    """Return (llm_gateway, session_factory) from the worker-side composition.
+
+    Tests patch this symbol to inject controllable mocks.
+    """
+    gateway = getattr(celery_app, "_llm_gateway", None)
+    session_factory = getattr(celery_app, "_session_factory", None)
+    if session_factory is None:
+        ct: CeleryTasks | None = getattr(celery_app, "_celery_tasks_instance", None)
+        if ct is not None:
+            session_factory = ct._session_factory
+    return gateway, session_factory
+
+
+def _open_content_repo(session_factory: Any) -> ContentRepository:
+    """Open a synchronous session and return a ContentRepository.
+
+    Tests patch this symbol to inject a controllable mock repo.
+    Production callers must manage the session lifecycle externally.
+    """
+    session = session_factory()
+    return ContentRepository(session)
+
+
+async def backfill_embeddings(batch_size: int) -> dict[str, int]:
+    """Backfill NULL embeddings in ProcessedContent in paginated batches.
+
+    Iterates all rows with embedding IS NULL, generates embeddings via
+    LLMGateway.embed(), and persists the result. Rows where embed returns
+    None or a wrong-dimension vector are skipped without raising.
+    Returns a summary dict with 'backfilled' and 'skipped' counts.
+    """
+    gateway, session_factory = _get_backfill_deps()
+    if gateway is None or session_factory is None:
+        raise RuntimeError(
+            "backfill_embeddings: llm_gateway or session_factory not initialised "
+            "on celery_app — check worker startup composition"
+        )
+    repo = _open_content_repo(session_factory)
+
+    backfilled = 0
+    skipped = 0
+    offset = 0
+
+    while True:
+        rows = await repo.list_missing_embeddings(batch_size, offset)
+        if not rows:
+            break
+
+        skipped_this_batch = 0
+
+        for row in rows:
+            text: str = (row.body_text or "").strip() or (row.title or "").strip()
+            if not text:
+                skipped += 1
+                skipped_this_batch += 1
+                logger.info("backfill_embeddings skipped row — no text", row_id=row.id)
+                continue
+
+            vec = await gateway.embed(text)
+
+            if vec is None:
+                skipped += 1
+                skipped_this_batch += 1
+                logger.info(
+                    "backfill_embeddings embed_failed — embed returned None",
+                    row_id=row.id,
+                )
+                continue
+
+            if len(vec) != EMBEDDING_DIM:
+                skipped += 1
+                skipped_this_batch += 1
+                logger.warning(
+                    "backfill_embeddings skipped — wrong embedding dimension",
+                    row_id=row.id,
+                    expected_dim=EMBEDDING_DIM,
+                    actual_dim=len(vec),
+                )
+                continue
+
+            await repo.update(row.id, embedding=vec)
+            backfilled += 1
+
+        # Advance offset only by the number of rows still NULL (skipped rows).
+        # Successfully backfilled rows disappear from IS-NULL naturally; skip
+        # rows remain and must be stepped over to avoid an infinite loop.
+        offset += skipped_this_batch
+
+    logger.info(
+        "backfill_embeddings completed",
+        backfilled=backfilled,
+        skipped=skipped,
+    )
+    return {"backfilled": backfilled, "skipped": skipped}
+
+
+@celery_app.task(name="backfill_embeddings")  # type: ignore[untyped-decorator]
+def _backfill_embeddings_celery_task(batch_size: int = 100) -> dict[str, int]:
+    """Celery entry point: run the backfill_embeddings async logic synchronously."""
+    result: dict[str, int] = _run_sync(backfill_embeddings(batch_size))
+    return result
 
 
 # ---------------------------------------------------------------------------
