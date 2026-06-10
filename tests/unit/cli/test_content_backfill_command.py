@@ -124,8 +124,7 @@ class TestBackfillEmbeddingsCommand:
         )
         result = runner.invoke(app, ["content", "backfill-embeddings"])
         assert result.exit_code == 0, (
-            f"Expected exit code 0, got {result.exit_code}. "
-            f"Output: {result.stdout}"
+            f"Expected exit code 0, got {result.exit_code}. Output: {result.stdout}"
         )
 
     @patch("intellisource.cli._client.httpx")
@@ -138,8 +137,7 @@ class TestBackfillEmbeddingsCommand:
         )
         runner.invoke(app, ["content", "backfill-embeddings"])
         assert mock_httpx.post.call_count == 1, (
-            "Expected _client.post to be called once, "
-            f"got {mock_httpx.post.call_count}"
+            f"Expected _client.post to be called once, got {mock_httpx.post.call_count}"
         )
         called_url: str = mock_httpx.post.call_args.args[0]
         assert called_url.endswith("/api/v1/content/backfill-embeddings"), (
@@ -214,9 +212,7 @@ class TestBackfillEmbeddingsCommand:
         try:
             parsed = json.loads(result.stdout.strip())
         except json.JSONDecodeError:
-            pytest.fail(
-                f"--json flag output is not valid JSON: {result.stdout!r}"
-            )
+            pytest.fail(f"--json flag output is not valid JSON: {result.stdout!r}")
         assert parsed.get("status") == "accepted", (
             f"Parsed JSON missing status=='accepted': {parsed}"
         )
@@ -234,9 +230,7 @@ class TestBackfillCommandErrorHandling:
     """R-006: CLI checks HTTP status; non-2xx exits with code 1 + error output."""
 
     @patch("intellisource.cli._client.httpx")
-    def test_503_exits_nonzero(
-        self, mock_httpx: MagicMock, runner: CliRunner
-    ) -> None:
+    def test_503_exits_nonzero(self, mock_httpx: MagicMock, runner: CliRunner) -> None:
         """503 response must cause CLI to exit with non-zero code."""
         mock_httpx.post.return_value = _mock_response(
             status_code=503,
@@ -270,9 +264,7 @@ class TestBackfillCommandErrorHandling:
         )
 
     @patch("intellisource.cli._client.httpx")
-    def test_400_exits_nonzero(
-        self, mock_httpx: MagicMock, runner: CliRunner
-    ) -> None:
+    def test_400_exits_nonzero(self, mock_httpx: MagicMock, runner: CliRunner) -> None:
         """400 response must also cause CLI to exit with non-zero code."""
         mock_httpx.post.return_value = _mock_response(
             status_code=400,

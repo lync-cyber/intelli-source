@@ -89,6 +89,7 @@ def _import_backfill_embeddings():
         from intellisource.scheduler.tasks import (  # noqa: PLC0415
             backfill_embeddings,
         )
+
         return backfill_embeddings
     except ImportError as exc:
         raise AssertionError(
@@ -196,9 +197,7 @@ class TestBackfillEmbeddingsAC3:
         mock_gateway, mock_session_factory = _make_mock_deps()
         mock_repo = AsyncMock()
         # list_missing_embeddings returns 3 rows on first call, [] on next page
-        mock_repo.list_missing_embeddings = AsyncMock(
-            side_effect=[null_rows, []]
-        )
+        mock_repo.list_missing_embeddings = AsyncMock(side_effect=[null_rows, []])
         mock_repo.update = AsyncMock(return_value=None)
 
         with (
@@ -247,8 +246,7 @@ class TestBackfillEmbeddingsAC3:
 
         actual_args = [c.args[0] for c in mock_gateway.embed.call_args_list]
         assert actual_args == body_texts, (
-            f"embed call args must equal body_texts={body_texts}, "
-            f"got {actual_args}"
+            f"embed call args must equal body_texts={body_texts}, got {actual_args}"
         )
 
     async def test_update_called_with_embedding_list(self) -> None:
@@ -256,9 +254,7 @@ class TestBackfillEmbeddingsAC3:
         backfill_embeddings = _import_backfill_embeddings()
 
         row_id = uuid.uuid4()
-        null_row = _make_processed_content_mock(
-            body_text="content", embedding=None
-        )
+        null_row = _make_processed_content_mock(body_text="content", embedding=None)
         null_row.id = row_id
 
         mock_gateway, mock_session_factory = _make_mock_deps(
@@ -283,9 +279,9 @@ class TestBackfillEmbeddingsAC3:
         mock_repo.update.assert_called_once()
         call_args = mock_repo.update.call_args
         # First positional arg must be the row's id
-        assert (
-            call_args.args[0] == row_id or call_args.kwargs.get("id") == row_id
-        ), f"update must be called with the row id={row_id}"
+        assert call_args.args[0] == row_id or call_args.kwargs.get("id") == row_id, (
+            f"update must be called with the row id={row_id}"
+        )
         # embedding kwarg must be the exact list returned by embed
         embedding_kwarg = call_args.kwargs.get("embedding")
         assert embedding_kwarg == FAKE_EMBEDDING, (
@@ -293,8 +289,7 @@ class TestBackfillEmbeddingsAC3:
             f"got {embedding_kwarg!r}"
         )
         assert len(embedding_kwarg) == EMBEDDING_DIM, (
-            f"embedding must have {EMBEDDING_DIM} elements, "
-            f"got {len(embedding_kwarg)}"
+            f"embedding must have {EMBEDDING_DIM} elements, got {len(embedding_kwarg)}"
         )
 
     async def test_non_null_rows_not_passed_to_embed(self) -> None:
@@ -307,9 +302,7 @@ class TestBackfillEmbeddingsAC3:
         """
         backfill_embeddings = _import_backfill_embeddings()
 
-        null_row = _make_processed_content_mock(
-            body_text="new content", embedding=None
-        )
+        null_row = _make_processed_content_mock(body_text="new content", embedding=None)
 
         mock_gateway, mock_session_factory = _make_mock_deps()
         mock_repo = AsyncMock()
@@ -347,9 +340,7 @@ class TestBackfillEmbeddingsAC4:
         """repo.update must NOT be called when embed returns None."""
         backfill_embeddings = _import_backfill_embeddings()
 
-        null_row = _make_processed_content_mock(
-            body_text="bad content", embedding=None
-        )
+        null_row = _make_processed_content_mock(body_text="bad content", embedding=None)
 
         mock_gateway, mock_session_factory = _make_mock_deps(embed_side_effect=[None])
         mock_repo = AsyncMock()
@@ -374,9 +365,7 @@ class TestBackfillEmbeddingsAC4:
         """backfill_embeddings must complete without raising when embed returns None."""
         backfill_embeddings = _import_backfill_embeddings()
 
-        null_row = _make_processed_content_mock(
-            body_text="bad content", embedding=None
-        )
+        null_row = _make_processed_content_mock(body_text="bad content", embedding=None)
 
         mock_gateway, mock_session_factory = _make_mock_deps(embed_side_effect=[None])
         mock_repo = AsyncMock()
@@ -400,9 +389,7 @@ class TestBackfillEmbeddingsAC4:
         """A structlog entry containing 'skipped' or 'embed_failed' must be emitted."""
         backfill_embeddings = _import_backfill_embeddings()
 
-        null_row = _make_processed_content_mock(
-            body_text="bad content", embedding=None
-        )
+        null_row = _make_processed_content_mock(body_text="bad content", embedding=None)
 
         mock_gateway, mock_session_factory = _make_mock_deps(embed_side_effect=[None])
         mock_repo = AsyncMock()
@@ -424,8 +411,7 @@ class TestBackfillEmbeddingsAC4:
 
         skip_keywords = {"skipped", "embed_failed"}
         found = any(
-            any(kw in str(entry).lower() for kw in skip_keywords)
-            for entry in captured
+            any(kw in str(entry).lower() for kw in skip_keywords) for entry in captured
         )
         assert found, (
             f"Expected a log entry containing 'skipped' or 'embed_failed' when "
@@ -543,9 +529,7 @@ class TestBackfillEmbeddingsAC6:
 
         for c in mock_gateway.embed.call_args_list:
             text_arg = c.args[0] if c.args else c.kwargs.get("text", "")
-            assert text_arg != "", (
-                f"embed must not be called with '' -- got call {c}"
-            )
+            assert text_arg != "", f"embed must not be called with '' -- got call {c}"
 
     async def test_mixed_rows_body_text_and_title_fallback(self) -> None:
         """Mixed rows: non-empty body_text uses body_text; empty uses title fallback."""
@@ -681,8 +665,7 @@ class TestBackfillEmbeddingsAC7:
 
         dim_keywords = {"dimension", "dim", "1024", "512", "wrong"}
         found = any(
-            any(kw in str(entry).lower() for kw in dim_keywords)
-            for entry in captured
+            any(kw in str(entry).lower() for kw in dim_keywords) for entry in captured
         )
         assert found, (
             f"Expected a log warning about dimension mismatch. "
@@ -695,12 +678,8 @@ class TestBackfillEmbeddingsAC7:
         """Correct-dim rows must succeed even when another row is wrong-dim."""
         backfill_embeddings = _import_backfill_embeddings()
 
-        row_ok = _make_processed_content_mock(
-            body_text="good content", embedding=None
-        )
-        row_bad = _make_processed_content_mock(
-            body_text="bad content", embedding=None
-        )
+        row_ok = _make_processed_content_mock(body_text="good content", embedding=None)
+        row_bad = _make_processed_content_mock(body_text="bad content", embedding=None)
 
         embed_results = [FAKE_EMBEDDING, [0.5] * 512]  # ok, then wrong-dim
 
@@ -774,9 +753,7 @@ class TestBackfillPaginationStateful:
         # Indices 2 and 4 are permanent-skip (embed returns None)
         permanent_skip_indices = {2, 4}
         embeddable_ids = {
-            all_rows[i].id
-            for i in range(6)
-            if i not in permanent_skip_indices
+            all_rows[i].id for i in range(6) if i not in permanent_skip_indices
         }
 
         # Stateful tracking: set of row indices still in IS-NULL set

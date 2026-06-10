@@ -91,12 +91,9 @@ class TestListMissingEmbeddingsAC1:
         repo = ContentRepository(mock_session)
         result = await repo.list_missing_embeddings(batch_size=2, offset=0)
 
-        assert isinstance(result, list), (
-            "list_missing_embeddings must return a list"
-        )
+        assert isinstance(result, list), "list_missing_embeddings must return a list"
         assert len(result) == 2, (
-            f"batch_size=2 with 2 NULL rows must return exactly 2, "
-            f"got {len(result)}"
+            f"batch_size=2 with 2 NULL rows must return exactly 2, got {len(result)}"
         )
 
     @pytest.mark.asyncio
@@ -155,9 +152,7 @@ class TestListMissingEmbeddingsAC1:
             f"SQL must contain LIMIT clause for pagination. Got:\n{sql}"
         )
         # LIMIT value must be 2 (batch_size)
-        assert "2" in sql, (
-            f"SQL must contain LIMIT 2. Got:\n{sql}"
-        )
+        assert "2" in sql, f"SQL must contain LIMIT 2. Got:\n{sql}"
 
     @pytest.mark.asyncio
     async def test_sql_contains_offset_zero(self) -> None:
@@ -173,9 +168,7 @@ class TestListMissingEmbeddingsAC1:
 
         stmt = _extract_stmt(mock_session)
         sql = _compile_stmt(stmt).upper()
-        assert "OFFSET" in sql, (
-            f"SQL must contain OFFSET clause. Got:\n{sql}"
-        )
+        assert "OFFSET" in sql, f"SQL must contain OFFSET clause. Got:\n{sql}"
 
     @pytest.mark.asyncio
     async def test_result_elements_match_mock_rows(self) -> None:
@@ -239,12 +232,8 @@ class TestListMissingEmbeddingsAC2:
 
         stmt = _extract_stmt(mock_session)
         sql = _compile_stmt(stmt).upper()
-        assert "OFFSET" in sql, (
-            f"SQL must contain OFFSET clause. Got:\n{sql}"
-        )
-        assert "2" in sql, (
-            f"SQL OFFSET must encode value 2. Got:\n{sql}"
-        )
+        assert "OFFSET" in sql, f"SQL must contain OFFSET clause. Got:\n{sql}"
+        assert "2" in sql, f"SQL OFFSET must encode value 2. Got:\n{sql}"
 
     @pytest.mark.asyncio
     async def test_offset_past_end_returns_empty_list(self) -> None:
@@ -274,9 +263,7 @@ class TestListMissingEmbeddingsAC2:
         repo = ContentRepository(mock_session)
         # Must not raise — just returns an empty list
         result = await repo.list_missing_embeddings(batch_size=10, offset=999)
-        assert isinstance(result, list), (
-            "Must return a list even when offset overflows"
-        )
+        assert isinstance(result, list), "Must return a list even when offset overflows"
 
     @pytest.mark.asyncio
     async def test_offset_changes_the_offset_in_sql(self) -> None:
@@ -301,6 +288,4 @@ class TestListMissingEmbeddingsAC2:
         assert "OFFSET" in sql_0, "First call SQL must have OFFSET"
         assert "OFFSET" in sql_2, "Second call SQL must have OFFSET"
         # The two compiled statements must differ (different OFFSET values)
-        assert sql_0 != sql_2, (
-            "SQL with offset=0 must differ from SQL with offset=2"
-        )
+        assert sql_0 != sql_2, "SQL with offset=0 must differ from SQL with offset=2"

@@ -235,8 +235,7 @@ class TestCeleryEnqueue:
             "It must call getattr(request.app.state, 'celery_app') at request time."
         )
         assert body.get("task_id") == different_sentinel, (
-            "task_id should come from the replaced mock, "
-            f"got {body.get('task_id')!r}"
+            f"task_id should come from the replaced mock, got {body.get('task_id')!r}"
         )
 
 
