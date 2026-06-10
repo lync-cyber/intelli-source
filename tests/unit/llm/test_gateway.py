@@ -341,7 +341,7 @@ class TestEstimateTokens:
 
     def test_estimate_tokens_returns_integer(self, gateway: LLMGateway) -> None:
         """estimate_tokens() returns an integer count."""
-        with patch("intellisource.llm.gateway.litellm") as mock_litellm:
+        with patch("intellisource.llm.gateway._compaction.litellm") as mock_litellm:
             mock_litellm.token_counter = MagicMock(return_value=15)
             count = gateway.estimate_tokens(
                 text="Hello, world! This is a test.", model="gpt-4o-mini"
@@ -353,7 +353,7 @@ class TestEstimateTokens:
         self, gateway: LLMGateway
     ) -> None:
         """estimate_tokens() prefers litellm.token_counter when available."""
-        with patch("intellisource.llm.gateway.litellm") as mock_litellm:
+        with patch("intellisource.llm.gateway._compaction.litellm") as mock_litellm:
             mock_litellm.token_counter = MagicMock(return_value=42)
             count = gateway.estimate_tokens(
                 text="Some sample text", model="gpt-4o-mini"
@@ -363,7 +363,7 @@ class TestEstimateTokens:
 
     def test_estimate_tokens_fallback_heuristic(self, gateway: LLMGateway) -> None:
         """estimate_tokens() falls back to heuristic when litellm fails."""
-        with patch("intellisource.llm.gateway.litellm") as mock_litellm:
+        with patch("intellisource.llm.gateway._compaction.litellm") as mock_litellm:
             mock_litellm.token_counter = MagicMock(
                 side_effect=Exception("tokenizer not available")
             )
@@ -377,7 +377,7 @@ class TestEstimateTokens:
 
     def test_estimate_tokens_empty_string(self, gateway: LLMGateway) -> None:
         """estimate_tokens() returns 0 for empty text."""
-        with patch("intellisource.llm.gateway.litellm") as mock_litellm:
+        with patch("intellisource.llm.gateway._compaction.litellm") as mock_litellm:
             mock_litellm.token_counter = MagicMock(return_value=0)
             count = gateway.estimate_tokens(text="", model="gpt-4o-mini")
         assert count == 0

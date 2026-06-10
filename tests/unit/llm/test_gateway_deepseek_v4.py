@@ -393,6 +393,7 @@ class TestFlexibleReasoningRoundtrip:
         self,
     ) -> None:
         from intellisource.agent.executors.flexible import FlexibleLoop
+        from intellisource.agent.observer import PipelineLoopObserver
         from intellisource.llm.gateway._types import LLMResult
 
         # Reply turn 1: tool_call + reasoning_content. Turn 2: stop.
@@ -449,19 +450,13 @@ class TestFlexibleReasoningRoundtrip:
         registry.list_tools = MagicMock(return_value=["search"])
         registry.get = MagicMock(return_value=tool_def)
 
-        async def _noop(*a: Any, **kw: Any) -> None:
-            return None
-
         async def _persist(**kw: Any) -> dict[str, Any]:
             return {"status": kw.get("status", "")}
 
         loop = FlexibleLoop(
             tool_registry=registry,
             llm_gateway=gateway,
-            emit_pipeline_start=_noop,
-            emit_tool_call=_noop,
-            emit_llm_call=_noop,
-            emit_pipeline_error=_noop,
+            observer=PipelineLoopObserver(),
             persist=_persist,
         )
 

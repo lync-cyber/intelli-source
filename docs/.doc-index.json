@@ -1,15 +1,15 @@
 {
   "version": "1",
-  "generated_at": "2026-06-10T02:03:14.382089+00:00",
+  "generated_at": "2026-06-10T11:04:51.618804+00:00",
   "documents": {
     "backlog-intellisource-v1": {
       "file_path": "docs/BACKLOG-intellisource-v1.md",
       "doc_type": "backlog",
       "volume": "main",
       "status": "approved",
-      "total_lines": 53,
-      "est_tokens": 920,
-      "content_hash": "3c3b848f",
+      "total_lines": 63,
+      "est_tokens": 1288,
+      "content_hash": "885b92a4",
       "sections": {}
     },
     "history-intellisource-v1": {
@@ -27,15 +27,15 @@
       "doc_type": "arch",
       "volume": "main",
       "status": "approved",
-      "total_lines": 752,
-      "est_tokens": 8181,
-      "content_hash": "e196332a",
+      "total_lines": 782,
+      "est_tokens": 8451,
+      "content_hash": "af122814",
       "sections": {
         "3": {
           "heading": "## 3. 接口契约",
           "line_start": 21,
-          "line_end": 752,
-          "est_tokens": 7993,
+          "line_end": 782,
+          "est_tokens": 8259,
           "deps": [],
           "level": 2,
           "items": {
@@ -198,6 +198,13 @@
               "line_start": 690,
               "line_end": 709,
               "est_tokens": 137,
+              "deps": []
+            },
+            "API-030": {
+              "heading": "### API-030: 触发 Embedding 回填",
+              "line_start": 710,
+              "line_end": 732,
+              "est_tokens": 219,
               "deps": []
             }
           }
@@ -875,8 +882,8 @@
       ],
       "dep_hashes": {
         "arch-intellisource-v1-modules": "a5e24d54",
-        "arch-intellisource-v1-api": "e196332a",
-        "backlog-intellisource-v1": "3c3b848f"
+        "arch-intellisource-v1-api": "af122814",
+        "backlog-intellisource-v1": "885b92a4"
       }
     },
     "dev-plan-intellisource-v1-s1": {
@@ -967,6 +974,57 @@
       ],
       "dep_hashes": {
         "arch-intellisource-v1": "2cb58a9d"
+      }
+    },
+    "dev-plan-intellisource-v1-s10": {
+      "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s10.md",
+      "doc_type": "dev-plan",
+      "volume": "s10",
+      "status": "approved",
+      "total_lines": 196,
+      "est_tokens": 4842,
+      "content_hash": "3b29b24c",
+      "sections": {
+        "2": {
+          "heading": "## 2. 依赖图",
+          "line_start": 32,
+          "line_end": 47,
+          "est_tokens": 111,
+          "deps": [],
+          "level": 2,
+          "items": {}
+        },
+        "3": {
+          "heading": "## 3. 任务卡详细",
+          "line_start": 48,
+          "line_end": 177,
+          "est_tokens": 3999,
+          "deps": [],
+          "level": 2,
+          "items": {}
+        },
+        "4": {
+          "heading": "## 4. 风险项",
+          "line_start": 178,
+          "line_end": 196,
+          "est_tokens": 384,
+          "deps": [],
+          "level": 2,
+          "items": {}
+        }
+      },
+      "split_from": "dev-plan-intellisource-v1",
+      "deps": [
+        "arch-intellisource-v1",
+        "arch-intellisource-v1-modules",
+        "arch-intellisource-v1-api",
+        "prd-intellisource-v1"
+      ],
+      "dep_hashes": {
+        "arch-intellisource-v1": "2cb58a9d",
+        "arch-intellisource-v1-modules": "a5e24d54",
+        "arch-intellisource-v1-api": "af122814",
+        "prd-intellisource-v1": "6e78fb00"
       }
     },
     "dev-plan-intellisource-v1-s2": {
@@ -2657,7 +2715,7 @@
         "backlog-intellisource-v1"
       ],
       "dep_hashes": {
-        "backlog-intellisource-v1": "3c3b848f"
+        "backlog-intellisource-v1": "885b92a4"
       }
     },
     "research-b051-config-bootstrap-ux": {
@@ -2750,7 +2808,7 @@
         "backlog-intellisource-v1"
       ],
       "dep_hashes": {
-        "backlog-intellisource-v1": "3c3b848f"
+        "backlog-intellisource-v1": "885b92a4"
       }
     },
     "prompt-management-analysis": {
@@ -2906,10 +2964,40 @@
       "doc_type": "correction-log",
       "volume": "main",
       "status": "approved",
-      "total_lines": 601,
-      "est_tokens": 25564,
-      "content_hash": "b2bc94da",
+      "total_lines": 632,
+      "est_tokens": 26882,
+      "content_hash": "4e409000",
       "sections": {}
+    },
+    "code-review-T-BF-backfill-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-BF-backfill-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 259,
+      "est_tokens": 2800,
+      "content_hash": "205d2ab7",
+      "sections": {},
+      "deps": [
+        "T-BF-1",
+        "T-BF-2",
+        "T-BF-3"
+      ]
+    },
+    "code-review-T-BF-backfill-r2": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-T-BF-backfill-r2.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 207,
+      "est_tokens": 2308,
+      "content_hash": "a2eb488b",
+      "sections": {},
+      "deps": [
+        "T-BF-1",
+        "T-BF-2",
+        "T-BF-3"
+      ]
     },
     "code-review-T-EMB-1-r1": {
       "file_path": "docs/reviews/code/CODE-REVIEW-T-EMB-1-r1.md",
@@ -2948,6 +3036,32 @@
       "sections": {},
       "deps": [
         "T-MCP-GW"
+      ]
+    },
+    "code-review-agentloop-burndown-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-agentloop-burndown-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 67,
+      "est_tokens": 1256,
+      "content_hash": "2adbeee5",
+      "sections": {},
+      "deps": [
+        "agentloop-burndown"
+      ]
+    },
+    "code-review-agentloop-hardening-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-agentloop-hardening-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 160,
+      "est_tokens": 3480,
+      "content_hash": "a279e1c1",
+      "sections": {},
+      "deps": [
+        "agentloop-hardening"
       ]
     },
     "code-scan-arch-20260605-r1": {
@@ -3096,7 +3210,7 @@
       ],
       "dep_hashes": {
         "arch-intellisource-v1-modules": "a5e24d54",
-        "backlog-intellisource-v1": "3c3b848f"
+        "backlog-intellisource-v1": "885b92a4"
       }
     },
     "review-arch-intellisource-v1-r1": {
@@ -3241,6 +3355,38 @@
       ],
       "dep_hashes": {
         "dev-plan-intellisource-v1": "0951f48d"
+      }
+    },
+    "review-dev-plan-intellisource-v1-s10-r1": {
+      "file_path": "docs/reviews/doc/REVIEW-dev-plan-intellisource-v1-s10-r1.md",
+      "doc_type": "review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 120,
+      "est_tokens": 2720,
+      "content_hash": "c519eee1",
+      "sections": {},
+      "deps": [
+        "dev-plan-intellisource-v1-s10"
+      ],
+      "dep_hashes": {
+        "dev-plan-intellisource-v1-s10": "3b29b24c"
+      }
+    },
+    "review-dev-plan-intellisource-v1-s10-r2": {
+      "file_path": "docs/reviews/doc/REVIEW-dev-plan-intellisource-v1-s10-r2.md",
+      "doc_type": "review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 113,
+      "est_tokens": 2470,
+      "content_hash": "4ff1c1ff",
+      "sections": {},
+      "deps": [
+        "dev-plan-intellisource-v1-s10"
+      ],
+      "dep_hashes": {
+        "dev-plan-intellisource-v1-s10": "3b29b24c"
       }
     },
     "review-dev-plan-intellisource-v1-s7-r1": {
@@ -3941,57 +4087,6 @@
       "dep_hashes": {
         "dev-plan-intellisource-v1": "0951f48d"
       }
-    },
-    "dev-plan-intellisource-v1-s10": {
-      "file_path": "docs/dev-plan/dev-plan-intellisource-v1-s10.md",
-      "doc_type": "dev-plan",
-      "volume": "s10",
-      "status": "draft",
-      "total_lines": 196,
-      "est_tokens": 4792,
-      "content_hash": "d163eda1",
-      "sections": {
-        "2": {
-          "heading": "## 2. 依赖图",
-          "line_start": 32,
-          "line_end": 47,
-          "est_tokens": 111,
-          "deps": [],
-          "level": 2,
-          "items": {}
-        },
-        "3": {
-          "heading": "## 3. 任务卡详细",
-          "line_start": 48,
-          "line_end": 177,
-          "est_tokens": 3950,
-          "deps": [],
-          "level": 2,
-          "items": {}
-        },
-        "4": {
-          "heading": "## 4. 风险项",
-          "line_start": 178,
-          "line_end": 196,
-          "est_tokens": 384,
-          "deps": [],
-          "level": 2,
-          "items": {}
-        }
-      },
-      "split_from": "dev-plan-intellisource-v1",
-      "deps": [
-        "arch-intellisource-v1",
-        "arch-intellisource-v1-modules",
-        "arch-intellisource-v1-api",
-        "prd-intellisource-v1"
-      ],
-      "dep_hashes": {
-        "arch-intellisource-v1": "2cb58a9d",
-        "arch-intellisource-v1-modules": "a5e24d54",
-        "arch-intellisource-v1-api": "e196332a",
-        "prd-intellisource-v1": "6e78fb00"
-      }
     }
   },
   "xref": {
@@ -4150,6 +4245,13 @@
       }
     ],
     "API-025": [
+      {
+        "doc_id": "arch-intellisource-v1-api",
+        "section": "3",
+        "file_path": "docs/arch/arch-intellisource-v1-api.md"
+      }
+    ],
+    "API-030": [
       {
         "doc_id": "arch-intellisource-v1-api",
         "section": "3",

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, cast
 from intellisource.llm.cost_tracker import LLMCallRecord
 from intellisource.llm.gateway._extra_body import extract_reasoning_content
 from intellisource.llm.gateway._metrics import _record_llm_call
-from intellisource.llm.gateway._routing import resolve_model
+from intellisource.llm.gateway._routing import resolve_model, run_with_model_failover
 from intellisource.llm.gateway._types import LLMResult
 from intellisource.llm.prompt_builder import PromptBuilder
 
@@ -98,36 +98,51 @@ class _CompleteMixin:
                 prompt, effective_limit, resolved_model
             )
 
-        call_kwargs = self._prepare_litellm_kwargs(
-            resolved_model=resolved_model,
-            prompt=prompt,
-            messages=None,
-            system_prompt=system_prompt,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            task_type=task_type,
-            stream=False,
-            response_format=response_format,
-        )
+        def _complete_kwargs(model_id: str) -> dict[str, Any]:
+            return self._prepare_litellm_kwargs(
+                resolved_model=model_id,
+                prompt=prompt,
+                messages=None,
+                system_prompt=system_prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                task_type=task_type,
+                stream=False,
+                response_format=response_format,
+            )
 
-        start_time = time.monotonic()
-        try:
-            response = await self._call_with_retry(
-                call_kwargs=call_kwargs,
+        async def _complete_with_model(model_id: str) -> Any:
+            return await self._call_with_retry(
+                call_kwargs=_complete_kwargs(model_id),
                 prompt=prompt,
                 task_type=task_type,
             )
-        except BaseException as exc:
+
+        # Primary model then each configured fallback (task-keyed); a task_type
+        # with no fallbacks, or none at all, stays single-model.
+        models_to_try = [resolved_model]
+        if task_type is not None:
+            models_to_try.extend(self._model_routing.get_fallback_models(task_type))
+
+        start_time = time.monotonic()
+
+        def _on_model_failure(model_id: str, _exc: BaseException) -> None:
             _record_llm_call(
                 latency_seconds=time.monotonic() - start_time,
                 success=False,
-                model=resolved_model,
+                model=model_id,
             )
+
+        try:
+            response, successful_model = await run_with_model_failover(
+                models_to_try, _complete_with_model, on_failure=_on_model_failure
+            )
+        except BaseException as exc:
             return cast(LLMResult, await self._try_fallback(exc, task_type, prompt))
         elapsed_seconds = time.monotonic() - start_time
         elapsed_ms = elapsed_seconds * 1000
         _record_llm_call(
-            latency_seconds=elapsed_seconds, success=True, model=resolved_model
+            latency_seconds=elapsed_seconds, success=True, model=successful_model
         )
 
         content: str = response.choices[0].message.content

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -126,6 +128,42 @@ def _classify_error(exc: BaseException) -> ErrorCategory:
     if exc_type_name in _UNRECOVERABLE_EXCEPTION_NAMES:
         return ErrorCategory.UNRECOVERABLE
     return ErrorCategory.RECOVERABLE_DEGRADED
+
+
+async def run_with_model_failover(
+    models_to_try: list[str],
+    call_one: Callable[[str], Awaitable[Any]],
+    *,
+    on_failure: Callable[[str, BaseException], None] | None = None,
+) -> tuple[Any, str]:
+    """Run ``call_one`` over models in order; return (result, model) on success.
+
+    ``call_one`` runs one model end to end and owns that model's own transient
+    retries, so reaching the next candidate means the current one is genuinely
+    unavailable. An UNRECOVERABLE error (malformed / unsupported request) fails
+    identically on every model, so it stops the sweep early. ``on_failure`` is
+    invoked per failed candidate (e.g. to record a failure metric). When every
+    candidate fails the last exception is re-raised.
+    """
+    last_exc: BaseException | None = None
+    for candidate in models_to_try:
+        try:
+            result = await call_one(candidate)
+            return result, candidate
+        except asyncio.CancelledError:
+            raise  # cancellation must propagate, never fall over to another model
+        except BaseException as exc:
+            if on_failure is not None:
+                on_failure(candidate, exc)
+            last_exc = exc
+            if _classify_error(exc) is ErrorCategory.UNRECOVERABLE:
+                break
+    if last_exc is None:
+        raise LLMError(
+            "run_with_model_failover called with no models to try",
+            category=ErrorCategory.UNRECOVERABLE,
+        )
+    raise last_exc
 
 
 def _load_routing_config() -> dict[str, Any]:

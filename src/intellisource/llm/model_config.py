@@ -68,6 +68,21 @@ class ModelRoutingConfig:
         """Return list of configured task types."""
         return list(self._config.get("models", {}).keys())
 
+    def get_fallback_models(self, task_type: str) -> list[str]:
+        """Return the ordered fallback model ids for a task_type (may be empty).
+
+        Tried in order after the primary model's own retries are exhausted, so a
+        provider/model outage degrades to the next configured model before the
+        non-LLM degradation fallback runs.
+        """
+        cfg = self._config.get("models", {}).get(task_type)
+        if not isinstance(cfg, dict):
+            return []
+        fallbacks = cfg.get("fallback_models", [])
+        if not isinstance(fallbacks, list):
+            return []
+        return [str(m) for m in fallbacks]
+
     def get_profile(self, model: str) -> ModelProfile | None:
         """Return ModelProfile for a model ID, or None if not configured."""
         profiles: dict[str, Any] = self._config.get("profiles", {})

@@ -162,6 +162,13 @@
           ],
           "default": null,
           "title": "Reasoning Effort"
+        },
+        "fallback_models": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Fallback Models",
+          "type": "array"
         }
       },
       "required": [

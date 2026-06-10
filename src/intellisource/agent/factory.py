@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Callable
 
 import intellisource.pipeline.engine as _engine_mod
 from intellisource.agent.deps import ToolDeps
+from intellisource.agent.events import PipelineEventLogger
 from intellisource.agent.runner import AgentRunner, get_agent_runner_holder
 from intellisource.agent.tools import AgentToolRegistry
 from intellisource.agent.tools.executes.summarize_cluster import (
@@ -93,6 +94,7 @@ def build_agent_runner(
     template_service_factory: Any = None,
     task_dispatcher: Any = None,
     task_chain_repo_factory: Any = None,
+    event_logger: PipelineEventLogger | None = None,
 ) -> AgentRunner:
     """Build a fully-wired AgentRunner.
 
@@ -101,7 +103,9 @@ def build_agent_runner(
     at composition time. The three ``*_service_factory`` arguments are optional
     ``Callable[[session], Service]`` that back the management (CRUD) tools;
     ``task_dispatcher`` and ``task_chain_repo_factory`` back the run-trigger /
-    run-status execution-control tools.
+    run-status execution-control tools. ``event_logger`` records runtime
+    pipeline events (pipeline_start / tool_call / llm_call / pipeline_complete /
+    pipeline_error); it defaults to an enabled ``PipelineEventLogger``.
     """
     if session_factory is None:
         raise CompositionError("session_factory is required (got None)")
@@ -148,4 +152,5 @@ def build_agent_runner(
         llm_gateway=llm_gateway,
         pipeline_engine=pipeline_engine,
         tool_deps=tool_deps,
+        event_logger=event_logger or PipelineEventLogger(),
     )

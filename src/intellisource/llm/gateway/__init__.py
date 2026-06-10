@@ -12,11 +12,12 @@ from typing import TYPE_CHECKING, Any
 import litellm
 from tenacity import wait_exponential
 
-from intellisource.llm.circuit_breaker import CircuitOpenError as CircuitOpenError
+from intellisource.llm.circuit_breaker import CircuitOpenError
 from intellisource.llm.gateway._chat import _ChatMixin
+from intellisource.llm.gateway._compaction import _CompactionMixin
 from intellisource.llm.gateway._complete import _CompleteMixin
 from intellisource.llm.gateway._embed import _EmbedMixin
-from intellisource.llm.gateway._metrics import _record_llm_call as _record_llm_call
+from intellisource.llm.gateway._metrics import _record_llm_call
 from intellisource.llm.gateway._retry import _RetryMixin
 from intellisource.llm.gateway._routing import _classify_error, _load_routing_config
 from intellisource.llm.gateway._stream import _StreamMixin
@@ -51,6 +52,7 @@ class LLMGateway(
     _ChatMixin,
     _StreamMixin,
     _EmbedMixin,
+    _CompactionMixin,
 ):
     """Unified LLM calling interface built on litellm."""
 
@@ -108,6 +110,11 @@ class LLMGateway(
                 labelnames=["call_type"],
                 description="Total LLM cache hits by call type",
             )
+            mc.register_labeled_counter(
+                "llm_prompt_cache_hit_tokens_total",
+                labelnames=["model"],
+                description="Provider prompt-cache hit tokens by model",
+            )
         except Exception:  # noqa: BLE001 — metric failures must not break LLM path
             logger.exception("failed to register LLM gateway metrics")
 
@@ -119,26 +126,6 @@ class LLMGateway(
     def _warn(self, msg: str, *args: Any) -> None:
         """Log a warning via the gateway module logger (patchable in tests)."""
         logger.warning(msg, *args)
-
-    def estimate_tokens(self, text: str, model: str) -> int:
-        """Estimate token count for text.
-
-        Prefers litellm.token_counter; falls back to len(text)//4 heuristic.
-
-        Args:
-            text: Input text to count tokens for.
-            model: Model identifier for tokenizer selection.
-
-        Returns:
-            Estimated token count.
-        """
-        try:
-            count = litellm.token_counter(model=model, text=text)
-            if isinstance(count, int):
-                return count
-            return len(text) // 4
-        except Exception:
-            return len(text) // 4
 
 
 __all__ = [

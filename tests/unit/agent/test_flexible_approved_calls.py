@@ -14,6 +14,7 @@ from typing import Any
 import pytest
 
 from intellisource.agent.executors.flexible import FlexibleLoop
+from intellisource.agent.observer import PipelineLoopObserver
 from intellisource.agent.runner import AgentMode
 from intellisource.agent.tools.registry import AgentToolRegistry, PermissionLevel
 
@@ -45,19 +46,13 @@ def _stop_gateway() -> Any:
 
 
 def _loop(registry: AgentToolRegistry, gateway: Any) -> FlexibleLoop:
-    async def _noop(*_: Any, **__: Any) -> None:
-        return None
-
     async def _persist(**kwargs: Any) -> dict[str, Any]:
         return dict(kwargs)
 
     return FlexibleLoop(
         tool_registry=registry,
         llm_gateway=gateway,
-        emit_pipeline_start=_noop,
-        emit_tool_call=_noop,
-        emit_llm_call=_noop,
-        emit_pipeline_error=_noop,
+        observer=PipelineLoopObserver(),
         persist=_persist,
     )
 

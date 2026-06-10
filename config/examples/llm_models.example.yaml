@@ -14,6 +14,10 @@
 #   thinking: enabled | disabled（cheap 确定性任务与 chat-tool-loop 用 disabled）
 #   reasoning_effort: high | max
 # deepseek-chat / deepseek-reasoner 将于 2026-07-24 退役 —— 改用 v4-flash / v4-pro。
+#
+# fallback_models (per task, 可选): 主模型自身重试耗尽后按序尝试的备用模型，在非 LLM 降级兜底之前。
+#   条目可跨 provider（如 openai/gpt-4o-mini）—— litellm 按 model 前缀解析该 provider 凭证，
+#   故跨 provider 冗余只需在环境里配好备用 provider 的 API key。
 
 default_model:
   model: deepseek/deepseek-v4-flash
@@ -26,6 +30,8 @@ models:
     provider: deepseek
     thinking: enabled
     reasoning_effort: high
+    fallback_models:
+      - deepseek/deepseek-v4-flash
   render:
     model: deepseek/deepseek-v4-flash
     provider: deepseek
@@ -38,6 +44,8 @@ models:
     model: deepseek/deepseek-v4-flash
     provider: deepseek
     thinking: disabled
+    fallback_models:
+      - deepseek/deepseek-v4-pro
   # —— embedding：本地 BGE-M3 经 TEI（OpenAI 兼容端点）；api_base/key 经 IS_EMBEDDING_API_BASE/KEY 注入，未配则 graceful 降级 ——
   embed:
     model: openai/bge-m3

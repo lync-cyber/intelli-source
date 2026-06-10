@@ -13,7 +13,12 @@ from intellisource.llm.gateway._extra_body import (
     apply_extra_body,
     extract_reasoning_content,
 )
-from intellisource.llm.gateway._metrics import _record_llm_call
+from intellisource.llm.gateway._metrics import (
+    _extract_cached_tokens,
+    _record_llm_call,
+    _record_prompt_cache_hit,
+)
+from intellisource.llm.gateway._routing import run_with_model_failover
 from intellisource.llm.gateway._types import (
     LLMOutputError,
     LLMResult,
@@ -138,42 +143,6 @@ class _ChatMixin:
                     )
                 resolved_model = default_cfg["model"]
 
-        call_kwargs: dict[str, Any] = {
-            "model": resolved_model,
-            "messages": messages,
-        }
-        if tools is not None:
-            call_kwargs["tools"] = tools
-        if response_format is not None:
-            call_kwargs["response_format"] = response_format
-
-        profile_for_extra = self._model_routing.get_profile(resolved_model)
-        apply_extra_body(
-            call_kwargs, self._routing_config, resolved_model, "chat", profile_for_extra
-        )
-
-        async def _chat_call_fn() -> Any:
-            try:
-                return await self._acompletion(**call_kwargs)
-            except Exception as exc:
-                if type(exc).__name__ == "UnsupportedParamsError":
-                    if "tools" in call_kwargs:
-                        raise LLMError(
-                            f"模型 {resolved_model!r} 不支持 tools/function calling；"
-                            "拒绝静默剥离 tools 降级（会使 agent 退化为无工具幻觉）",
-                            category=ErrorCategory.UNRECOVERABLE,
-                        ) from exc
-                    logger.warning(
-                        "Provider does not support response_format; "
-                        "retrying without it: %s",
-                        exc,
-                    )
-                    degraded_kwargs = {
-                        k: v for k, v in call_kwargs.items() if k != "response_format"
-                    }
-                    return await self._acompletion(**degraded_kwargs)
-                raise
-
         fallback_text = " ".join(
             str(m.get("content", "")) for m in messages if m.get("role") == "user"
         )
@@ -200,21 +169,76 @@ class _ChatMixin:
                 )
                 return cached
 
-        start_time = time.monotonic()
-        try:
-            response = await self._unified_call_with_retry(
+        def _build_call_kwargs(model_id: str) -> dict[str, Any]:
+            ck: dict[str, Any] = {"model": model_id, "messages": messages}
+            if tools is not None:
+                ck["tools"] = tools
+            if response_format is not None:
+                ck["response_format"] = response_format
+            apply_extra_body(
+                ck,
+                self._routing_config,
+                model_id,
+                "chat",
+                self._model_routing.get_profile(model_id),
+            )
+            return ck
+
+        async def _call_with_model(model_id: str) -> Any:
+            ck = _build_call_kwargs(model_id)
+
+            async def _chat_call_fn() -> Any:
+                try:
+                    return await self._acompletion(**ck)
+                except Exception as exc:
+                    if type(exc).__name__ == "UnsupportedParamsError":
+                        if "tools" in ck:
+                            raise LLMError(
+                                f"模型 {model_id!r} 不支持 tools/function calling；"
+                                "拒绝静默剥离 tools 降级"
+                                "（会使 agent 退化为无工具幻觉）",
+                                category=ErrorCategory.UNRECOVERABLE,
+                            ) from exc
+                        logger.warning(
+                            "Provider does not support response_format; "
+                            "retrying without it: %s",
+                            exc,
+                        )
+                        degraded_kwargs = {
+                            k: v for k, v in ck.items() if k != "response_format"
+                        }
+                        return await self._acompletion(**degraded_kwargs)
+                    raise
+
+            return await self._unified_call_with_retry(
                 _chat_call_fn,
-                model=resolved_model,
+                model=model_id,
                 call_type="chat",
                 enable_circuit_breaker=True,
                 task_type="chat",
             )
-        except BaseException as exc:
+
+        # Try the primary model, then each configured fallback in order — the
+        # gateway already retries a model's own transient failures, so reaching
+        # the next model means that one is genuinely unavailable.
+        models_to_try = [
+            resolved_model,
+            *self._model_routing.get_fallback_models("chat"),
+        ]
+        start_time = time.monotonic()
+
+        def _on_model_failure(model_id: str, _exc: BaseException) -> None:
             _record_llm_call(
                 latency_seconds=time.monotonic() - start_time,
                 success=False,
-                model=resolved_model,
+                model=model_id,
             )
+
+        try:
+            response, successful_model = await run_with_model_failover(
+                models_to_try, _call_with_model, on_failure=_on_model_failure
+            )
+        except BaseException as exc:
             if self._fallback_manager is not None:
                 return cast(
                     LLMResult,
@@ -224,8 +248,10 @@ class _ChatMixin:
         elapsed_seconds = time.monotonic() - start_time
         elapsed_ms = elapsed_seconds * 1000
         _record_llm_call(
-            latency_seconds=elapsed_seconds, success=True, model=resolved_model
+            latency_seconds=elapsed_seconds, success=True, model=successful_model
         )
+        cached_tokens = _extract_cached_tokens(response.usage)
+        _record_prompt_cache_hit(successful_model, cached_tokens)
 
         content: str = response.choices[0].message.content or ""
         reasoning_content = extract_reasoning_content(response.choices[0].message)
@@ -235,6 +261,7 @@ class _ChatMixin:
             "usage": dict(response.usage) if response.usage else {},
             "input_tokens": response.usage.prompt_tokens,
             "output_tokens": response.usage.completion_tokens,
+            "cached_tokens": cached_tokens,
             "latency_ms": elapsed_ms,
             "model": response.model,
             "reasoning_content": reasoning_content,

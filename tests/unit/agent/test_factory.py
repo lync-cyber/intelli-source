@@ -64,6 +64,88 @@ class TestBuildAgentRunnerFactory:
         runner = build_agent_runner(**_kwargs())
         assert isinstance(runner._tool_registry, AgentToolRegistry)
 
+    def test_build_agent_runner_wires_event_logger_by_default(self) -> None:
+        """P1: the runtime event log is wired so pipeline_start / tool_call /
+        llm_call / pipeline_complete events actually persist (without an injected
+        logger AgentRunner._event_logger stays None and every _emit_* is inert).
+        """
+        from intellisource.agent.events import PipelineEventLogger
+        from intellisource.agent.factory import build_agent_runner
+
+        runner = build_agent_runner(**_kwargs())
+        assert isinstance(runner._event_logger, PipelineEventLogger)
+
+    def test_build_agent_runner_accepts_explicit_event_logger(self) -> None:
+        from intellisource.agent.events import PipelineEventLogger
+        from intellisource.agent.factory import build_agent_runner
+
+        custom = PipelineEventLogger(path="custom-pipeline-events.jsonl")
+        runner = build_agent_runner(event_logger=custom, **_kwargs())
+        assert runner._event_logger is custom
+
+
+class TestEventLoggerEmitsOnRun:
+    """P1: the wired logger actually fires during a run — not merely the right type.
+
+    The isinstance checks above prove the factory injects a logger; this proves
+    the loop reaches it, closing the gap where a wired-but-never-called logger
+    would still leave the runtime event stream silent.
+    """
+
+    @pytest.mark.asyncio
+    async def test_run_flexible_emits_pipeline_start_through_wired_logger(
+        self,
+    ) -> None:
+        from unittest.mock import AsyncMock
+
+        from intellisource.agent.events import PipelineEventLogger
+        from intellisource.agent.factory import build_agent_runner
+        from intellisource.config.pipeline_models import PipelineConfig
+        from intellisource.llm.gateway import LLMResult
+
+        class _SpyLogger(PipelineEventLogger):
+            def __init__(self) -> None:
+                self.starts = 0
+                self.llm_calls = 0
+
+            async def pipeline_start(self, **_: object) -> None:
+                self.starts += 1
+
+            async def llm_call(self, **_: object) -> None:
+                self.llm_calls += 1
+
+            async def tool_call(self, **_: object) -> None:
+                return None
+
+            async def pipeline_error(self, **_: object) -> None:
+                return None
+
+        spy = _SpyLogger()
+        kwargs = _kwargs()
+        gw = AsyncMock()
+        gw.chat.return_value = LLMResult(
+            content="done",
+            metadata={"tool_calls": None, "finish_reason": "stop", "usage": {}},
+        )
+        kwargs["llm_gateway"] = gw
+        runner = build_agent_runner(event_logger=spy, **kwargs)
+        config = PipelineConfig.from_dict(
+            {
+                "name": "emit-check",
+                "mode": "flexible",
+                "tools_allowed": [],
+                "tools_denied": [],
+                "steps": [],
+                "max_steps": 3,
+                "on_failure": "skip",
+            }
+        )
+
+        await runner.run_flexible(config, user_message="hi", session={})
+
+        assert spy.starts >= 1, "pipeline_start must fire through the wired logger"
+        assert spy.llm_calls >= 1, "llm_call must fire through the wired logger"
+
 
 # ---------------------------------------------------------------------------
 # AC-7: Returned AgentRunner's registry contains defaults + atomic tools

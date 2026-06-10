@@ -31,6 +31,7 @@ class ModelTaskConfig(BaseModel):
     max_tokens: PositiveInt | None = None
     thinking: ThinkingMode | None = None
     reasoning_effort: ReasoningEffort | None = None
+    fallback_models: list[str] = Field(default_factory=list)
 
 
 class ModelProfileConfig(BaseModel):

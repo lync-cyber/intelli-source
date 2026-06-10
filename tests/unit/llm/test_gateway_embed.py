@@ -125,6 +125,43 @@ class TestEmbedHappyPath:
         get_settings.cache_clear()
 
     @pytest.mark.asyncio
+    async def test_embed_returns_vector_from_dict_shaped_data(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """AC-6: litellm's dict-shaped data[0] ({"embedding": [...]}) also works.
+
+        embed() accepts both the object shape (data[0].embedding) and the dict
+        shape (data[0]["embedding"]); only the object path had coverage, so a
+        regression in the dict branch would have gone unnoticed.
+        """
+        from intellisource.core.settings import get_settings
+
+        monkeypatch.setenv("IS_EMBEDDING_API_BASE", _TEI_API_BASE)
+        monkeypatch.setenv("IS_EMBEDDING_API_KEY", _TEI_API_KEY)
+        get_settings.cache_clear()
+
+        gw = _gateway_with_routing(_OPENAI_ROUTING)
+        vec = [0.25] * 1024
+
+        async def fake_aembedding(**_kwargs: Any) -> Any:
+            resp = MagicMock()
+            resp.data = [{"embedding": vec}]
+            resp.usage = MagicMock()
+            resp.usage.prompt_tokens = 8
+            resp.usage.total_tokens = 8
+            resp.model = "openai/bge-m3"
+            return resp
+
+        monkeypatch.setattr(gw, "_aembedding", fake_aembedding, raising=False)
+
+        result = await gw.embed("hello dict shape")
+        assert isinstance(result, list)
+        assert len(result) == 1024
+        assert result[0] == 0.25
+
+        get_settings.cache_clear()
+
+    @pytest.mark.asyncio
     async def test_embed_empty_text_returns_none_without_call(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -179,6 +216,40 @@ class TestEmbedSwallowsFailures:
 
         result = await gw.embed("some content")
         assert result is None
+
+        get_settings.cache_clear()
+
+    @pytest.mark.asyncio
+    async def test_embed_retries_transient_error_then_succeeds(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """P4: a transient embed failure is retried (parity with chat/complete)."""
+        from tenacity import wait_none
+
+        from intellisource.core.settings import get_settings
+
+        monkeypatch.setenv("IS_EMBEDDING_API_BASE", _TEI_API_BASE)
+        monkeypatch.setenv("IS_EMBEDDING_API_KEY", _TEI_API_KEY)
+        get_settings.cache_clear()
+
+        gw = _gateway_with_routing(_OPENAI_ROUTING, _retry_wait=wait_none())
+        calls = {"n": 0}
+
+        class APIConnectionError(Exception):
+            pass
+
+        async def flaky(**_kwargs: Any) -> Any:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise APIConnectionError("connection reset")
+            return _make_embedding_response([0.5] * 1024)
+
+        monkeypatch.setattr(gw, "_aembedding", flaky, raising=False)
+
+        result = await gw.embed("hello")
+        assert result is not None
+        assert len(result) == 1024
+        assert calls["n"] == 2
 
         get_settings.cache_clear()
 

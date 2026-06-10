@@ -138,32 +138,43 @@ class TestRunPipeline:
 
 
 class TestSingleStepRetry:
-    """AC-034: Single-step failure can be retried independently."""
+    """AC-034 (narrowed): only transient infra errors (ConnectionError /
+    TimeoutError) are retried; a non-transient error fails fast so the
+    pipeline's collect/process/distribute side effects are never replayed."""
 
-    def test_single_step_failure_does_not_abort_pipeline(
+    def test_transient_failure_then_success_recovers(
         self, celery_tasks, mock_agent_runner
     ):
-        """When one step fails the pipeline should not entirely
-        abort -- the failure is isolated to that step."""
+        """A transient failure followed by success returns the success result."""
         mock_agent_runner.execute = AsyncMock(
             side_effect=[
-                RuntimeError("fetch step failed"),
+                ConnectionError("rss upstream reset"),
                 {"status": "success"},
             ]
         )
         result = celery_tasks.run_pipeline("news_collect", params={})
         assert isinstance(result, dict)
+        assert mock_agent_runner.execute.call_count == 2
 
-    def test_failed_step_is_retried_up_to_max(self, celery_tasks, mock_agent_runner):
-        """A failed step should be retried up to 3 times with
-        exponential backoff (arch 5.3)."""
+    def test_transient_error_is_retried_up_to_max(
+        self, celery_tasks, mock_agent_runner
+    ):
+        """A transient error is retried up to 3 times with exponential backoff."""
         mock_agent_runner.execute = AsyncMock(
-            side_effect=RuntimeError("transient error")
+            side_effect=ConnectionError("upstream down")
         )
-        with pytest.raises(RuntimeError):
+        with pytest.raises(ConnectionError):
             celery_tasks.run_pipeline("news_collect", params={})
         # 1 initial + 3 retries = 4 calls
         assert mock_agent_runner.execute.call_count == 4
+
+    def test_non_transient_error_fails_fast(self, celery_tasks, mock_agent_runner):
+        """A non-transient error is not retried: replaying execute() would
+        re-run the pipeline's already-applied side effects."""
+        mock_agent_runner.execute = AsyncMock(side_effect=RuntimeError("bad config"))
+        with pytest.raises(RuntimeError):
+            celery_tasks.run_pipeline("news_collect", params={})
+        assert mock_agent_runner.execute.call_count == 1
 
     def test_retry_backoff_constants(self):
         """Retry constants should match arch 5.3 spec."""
@@ -609,6 +620,34 @@ class TestEdgeCases:
 # ===================================================================
 
 
+class _StatefulGuard:
+    """Stateful IdempotencyGuard double: real Redis-like lock + success marker.
+
+    Backs R-005 with a faithful state machine instead of a call spy, so a
+    redelivery scenario is exercised end to end: acquire/release toggle a lock
+    set, mark_succeeded/was_succeeded toggle a durable marker set.
+    """
+
+    def __init__(self) -> None:
+        self.locks: set[str] = set()
+        self.markers: set[str] = set()
+
+    async def acquire(self, source_id: str, ttl: int = 300) -> bool:
+        if source_id in self.locks:
+            return False
+        self.locks.add(source_id)
+        return True
+
+    async def release(self, source_id: str) -> None:
+        self.locks.discard(source_id)
+
+    async def mark_succeeded(self, source_id: str, ttl: int = 86400) -> None:
+        self.markers.add(source_id)
+
+    async def was_succeeded(self, source_id: str) -> bool:
+        return source_id in self.markers
+
+
 class TestCollectTaskLifecycle:
     """run_pipeline advances CollectTask.status pending → running → success/
     failed via params['task_id'], guarded so it only steps from the expected
@@ -691,6 +730,55 @@ class TestCollectTaskLifecycle:
         failed_call = task_repo.update.call_args_list[-1]
         assert "boom" in str(failed_call.kwargs.get("error_message"))
 
+    def test_already_succeeded_task_short_circuits_redelivery(
+        self, mock_agent_runner, mock_pipeline_config
+    ):
+        """R-005: a Celery redelivery of an already-'success' task is skipped.
+
+        Side effects (content.create, chain advance, status writes) ran on the
+        first delivery; re-running them on a broker redelivery would duplicate
+        content, so a durable 'success' status short-circuits before execute().
+        """
+        import uuid
+
+        task_id = uuid.uuid4()
+        task_obj = SimpleNamespace(status="success")
+        chain_p, task_p, task_repo, factory = self._patches(task_obj)
+
+        with chain_p, task_p:
+            tasks = _make_celery_tasks_with_session_factory(
+                mock_agent_runner, mock_pipeline_config, factory
+            )
+            result = tasks.run_pipeline(
+                "news_collect", params={"task_id": str(task_id)}
+            )
+
+        assert result["status"] == "skipped"
+        assert result["reason"] == "already_succeeded"
+        mock_agent_runner.execute.assert_not_called()
+        task_repo.update.assert_not_called()
+
+    def test_force_redispatch_bypasses_already_succeeded_guard(
+        self, mock_agent_runner, mock_pipeline_config
+    ):
+        """force=True is an explicit re-run intent and overrides the guard."""
+        import uuid
+
+        task_id = uuid.uuid4()
+        task_obj = SimpleNamespace(status="success")
+        chain_p, task_p, _task_repo, factory = self._patches(task_obj)
+
+        with chain_p, task_p:
+            tasks = _make_celery_tasks_with_session_factory(
+                mock_agent_runner, mock_pipeline_config, factory
+            )
+            result = tasks.run_pipeline(
+                "news_collect", params={"task_id": str(task_id), "force": True}
+            )
+
+        assert result.get("reason") != "already_succeeded"
+        mock_agent_runner.execute.assert_called_once()
+
     def test_non_uuid_task_id_skips_status_write(
         self, mock_agent_runner, mock_pipeline_config
     ):
@@ -730,6 +818,8 @@ class TestCollectTaskLifecycle:
         guard = MagicMock()
         guard.acquire = AsyncMock(return_value=True)
         guard.release = AsyncMock()
+        guard.was_succeeded = AsyncMock(return_value=False)
+        guard.mark_succeeded = AsyncMock()
         mod = _import_tasks()
         tasks = mod.CeleryTasks(
             agent_runner=mock_agent_runner,
@@ -746,6 +836,8 @@ class TestCollectTaskLifecycle:
         guard = MagicMock()
         guard.acquire = AsyncMock(return_value=True)
         guard.release = AsyncMock()
+        guard.was_succeeded = AsyncMock(return_value=False)
+        guard.mark_succeeded = AsyncMock()
         mod = _import_tasks()
         tasks = mod.CeleryTasks(
             agent_runner=mock_agent_runner,
@@ -756,3 +848,49 @@ class TestCollectTaskLifecycle:
         tasks.run_pipeline("news_collect", params={"task_id": "t-1"})
 
         assert guard.release.await_count == 1
+
+    def test_durable_marker_short_circuits_redelivery_for_non_uuid_key(
+        self, mock_agent_runner, mock_pipeline_config
+    ):
+        """R-005: a non-UUID lock key's redelivery is skipped via the marker.
+
+        manual / source / fingerprint lock keys have no CollectTask row to
+        consult (no session_factory here), so a durable success marker is what
+        stops side effects re-applying when the broker redelivers the task.
+        """
+        guard = _StatefulGuard()
+        mod = _import_tasks()
+        tasks = mod.CeleryTasks(
+            agent_runner=mock_agent_runner,
+            pipeline_config=mock_pipeline_config,
+            idempotency_guard=guard,
+        )
+
+        first = tasks.run_pipeline("news_collect", params={"source_id": "s1"})
+        second = tasks.run_pipeline("news_collect", params={"source_id": "s1"})
+
+        assert first["status"] == "success"
+        assert second["status"] == "skipped"
+        assert second["reason"] == "already_succeeded"
+        assert mock_agent_runner.execute.await_count == 1
+        assert "news_collect:source:s1" in guard.markers
+
+    def test_force_bypasses_durable_marker(
+        self, mock_agent_runner, mock_pipeline_config
+    ):
+        """force=True re-runs even when a success marker already exists."""
+        guard = _StatefulGuard()
+        guard.markers.add("news_collect:source:s1")
+        mod = _import_tasks()
+        tasks = mod.CeleryTasks(
+            agent_runner=mock_agent_runner,
+            pipeline_config=mock_pipeline_config,
+            idempotency_guard=guard,
+        )
+
+        result = tasks.run_pipeline(
+            "news_collect", params={"source_id": "s1", "force": True}
+        )
+
+        assert result.get("reason") != "already_succeeded"
+        mock_agent_runner.execute.assert_called_once()
