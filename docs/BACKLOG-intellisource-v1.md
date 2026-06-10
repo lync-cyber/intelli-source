@@ -32,14 +32,9 @@ deps: []
 
 ## 剩余项目级真债（非阻塞，保留跟踪）
 
-### observability 候选烧债（2026-06-10 起，源自 2026-06-09 TEI/MCP 走查 scope 外项）
-
-- **B-067 [P1] TEI healthcheck start_period 偏小** — ✅ **DONE（[PR #106](https://github.com/lync-cyber/intelli-source/pull/106)，待合并）**。embedding 服务冷启拉 ONNX ~1105s，原 `start_period: 120s` 致瞬态 unhealthy 误报。修复：`docker/docker-compose.yml` embedding 服务 start_period → 1200s。
-- **B-068 [P2] process.py embedding 无 backfill 路径** — ✅ **DONE（[PR #106](https://github.com/lync-cyber/intelli-source/pull/106)，待合并，code-review approved_with_notes）**。[dev-plan-s10](dev-plan/dev-plan-intellisource-v1-s10.md)（approved）三卡：T-BF-1（`ContentRepository.list_missing_embeddings` + `backfill_embeddings` Celery 任务）/ T-BF-2（`POST /api/v1/content/backfill-embeddings` 端点 + `content backfill-embeddings` CLI）/ T-BF-3（process.py 内联回填 + 维度校验）。code-review 抓到并修复 1 CRITICAL（R-001 分页跳行）+ 3 HIGH。
-  - **⏳ 跟进（仍开放）**：backfill 端点为新公开 API 契约，当前仅内联于 dev-plan-s10；PR 合并后由 tech-lead 提交 arch-amendment 补录该端点（编号取下一可用，**API-026~API-029 已声明删除不可复用**），以 pre-deploy review 为硬性截止。
-- **B-069 [P1·验证] /health version 端到端实戳** — `/health` 端点已透传 `version`（`get_version()`→`HealthResult.version`），非代码缺陷；属验证缺口，**归 pre-deploy 走查步骤 15-17**（确认部署镜像下 version 非 `0.0.0+unknown` sentinel）。
-
-> 注：失败注入（走查步骤 18-20）+ 可观测性（步骤 15-17）2026-06-09 走查 scope=核心冒烟时未跑，prod 发布前需随 B-031 release-gate 一并补跑。
+- **[P2] arch-amendment — backfill 端点补录**：`POST /api/v1/content/backfill-embeddings`（B-068 引入）当前仅 dev-plan-s10 内联契约，arch 文档未录。[PR #106](https://github.com/lync-cyber/intelli-source/pull/106) 合并后由 tech-lead 补录 arch（编号取下一可用，**API-026~API-029 已声明删除不可复用**），以 pre-deploy review 为硬截止。
+- **[P1·验证] /health version 端到端实戳**（B-069）：`/health` 已透传 `version`（`get_version()`→`HealthResult.version`），非代码缺陷；归 pre-deploy 走查步骤 15-17，确认部署镜像下 version 非 `0.0.0+unknown`。
+- **[P1·验证] pre-deploy 走查 15-20 补跑**：可观测性(15-17) + 失败注入(18-20) 在近期走查 scope=核心冒烟时未跑，prod 发布前随 B-031 release-gate 一并补跑。
 
 ---
 
@@ -58,3 +53,4 @@ deps: []
 - **PR #95 ~ #101**：B-064 / B-065 / B-066 / TaskChain 进度回填（PR #96）+ chat CLI/web 前端 + agent 控制面统一（stream/non-stream + CLI/web 收敛）+ config/prompt SSOT 治理 + P0/P1/P2 安全加固 + agent/tools 包化重构 + MCP CLI 模块拆分
 - **PR #102**：BGE-M3 本地 embedding（T-EMB-1/2/3）—— `_embed.py` 经 TEI 路由（api_base/key/dimension 走 Settings）+ 向量列 1536→1024 迁移（`g0h1i2j3k4l5`）+ 查询侧/RAG semantic 接线（`HybridSearchEngine` 注入 gateway）+ docker-compose TEI 服务（CPU 默认/GPU override）+ 文档同步。code-review approved（[T-EMB-1](reviews/code/CODE-REVIEW-T-EMB-1-r1.md) / [T-EMB-2](reviews/code/CODE-REVIEW-T-EMB-2-r1.md)）。
 - **T-MCP-GW**：MCP 默认 search factory 懒注入进程级 `LLMGateway` 单例（`_default_llm_gateway()`，`redis=None` + `session_factory=_default_session_factory`），MCP 搜索从 keyword-only 升级 semantic/hybrid（调用方 `build_mcp_server(search_engine_factory=...)` 覆盖优先级保留）。code-review approved（[T-MCP-GW](reviews/code/CODE-REVIEW-T-MCP-GW-r1.md)）
+- **PR #106（待合并）**：B-067（TEI healthcheck start_period 120s→1200s）+ B-068（embedding backfill：`list_missing_embeddings` + `backfill_embeddings` Celery 任务 + `POST /content/backfill-embeddings` 端点 + `content backfill-embeddings` CLI + process.py 内联回填）。code-review 抓 1 CRITICAL（R-001 分页跳行）+ 3 HIGH，approved_with_notes（[code-review r2](reviews/code/CODE-REVIEW-T-BF-backfill-r2.md)）
