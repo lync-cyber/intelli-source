@@ -49,6 +49,8 @@ def _make_idempotency_guard(acquire_return: bool = True) -> MagicMock:
     guard = MagicMock()
     guard.acquire = AsyncMock(return_value=acquire_return)
     guard.release = AsyncMock(return_value=None)
+    guard.was_succeeded = AsyncMock(return_value=False)
+    guard.mark_succeeded = AsyncMock(return_value=None)
     return guard
 
 
@@ -152,6 +154,8 @@ class TestIdempotencyWiringAC3:
             return True
 
         guard.acquire = AsyncMock(side_effect=_acquire_side_effect)
+        guard.was_succeeded = AsyncMock(return_value=False)
+        guard.mark_succeeded = AsyncMock(return_value=None)
 
         checker = MagicMock()
 

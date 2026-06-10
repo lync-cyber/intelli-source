@@ -11,6 +11,10 @@ from __future__ import annotations
 
 from typing import Any, TypedDict
 
+from intellisource.config.constants import (
+    DEFAULT_LLM_TIMEOUT_S,
+    DEFAULT_TOOL_TIMEOUT_S,
+)
 from intellisource.core.encoding import read_text
 
 _VALID_MODES = ("strict", "flexible", "batch")
@@ -56,6 +60,8 @@ class PipelineConfig:
         max_tokens_budget: int | None = None,
         agent_mode: str = "process",
         tool_permissions: dict[str, str] | None = None,
+        llm_timeout_s: float | None = DEFAULT_LLM_TIMEOUT_S,
+        tool_timeout_s: float | None = DEFAULT_TOOL_TIMEOUT_S,
     ) -> None:
         self._name = name
         self._mode = mode
@@ -68,6 +74,8 @@ class PipelineConfig:
         self._max_tokens_budget = max_tokens_budget
         self._agent_mode = agent_mode
         self._tool_permissions: dict[str, str] = tool_permissions or {}
+        self._llm_timeout_s = llm_timeout_s
+        self._tool_timeout_s = tool_timeout_s
 
     # -- properties --------------------------------------------------
 
@@ -121,6 +129,16 @@ class PipelineConfig:
     def tool_permissions(self) -> dict[str, str]:
         return self._tool_permissions
 
+    @property
+    def llm_timeout_s(self) -> float | None:
+        """Per-turn ceiling for an LLM call (seconds); None / <=0 disables it."""
+        return self._llm_timeout_s
+
+    @property
+    def tool_timeout_s(self) -> float | None:
+        """Per-call ceiling for a tool invocation (seconds); None / <=0 disables it."""
+        return self._tool_timeout_s
+
     # -- factory methods ---------------------------------------------
 
     @classmethod
@@ -170,6 +188,8 @@ class PipelineConfig:
             max_tokens_budget=data.get("max_tokens_budget"),
             agent_mode=agent_mode,
             tool_permissions=tool_permissions,
+            llm_timeout_s=data.get("llm_timeout_s", DEFAULT_LLM_TIMEOUT_S),
+            tool_timeout_s=data.get("tool_timeout_s", DEFAULT_TOOL_TIMEOUT_S),
         )
 
     @classmethod

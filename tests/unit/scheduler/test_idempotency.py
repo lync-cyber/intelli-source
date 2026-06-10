@@ -197,6 +197,57 @@ class TestIdempotencyGuardRelease:
         await guard.release("source-missing")
 
 
+class TestIdempotencyGuardSuccessMarker:
+    """R-005: durable success marker covers non-UUID lock-key redelivery."""
+
+    def test_result_marker_constants(self):
+        """RESULT_MARKER_PREFIX + a TTL outliving the broker visibility timeout."""
+        mod = _import_idempotency()
+        assert mod.RESULT_MARKER_PREFIX == "idempotency:result:"
+        # Default broker visibility timeout is 3600s; the marker must outlive it
+        # so a redelivery inside that window still sees "already done".
+        assert mod.RESULT_MARKER_TTL > 3600
+
+    @pytest.mark.asyncio
+    async def test_mark_succeeded_sets_result_key_with_long_ttl(self, mock_redis):
+        """mark_succeeded writes a result marker keyed by the lock key + TTL."""
+        mock_redis.set = AsyncMock(return_value=True)
+        guard = _make_guard(mock_redis)
+        await guard.mark_succeeded("news_collect:source:s1")
+        mock_redis.set.assert_called_once()
+        key_arg = mock_redis.set.call_args[0][0]
+        assert "idempotency:result:" in str(key_arg)
+        kwargs = mock_redis.set.call_args[1] or {}
+        assert (kwargs.get("ex") or kwargs.get("EX") or 0) > 3600
+
+    @pytest.mark.asyncio
+    async def test_mark_succeeded_overwrites_not_nx(self, mock_redis):
+        """A forced re-run refreshes the marker, so SET must not be NX-guarded."""
+        mock_redis.set = AsyncMock(return_value=True)
+        guard = _make_guard(mock_redis)
+        await guard.mark_succeeded("k")
+        kwargs = mock_redis.set.call_args[1] or {}
+        assert not kwargs.get("nx")
+
+    @pytest.mark.asyncio
+    async def test_was_succeeded_true_when_marker_present(self, mock_redis):
+        """A live marker means the task already completed."""
+        mock_redis.get = AsyncMock(return_value="1")
+        guard = _make_guard(mock_redis)
+        result = await guard.was_succeeded("news_collect:source:s1")
+        assert result is True
+        key_arg = mock_redis.get.call_args[0][0]
+        assert "idempotency:result:" in str(key_arg)
+
+    @pytest.mark.asyncio
+    async def test_was_succeeded_false_when_marker_absent(self, mock_redis):
+        """No marker means the task has not completed under this key."""
+        mock_redis.get = AsyncMock(return_value=None)
+        guard = _make_guard(mock_redis)
+        result = await guard.was_succeeded("k")
+        assert result is False
+
+
 # ===================================================================
 # FingerprintChecker — content fingerprint dedup (AC-T029-3)
 # ===================================================================

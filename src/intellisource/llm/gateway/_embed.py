@@ -55,8 +55,9 @@ class _EmbedMixin:
             return None
 
         start = time.monotonic()
-        try:
-            response = await self._aembedding(
+
+        async def _embed_call() -> Any:
+            return await self._aembedding(
                 model=model,
                 input=text,
                 api_base=api_base,
@@ -64,6 +65,18 @@ class _EmbedMixin:
                 # TEI's /v1/embeddings serde rejects litellm's default
                 # encoding_format token; pin "float" or every embed 400s.
                 encoding_format="float",
+            )
+
+        try:
+            # Same transient-retry policy as chat/complete, but embed has its own
+            # graceful-degrade contract (None, never raise) and stays out of the
+            # chat circuit breaker so an embedding outage never trips it.
+            response = await self._unified_call_with_retry(
+                _embed_call,
+                model=model,
+                call_type="embed",
+                enable_circuit_breaker=False,
+                task_type="embed",
             )
         except Exception:
             logger.warning(

@@ -7,6 +7,7 @@ import uuid
 from typing import Any, Callable, Coroutine
 
 from intellisource.agent.deps import ToolDeps
+from intellisource.agent.observer import LoopObserver
 from intellisource.agent.step_params import build_step_params, merge_step_output
 from intellisource.agent.tools import ToolDefinition
 from intellisource.observability.logging import get_logger
@@ -26,15 +27,11 @@ class StrictExecutor:
     def __init__(
         self,
         tool_registry: Any,
-        emit_pipeline_start: Callable[..., Coroutine[Any, Any, None]],
-        emit_tool_call: Callable[..., Coroutine[Any, Any, None]],
-        emit_pipeline_error: Callable[..., Coroutine[Any, Any, None]],
+        observer: LoopObserver,
         persist: Callable[..., Coroutine[Any, Any, dict[str, Any]]],
     ) -> None:
         self._tool_registry = tool_registry
-        self._emit_pipeline_start = emit_pipeline_start
-        self._emit_tool_call = emit_tool_call
-        self._emit_pipeline_error = emit_pipeline_error
+        self._observer = observer
         self._persist = persist
 
     async def run(
@@ -50,7 +47,7 @@ class StrictExecutor:
         step_context: dict[str, Any] = dict(params)
         chain_id = str(uuid.uuid4())
 
-        await self._emit_pipeline_start(config.name, chain_id, "strict")
+        await self._observer.pipeline_start(config.name, chain_id, "strict")
 
         try:
             for step in config.steps:
@@ -69,7 +66,7 @@ class StrictExecutor:
                     result = await tool_fn(**step_params)
                     if isinstance(result, dict) and result.get("status") == "degraded":
                         reason = result.get("reason", "")
-                        await self._emit_tool_call(
+                        await self._observer.tool_call(
                             config.name,
                             chain_id,
                             tool_name,
@@ -77,7 +74,7 @@ class StrictExecutor:
                             "error",
                             error=f"degraded: {reason}",
                         )
-                        await self._emit_pipeline_error(
+                        await self._observer.pipeline_error(
                             config.name,
                             chain_id,
                             f"tool {tool_name} degraded: {reason}",
@@ -85,7 +82,7 @@ class StrictExecutor:
                         raise ToolDegradedError(
                             f"tool {tool_name} returned degraded: {reason}"
                         )
-                    await self._emit_tool_call(
+                    await self._observer.tool_call(
                         config.name,
                         chain_id,
                         tool_name,
@@ -97,7 +94,7 @@ class StrictExecutor:
                 except ToolDegradedError:
                     raise
                 except Exception as exc:
-                    await self._emit_tool_call(
+                    await self._observer.tool_call(
                         config.name,
                         chain_id,
                         tool_name,
@@ -139,7 +136,7 @@ class StrictExecutor:
                 task_chain_id=chain_id,
             )
         except Exception as exc:
-            await self._emit_pipeline_error(config.name, chain_id, str(exc))
+            await self._observer.pipeline_error(config.name, chain_id, str(exc))
             raise
 
 

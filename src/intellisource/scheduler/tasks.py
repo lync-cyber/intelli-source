@@ -173,6 +173,34 @@ class CeleryTasks:
                 exc,
             )
 
+    def _already_succeeded(self, raw_task_id: Any) -> bool:
+        """True when this CollectTask already reached ``success``.
+
+        A Celery redelivery (broker visibility timeout, or a late-ack worker
+        killed after the run finished) re-runs a task whose side effects already
+        applied. A durable ``success`` status means there is nothing to redo, so
+        the run short-circuits before execute(). Only CollectTask-backed runs (a
+        real ``task_id`` UUID) are guarded; non-UUID lock keys have no row to
+        consult and fall through. Read errors fail open (return False) so a
+        status-store hiccup never silently drops a legitimate run.
+        """
+        if self._session_factory is None:
+            return False
+        uid = _parse_uuid_param(raw_task_id)
+        if uid is None:
+            return False
+
+        async def _do() -> bool:
+            async with self._repo_session(TaskRepository) as repo:
+                task = await repo.get_by_id(uid)
+                return task is not None and task.status == "success"
+
+        try:
+            return bool(_run_sync(_do()))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("CollectTask status read failed task=%s: %s", uid, exc)
+            return False
+
     def _create_chain(
         self,
         *,
@@ -267,6 +295,21 @@ class CeleryTasks:
         fingerprint: str = params.get("fingerprint", "")
         lock_acquired = False
 
+        # A broker redelivery re-runs an already-completed task; skip before the
+        # lock so its side effects are not replayed. A forced re-dispatch is an
+        # explicit re-run, so it bypasses the guard (as it does the lock dedup).
+        # Two complementary records: the CollectTask status (authoritative for a
+        # real task_id UUID) and a durable Redis marker keyed by the lock key,
+        # which also covers non-UUID lock keys (manual / source / fingerprint)
+        # that have no CollectTask row to consult.
+        if not params.get("force"):
+            if self._already_succeeded(params.get("task_id")):
+                return {"status": "skipped", "reason": "already_succeeded"}
+            if self._idempotency_guard is not None and _run_sync(
+                self._idempotency_guard.was_succeeded(task_id)
+            ):
+                return {"status": "skipped", "reason": "already_succeeded"}
+
         if self._idempotency_guard is not None:
             # A resume re-dispatch (params["force"]) clears any stale lock left by
             # the run that was revoked on pause — without it the resumed run would
@@ -323,46 +366,66 @@ class CeleryTasks:
                 params.get("task_id"), "running", only_from=("pending",)
             )
 
+            # Retry only execute(), and only on stdlib socket-level transients
+            # (ConnectionError / TimeoutError). Division of responsibility: the
+            # LLM gateway already retries its own transients (litellm wraps them
+            # as openai.APIConnectionError / httpx.ConnectError, which do NOT
+            # subclass stdlib ConnectionError), so retrying those here too would
+            # double-retry and replay collect/process/distribute side effects.
+            # Everything else fails fast.
+            result: Any = None
+            succeeded = False
             last_error: Exception | None = None
             for attempt in range(1 + MAX_RETRIES):
                 try:
                     result = _run_sync(
                         self._agent_runner.execute(config, params=params)
                     )
-                    if self._content_repository is not None:
-                        _run_sync(self._content_repository.create(result))
-                    if self._fingerprint_checker is not None and fingerprint:
-                        content_id = (
-                            result.get("content_id")
-                            if isinstance(result, dict)
-                            else None
-                        )
-                        _run_sync(
-                            self._fingerprint_checker.record(fingerprint, content_id)
-                        )
-                    if chain_id is not None:
-                        self._update_chain_status(
-                            chain_id, "success", completed_steps=total_steps
-                        )
-                    self._set_task_status(
-                        params.get("task_id"), "success", only_from=("running",)
-                    )
-                    return dict(result)
-                except Exception as exc:
+                    succeeded = True
+                    break
+                except (ConnectionError, TimeoutError) as exc:
                     last_error = exc
                     if attempt < MAX_RETRIES:
                         _run_sync(asyncio.sleep(RETRY_BACKOFF_BASE * (2**attempt)))
+                except Exception as exc:
+                    last_error = exc
+                    break
 
+            if not succeeded:
+                if chain_id is not None:
+                    self._update_chain_status(chain_id, "failed")
+                self._set_task_status(
+                    params.get("task_id"),
+                    "failed",
+                    only_from=("running",),
+                    error_message=str(last_error) if last_error else None,
+                )
+                raise last_error or RuntimeError(
+                    "pipeline run failed without a captured exception"
+                )
+
+            # Side effects run once per delivery, outside the retry loop, so a
+            # transient execute() retry never replays them. Across a Celery
+            # redelivery the entry guard prevents a second application: the
+            # CollectTask status for a real task_id, plus the durable success
+            # marker (written below) that also covers non-UUID lock keys.
+            if self._content_repository is not None:
+                _run_sync(self._content_repository.create(result))
+            if self._fingerprint_checker is not None and fingerprint:
+                content_id = (
+                    result.get("content_id") if isinstance(result, dict) else None
+                )
+                _run_sync(self._fingerprint_checker.record(fingerprint, content_id))
             if chain_id is not None:
-                self._update_chain_status(chain_id, "failed")
+                self._update_chain_status(
+                    chain_id, "success", completed_steps=total_steps
+                )
             self._set_task_status(
-                params.get("task_id"),
-                "failed",
-                only_from=("running",),
-                error_message=str(last_error) if last_error else None,
+                params.get("task_id"), "success", only_from=("running",)
             )
-
-            raise last_error  # type: ignore[misc]
+            if self._idempotency_guard is not None:
+                _run_sync(self._idempotency_guard.mark_succeeded(task_id))
+            return dict(result)
         finally:
             if self._idempotency_guard is not None and lock_acquired:
                 _run_sync(self._idempotency_guard.release(task_id))

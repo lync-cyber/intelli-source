@@ -17,6 +17,7 @@ Security-sensitive coverage:
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -708,3 +709,129 @@ class TestT086ChatRetry:
         assert "response_format" not in captured_kwargs[1], (
             "Second call should not contain 'response_format'"
         )
+
+
+class TestChatModelFailover:
+    """P4: chat() tries the configured fallback model after the primary fails."""
+
+    @pytest.mark.asyncio
+    async def test_chat_fails_over_to_configured_fallback_model(self) -> None:
+        """A transient primary-model failure falls over to the fallback model."""
+        from tenacity import wait_none
+
+        from intellisource.llm.gateway import LLMResult
+
+        gw = _make_gateway(_retry_wait=wait_none())
+        primary = gw._model_routing.get_model("chat")["model"]
+        fallbacks = gw._model_routing.get_fallback_models("chat")
+        assert fallbacks, "test requires a configured chat fallback model"
+
+        seen: list[str] = []
+
+        class APIConnectionError(Exception):
+            pass
+
+        async def fake_acompletion(**kwargs: object) -> object:
+            seen.append(str(kwargs["model"]))
+            if kwargs["model"] == primary:
+                raise APIConnectionError("primary down")
+            return _make_litellm_response(content="from fallback")
+
+        with patch("intellisource.llm.gateway.litellm") as mock_litellm:
+            mock_litellm.acompletion = AsyncMock(side_effect=fake_acompletion)
+            mock_litellm.token_counter = MagicMock(return_value=10)
+            result = await gw.chat(messages=_SAMPLE_MESSAGES, tools=None)
+
+        assert isinstance(result, LLMResult)
+        assert result.content == "from fallback"
+        assert seen[0] == primary
+        assert fallbacks[0] in seen
+
+    @pytest.mark.asyncio
+    async def test_failover_success_metric_records_actual_model_not_primary(
+        self,
+    ) -> None:
+        """The success counter must name the fallback that answered, not the
+        primary that failed — else failover rate is masked under the primary."""
+        from tenacity import wait_none
+
+        gw = _make_gateway(_retry_wait=wait_none())
+        primary = gw._model_routing.get_model("chat")["model"]
+        fallbacks = gw._model_routing.get_fallback_models("chat")
+        assert fallbacks, "test requires a configured chat fallback model"
+
+        class APIConnectionError(Exception):
+            pass
+
+        async def fake_acompletion(**kwargs: object) -> object:
+            if kwargs["model"] == primary:
+                raise APIConnectionError("primary down")
+            return _make_litellm_response(content="from fallback")
+
+        records: list[tuple[bool, str]] = []
+
+        def _spy_record(**kwargs: object) -> None:
+            records.append((bool(kwargs["success"]), str(kwargs["model"])))
+
+        with patch("intellisource.llm.gateway.litellm") as mock_litellm:
+            mock_litellm.acompletion = AsyncMock(side_effect=fake_acompletion)
+            mock_litellm.token_counter = MagicMock(return_value=10)
+            with patch("intellisource.llm.gateway._chat._record_llm_call", _spy_record):
+                await gw.chat(messages=_SAMPLE_MESSAGES, tools=None)
+
+        success_models = [model for ok, model in records if ok]
+        assert success_models == [fallbacks[0]], (
+            f"success metric must record fallback model, got {success_models}"
+        )
+
+
+class TestPromptCacheObservability:
+    """P12: provider prompt-cache hits are extracted, surfaced, and metered."""
+
+    def test_extract_cached_tokens_from_object_usage(self) -> None:
+        from intellisource.llm.gateway._metrics import _extract_cached_tokens
+
+        usage = SimpleNamespace(prompt_tokens_details=SimpleNamespace(cached_tokens=40))
+        assert _extract_cached_tokens(usage) == 40
+
+    def test_extract_cached_tokens_from_dict_usage(self) -> None:
+        from intellisource.llm.gateway._metrics import _extract_cached_tokens
+
+        assert (
+            _extract_cached_tokens({"prompt_tokens_details": {"cached_tokens": 12}})
+            == 12
+        )
+
+    def test_extract_cached_tokens_absent_or_malformed_is_zero(self) -> None:
+        from intellisource.llm.gateway._metrics import _extract_cached_tokens
+
+        assert _extract_cached_tokens(SimpleNamespace(prompt_tokens_details=None)) == 0
+        assert _extract_cached_tokens(SimpleNamespace()) == 0
+        assert _extract_cached_tokens(None) == 0
+        assert (
+            _extract_cached_tokens(
+                SimpleNamespace(prompt_tokens_details=SimpleNamespace())
+            )
+            == 0
+        )
+
+    @pytest.mark.asyncio
+    async def test_chat_surfaces_and_meters_cached_tokens(self) -> None:
+        """chat() exposes cached_tokens in metadata and meters it per model."""
+        gw = _make_gateway()
+        resp = _make_litellm_response(content="hi")
+        resp.usage.prompt_tokens_details.cached_tokens = 8
+        recorded: list[tuple[str, int]] = []
+
+        def _spy(model: str, cached_tokens: int) -> None:
+            recorded.append((model, cached_tokens))
+
+        with patch("intellisource.llm.gateway.litellm") as mock_litellm:
+            mock_litellm.acompletion = AsyncMock(return_value=resp)
+            with patch(
+                "intellisource.llm.gateway._chat._record_prompt_cache_hit", _spy
+            ):
+                result = await gw.chat(messages=_SAMPLE_MESSAGES, tools=None)
+
+        assert result.metadata.get("cached_tokens") == 8
+        assert recorded and recorded[-1][1] == 8

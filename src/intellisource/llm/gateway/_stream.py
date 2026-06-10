@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 from intellisource.core.errors import ErrorCategory, LLMError
 from intellisource.llm.cost_tracker import LLMCallRecord
 from intellisource.llm.gateway._metrics import _record_llm_call
-from intellisource.llm.gateway._routing import resolve_model
+from intellisource.llm.gateway._routing import resolve_model, run_with_model_failover
 from intellisource.observability.logging import get_logger
 
 if TYPE_CHECKING:
@@ -58,37 +58,78 @@ class _StreamMixin:
             self._routing_config, model, task_type, fallback_default=True
         )
 
-        call_kwargs = self._prepare_litellm_kwargs(
-            resolved_model=resolved_model,
-            prompt=prompt,
-            messages=messages,
-            system_prompt=system_prompt,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            task_type=task_type,
-            stream=True,
-            response_format=None,
-        )
-        if tools is not None:
-            call_kwargs["tools"] = tools
-        call_messages = call_kwargs["messages"]
+        def _stream_kwargs(model_id: str) -> dict[str, Any]:
+            ck = self._prepare_litellm_kwargs(
+                resolved_model=model_id,
+                prompt=prompt,
+                messages=messages,
+                system_prompt=system_prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                task_type=task_type,
+                stream=True,
+                response_format=None,
+            )
+            if tools is not None:
+                ck["tools"] = tools
+            return ck
+
+        call_messages = _stream_kwargs(resolved_model)["messages"]
 
         start_time = time.monotonic()
         accumulated_content = ""
         input_tokens = 0
         output_tokens = 0
-        final_model = resolved_model
         tool_call_parts: dict[int, dict[str, str]] = {}
         finish_reason = ""
 
-        try:
-            response = await self._unified_call_with_retry(
-                lambda: self._acompletion(**call_kwargs),
-                model=resolved_model,
-                call_type="stream",
-                enable_circuit_breaker=True,
-                task_type=task_type,
+        async def _establish(model_id: str) -> Any:
+            try:
+                return await self._unified_call_with_retry(
+                    lambda: self._acompletion(**_stream_kwargs(model_id)),
+                    model=model_id,
+                    call_type="stream",
+                    enable_circuit_breaker=True,
+                    task_type=task_type,
+                )
+            except Exception as exc:
+                # tools-present UnsupportedParams is UNRECOVERABLE — converting it
+                # stops the failover sweep rather than trying the next model.
+                if type(exc).__name__ == "UnsupportedParamsError" and tools is not None:
+                    raise LLMError(
+                        f"模型 {model_id!r} 不支持 tools/function calling；"
+                        "拒绝静默降级（会使 agent 退化为无工具幻觉）",
+                        category=ErrorCategory.UNRECOVERABLE,
+                    ) from exc
+                raise
+
+        # Fail over only while establishing the stream — once content has been
+        # yielded a half-sent answer can't switch models.
+        models_to_try = [resolved_model]
+        if task_type is not None:
+            models_to_try.extend(self._model_routing.get_fallback_models(task_type))
+
+        def _on_establish_failure(model_id: str, _exc: BaseException) -> None:
+            _record_llm_call(
+                latency_seconds=time.monotonic() - start_time,
+                success=False,
+                model=model_id,
             )
+
+        try:
+            response, resolved_model = await run_with_model_failover(
+                models_to_try, _establish, on_failure=_on_establish_failure
+            )
+        except asyncio.CancelledError:
+            _record_llm_call(
+                latency_seconds=time.monotonic() - start_time,
+                success=False,
+                model=resolved_model,
+            )
+            return
+        final_model = resolved_model
+
+        try:
             async for chunk in response:
                 delta_content = ""
                 try:
@@ -123,18 +164,12 @@ class _StreamMixin:
                 model=resolved_model,
             )
             return
-        except BaseException as exc:
+        except BaseException:
             _record_llm_call(
                 latency_seconds=time.monotonic() - start_time,
                 success=False,
                 model=resolved_model,
             )
-            if type(exc).__name__ == "UnsupportedParamsError" and tools is not None:
-                raise LLMError(
-                    f"模型 {resolved_model!r} 不支持 tools/function calling；"
-                    "拒绝静默降级（会使 agent 退化为无工具幻觉）",
-                    category=ErrorCategory.UNRECOVERABLE,
-                ) from exc
             raise
 
         if input_tokens == 0:

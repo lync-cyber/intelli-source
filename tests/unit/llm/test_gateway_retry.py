@@ -205,6 +205,90 @@ class TestNoRetryOnNonTransient:
 
 
 # ---------------------------------------------------------------------------
+# T4-1c: complete() model failover (parity with chat())
+# ---------------------------------------------------------------------------
+
+_FAILOVER_CONFIG: dict[str, Any] = {
+    "default_model": {"model": "primary/m", "provider": "p"},
+    "models": {
+        "summarize": {
+            "model": "primary/m",
+            "provider": "p",
+            "fallback_models": ["fallback/m"],
+        },
+    },
+    "profiles": {},
+}
+
+
+class TestCompleteModelFailover:
+    async def test_complete_fails_over_to_configured_fallback_model(self) -> None:
+        """A primary-model failure falls over to the task's configured fallback."""
+        gw = _make_gateway(config=_FAILOVER_CONFIG, retry_wait=wait_fixed(0))
+        success_resp = _make_litellm_response("from fallback")
+        seen: list[str] = []
+
+        async def fake_acompletion(**kwargs: Any) -> Any:
+            seen.append(str(kwargs["model"]))
+            if kwargs["model"] == "primary/m":
+                raise RuntimeError("primary down")  # DEGRADED → fail over, no retry
+            return success_resp
+
+        with patch("intellisource.llm.gateway.litellm") as mock_litellm:
+            mock_litellm.acompletion = AsyncMock(side_effect=fake_acompletion)
+            mock_litellm.token_counter = MagicMock(return_value=10)
+            result = await gw.complete(prompt="test", task_type="summarize")
+
+        assert result.content == "from fallback"
+        assert seen == ["primary/m", "fallback/m"]
+
+
+class TestStreamModelFailover:
+    async def test_stream_fails_over_to_fallback_model(self) -> None:
+        """A stream-establishment failure falls over to the configured fallback."""
+        gw = _make_gateway(config=_FAILOVER_CONFIG, retry_wait=wait_fixed(0))
+        seen: list[str] = []
+
+        class _AsyncIter:
+            def __init__(self, items: list[Any]) -> None:
+                self._it = iter(items)
+
+            def __aiter__(self) -> "_AsyncIter":
+                return self
+
+            async def __anext__(self) -> Any:
+                try:
+                    return next(self._it)
+                except StopIteration:
+                    raise StopAsyncIteration from None
+
+        def _chunk(text: str) -> MagicMock:
+            m = MagicMock()
+            m.choices = [MagicMock()]
+            m.choices[0].delta = MagicMock(content=text)
+            m.usage = None
+            m.model = "fallback/m"
+            return m
+
+        async def fake_acompletion(**kwargs: Any) -> Any:
+            seen.append(str(kwargs["model"]))
+            if kwargs["model"] == "primary/m":
+                raise RuntimeError("primary stream down")  # DEGRADED → fail over
+            return _AsyncIter([_chunk("hi")])
+
+        with patch("intellisource.llm.gateway.litellm") as mock_litellm:
+            mock_litellm.acompletion = AsyncMock(side_effect=fake_acompletion)
+            mock_litellm.token_counter = MagicMock(return_value=10)
+            events = [
+                e async for e in gw.stream_complete(prompt="x", task_type="summarize")
+            ]
+
+        contents = "".join(str(e.get("content", "")) for e in events)
+        assert "hi" in contents
+        assert seen == ["primary/m", "fallback/m"]
+
+
+# ---------------------------------------------------------------------------
 # AC-T057-4: FallbackManager.execute_fallback() after retries exhausted
 # ---------------------------------------------------------------------------
 

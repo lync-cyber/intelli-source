@@ -218,10 +218,13 @@ class TestGatewayTruncationIntegration:
         from intellisource.llm.gateway import LLMGateway
 
         long_prompt = "word " * 50000
-        with patch("intellisource.llm.gateway.litellm") as mock_litellm:
+        with (
+            patch("intellisource.llm.gateway.litellm") as mock_litellm,
+            patch("intellisource.llm.gateway._compaction.litellm") as mock_estimate,
+        ):
             mock_litellm.acompletion = AsyncMock(return_value=mock_litellm_response)
-            # token_counter returns high value to trigger truncation
-            mock_litellm.token_counter = MagicMock(return_value=100000)
+            # estimate_tokens consults token_counter; high value triggers truncation
+            mock_estimate.token_counter = MagicMock(return_value=100000)
             gw = LLMGateway()
             result = await gw.complete(
                 prompt=long_prompt,
@@ -243,9 +246,12 @@ class TestGatewayTruncationIntegration:
         from intellisource.llm.gateway import LLMGateway
 
         prompt = "short prompt"
-        with patch("intellisource.llm.gateway.litellm") as mock_litellm:
+        with (
+            patch("intellisource.llm.gateway.litellm") as mock_litellm,
+            patch("intellisource.llm.gateway._compaction.litellm") as mock_estimate,
+        ):
             mock_litellm.acompletion = AsyncMock(return_value=mock_litellm_response)
-            mock_litellm.token_counter = MagicMock(return_value=5)
+            mock_estimate.token_counter = MagicMock(return_value=5)
             gw = LLMGateway()
             await gw.complete(prompt=prompt, model="gpt-4o-mini")
         call_kwargs = mock_litellm.acompletion.call_args.kwargs
@@ -262,11 +268,13 @@ class TestGatewayTruncationIntegration:
         prompt = "word " * 50000
         with (
             patch("intellisource.llm.gateway.litellm") as mock_litellm,
+            patch("intellisource.llm.gateway._compaction.litellm") as mock_estimate,
             patch("intellisource.llm.prompt_builder.litellm") as mock_pb_litellm,
         ):
             mock_litellm.acompletion = AsyncMock(return_value=mock_litellm_response)
-            # 110000 > 80% of 128000 (=102400) for gpt-4o-mini
-            mock_litellm.token_counter = MagicMock(return_value=110000)
+            # 110000 > 80% of 128000 (=102400) for gpt-4o-mini; consulted by
+            # estimate_tokens (gateway _CompactionMixin) to decide truncation
+            mock_estimate.token_counter = MagicMock(return_value=110000)
             mock_pb_litellm.token_counter = MagicMock(return_value=110000)
             gw = LLMGateway()
             result = await gw.complete(prompt=prompt, model="gpt-4o-mini")
@@ -285,10 +293,11 @@ class TestGatewayTruncationIntegration:
         prompt = "word " * 50000
         with (
             patch("intellisource.llm.gateway.litellm") as mock_litellm,
+            patch("intellisource.llm.gateway._compaction.litellm") as mock_estimate,
             patch("intellisource.llm.gateway.logger") as mock_logger,
         ):
             mock_litellm.acompletion = AsyncMock(return_value=mock_litellm_response)
-            mock_litellm.token_counter = MagicMock(return_value=110000)
+            mock_estimate.token_counter = MagicMock(return_value=110000)
             gw = LLMGateway()
             await gw.complete(
                 prompt=prompt,

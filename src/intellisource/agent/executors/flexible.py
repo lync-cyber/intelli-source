@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import json
 import time
 import uuid
@@ -10,9 +12,16 @@ from typing import Any, AsyncGenerator, Callable, Coroutine
 
 from intellisource.agent.deps import ToolDeps
 from intellisource.agent.executors.strict import _resolve_callable
+from intellisource.agent.observer import LoopObserver
 from intellisource.agent.response_utils import extract_answer
 from intellisource.agent.tool_gating import ToolPermissionResolver, _is_preview_mode
 from intellisource.agent.tools import PermissionLevel, ToolDefinition
+from intellisource.config.constants import (
+    DEFAULT_LLM_TIMEOUT_S as _DEFAULT_LLM_TIMEOUT_S,
+)
+from intellisource.config.constants import (
+    DEFAULT_TOOL_TIMEOUT_S as _DEFAULT_TOOL_TIMEOUT_S,
+)
 from intellisource.core.errors import ErrorCategory, IntelliSourceError
 from intellisource.llm.prompts import load_prompt
 from intellisource.observability.logging import get_logger
@@ -42,18 +51,12 @@ class FlexibleLoop:
         self,
         tool_registry: Any,
         llm_gateway: Any,
-        emit_pipeline_start: Callable[..., Coroutine[Any, Any, None]],
-        emit_tool_call: Callable[..., Coroutine[Any, Any, None]],
-        emit_llm_call: Callable[..., Coroutine[Any, Any, None]],
-        emit_pipeline_error: Callable[..., Coroutine[Any, Any, None]],
+        observer: LoopObserver,
         persist: Callable[..., Coroutine[Any, Any, dict[str, Any]]],
     ) -> None:
         self._tool_registry = tool_registry
         self._llm_gateway = llm_gateway
-        self._emit_pipeline_start = emit_pipeline_start
-        self._emit_tool_call = emit_tool_call
-        self._emit_llm_call = emit_llm_call
-        self._emit_pipeline_error = emit_pipeline_error
+        self._observer = observer
         self._persist = persist
         self._tool_perms = ToolPermissionResolver(tool_registry)
 
@@ -86,7 +89,7 @@ class FlexibleLoop:
             approved_calls=approved_calls,
             stream=False,
         ):
-            if event["type"] == "done":
+            if event["type"] in ("done", "error"):
                 result = event["metadata"]
         return result
 
@@ -150,7 +153,7 @@ class FlexibleLoop:
         """
         chain_id = str(uuid.uuid4())
         mode_label = "flexible-stream" if stream else "flexible"
-        await self._emit_pipeline_start(config.name, chain_id, mode_label)
+        await self._observer.pipeline_start(config.name, chain_id, mode_label)
 
         available_tools = self._tool_perms.filter_tools(config, agent_mode)
         tool_descriptors = self._tool_perms.build_tool_descriptors(available_tools)
@@ -204,7 +207,34 @@ class FlexibleLoop:
                 if stream:
                     yield event
 
+        # Track a running token estimate so the per-turn compaction check skips
+        # re-scanning the whole history every loop; only the newly appended tail
+        # is re-estimated, and a real compaction recomputes from the new shape.
+        accounted_len = len(messages)
+        history_tokens = self._estimate_history_tokens(messages)
+
         while steps_executed < config.max_steps and not budget_exhausted:
+            # Fold the previous turn's appended tail into the running estimate,
+            # then summarise old turns before the turn so a long tool-heavy run
+            # stays inside the context window. The estimate is handed to the
+            # compactor as precomputed_total; the compressor preserves pairing.
+            if history_tokens is not None and len(messages) > accounted_len:
+                delta = self._estimate_history_tokens(messages[accounted_len:])
+                if delta is not None:
+                    history_tokens += delta
+            accounted_len = len(messages)
+
+            pre_compress_len = len(messages)
+            messages = await self._compress_history(
+                messages, precomputed_total=history_tokens
+            )
+            if len(messages) != pre_compress_len:
+                history_tokens = self._estimate_history_tokens(messages)
+                accounted_len = len(messages)
+
+            history_problems = _validate_history(messages)
+            if history_problems:
+                logger.warning("history invariant violations: %s", history_problems)
             turn: dict[str, Any] = {}
             async for ev in self._run_turn(
                 messages, tool_descriptors, config, stream=stream
@@ -224,7 +254,7 @@ class FlexibleLoop:
                 effective_budget is not None and tokens_used >= effective_budget
             )
 
-            await self._emit_llm_call(
+            await self._observer.llm_call(
                 config.name,
                 chain_id,
                 str(turn.get("model", "")),
@@ -243,7 +273,6 @@ class FlexibleLoop:
                 }
 
             tool_calls = turn.get("tool_calls") or []
-            finish_reason = turn.get("finish_reason", "")
             content = turn.get("content", "")
             if tool_calls:
                 assistant_msg: dict[str, Any] = {
@@ -262,14 +291,21 @@ class FlexibleLoop:
                 budget_exhausted = True
                 break
 
-            done = finish_reason == "stop" or not tool_calls
-            if done:
+            # Terminate only when the model requested no tools. A contradictory
+            # ``finish_reason == "stop"`` alongside pending tool_calls must still
+            # run them, else the assistant tool_calls message just appended would
+            # be left with no matching tool responses (malformed history).
+            if not tool_calls:
                 break
 
             pipeline_perms: dict[str, str] = (
                 getattr(config, "tool_permissions", {}) or {}
             )
 
+            # Phase 1: resolve each tool_call to an ordered action. Gating
+            # (deny / analyze / preview / confirm / unknown) carries its own
+            # messages; auto-permitted calls are queued to run concurrently.
+            actions: list[dict[str, Any]] = []
             for tc in tool_calls:
                 tc_name, tc_id, tc_args = _parse_tool_call(tc)
 
@@ -283,60 +319,67 @@ class FlexibleLoop:
                         if isinstance(_tool_raw_perm, ToolDefinition)
                         else PermissionLevel.auto
                     )
+
                 if _effective_perm is PermissionLevel.deny:
-                    messages.append(
+                    actions.append(
                         {
-                            "role": "tool",
-                            "content": json.dumps(
-                                {"status": "denied_by_permission", "tool": tc_name}
-                            ),
-                            "tool_call_id": tc_id,
-                        }
-                    )
-                    tool_results.append(
-                        {
-                            "tool": tc_name,
-                            "status": "denied_by_permission",
-                            "output": None,
+                            "kind": "gated",
+                            "message": {
+                                "role": "tool",
+                                "content": json.dumps(
+                                    {"status": "denied_by_permission", "tool": tc_name}
+                                ),
+                                "tool_call_id": tc_id,
+                            },
+                            "tool_result": {
+                                "tool": tc_name,
+                                "status": "denied_by_permission",
+                                "output": None,
+                            },
                         }
                     )
                     continue
 
                 if self._tool_perms.is_analyze_denied(tc_name, agent_mode):
-                    messages.append(
+                    actions.append(
                         {
-                            "role": "tool",
-                            "content": json.dumps(
-                                {"status": "denied_by_analyze_mode", "tool": tc_name}
-                            ),
-                            "tool_call_id": tc_id,
-                        }
-                    )
-                    tool_results.append(
-                        {
-                            "tool": tc_name,
-                            "output": None,
-                            "denied": True,
-                            "reason": "analyze_mode",
+                            "kind": "gated",
+                            "message": {
+                                "role": "tool",
+                                "content": json.dumps(
+                                    {
+                                        "status": "denied_by_analyze_mode",
+                                        "tool": tc_name,
+                                    }
+                                ),
+                                "tool_call_id": tc_id,
+                            },
+                            "tool_result": {
+                                "tool": tc_name,
+                                "output": None,
+                                "denied": True,
+                                "reason": "analyze_mode",
+                            },
                         }
                     )
                     continue
 
                 if preview:
-                    preview_plan.append(
+                    actions.append(
                         {
-                            "tool": tc_name,
-                            "args": tc_args,
-                            "would_execute_at": datetime.now(
-                                tz=timezone.utc
-                            ).isoformat(),
-                        }
-                    )
-                    messages.append(
-                        {
-                            "role": "tool",
-                            "content": json.dumps({"status": "preview_skipped"}),
-                            "tool_call_id": tc_id,
+                            "kind": "gated",
+                            "preview_entry": {
+                                "tool": tc_name,
+                                "args": tc_args,
+                                "would_execute_at": datetime.now(
+                                    tz=timezone.utc
+                                ).isoformat(),
+                            },
+                            "message": {
+                                "role": "tool",
+                                "content": json.dumps({"status": "preview_skipped"}),
+                                "tool_call_id": tc_id,
+                            },
                         }
                     )
                     continue
@@ -350,21 +393,22 @@ class FlexibleLoop:
                             "tool_call_id": tc_id,
                         },
                     )
-                    tool_results.append(
+                    actions.append(
                         {
-                            "tool": tc_name,
-                            "status": "pending_confirmation",
-                            "args": tc_args,
-                            "tool_call_id": tc_id,
-                        }
-                    )
-                    messages.append(
-                        {
-                            "role": "tool",
-                            "content": json.dumps(
-                                {"status": "pending_confirmation", "tool": tc_name}
-                            ),
-                            "tool_call_id": tc_id,
+                            "kind": "gated",
+                            "tool_result": {
+                                "tool": tc_name,
+                                "status": "pending_confirmation",
+                                "args": tc_args,
+                                "tool_call_id": tc_id,
+                            },
+                            "message": {
+                                "role": "tool",
+                                "content": json.dumps(
+                                    {"status": "pending_confirmation", "tool": tc_name}
+                                ),
+                                "tool_call_id": tc_id,
+                            },
                         }
                     )
                     continue
@@ -373,98 +417,131 @@ class FlexibleLoop:
                     tc_args = {**tc_args, "tool_deps": tool_deps}
                 tool_raw = self._tool_registry.get(tc_name)
                 if tool_raw is not None:
-                    tool_fn = _resolve_callable(tool_raw)
-                    tool_t0 = time.monotonic()
-                    try:
-                        result = await tool_fn(**tc_args)
-                        duration_ms = (time.monotonic() - tool_t0) * 1000.0
-                        await self._emit_tool_call(
-                            config.name,
-                            chain_id,
-                            tc_name,
-                            duration_ms,
-                            "success",
-                        )
-                        if stream:
-                            yield {
-                                "type": "step",
-                                "step": steps_executed,
-                                "action": "tool_call",
-                                "tool": tc_name,
-                                "duration_ms": duration_ms,
-                                "status": "success",
-                            }
-                        messages.append(
-                            {
-                                "role": "tool",
-                                "content": json.dumps(result, default=str),
-                                "tool_call_id": tc_id,
-                            }
-                        )
-                        tool_results.append({"tool": tc_name, "output": result})
-
-                        if (
-                            stream
-                            and not sources_yielded
-                            and tc_name == "search"
-                            and isinstance(result, dict)
-                        ):
-                            sources = _extract_search_sources(result)
-                            if sources:
-                                yield {"type": "sources", "items": sources}
-                                sources_yielded = True
-                    except Exception as exc:
-                        duration_ms = (time.monotonic() - tool_t0) * 1000.0
-                        logger.warning("Tool %s failed: %s", tc_name, exc)
-                        await self._emit_tool_call(
-                            config.name,
-                            chain_id,
-                            tc_name,
-                            duration_ms,
-                            "error",
-                            error=str(exc),
-                        )
-                        if stream:
-                            yield {
-                                "type": "step",
-                                "step": steps_executed,
-                                "action": "tool_call",
-                                "tool": tc_name,
-                                "duration_ms": duration_ms,
-                                "status": "error",
-                                "error": str(exc),
-                            }
-                        messages.append(
-                            {
-                                "role": "tool",
-                                "content": f"Error: {exc}",
-                                "tool_call_id": tc_id,
-                            }
-                        )
-                        tool_results.append(
-                            {
-                                "tool": tc_name,
-                                "output": None,
-                                "error": str(exc),
-                            }
-                        )
+                    actions.append(
+                        {
+                            "kind": "run",
+                            "name": tc_name,
+                            "id": tc_id,
+                            "args": tc_args,
+                            "fn": _resolve_callable(tool_raw),
+                        }
+                    )
                 else:
                     logger.warning("Unknown tool requested by LLM: %s", tc_name)
+                    actions.append(
+                        {
+                            "kind": "gated",
+                            "message": {
+                                "role": "tool",
+                                "tool_call_id": tc_id,
+                                "name": tc_name,
+                                "content": json.dumps(
+                                    {"error": "unknown_tool", "name": tc_name}
+                                ),
+                            },
+                            "tool_result": {
+                                "tool": tc_name,
+                                "output": None,
+                                "error": "unknown_tool",
+                            },
+                        }
+                    )
+
+            # Phase 2: run the auto-permitted calls concurrently — independent
+            # tools in one turn no longer wait on each other.
+            run_actions = [a for a in actions if a["kind"] == "run"]
+            outcomes = await asyncio.gather(
+                *(
+                    self._execute_one_tool(
+                        config, a["name"], a["id"], a["args"], a["fn"]
+                    )
+                    for a in run_actions
+                )
+            )
+            outcome_iter = iter(outcomes)
+
+            # Phase 3: apply outcomes in original tool_call order — append
+            # messages / results, emit observer + stream events, surface sources.
+            for action in actions:
+                if action["kind"] == "gated":
+                    preview_entry = action.get("preview_entry")
+                    if preview_entry is not None:
+                        preview_plan.append(preview_entry)
+                    messages.append(action["message"])
+                    tool_result = action.get("tool_result")
+                    if tool_result is not None:
+                        tool_results.append(tool_result)
+                    continue
+
+                outcome = next(outcome_iter)
+                tc_name = outcome["name"]
+                tc_id = outcome["id"]
+                duration_ms = outcome["duration_ms"]
+                if outcome["ok"]:
+                    result = outcome["result"]
+                    await self._observer.tool_call(
+                        config.name, chain_id, tc_name, duration_ms, "success"
+                    )
+                    if stream:
+                        yield {
+                            "type": "step",
+                            "step": steps_executed,
+                            "action": "tool_call",
+                            "tool": tc_name,
+                            "duration_ms": duration_ms,
+                            "status": "success",
+                        }
                     messages.append(
                         {
                             "role": "tool",
+                            "content": json.dumps(result, default=str),
                             "tool_call_id": tc_id,
-                            "name": tc_name,
-                            "content": json.dumps(
-                                {"error": "unknown_tool", "name": tc_name}
-                            ),
+                        }
+                    )
+                    tool_results.append({"tool": tc_name, "output": result})
+
+                    if (
+                        stream
+                        and not sources_yielded
+                        and tc_name == "search"
+                        and isinstance(result, dict)
+                    ):
+                        sources = _extract_search_sources(result)
+                        if sources:
+                            yield {"type": "sources", "items": sources}
+                            sources_yielded = True
+                else:
+                    exc = outcome["exc"]
+                    await self._observer.tool_call(
+                        config.name,
+                        chain_id,
+                        tc_name,
+                        duration_ms,
+                        "error",
+                        error=str(exc),
+                    )
+                    if stream:
+                        yield {
+                            "type": "step",
+                            "step": steps_executed,
+                            "action": "tool_call",
+                            "tool": tc_name,
+                            "duration_ms": duration_ms,
+                            "status": "error",
+                            "error": str(exc),
+                        }
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "content": _tool_error_payload(tc_name, exc),
+                            "tool_call_id": tc_id,
                         }
                     )
                     tool_results.append(
                         {
                             "tool": tc_name,
                             "output": None,
-                            "error": "unknown_tool",
+                            "error": _describe_exc(exc),
                         }
                     )
 
@@ -506,9 +583,93 @@ class FlexibleLoop:
             persist_result["final_answer"] = final_answer
 
         if turn_error is not None:
-            yield {"type": "error", "detail": turn_error}
+            persist_result["detail"] = turn_error
+            await self._observer.pipeline_error(config.name, chain_id, turn_error)
+            yield {"type": "error", "detail": turn_error, "metadata": persist_result}
         else:
             yield {"type": "done", "metadata": persist_result}
+
+    async def _compress_history(
+        self,
+        messages: list[dict[str, Any]],
+        precomputed_total: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Best-effort history compaction via the gateway; never breaks the loop.
+
+        The gateway is duck-typed (real / mock / None), so a missing,
+        non-awaitable, or raising ``compress_if_needed`` degrades to the
+        original messages instead of propagating. ``precomputed_total`` is the
+        loop's running token estimate, letting the compactor skip a full rescan.
+        """
+        compress = getattr(self._llm_gateway, "compress_if_needed", None)
+        if compress is None:
+            return messages
+        try:
+            result = compress(
+                messages, task_type="chat", precomputed_total=precomputed_total
+            )
+            if inspect.isawaitable(result):
+                result = await result
+        except Exception as exc:
+            logger.warning("history compression skipped: %s", exc)
+            return messages
+        return result if isinstance(result, list) else messages
+
+    def _estimate_history_tokens(self, messages: list[dict[str, Any]]) -> int | None:
+        """Running token estimate via the gateway, or None when unavailable.
+
+        Mirrors the gateway's own estimate basis so the value can be fed back as
+        ``precomputed_total``; a gateway lacking the method (mock / None) yields
+        None and the compactor falls back to its own per-call scan.
+        """
+        estimate = getattr(self._llm_gateway, "estimate_history_tokens", None)
+        if estimate is None:
+            return None
+        try:
+            return int(estimate(messages))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("history token estimate skipped: %s", exc)
+            return None
+
+    async def _execute_one_tool(
+        self,
+        config: Any,
+        tc_name: str,
+        tc_id: str,
+        tc_args: dict[str, Any],
+        tool_fn: Any,
+    ) -> dict[str, Any]:
+        """Execute one resolved tool call and return a structured outcome.
+
+        Never raises: a tool error or per-call timeout becomes an ``ok: False``
+        outcome. Pure tool IO — no message/result mutation or event emission — so
+        many independent calls in one turn can run concurrently and have their
+        outcomes applied afterwards in the original tool_call order. The callable
+        is resolved once at gating time and passed in, so the registry is read
+        exactly once per call.
+        """
+        t0 = time.monotonic()
+        timeout = _normalize_timeout(
+            getattr(config, "tool_timeout_s", _DEFAULT_TOOL_TIMEOUT_S)
+        )
+        try:
+            result = await asyncio.wait_for(tool_fn(**tc_args), timeout=timeout)
+            return {
+                "name": tc_name,
+                "id": tc_id,
+                "ok": True,
+                "result": result,
+                "duration_ms": (time.monotonic() - t0) * 1000.0,
+            }
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Tool %s failed: %s", tc_name, exc)
+            return {
+                "name": tc_name,
+                "id": tc_id,
+                "ok": False,
+                "exc": exc,
+                "duration_ms": (time.monotonic() - t0) * 1000.0,
+            }
 
     async def _run_turn(
         self,
@@ -530,6 +691,9 @@ class FlexibleLoop:
         token counts, latency, model and any error.
         """
         llm_t0 = time.monotonic()
+        llm_timeout = _normalize_timeout(
+            getattr(config, "llm_timeout_s", _DEFAULT_LLM_TIMEOUT_S)
+        )
         if stream:
             content = ""
             tool_calls: Any = None
@@ -538,10 +702,21 @@ class FlexibleLoop:
             completion_tokens = 0
             model = ""
             error: str | None = None
+            # Time each upstream chunk read independently (a per-read deadline,
+            # not a whole-turn one) so a stalled stream is cut without penalising
+            # a long but healthy one, and our own ``yield`` backpressure between
+            # chunks never counts against the deadline.
+            stream_gen = self._llm_gateway.stream_complete(
+                messages=messages, tools=tool_descriptors
+            )
             try:
-                async for chunk in self._llm_gateway.stream_complete(
-                    messages=messages, tools=tool_descriptors
-                ):
+                while True:
+                    try:
+                        chunk = await asyncio.wait_for(
+                            stream_gen.__anext__(), timeout=llm_timeout
+                        )
+                    except StopAsyncIteration:
+                        break
                     if chunk.get("done"):
                         meta = chunk.get("metadata") or {}
                         prompt_tokens = int(meta.get("input_tokens", 0) or 0)
@@ -556,7 +731,17 @@ class FlexibleLoop:
                         yield {"type": "token", "delta": delta}
             except Exception as exc:
                 logger.warning("stream turn failed: %s", exc)
-                error = str(exc)
+                error = _describe_exc(exc)
+            finally:
+                # A per-chunk timeout cancels the in-flight ``__anext__`` task;
+                # closing a generator in that state can itself raise. Swallow it
+                # so cleanup never masks the turn's real error.
+                aclose = getattr(stream_gen, "aclose", None)
+                if aclose is not None:
+                    try:
+                        await aclose()
+                    except Exception as close_exc:  # noqa: BLE001
+                        logger.warning("stream aclose failed: %s", close_exc)
             yield {
                 "_turn": True,
                 "content": content,
@@ -572,11 +757,34 @@ class FlexibleLoop:
             }
             return
 
-        response = await self._llm_gateway.chat(
-            messages=messages,
-            tools=tool_descriptors,
-            cache_key_parts={"call_type": "chat", "prompt_version": config.name},
-        )
+        try:
+            response = await asyncio.wait_for(
+                self._llm_gateway.chat(
+                    messages=messages,
+                    tools=tool_descriptors,
+                    cache_key_parts={
+                        "call_type": "chat",
+                        "prompt_version": config.name,
+                    },
+                ),
+                timeout=llm_timeout,
+            )
+        except Exception as exc:
+            logger.warning("chat turn failed: %s", exc)
+            yield {
+                "_turn": True,
+                "content": "",
+                "tool_calls": None,
+                "finish_reason": "",
+                "tokens": 0,
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "latency_ms": (time.monotonic() - llm_t0) * 1000.0,
+                "model": "",
+                "reasoning_content": None,
+                "error": _describe_exc(exc),
+            }
+            return
         usage = response.metadata.get("usage", {})
         yield {
             "_turn": True,
@@ -682,9 +890,14 @@ class FlexibleLoop:
             tool_fn = _resolve_callable(tool_raw)
             tool_t0 = time.monotonic()
             try:
-                result = await tool_fn(**exec_args)
+                result = await asyncio.wait_for(
+                    tool_fn(**exec_args),
+                    timeout=_normalize_timeout(
+                        getattr(config, "tool_timeout_s", _DEFAULT_TOOL_TIMEOUT_S)
+                    ),
+                )
                 duration_ms = (time.monotonic() - tool_t0) * 1000.0
-                await self._emit_tool_call(
+                await self._observer.tool_call(
                     config.name, chain_id, tc_name, duration_ms, "success"
                 )
                 messages.append(
@@ -708,13 +921,13 @@ class FlexibleLoop:
             except Exception as exc:
                 duration_ms = (time.monotonic() - tool_t0) * 1000.0
                 logger.warning("Confirmed tool %s failed: %s", tc_name, exc)
-                await self._emit_tool_call(
+                await self._observer.tool_call(
                     config.name, chain_id, tc_name, duration_ms, "error", error=str(exc)
                 )
                 messages.append(
                     {
                         "role": "tool",
-                        "content": f"Error: {exc}",
+                        "content": _tool_error_payload(tc_name, exc),
                         "tool_call_id": tc_id,
                     }
                 )
@@ -722,7 +935,7 @@ class FlexibleLoop:
                     {
                         "tool": tc_name,
                         "output": None,
-                        "error": str(exc),
+                        "error": _describe_exc(exc),
                         "confirmed": True,
                     }
                 )
@@ -735,6 +948,77 @@ class FlexibleLoop:
                     "status": "error",
                     "error": str(exc),
                 }
+
+
+_MAX_TOOL_ERROR_CHARS = 200
+
+
+def _validate_history(messages: list[dict[str, Any]]) -> list[str]:
+    """Return tool-call protocol violations in a message list (empty == valid).
+
+    Every assistant ``tool_calls`` entry must be answered by a ``tool`` message
+    with the matching ``tool_call_id`` before the next assistant/user turn, and
+    every ``tool`` message must answer a still-open tool_call. Serves as a
+    pre-send soft check and as the invariant the context compressor preserves.
+    """
+    problems: list[str] = []
+    open_ids: set[str] = set()
+    for idx, message in enumerate(messages):
+        role = message.get("role")
+        if role == "tool":
+            tid = str(message.get("tool_call_id", ""))
+            if tid in open_ids:
+                open_ids.discard(tid)
+            else:
+                problems.append(f"tool message #{idx} answers no open tool_call")
+            continue
+        if open_ids:
+            problems.append(f"unanswered tool_calls before #{idx}: {sorted(open_ids)}")
+            open_ids.clear()
+        if role == "assistant":
+            for tool_call in message.get("tool_calls") or []:
+                tid = str(tool_call.get("id", ""))
+                if tid:
+                    open_ids.add(tid)
+    if open_ids:
+        problems.append(f"unanswered tool_calls at end: {sorted(open_ids)}")
+    return problems
+
+
+def _normalize_timeout(value: Any) -> float | None:
+    """Positive numeric timeout for ``asyncio.wait_for``; else no deadline.
+
+    ``config`` is duck-typed (PipelineConfig / ORM row / mock), so a missing or
+    non-numeric attribute must degrade to "no deadline" rather than raise.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value) if value > 0 else None
+
+
+def _describe_exc(exc: BaseException) -> str:
+    """Truncated description of an exception; falls back to the type name.
+
+    ``str(TimeoutError())`` is empty, so a bare deadline would otherwise
+    surface as an empty error string — the type name keeps it meaningful.
+    """
+    return (str(exc) or type(exc).__name__)[:_MAX_TOOL_ERROR_CHARS]
+
+
+def _tool_error_payload(tool_name: str, exc: BaseException) -> str:
+    """JSON tool-message body for a failed tool call (structured, truncated).
+
+    Matches the deny/preview branches' JSON shape so the model parses every
+    tool outcome uniformly, and caps the raw exception text so a long message
+    carrying connection strings / internal paths is not replayed verbatim.
+    """
+    return json.dumps(
+        {
+            "status": "error",
+            "tool": tool_name,
+            "error": _describe_exc(exc),
+        }
+    )
 
 
 def _serialize_tool_call(tool_call: Any) -> dict[str, Any]:
@@ -811,7 +1095,15 @@ def _extract_search_sources(result: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _session_messages(session: dict[str, Any]) -> list[dict[str, Any]]:
-    """Return valid prior conversation messages from a session payload."""
+    """Return prior conversation turns from a session payload.
+
+    Only plain user/assistant text turns survive rehydration. A tool round-trip
+    (an assistant carrying ``tool_calls`` plus its ``tool`` results) is ephemeral
+    to the run that produced it and cannot be re-paired across a session
+    boundary, so keeping a bare ``tool`` message — or an assistant whose
+    ``tool_calls`` have no following responses — would orphan the provider's
+    tool-call protocol. Such messages are dropped rather than passed through.
+    """
     raw_messages = session.get("messages")
     if not isinstance(raw_messages, list):
         return []
@@ -821,6 +1113,9 @@ def _session_messages(session: dict[str, Any]) -> list[dict[str, Any]]:
             continue
         role = item.get("role")
         content = item.get("content")
-        if role in {"user", "assistant", "tool"} and isinstance(content, str):
-            messages.append({"role": role, "content": content})
+        if role not in {"user", "assistant"} or not isinstance(content, str):
+            continue
+        if item.get("tool_calls"):
+            continue
+        messages.append({"role": role, "content": content})
     return messages

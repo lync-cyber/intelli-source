@@ -20,6 +20,12 @@ logger = get_logger(__name__)
 
 _PROTECTED_TOOL_COUNT = 3
 _DEFAULT_CONTEXT_TOKEN_BUDGET = 2000
+_AGENT_PROTECT_LAST_N = 20
+# Absolute token budget that triggers agent-history compaction. A fraction of a
+# model's context window (e.g. 0.5 * 1M) never fires before a run hits its own
+# token budget, so the head is summarised once the working history passes this
+# fixed ceiling instead.
+_AGENT_COMPACT_TRIGGER_TOKENS = 48000
 
 
 def _total_tokens(
@@ -232,6 +238,93 @@ def _truncation_fallback_no_gateway(
         kept.append(msg)
         used += cost
     return list(reversed(kept)) if kept else pruned[-1:] if pruned else []
+
+
+def _safe_cut_points(messages: list[dict[str, Any]]) -> list[int]:
+    """Indices ``i`` where ``messages[i:]`` is a self-contained valid suffix.
+
+    A cut is safe only when no tool_call is still open entering ``i`` (every
+    prior assistant ``tool_calls`` already has its ``tool`` responses) and the
+    message at ``i`` opens a fresh turn (``user`` / ``assistant``). Cutting here
+    never separates an assistant ``tool_calls`` message from its responses.
+    """
+    cuts: list[int] = []
+    open_ids: set[str] = set()
+    for idx, message in enumerate(messages):
+        role = message.get("role")
+        if not open_ids and role in {"user", "assistant"}:
+            cuts.append(idx)
+        if role == "tool":
+            open_ids.discard(str(message.get("tool_call_id", "")))
+        elif role == "assistant":
+            for tool_call in message.get("tool_calls") or []:
+                tid = str(tool_call.get("id", ""))
+                if tid:
+                    open_ids.add(tid)
+    return cuts
+
+
+async def compact_agent_messages(
+    messages: list[dict[str, Any]],
+    gateway: Any,
+    profile: ModelProfile,
+    *,
+    protect_last_n: int = _AGENT_PROTECT_LAST_N,
+    context_token_budget: int = _DEFAULT_CONTEXT_TOKEN_BUDGET,
+    model: str = "gpt-4o-mini",
+    precomputed_total: int | None = None,
+) -> list[dict[str, Any]]:
+    """Compact an agent message list while preserving tool-call pairing.
+
+    Unlike :func:`compact_messages` (built for plain chat history), this keeps
+    assistant ``tool_calls`` messages bound to their ``tool`` responses: the cut
+    between the summarised head and the protected tail is snapped back to a safe
+    boundary, so the result always passes the agent loop's history invariant.
+
+    ``precomputed_total`` lets a caller that already tracks a running token
+    estimate skip the full per-call :func:`_total_tokens` scan.
+    """
+    if not messages:
+        return []
+
+    total = (
+        precomputed_total
+        if precomputed_total is not None
+        else _total_tokens(messages, gateway, model)
+    )
+    threshold = min(int(profile.context_window * 0.8), context_token_budget)
+    if total <= threshold:
+        return list(messages)
+
+    # Preserve a leading system prompt verbatim; summarise/cut only the body.
+    body_start = 1 if messages[0].get("role") == "system" else 0
+    head = messages[:body_start]
+
+    # Snap the protect-last-N target back to the nearest safe boundary so an
+    # assistant tool_calls message is never separated from its tool responses.
+    target = max(body_start, len(messages) - protect_last_n)
+    cut = body_start
+    for candidate in _safe_cut_points(messages):
+        if body_start <= candidate <= target:
+            cut = candidate
+    if cut <= body_start:
+        # No safe boundary to summarise behind (e.g. one long open chain).
+        return list(messages)
+
+    summarised = messages[body_start:cut]
+    tail = messages[cut:]
+    prompt = _build_summary_prompt(summarised)
+    try:
+        llm_result = await gateway.complete(prompt)
+        summary_text = str(llm_result.content)
+    except Exception as exc:
+        logger.warning("agent summarization failed, dropping old turns: %s", exc)
+        summary_text = ""
+    summary_msg: dict[str, Any] = {
+        "role": "system",
+        "content": summary_text or "(earlier conversation omitted)",
+    }
+    return [*head, summary_msg, *tail]
 
 
 async def compact_messages_for_chat(

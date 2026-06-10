@@ -59,6 +59,40 @@ SAMPLE_CONFIG_DICT = {
 }
 
 
+class TestGetFallbackModels:
+    """P4: ModelRoutingConfig.get_fallback_models(task_type) -> ordered list."""
+
+    def test_returns_configured_fallbacks_in_order(self) -> None:
+        routing = ModelRoutingConfig(
+            {
+                "default_model": {"model": "m0", "provider": "p"},
+                "models": {
+                    "chat": {
+                        "model": "m1",
+                        "provider": "p",
+                        "fallback_models": ["m2", "m3"],
+                    }
+                },
+            }
+        )
+        assert routing.get_fallback_models("chat") == ["m2", "m3"]
+
+    def test_empty_when_no_fallbacks_configured(self) -> None:
+        routing = ModelRoutingConfig(
+            {
+                "default_model": {"model": "m0", "provider": "p"},
+                "models": {"chat": {"model": "m1", "provider": "p"}},
+            }
+        )
+        assert routing.get_fallback_models("chat") == []
+
+    def test_empty_for_unknown_task_type(self) -> None:
+        routing = ModelRoutingConfig(
+            {"default_model": {"model": "m0", "provider": "p"}, "models": {}}
+        )
+        assert routing.get_fallback_models("nope") == []
+
+
 # ===========================================================================
 # load_model_config() -- YAML file loading
 # ===========================================================================

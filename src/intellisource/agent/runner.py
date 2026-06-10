@@ -18,6 +18,7 @@ from intellisource.agent.executors.strict import (
     StrictExecutor,
     ToolDegradedError,
 )
+from intellisource.agent.observer import PipelineLoopObserver
 from intellisource.core.errors import CompositionNotInitialisedError
 from intellisource.observability.logging import get_logger
 
@@ -61,6 +62,7 @@ class AgentRunner:
         self._pipeline_engine = pipeline_engine
         self._tool_deps = tool_deps
         self._event_logger = event_logger
+        self._observer = PipelineLoopObserver(event_logger)
         self._persister = TaskChainPersister(event_logger)
 
     # -- public API --------------------------------------------------
@@ -100,9 +102,7 @@ class AgentRunner:
         effective_deps = tool_deps if tool_deps is not None else self._tool_deps
         executor = StrictExecutor(
             tool_registry=self._tool_registry,
-            emit_pipeline_start=self._emit_pipeline_start,
-            emit_tool_call=self._emit_tool_call,
-            emit_pipeline_error=self._emit_pipeline_error,
+            observer=self._observer,
             persist=self._persister.persist,
         )
         return await executor.run(config, params, tool_deps=effective_deps)
@@ -117,7 +117,7 @@ class AgentRunner:
         """Execute processor pipeline for a single raw content_id (batch mode)."""
         effective_deps = tool_deps if tool_deps is not None else self._tool_deps
         chain_id = str(uuid.uuid4())
-        await self._emit_pipeline_start(config.name, chain_id, "batch")
+        await self._observer.pipeline_start(config.name, chain_id, "batch")
         content_id = str(params.get("content_id") or "")
         if not content_id:
             return await self._persister.persist(
@@ -137,7 +137,7 @@ class AgentRunner:
                 tool_deps=effective_deps,
                 **params,
             )
-            await self._emit_tool_call(
+            await self._observer.tool_call(
                 config.name,
                 chain_id,
                 "process",
@@ -145,7 +145,7 @@ class AgentRunner:
                 "success",
             )
         except Exception as exc:
-            await self._emit_tool_call(
+            await self._observer.tool_call(
                 config.name,
                 chain_id,
                 "process",
@@ -153,7 +153,7 @@ class AgentRunner:
                 "error",
                 error=str(exc),
             )
-            await self._emit_pipeline_error(config.name, chain_id, str(exc))
+            await self._observer.pipeline_error(config.name, chain_id, str(exc))
             raise
         tool_results = [{"tool": "process", "output": output}]
         status = "success" if output.get("status") == "ok" else "failed"
@@ -207,10 +207,7 @@ class AgentRunner:
         loop = FlexibleLoop(
             tool_registry=self._tool_registry,
             llm_gateway=self._llm_gateway,
-            emit_pipeline_start=self._emit_pipeline_start,
-            emit_tool_call=self._emit_tool_call,
-            emit_llm_call=self._emit_llm_call,
-            emit_pipeline_error=self._emit_pipeline_error,
+            observer=self._observer,
             persist=self._persister.persist,
         )
         return await loop.run(
@@ -249,10 +246,7 @@ class AgentRunner:
         loop = FlexibleLoop(
             tool_registry=self._tool_registry,
             llm_gateway=self._llm_gateway,
-            emit_pipeline_start=self._emit_pipeline_start,
-            emit_tool_call=self._emit_tool_call,
-            emit_llm_call=self._emit_llm_call,
-            emit_pipeline_error=self._emit_pipeline_error,
+            observer=self._observer,
             persist=self._persister.persist,
         )
         async for event in loop.run_stream(
@@ -265,70 +259,6 @@ class AgentRunner:
             approved_calls=approved_calls,
         ):
             yield event
-
-    # -- event helpers -----------------------------------------------
-
-    async def _emit_pipeline_start(
-        self, pipeline_name: str, chain_id: str, mode: str
-    ) -> None:
-        if self._event_logger is None:
-            return
-        await self._event_logger.pipeline_start(
-            pipeline_name=pipeline_name,
-            task_chain_id=chain_id,
-            mode=mode,
-        )
-
-    async def _emit_tool_call(
-        self,
-        pipeline_name: str,
-        chain_id: str,
-        tool_name: str,
-        duration_ms: float,
-        status: str,
-        error: str | None = None,
-    ) -> None:
-        if self._event_logger is None:
-            return
-        await self._event_logger.tool_call(
-            pipeline_name=pipeline_name,
-            task_chain_id=chain_id,
-            tool_name=tool_name,
-            duration_ms=duration_ms,
-            status="error" if status == "error" else "success",
-            error=error,
-        )
-
-    async def _emit_llm_call(
-        self,
-        pipeline_name: str,
-        chain_id: str,
-        model: str,
-        input_tokens: int,
-        output_tokens: int,
-        latency_ms: float,
-    ) -> None:
-        if self._event_logger is None:
-            return
-        await self._event_logger.llm_call(
-            pipeline_name=pipeline_name,
-            task_chain_id=chain_id,
-            model=model,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            latency_ms=latency_ms,
-        )
-
-    async def _emit_pipeline_error(
-        self, pipeline_name: str, chain_id: str, error: str
-    ) -> None:
-        if self._event_logger is None:
-            return
-        await self._event_logger.pipeline_error(
-            pipeline_name=pipeline_name,
-            task_chain_id=chain_id,
-            error=error,
-        )
 
 
 class AgentRunnerHolder:
