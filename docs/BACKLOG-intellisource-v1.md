@@ -32,9 +32,16 @@ deps: []
 
 ## 剩余项目级真债（非阻塞，保留跟踪）
 
-- **[P2] arch-amendment — backfill 端点补录**：`POST /api/v1/content/backfill-embeddings`（B-068 引入）当前仅 dev-plan-s10 内联契约，arch 文档未录。[PR #106](https://github.com/lync-cyber/intelli-source/pull/106) 合并后由 tech-lead 补录 arch（编号取下一可用，**API-026~API-029 已声明删除不可复用**），以 pre-deploy review 为硬截止。
 - **[P1·验证] /health version 端到端实戳**（B-069）：`/health` 已透传 `version`（`get_version()`→`HealthResult.version`），非代码缺陷；归 pre-deploy 走查步骤 15-17，确认部署镜像下 version 非 `0.0.0+unknown`。
 - **[P1·验证] pre-deploy 走查 15-20 补跑**：可观测性(15-17) + 失败注入(18-20) 在近期走查 scope=核心冒烟时未跑，prod 发布前随 B-031 release-gate 一并补跑。
+
+---
+
+## agentloop-hardening 后续（非阻塞，保留跟踪）
+
+> 本批 R-001~R-010 + R-005 余量 + R-011/R-012 + P11/P12 已闭环，详见 [code-review r1](reviews/code/CODE-REVIEW-agentloop-hardening-r1.md) 与 [burndown r1](reviews/code/CODE-REVIEW-agentloop-burndown-r1.md)。以下为唯一保留的延后设计。
+
+- **[P3] session-splitting 压缩设计（idea，待定）**：以"分裂新 session + parent 血缘"替代当前 `compact_agent_messages` 就地压缩，换取可追溯压缩历史与并行分支。落地才需要 `ChatSession.parent_session_id`（就地压缩下无生产者也无消费者，属死 schema，未建列）。是否值得取决于是否需要审计压缩链路。
 
 ---
 

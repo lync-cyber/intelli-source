@@ -15,7 +15,7 @@ consumers: [tech-lead, developer, devops]
 
 [NAV]
 
-- §3 接口契约 → API-001..API-025（API-010/011/026-029 工作流相关已移除，由管道配置替代）
+- §3 接口契约 → API-001..API-025, API-030（API-010/011/026-029 工作流相关已移除，由管道配置替代）
 [/NAV]
 
 ## 3. 接口契约
@@ -707,6 +707,29 @@ response:
 
 ---
 
+### API-030: 触发 Embedding 回填
+
+```yaml
+path: /api/v1/content/backfill-embeddings
+method: POST
+module: M-011
+desc: "异步触发 embedding 回填任务，将 embedding IS NULL 的 ProcessedContent 记录批量补填向量。入队 backfill_embeddings Celery 任务后立即返回 202，不等待任务完成。"
+request:
+  headers:
+    X-API-Key: { type: string, required: true, desc: "API 认证密钥" }
+  body:
+    batch_size: { type: integer, required: false, desc: "每批处理的记录数，默认由 Celery 任务内部决定" }
+response:
+  202:
+    schema: "BackfillEmbeddingsResponse"
+    body:
+      status: { type: string, desc: "固定值 accepted" }
+      task_id: { type: string, desc: "Celery 任务 ID，用于追踪任务状态" }
+  401: { schema: "ErrorResponse", desc: "认证失败" }
+```
+
+---
+
 ### 通用响应类型定义
 
 #### ErrorResponse
@@ -717,6 +740,13 @@ error:
   message: { type: string, desc: "用户可读错误信息" }
   detail: { type: "string | null", desc: "详细错误描述" }
   trace_id: { type: string, desc: "请求追踪 ID" }
+```
+
+#### BackfillEmbeddingsResponse
+
+```yaml
+status: { type: string, desc: "固定值 accepted" }
+task_id: { type: string, desc: "Celery 任务 ID" }
 ```
 
 #### Source
