@@ -34,8 +34,8 @@ deps: []
 
 ### observability 候选烧债（2026-06-10 起，源自 2026-06-09 TEI/MCP 走查 scope 外项）
 
-- **B-067 [P1] TEI healthcheck start_period 偏小** — ✅ **DONE（待 PR 合并）**。embedding 服务冷启拉 ONNX ~1105s，原 `start_period: 120s` 致瞬态 unhealthy 误报。修复：`docker/docker-compose.yml` embedding 服务 start_period → 1200s。
-- **B-068 [P2] process.py embedding 无 backfill 路径** — ✅ **DONE（待 PR 合并，code-review approved_with_notes）**。[dev-plan-s10](dev-plan/dev-plan-intellisource-v1-s10.md)（approved）三卡：T-BF-1（`ContentRepository.list_missing_embeddings` + `backfill_embeddings` Celery 任务）/ T-BF-2（`POST /api/v1/content/backfill-embeddings` 端点 + `content backfill-embeddings` CLI）/ T-BF-3（process.py 内联回填 + 维度校验）。code-review 抓到并修复 1 CRITICAL（R-001 分页跳行）+ 3 HIGH。
+- **B-067 [P1] TEI healthcheck start_period 偏小** — ✅ **DONE（[PR #106](https://github.com/lync-cyber/intelli-source/pull/106)，待合并）**。embedding 服务冷启拉 ONNX ~1105s，原 `start_period: 120s` 致瞬态 unhealthy 误报。修复：`docker/docker-compose.yml` embedding 服务 start_period → 1200s。
+- **B-068 [P2] process.py embedding 无 backfill 路径** — ✅ **DONE（[PR #106](https://github.com/lync-cyber/intelli-source/pull/106)，待合并，code-review approved_with_notes）**。[dev-plan-s10](dev-plan/dev-plan-intellisource-v1-s10.md)（approved）三卡：T-BF-1（`ContentRepository.list_missing_embeddings` + `backfill_embeddings` Celery 任务）/ T-BF-2（`POST /api/v1/content/backfill-embeddings` 端点 + `content backfill-embeddings` CLI）/ T-BF-3（process.py 内联回填 + 维度校验）。code-review 抓到并修复 1 CRITICAL（R-001 分页跳行）+ 3 HIGH。
   - **⏳ 跟进（仍开放）**：backfill 端点为新公开 API 契约，当前仅内联于 dev-plan-s10；PR 合并后由 tech-lead 提交 arch-amendment 补录该端点（编号取下一可用，**API-026~API-029 已声明删除不可复用**），以 pre-deploy review 为硬性截止。
 - **B-069 [P1·验证] /health version 端到端实戳** — `/health` 端点已透传 `version`（`get_version()`→`HealthResult.version`），非代码缺陷；属验证缺口，**归 pre-deploy 走查步骤 15-17**（确认部署镜像下 version 非 `0.0.0+unknown` sentinel）。
 
