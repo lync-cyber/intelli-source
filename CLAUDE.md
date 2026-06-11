@@ -18,10 +18,10 @@
  cataforge setup --emit-env-block}
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: backlog-burndown；release gate = approved（B-031 走查 GO）。observability 烧债（#1 TEI healthcheck + #3 embedding backfill）已交付，待 [PR #106](https://github.com/lync-cyber/intelli-source/pull/106) 合并
-- 当前回归基线: main HEAD 13b4c13（PR #105 合并）；observability 烧债在 feat/embedding-backfill（[PR #106](https://github.com/lync-cyber/intelli-source/pull/106)）待合并。本轮全量 unit 套件 PASS（含 backfill 新测试）+ ruff(check+format) + mypy --strict 绿；前次全门禁基线 integration 160 PASS/1 skip + lint-imports 12/12（本轮未重跑）
-- 文档状态: prd / arch / dev-plan(主卷+s1~s9+s10) / test-report / deploy-spec / backlog = approved；ui-spec = N/A；dev-plan-s8 = draft
-- 剩余项目级真债（非阻塞）: 详见 [BACKLOG](docs/BACKLOG-intellisource-v1.md)。开放项 — arch-amendment 补录 backfill 端点契约（PR #106 合并后）／ /health version 实戳 + 可观测性(走查 15-17) + 失败注入(走查 18-20)，prod 发布前随 B-031 补跑
+- 当前阶段: backlog-burndown；release gate = approved（B-031 走查 GO）。pre-deploy 走查 15-20 已补跑全 GO（orchestrator 真起栈 2026-06-11，步骤 16 N/A）；B-069 version 缺陷闭环；确认 PR #107 已闭环 B-040/B-059/B-060
+- 当前回归基线: main HEAD 13c16d2（[PR #106](https://github.com/lync-cyber/intelli-source/pull/106) + [PR #107](https://github.com/lync-cyber/intelli-source/pull/107) 已合并）。**本会话有未提交修复待 commit**：B-069（`src/intellisource/core/version.py` pyproject fallback + `tests/unit/core/test_version.py` + `docker/Dockerfile` COPY pyproject）→ /health version `0.0.0+unknown`→`0.4.6`；门禁 version 3/3 + 全量 unit PASS + mypy --strict 267 files + ruff(format+check) 绿，`--no-cache` rebuild 真起栈复验。前次全门禁基线 integration 160 PASS/1 skip + lint-imports 12/12（本轮未重跑）
+- 文档状态: prd / arch（含 API-030）/ dev-plan(主卷+s1~s9+s10) / test-report / deploy-spec（PRE-DEPLOY-WALKTHROUGH 步骤 15-20 已签字）/ backlog = approved；ui-spec = N/A；dev-plan-s8 = draft
+- 剩余项目级真债（非阻塞）: 详见 [BACKLOG](docs/BACKLOG-intellisource-v1.md)。开放项 — D1 Windows Docker Desktop BuildKit stale COPY cache 根治（部署强制 `--no-cache` 规避中）；P3 session-splitting 压缩设计(idea，待定)
 - 详情索引: 闭环历史 → [HISTORY](docs/HISTORY-intellisource-v1.md)｜走查/订正记录 → [CORRECTIONS-LOG](docs/reviews/CORRECTIONS-LOG.md)｜剩余 backlog → [BACKLOG](docs/BACKLOG-intellisource-v1.md)｜学习沉淀 → [docs/reviews/retro/](docs/reviews/retro/)
 - 上游反馈: [docs/feedback/](docs/feedback/) — 框架级条目已移交 CataForge 上游
 
