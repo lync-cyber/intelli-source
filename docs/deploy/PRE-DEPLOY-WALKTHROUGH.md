@@ -30,7 +30,11 @@ consumers: [devops, qa-engineer, developer]
 | `intellisource` CLI | 部分操作的替代入口 | `uv run intellisource --help` |
 | `jq` | JSON 美化（可选） | 不强制 |
 
-### 0.2 环境变量（`docker/.env` 或导出到 shell）
+### 0.2 起栈方式说明
+
+推荐通过 `intellisource up` 或 `make up` 起栈，两者均自动注入 `GIT_SHA=$(git rev-parse HEAD)` 作为 build-arg，确保 `COPY src/` 层在新 commit 后正确失效（Windows BuildKit 原生 mtime 检测不可靠）。直接使用裸 `docker compose` 命令时需手动 `export GIT_SHA=$(git rev-parse HEAD)` 再执行 `docker compose build`；工作树有未提交改动时使用 `intellisource up --rebuild` 或 `make rebuild` 强制 `--no-cache` 重建。
+
+### 0.3 环境变量（`docker/.env` 或导出到 shell）
 
 | 变量 | 示例值 | 必需 |
 |------|-------|------|
@@ -54,7 +58,7 @@ consumers: [devops, qa-engineer, developer]
 
 > 建议首次只配 WeWork（最低门槛 + 最丰富功能）；订阅创建时 `channel="wework"` 即可路由。WeChat 与 Email 都是兼容路径，可后续按需补齐。若 `docker/.env` 留空分发渠道凭据（wework/wechat/email），`build_distributor_facade()` 会 soft-disable 该渠道并打 warning 日志，不会 hard-fail lifespan；只有真正要走查推送链路（步骤 13）的渠道才需填真实/占位凭据。
 
-### 0.3 信源配置文件
+### 0.4 信源配置文件
 
 `config/sources/` 默认不存在；需手动创建并放置至少一个 YAML（可参考 [config/examples/sources.example.yaml](../../config/examples/sources.example.yaml)）。建议用本仓库自带的 RSS 源以避免网络抖动：
 
@@ -63,11 +67,11 @@ mkdir -p config/sources
 cp config/examples/sources.example.yaml config/sources/sources.yaml
 ```
 
-### 0.4 LLM 配置
+### 0.5 LLM 配置
 
 `config/llm_models.yaml` 需要存在并指向可用的 provider（litellm 兼容）。本地烟测可以用 mock provider 或便宜的小模型；不要把 prod key 注入测试栈。
 
-### 0.5 host 主机端口占用
+### 0.6 host 主机端口占用
 
 `8000` (api), `9090` (prometheus profile), `5432`/`6379` 默认不外露。如已被占用，调整 `docker-compose.yml` ports 段。
 
@@ -176,7 +180,7 @@ curl -s -D - http://localhost:8000/health -o /dev/null | grep -i x-trace-id
 
 **失败排查**：`unhealthy` 时先看 `checks.db` / `checks.redis` 哪个失败；最常见是 `IS_DATABASE_URL` 主机名写成 `localhost` 而非容器名 `db`。
 
-☑ 通过 / 签字：lync-cyber 2026-05-26 — /health 200，db+redis healthy，celery unhealthy（**预期** — worker 阶段 5 步骤 12 才起栈），三个 health 入口全 200，OpenAPI 27 paths（>25），x-trace-id header 存在，logs 无 ERROR/Traceback。**修正**：发现 3 项额外构建/配置缺陷（uvicorn 未声明运行时依赖 / venv 跨路径 shebang 破口 / build_distributor_facade 对未配置渠道 hard-fail 与 §0.2 矛盾），均已修复或加占位绕过；详见 [CORRECTIONS-LOG B-031 #5-7](../reviews/CORRECTIONS-LOG.md)。**走查文档小观察**：①步骤 2 期望 `status=healthy` 与 celery 健康依赖 worker 启动矛盾，应改为 `status in {healthy,degraded}` + 标注 celery 在步骤 12 后才能转 healthy；②OpenAPI 端点受 API key 中间件保护，curl 须带 `X-API-Key: $IS_API_KEY`。
+☑ 通过 / 签字：lync-cyber 2026-05-26 — /health 200，db+redis healthy，celery unhealthy（**预期** — worker 阶段 5 步骤 12 才起栈），三个 health 入口全 200，OpenAPI 27 paths（>25），x-trace-id header 存在，logs 无 ERROR/Traceback。**修正**：发现 3 项额外构建/配置缺陷（uvicorn 未声明运行时依赖 / venv 跨路径 shebang 破口 / build_distributor_facade 对未配置渠道 hard-fail 与 §0.3 矛盾），均已修复或加占位绕过；详见 [CORRECTIONS-LOG B-031 #5-7](../reviews/CORRECTIONS-LOG.md)。**走查文档小观察**：①步骤 2 期望 `status=healthy` 与 celery 健康依赖 worker 启动矛盾，应改为 `status in {healthy,degraded}` + 标注 celery 在步骤 12 后才能转 healthy；②OpenAPI 端点受 API key 中间件保护，curl 须带 `X-API-Key: $IS_API_KEY`。
 
 ---
 

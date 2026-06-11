@@ -86,6 +86,10 @@ deps: []
 - **PR #78 ~ #94** (大规模死代码/shim 烧毁 + 新功能): scheduler `TaskStateMachine`/`RedisStateBackend`/`PushDeduplicator` · llm `PriorityQueue`/`FallbackManager`/`PromptBuilder`/`LLMCache` 死方法 · `llm.processors` 包 · storage/config/mcp_server/collector/observability 死副本与再导出 shim 全部烧毁；新接线 **C1**（`celery_task_id` 生命周期 + PATCH /tasks pause/resume/cancel）/ **S-2**（CS 客服回话接 `ChatSession` + `cleanup_chat_sessions` beat）/ `ConditionalProcessor` 装配 / pipeline CRUD CLI。unit 基线随死测试烧毁回落
 - **大规模重构后真起栈走查** (2026-06-08): 冷栈 down -v bootstrap，核心管线 collect→process→distribute→email + 重构受影响面（C1/S-2/metrics/search/chat）全 GREEN 无回归；真实投递因 [ENV-LIMITATION] 容器→Gmail SMTP 出口阻断走宿主 + mailhog 补证；详见 [CORRECTIONS-LOG 2026-06-08](reviews/CORRECTIONS-LOG.md)。新发现 **B-064**（pushes_total 跨进程暴露，P3）
 
+## 部署债根治
+
+- **D1 Docker 缓存根治** (分支 `fix/d1-docker-cache-bust`): Windows Docker Desktop BuildKit 对 `COPY src/` 的 mtime checksum 失效 → 普通 rebuild 镜像 src 旧（致 PR #107 合并后 api lifespan 因 `fallback_models` schema 崩）。根治 = Dockerfile `ARG GIT_SHA` + `LABEL org.opencontainers.image.revision` 置于 `COPY src/` 前（sha 变 → LABEL 层 cache miss → bust src 层，依赖层 `uv sync` 仍 CACHED）+ `docker-compose.yml` 四服务 `build.args.GIT_SHA` + `intellisource up`/`make up` 自动注入 `git rev-parse HEAD` + `intellisource up --rebuild`/`make rebuild` 逃生口（dirty-tree）。受控实验证伪：改 GIT_SHA + 改 src 内容 + **不带 --no-cache** → 镜像拿到新 src（marker FOUND）且 uv sync 层 CACHED。新增 `tests/unit/cli/test_stack.py` 9 用例（argv/env 注入 + rebuild 顺序 + `_git_sha` 兜底）。code-review approved_with_notes（R-001~R-004 inline 闭环），详见 [code-review r1](reviews/code/CODE-REVIEW-d1-docker-cache-bust-r1.md)
+
 ## Learnings Registry (详细见各 RETRO 报告)
 
 - [RETRO-intellisource-v1.md](reviews/retro/RETRO-intellisource-v1.md) — 6 EXP (sprint-1~7)，应用决策 deferred → backlog B-016
