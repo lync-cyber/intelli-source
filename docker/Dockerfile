@@ -33,7 +33,10 @@ WORKDIR /app
 # Copy the pre-built venv from builder (same path → shebangs valid)
 COPY --from=builder /app/.venv /app/.venv
 
-# Copy application source
+# Copy application source. pyproject.toml ships so get_version() can read
+# [project].version at runtime — the package itself is not installed (see the
+# builder's --no-install-project), so distribution metadata is absent.
+COPY pyproject.toml ./pyproject.toml
 COPY src/ ./src/
 COPY config/ ./config/
 COPY alembic/ ./alembic/
