@@ -685,8 +685,12 @@ class TestComposeCommands:
         argv = mock_subprocess.run.call_args[0][0]
         assert argv[:2] == ["docker", "compose"]
         # --wait blocks until healthchecks pass so a follow-up check-api does
-        # not race the API boot window.
-        assert argv[-3:] == ["up", "-d", "--wait"]
+        # not race the API boot window; --build ensures images are rebuilt with
+        # the injected GIT_SHA rather than reusing stale layer state.
+        assert "up" in argv
+        assert "-d" in argv
+        assert "--wait" in argv
+        assert "--build" in argv
         # never shell=True — Windows path quoting safety
         assert mock_subprocess.run.call_args.kwargs.get("shell", False) is False
 

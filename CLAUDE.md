@@ -18,10 +18,10 @@
  cataforge setup --emit-env-block}
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: backlog-burndown；release gate = approved（B-031 走查 GO）。pre-deploy 走查 15-20 已补跑全 GO（orchestrator 真起栈 2026-06-11，步骤 16 N/A）；B-069 version 缺陷闭环；确认 PR #107 已闭环 B-040/B-059/B-060
-- 当前回归基线: main HEAD 13c16d2（[PR #106](https://github.com/lync-cyber/intelli-source/pull/106) + [PR #107](https://github.com/lync-cyber/intelli-source/pull/107) 已合并）。B-069 修复在 [PR #108](https://github.com/lync-cyber/intelli-source/pull/108)（分支 `fix/b069-version-pyproject-fallback`，待合并 main）：`version.py` pyproject fallback + `test_version.py` + `Dockerfile` COPY pyproject→ /health version `0.0.0+unknown`→`0.4.6`；门禁 version 3/3 + 全量 unit PASS + mypy --strict 267 files + ruff(format+check) 绿，`--no-cache` rebuild 真起栈复验。前次全门禁基线 integration 160 PASS/1 skip + lint-imports 12/12（本轮未重跑）
+- 当前阶段: backlog-burndown；release gate = approved（B-031 走查 GO，pre-deploy 15-20 全 GO）。D1 Docker 缓存根治已实现+真起栈证伪，在分支 `fix/d1-docker-cache-bust`（待提交/合并）
+- 当前回归基线: main HEAD 9c1553c（[PR #106](https://github.com/lync-cyber/intelli-source/pull/106) + [PR #107](https://github.com/lync-cyber/intelli-source/pull/107) + [PR #108](https://github.com/lync-cyber/intelli-source/pull/108) 已合并）。D1 Docker 缓存根治在分支 `fix/d1-docker-cache-bust`：Dockerfile `ARG GIT_SHA`+`LABEL` bust src 层（依赖层 CACHED 保留）+ compose build.args + `intellisource up`/`make up` 注入 sha + `--rebuild` 逃生口 + `test_stack.py` 9 用例；受控实验证伪（改 GIT_SHA+改 src+不带 --no-cache → 镜像新 src，uv sync CACHED）；code-review approved_with_notes（R-001~R-004 inline 闭环）；ruff+mypy --strict 267+全量 unit exit 0 绿。前次全门禁基线 integration 160 PASS/1 skip + lint-imports 12/12（本轮未重跑）
 - 文档状态: prd / arch（含 API-030）/ dev-plan(主卷+s1~s9+s10) / test-report / deploy-spec（PRE-DEPLOY-WALKTHROUGH 步骤 15-20 已签字）/ backlog = approved；ui-spec = N/A；dev-plan-s8 = draft
-- 剩余项目级真债（非阻塞）: 详见 [BACKLOG](docs/BACKLOG-intellisource-v1.md)。开放项 — D1 Windows Docker Desktop BuildKit stale COPY cache 根治（部署强制 `--no-cache` 规避中）；P3 session-splitting 压缩设计(idea，待定)
+- 剩余项目级真债（非阻塞）: 详见 [BACKLOG](docs/BACKLOG-intellisource-v1.md)。开放项 — P3 session-splitting 压缩设计(idea，待定)
 - 详情索引: 闭环历史 → [HISTORY](docs/HISTORY-intellisource-v1.md)｜走查/订正记录 → [CORRECTIONS-LOG](docs/reviews/CORRECTIONS-LOG.md)｜剩余 backlog → [BACKLOG](docs/BACKLOG-intellisource-v1.md)｜学习沉淀 → [docs/reviews/retro/](docs/reviews/retro/)
 - 上游反馈: [docs/feedback/](docs/feedback/) — 框架级条目已移交 CataForge 上游
 

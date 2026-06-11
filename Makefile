@@ -5,7 +5,7 @@ COMPOSE := docker compose -f docker/docker-compose.yml
 # effect if set afterwards. Mirrors docker/Dockerfile and the CI test jobs.
 UTF8_ENV := PYTHONUTF8=1 PYTHONIOENCODING=utf-8
 
-.PHONY: up down migrate logs ps clean rollback bootstrap \
+.PHONY: up down migrate logs ps clean rollback rebuild bootstrap \
         arch deps deadcode deps-graph check check-all lint-fix help \
         test-unit test-integration contract-check gen-schemas
 
@@ -13,7 +13,10 @@ UTF8_ENV := PYTHONUTF8=1 PYTHONIOENCODING=utf-8
 # Docker dev stack
 # ---------------------------------------------------------------------------
 up:
-	$(COMPOSE) up -d
+	GIT_SHA=$$(git rev-parse HEAD 2>/dev/null || echo unknown) $(COMPOSE) up -d --build
+
+rebuild:
+	GIT_SHA=$$(git rev-parse HEAD 2>/dev/null || echo unknown) $(COMPOSE) build --no-cache
 
 down:
 	$(COMPOSE) down
@@ -58,7 +61,7 @@ help:
 	@echo "  test-unit         Run unit tests only (no PG/Redis required)"
 	@echo "  test-integration  Run integration tests (requires 'make up' first)"
 	@echo "Docker:"
-	@echo "  up / down / migrate / logs / ps / clean / rollback"
+	@echo "  up / down / migrate / logs / ps / clean / rollback / rebuild"
 	@echo "Setup:"
 	@echo "  bootstrap         First-time setup (= uv run intellisource init)"
 

@@ -6,6 +6,7 @@ Registered directly on the root app: ``up`` / ``down`` / ``migrate`` / ``logs``
 
 from __future__ import annotations
 
+import os
 import subprocess
 
 import typer
@@ -26,7 +27,24 @@ def _compose_args(*args: str) -> list[str]:
     return ["docker", "compose", "-f", str(compose_file), *args]
 
 
-def _run_compose(*args: str) -> None:
+def _git_sha() -> str:
+    """Return the current HEAD commit sha, or ``"unknown"`` on any failure."""
+    try:
+        result = subprocess.run(  # noqa: S603
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            cwd=str(project_root()),
+            shell=False,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except OSError:
+        pass
+    return "unknown"
+
+
+def _run_compose(*args: str, env: dict[str, str] | None = None) -> None:
     """Run a docker compose subcommand, surfacing failures as a CLI exit code.
 
     ``shell=False`` with an argv list keeps the space-containing compose path
@@ -34,7 +52,7 @@ def _run_compose(*args: str) -> None:
     """
     argv = _compose_args(*args)
     try:
-        result = subprocess.run(argv, shell=False)  # noqa: S603
+        result = subprocess.run(argv, shell=False, env=env)  # noqa: S603
     except FileNotFoundError:
         typer.echo(
             "Error: 'docker' not found on PATH. Install Docker Desktop and retry."
@@ -44,14 +62,24 @@ def _run_compose(*args: str) -> None:
         raise typer.Exit(code=result.returncode)
 
 
-def up() -> None:
-    """Start the full stack and block until services report healthy.
-
-    ``--wait`` holds until the API healthcheck passes, so a follow-up
-    ``doctor --check-api`` / ``task trigger`` does not race uvicorn's boot
-    (the published port answers before the app is serving).
-    """
-    _run_compose("up", "-d", "--wait")
+def up(
+    rebuild: bool = typer.Option(
+        False,
+        "--rebuild",
+        "-r",
+        help=(
+            "Force --no-cache rebuild (use when src changed without a new commit sha)."
+        ),
+    ),
+) -> None:
+    """Start the full stack, injecting GIT_SHA to bust the src layer cache."""
+    sha = _git_sha()
+    env = {**os.environ, "GIT_SHA": sha}
+    if rebuild:
+        _run_compose("build", "--no-cache", env=env)
+        _run_compose("up", "-d", "--wait", env=env)
+    else:
+        _run_compose("up", "-d", "--wait", "--build", env=env)
 
 
 def down() -> None:

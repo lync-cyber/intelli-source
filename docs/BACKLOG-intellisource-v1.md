@@ -30,12 +30,6 @@ deps: []
 
 ---
 
-## 剩余项目级真债（非阻塞，保留跟踪）
-
-- **[P2·部署] Windows Docker Desktop BuildKit stale COPY cache 根治**（D1，2026-06-11 走查暴露）：`docker compose build`（带 cache）对 `COPY src/ ./src/` 的 build-context checksum 检测在 Windows Docker Desktop 下失效——镜像时间戳更新但容器内 src 仍是旧代码（PR #107 合并后普通 rebuild 未真正纳入新代码，致 `fallback_models` schema 校验崩溃、api 起不来）。当前规避 = 部署强制 `docker compose build --no-cache`。根治候选：Dockerfile 在 `COPY src/` 前加 cache-bust `ARG GIT_SHA` ENV / 部署脚本固定 `--no-cache` / CI 用 `--pull --no-cache`。详见 [CORRECTIONS-LOG 2026-06-11](reviews/CORRECTIONS-LOG.md)。
-
----
-
 ## agentloop-hardening 后续（非阻塞，保留跟踪）
 
 > 本批 R-001~R-010 + R-005 余量 + R-011/R-012 + P11/P12 已闭环，详见 [code-review r1](reviews/code/CODE-REVIEW-agentloop-hardening-r1.md) 与 [burndown r1](reviews/code/CODE-REVIEW-agentloop-burndown-r1.md)。以下为唯一保留的延后设计。

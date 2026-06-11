@@ -46,6 +46,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
     command: ["python", "-m", "alembic", "upgrade", "head"]
     env_file:
       - .env
@@ -60,6 +62,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
     command:
       - uvicorn
       - "intellisource.main:create_app"
@@ -101,6 +105,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
     command:
       - celery
       - "-A"
@@ -138,6 +144,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
     command:
       - celery
       - "-A"

@@ -37,6 +37,14 @@ COPY --from=builder /app/.venv /app/.venv
 # [project].version at runtime — the package itself is not installed (see the
 # builder's --no-install-project), so distribution metadata is absent.
 COPY pyproject.toml ./pyproject.toml
+
+# Windows BuildKit mis-detects COPY src/ as cached when mtime drifts.
+# Placing ARG GIT_SHA here (after the venv and pyproject.toml layers) means a
+# new commit sha invalidates only this layer and the src COPY below, while the
+# expensive dep layers above remain cached.
+ARG GIT_SHA=unknown
+LABEL org.opencontainers.image.revision=$GIT_SHA
+
 COPY src/ ./src/
 COPY config/ ./config/
 COPY alembic/ ./alembic/

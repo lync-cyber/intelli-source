@@ -39,14 +39,16 @@ required_sections:
 
 ```bash
 # 在仓库根目录执行
-docker build -f docker/Dockerfile -t intellisource:${GIT_SHA_SHORT} .
+docker build -f docker/Dockerfile \
+  --build-arg GIT_SHA=${GIT_SHA_SHORT} \
+  -t intellisource:${GIT_SHA_SHORT} .
 
 # 多阶段构建说明：
 #   Stage 1 (builder): python:3.11-slim + uv sync --frozen --no-dev
 #   Stage 2 (runtime): python:3.11-slim + venv copy + src/ + config/ + alembic/
 ```
 
-**注意**：构建上下文为仓库根目录（`context: ..`），`docker/Dockerfile` 内路径均相对于根目录。
+**注意**：构建上下文为仓库根目录（`context: ..`），`docker/Dockerfile` 内路径均相对于根目录。`--build-arg GIT_SHA` 经 Dockerfile 中消费它的 `LABEL` 层在 sha 变化时强制 `COPY src/` 层失效，同时保留依赖层缓存。本地起栈：`intellisource up` 与 `make up` 均自动注入当前 sha；dirty-tree 迭代（sha 未变但 src 已改）用 `intellisource up --rebuild`（重建后自动起栈）或 `make rebuild`（仅 `--no-cache` 重建镜像，需随后 `make up` 起栈）。
 
 ### 1.3 SBOM 生成
 
