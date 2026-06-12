@@ -23,7 +23,7 @@ split_from: dev-plan-intellisource-v1
   - T-084 PipelineEngine 中间件接入与流式/批处理分路（B-03）
   - T-085 HybridSearchEngine 真实查询接驳 + chat 方法补全（B-02）
   - T-086 LLMGateway chat 方法 + JSON Mode / Function Calling（B-06 + B-11）
-  - T-087 F-005 LLM 智能处理链路接驳（B-04）
+  - T-087 `F-005` LLM 智能处理链路接驳（B-04）
   - T-088 CircuitBreaker + PriorityQueue 接驳 LLMGateway（B-05）
   - T-089 Agent 工具 6 个 execute stub 真实实现（B-08）
   - T-090 三渠道 PushRecord 持久化 + 统一 dedup hook（B-07）
@@ -275,7 +275,7 @@ graph LR
 
 ---
 
-### T-087: F-005 LLM 智能处理链路接驳（B-04）
+### T-087: `F-005` LLM 智能处理链路接驳（B-04）
 
 - **目标**: 补全 VectorStore 缺失方法；将 `_llm_complete_execute` 改为真实调用 LLMGateway；新建 LLM 结构化提取处理器接入管道（含 SchemaEnforcer + FallbackManager 降级链路）；建立 ContentCluster 写入路径；`ProcessedContent.structured_data` 在结构化提取后实际写入。
 - **task_kind**: feature
@@ -711,6 +711,6 @@ graph LR
 - **描述**: T-088 的 PriorityQueue 使用 asyncio.Queue，但 Celery worker 进程可能无事件循环（取决于 worker pool 类型）；若使用 `prefork` pool，asyncio 不可用
 - **缓解**: 在 `celery_app.conf` 中指定 `worker_pool = "gevent"` 或 `"eventlet"`（协程 pool）；或将 PriorityQueue 改为线程安全的 `queue.PriorityQueue`（标准库），按实现时的 worker pool 决策选择；T-088 `risk` 段已注明，implementer 决策时在 PR 描述中记录选择理由
 
-### R-006: F-005 四模块跨度任务卡（T-087）执行风险（MEDIUM）
+### R-006: `F-005` 四模块跨度任务卡（T-087）执行风险（MEDIUM）
 - **描述**: T-087 跨 M-004/M-005/M-006/M-009 四个模块，LOC 估算 ~280，接近 standard 模式建议拆分阈值
 - **缓解**: T-087 实现时优先完成 VectorStore 方法补全（单模块，LOC ~60）和 `_llm_complete_execute` 修复（~30），再处理结构化提取处理器（~120）和 ContentCluster 写入（~70）；若 code-review GREEN 后发现 REFACTOR 时间过长，可将 ContentCluster 写入路径拆分为后续子卡，在 T-094 集成测试中覆盖最终 AC-6 验收

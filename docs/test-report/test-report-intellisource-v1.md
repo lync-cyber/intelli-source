@@ -18,7 +18,7 @@ required_sections:
 # Test Report: IntelliSource
 
 > 版本: v1 | 阶段: Phase 6 Testing | 测试执行日期: 2026-05-05
-> 覆盖 Sprint 1~7 全部已完成任务（T-001~T-079 中属 Sprint 1~7 范围的任务）
+> 覆盖 Sprint 1~7 全部已完成任务（`T-001`~T-079 中属 Sprint 1~7 范围的任务）
 
 [NAV]
 - §1 测试策略 → §1.1 金字塔分层, §1.2 IPC边界
@@ -63,26 +63,26 @@ required_sections:
 
 矩阵按 Sprint/模块组织，列出代表性 TC 并映射到 dev-plan AC。覆盖状态：covered = 有直接测试；partial = AC 部分或通过集成间接覆盖；uncovered = 无测试或测试为纯 mock 无真实路径。
 
-### Sprint 1: 基础设施与数据层 (T-001~T-009, T-007a)
+### Sprint 1: 基础设施与数据层 (`T-001`~T-009, T-007a)
 
 | 用例ID | 任务 | 关联 AC | 测试文件 | 类型 | 覆盖状态 |
 |--------|------|---------|---------|------|---------|
-| TC-001 | T-001 项目骨架 | AC-T001-1~5 | test_project_structure.py | Unit | covered |
+| TC-001 | `T-001` 项目骨架 | AC-T001-1~5 | test_project_structure.py | Unit | covered |
 | TC-002 | T-002 数据库连接 | AC-T002-1~4 | test_database.py | Unit | covered |
 | TC-003 | T-003 ORM模型 | AC-T003-1~5 | test_models.py | Unit | covered |
 | TC-004 | T-004 Repository | AC-054, AC-T004-1~5 | test_repositories.py | Unit | covered |
-| TC-005 | T-005 pgvector | AC-055, AC-056, AC-T005-1~4 | test_vector.py | Unit | partial（SQLite mock；真 PG 向量检索未覆盖）|
+| TC-005 | T-005 pgvector | AC-055, `AC-056`, AC-T005-1~4 | test_vector.py | Unit | partial（SQLite mock；真 PG 向量检索未覆盖）|
 | TC-006 | T-006 结构化日志 | AC-057~059, AC-T006-1~2 | test_logging.py, test_metrics.py | Unit | covered |
 | TC-007 | T-007 健康检查 | AC-060, AC-T007-1~4 | test_health.py | Unit | covered |
 | TC-008 | T-007a 错误分类 | AC-T007a-1~3 | test_errors.py | Unit | covered |
 | TC-009 | T-008 配置模型 | AC-001, AC-003, AC-T008-1~3 | test_models.py(config) | Unit | covered |
 | TC-010 | T-009 配置加载 | AC-002, AC-004, AC-T009-1~5 | test_loader.py | Unit | covered |
 
-### Sprint 2: 采集引擎与处理管道 (T-010~T-018)
+### Sprint 2: 采集引擎与处理管道 (`T-010`~T-018)
 
 | 用例ID | 任务 | 关联 AC | 测试文件 | 类型 | 覆盖状态 |
 |--------|------|---------|---------|------|---------|
-| TC-011 | T-010 采集器基类/注册中心 | AC-005, AC-T010-1~7 | test_base.py, test_registry.py | Unit | covered |
+| TC-011 | `T-010` 采集器基类/注册中心 | `AC-005`, AC-T010-1~7 | test_base.py, test_registry.py | Unit | covered |
 | TC-012 | T-011 RSS采集 | AC-006~008, AC-T011-1~2 | test_rss.py | Unit | partial（网络请求 mock；真 feedparser 解析正常路径覆盖；错误分支 85% 覆盖）|
 | TC-013 | T-012 Web爬虫 | AC-006~007, AC-T012-1~4 | test_web.py | Unit | covered |
 | TC-014 | T-013 API采集 | AC-006~008, AC-T013-1~2 | test_api.py | Unit | covered |
@@ -92,11 +92,11 @@ required_sections:
 | TC-018 | T-017 条件分支/批处理 | AC-014, AC-017, AC-T017-1~3 | test_condition.py, test_batch.py | Unit | covered |
 | TC-019 | T-018 内置处理器 | AC-015, AC-T018-1~4 | test_processors.py | Unit | covered |
 
-### Sprint 3: LLM智能处理 (T-019~T-026)
+### Sprint 3: LLM智能处理 (`T-019`~T-026)
 
 | 用例ID | 任务 | 关联 AC | 测试文件 | 类型 | 覆盖状态 |
 |--------|------|---------|---------|------|---------|
-| TC-020 | T-019 LLM统一网关 | AC-028, AC-031 | test_gateway.py | Unit | covered |
+| TC-020 | `T-019` LLM统一网关 | `AC-028`, `AC-031` | test_gateway.py | Unit | covered |
 | TC-021 | T-020 熔断器/降级 | AC-029~030 | test_circuit_breaker.py, test_fallback.py | Unit | covered |
 | TC-022 | T-021 优先级队列/成本追踪 | AC-032~033 | test_priority_queue.py, test_cost_tracker.py | Unit | covered |
 | TC-023 | T-022 LLM结构化提取 | AC-018, AC-021 | test_tools.py(pipeline) | Unit | covered |
@@ -105,11 +105,11 @@ required_sections:
 | TC-026 | T-025 摘要/打标 | AC-023~024 | test_processors.py(pipeline) | Unit | covered |
 | TC-027 | T-026 敏感词过滤 | AC-025 | test_filter.py(llm) | Unit | covered |
 
-### Sprint 4: 任务编排与分发 (T-027~T-036)
+### Sprint 4: 任务编排与分发 (`T-027`~T-036)
 
 | 用例ID | 任务 | 关联 AC | 测试文件 | 类型 | 覆盖状态 |
 |--------|------|---------|---------|------|---------|
-| TC-028 | T-027 Celery任务定义 | AC-034~035 | test_tasks.py | Unit | covered |
+| TC-028 | `T-027` Celery任务定义 | `AC-034`~035 | test_tasks.py | Unit | covered |
 | TC-029 | T-028 任务状态机 | AC-038~039 | test_state_machine.py | Unit | covered |
 | TC-030 | T-029 幂等保护 | AC-036~037 | test_idempotency.py | Unit | covered |
 | TC-031 | T-030 AgentRunner双模式 | AC-066~067 | test_runner.py | Unit | covered |
@@ -120,11 +120,11 @@ required_sections:
 | TC-036 | T-035 推送频率控制 | AC-046 | test_frequency.py | Unit | covered |
 | TC-037 | T-036 Agent工具注册 | AC-066 | test_tools.py(agent) | Unit | covered |
 
-### Sprint 5: 检索/API/CLI与集成 (T-037~T-046)
+### Sprint 5: 检索/API/CLI与集成 (`T-037`~T-046)
 
 | 用例ID | 任务 | 关联 AC | 测试文件 | 类型 | 覆盖状态 |
 |--------|------|---------|---------|------|---------|
-| TC-038 | T-037 混合检索引擎 | AC-051, AC-056 | test_hybrid.py | Unit | partial（SQLite mock；真实 pgvector 向量融合路径 75% 行覆盖，lines 47-71 PG专有路径未执行）|
+| TC-038 | `T-037` 混合检索引擎 | `AC-051`, `AC-056` | test_hybrid.py | Unit | partial（SQLite mock；真实 pgvector 向量融合路径 75% 行覆盖，lines 47-71 PG专有路径未执行）|
 | TC-039 | T-038 即时检索/对话压缩 | AC-050, AC-052~053 | test_chat_session.py | Unit | covered |
 | TC-040 | T-039 Webhook回调 | AC-T039 | test_webhooks.py | Unit | covered |
 | TC-041 | T-040~T-042 API路由层 | AC-061~065 | test_sources.py, test_content_routes.py, test_tasks.py, test_llm_routes.py | Unit | covered |
@@ -133,7 +133,7 @@ required_sections:
 | TC-044 | T-045 FastAPI入口 | AC-065 | test_app_entry.py, test_lifespan.py | Unit | covered |
 | TC-045 | T-046 Alembic迁移 | AC-054 | test_migration.py | Unit | covered |
 
-### Sprint 6: 处理器/智能体架构重构 (T-047~T-056)
+### Sprint 6: 处理器/智能体架构重构 (`T-047`~T-056)
 
 | 用例ID | 任务 | 关联 AC | 测试文件 | 类型 | 覆盖状态 |
 |--------|------|---------|---------|------|---------|
@@ -144,12 +144,12 @@ required_sections:
 | TC-050 | T-054 Agent处理编排引擎 | AC-066~067 | test_orchestration.py, test_pipeline.py | Unit | covered |
 | TC-051 | T-055 管道配置更新 | AC-T055 | test_tools.py(pipeline) | Unit | covered |
 
-### Sprint 7: LLM韧性增强与配置治理 (T-057~T-075)
+### Sprint 7: LLM韧性增强与配置治理 (`T-057`~T-075)
 
 | 用例ID | 任务 | 关联 AC | 测试文件 | 类型 | 覆盖状态 |
 |--------|------|---------|---------|------|---------|
-| TC-052 | T-057 指数退避重试 | AC-T057-1~7 | test_gateway_retry.py | Unit | covered |
-| TC-053 | T-057 retry 端到端 | AC-T063-1 | test_sprint7_integration.py::TestLLMRetryFallback | Integration | covered |
+| TC-052 | `T-057` 指数退避重试 | AC-T057-1~7 | test_gateway_retry.py | Unit | covered |
+| TC-053 | `T-057` retry 端到端 | AC-T063-1 | test_sprint7_integration.py::TestLLMRetryFallback | Integration | covered |
 | TC-054 | T-058 上下文压缩增强 | AC-T058-1~7 | test_compaction.py | Unit | covered |
 | TC-055 | T-058 压缩 AgentRunner 触发 | AC-T063-4 | test_sprint7_integration.py::TestAgentRunnerCompaction | Integration | covered |
 | TC-056 | T-059 配置分层合并 | AC-T059-1~8 | test_resolver.py | Unit | covered |
@@ -173,7 +173,7 @@ required_sections:
 
 | 任务 | 未覆盖场景 | 建议处理 |
 |------|-----------|---------|
-| T-005 / T-037 / T-073 | PostgreSQL 专有路径（pgvector 向量检索、JSONB @> 操作符、zhparser 全文检索）未覆盖 | Sprint-8 引入 testcontainers-postgres 后补充（BD-001 carryover）|
+| T-005 / `T-037` / T-073 | PostgreSQL 专有路径（pgvector 向量检索、JSONB @> 操作符、zhparser 全文检索）未覆盖 | Sprint-8 引入 testcontainers-postgres 后补充（BD-001 carryover）|
 | T-073 | `GET /api/v1/clusters` 401 鉴权测试（TC-064 1 skipped）| 鉴权机制稳定后补充（BD-002）|
 | T-002 / T-004 | DatabaseManager 连接池真实释放路径、BaseRepository 分页边界（lines 36-38, 41, 79, 90）| 风险 LOW，建议 Sprint-8 补充 |
 | T-075 | scheduler/boot.py shutdown handler 覆盖（73%，lines 86-95 RuntimeError fallback 路径）| 风险 LOW，worker shutdown 是 best-effort 路径 |
@@ -309,7 +309,7 @@ uv run pytest --cov=src/intellisource --cov-report=term-missing --cov-report=htm
 
 | 债务ID | 关联任务 | 严重等级 | 状态 | 描述 | 建议 |
 |--------|----------|----------|------|------|------|
-| BD-001 | T-005, T-037, T-073 | MEDIUM | backlog（Sprint-8） | SQLite-vs-Postgres 集成测试基础设施差距：pgvector HNSW、JSONB @> 操作符、zhparser 全文检索无法在 SQLite 下测试；search/hybrid.py 75%、storage/repositories/cluster.py 83% 低覆盖率根因 | Sprint-8 引入 testcontainers-postgres，将 test_vector.py、test_hybrid.py、test_repositories.py 中 PG 专有路径迁移为真实集成测试 |
+| BD-001 | T-005, `T-037`, T-073 | MEDIUM | backlog（Sprint-8） | SQLite-vs-Postgres 集成测试基础设施差距：pgvector HNSW、JSONB @> 操作符、zhparser 全文检索无法在 SQLite 下测试；search/hybrid.py 75%、storage/repositories/cluster.py 83% 低覆盖率根因 | Sprint-8 引入 testcontainers-postgres，将 test_vector.py、test_hybrid.py、test_repositories.py 中 PG 专有路径迁移为真实集成测试 |
 | BD-002 | T-073 | LOW | backlog | `GET /api/v1/clusters` 401 鉴权测试 1 SKIPPED；API Key 鉴权中间件集成测试覆盖不完整 | 鉴权测试 fixture 完善后补充；Sprint-8 T-076 健康检查完善时顺手处理 |
 | BD-003 | T-063 / T-073 / T-075 | LOW | backlog | tests/ 目录累计约 166 处 pre-existing ruff 风格警告；不影响运行但增加代码审查噪声 | Sprint-8 code-quality 清理任务（T-077）一并处理 |
 

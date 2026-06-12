@@ -38,6 +38,12 @@ deps: []
 
 ---
 
+## 框架升级 0.9.1 后续（非阻塞，保留跟踪）
+
+- **[P3] KG 摄取残留 WARN — 79 个被引用但无定义源的 entity-id**：doctor `KG ingestion completeness` 在 collision 清零后仍报 WARN，列出 `API-010` / `API-026` / `API-029` / `CR-001` / `CR-002` 等 id 被 active docs 引用却在任何 active doc_type 源中无定义。根因疑为 `context.kg_active_doc_types` 未注册 API/CR 等条目的定义 doc_type（如 arch 的 API 章、变更请求源）。非阻塞（WARN 不 FAIL）。处理方向：注册缺失 doc_type，或将确属外部/历史引用的 id 标 inline-code 豁免。已并入 [上游反馈](feedback/feedback-suggest-kg-ingest-gate-legacy-docs-20260612.md)。
+
+---
+
 ## 已闭环（归档）
 
 完整闭环 prose 见 [HISTORY-intellisource-v1.md](HISTORY-intellisource-v1.md) + 各 PR/commit + [CORRECTIONS-LOG](reviews/CORRECTIONS-LOG.md)。已闭环 B 号（删除条目仅保留编号便于回溯）：
@@ -56,3 +62,4 @@ deps: []
 - **PR #106**：B-067（TEI healthcheck start_period 120s→1200s）+ B-068（embedding backfill：`list_missing_embeddings` + `backfill_embeddings` Celery 任务 + `POST /content/backfill-embeddings` 端点（arch API-030）+ `content backfill-embeddings` CLI + process.py 内联回填）。code-review 抓 1 CRITICAL（R-001 分页跳行）+ 3 HIGH，approved_with_notes（[code-review r2](reviews/code/CODE-REVIEW-T-BF-backfill-r2.md)）
 - **PR #107**：agentloop-hardening — flexible loop 加固 + model failover + scheduler idempotency + agent observability（R-001~R-012 + P11/P12）。code-review approved 0 CRITICAL/HIGH（[hardening r1](reviews/code/CODE-REVIEW-agentloop-hardening-r1.md) / [burndown r1](reviews/code/CODE-REVIEW-agentloop-burndown-r1.md)）
 - **B-069 + pre-deploy 走查 15-20**（2026-06-11 真起栈，[CORRECTIONS-LOG](reviews/CORRECTIONS-LOG.md)）：步骤 15-20 全 GO（16 N/A）；B-069 `/health` version `0.0.0+unknown`→`0.4.6` inline 修复（version.py pyproject fallback + Dockerfile COPY pyproject + 3 单测）；确认 PR #107 已闭环上次走查（2026-05-29）的 B-040（trace_id 跨进程）/ B-059（broker 宕 fail-fast）/ B-060（失败 LLM 落 llm_call_logs）。D1（Windows BuildKit stale cache）转剩余真债跟踪。
+- **框架升级 0.4.1→0.9.1**（2026-06-12）：`cataforge bootstrap` 刷新 scaffold 162 文件 + IDE 产物重部署 + kg-first 初始化 KG store。升级激活的 `KG ingestion completeness` 门禁对 legacy approved 文档报 14 个跨文档 entity-id collision（importer 把裸 `T-`/`F-`/`AC-` 当定义）→ test-report(24) + dev-plan-s8r(3) 裸 id 改 inline-code 让定义唯一化，`kg import` + doctor all-pass；kg/store 加 gitignore。上游反馈见 [feedback](feedback/feedback-suggest-kg-ingest-gate-legacy-docs-20260612.md)。
