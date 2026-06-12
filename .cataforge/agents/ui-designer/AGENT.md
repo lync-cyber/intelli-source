@@ -8,10 +8,9 @@ allowed_paths:
   - docs/research/
 skills:
   - ui-design
-  - doc-gen
-  - doc-nav
+  - context
   - research
-  - penpot-sync    # 仅当 CLAUDE.md 设计工具=penpot 时使用
+  - penpot-sync
 model_tier: standard
 maxTurns: 60
 ---
@@ -31,18 +30,18 @@ maxTurns: 60
 
 ## Output Contract
 - 必须产出: ui-spec-{project}.md（版本号写入 frontmatter `version:` 字段，不进入 id/文件名）
-- 使用模板: 通过doc-gen调用 ui-spec 模板
+- 使用模板: 通过context调用 ui-spec 模板
 
 ### Penpot 降级策略
-当 CLAUDE.md 设计工具=penpot 但 Penpot MCP 不可用时:
+当 {INSTRUCTION_FILE} 设计工具=penpot 但 Penpot MCP 不可用时:
 1. 向用户报告 MCP 连接失败
 2. 提供选项: "退化为手动模式（跳过 Penpot 步骤）" / "排查 MCP 连接后重试"
-3. 用户选择退化时，将 CLAUDE.md 设计工具临时标记为 none，跳过所有 penpot-sync/penpot-review 步骤
+3. 用户选择退化时，将 {INSTRUCTION_FILE} 设计工具临时标记为 none，跳过所有 penpot-sync/penpot-review 步骤
 4. 设计 Token 通过手动编辑 CSS 变量文件替代 Penpot 同步
 
 ## Anti-Patterns
 - 禁止: Bash 执行除 `cataforge docs load` 之外的任何命令
-- 禁止: 跳过设计方向确认直接定义Token — Token值应从设计方向推导，而非凭LLM默认偏好填充
+- 禁止: 跳过设计方向确认直接定义Token — inline 承载时（Phase 3 默认）主线程直接 user-interview 确认产品调性 / 设计方向后再推导 Token；派发子代理执行时经 needs_input 回传，不凭 LLM 默认偏好填充
 - 禁止: 跳过设计系统直接定义页面 — 没有Token约束的组件定义会导致视觉不一致
 - 禁止: 组件缺少状态变体(default/hover/active/disabled/error) — 且各状态须有视觉差异描述，不是仅列出状态名
 - 禁止: 页面缺少状态流(loading/empty/populated/error) — 每种状态需有具体的视觉表现描述(骨架屏/空状态插图/错误提示样式)

@@ -38,6 +38,24 @@
             "command": "python -m cataforge.hook.scripts.log_agent_dispatch"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -m cataforge.runtime.hook.scripts.guard_dangerous"
+          }
+        ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -m cataforge.runtime.hook.scripts.log_agent_dispatch"
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -76,6 +94,42 @@
             "command": "python -m cataforge.hook.scripts.detect_review_flag"
           }
         ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -m cataforge.runtime.hook.scripts.validate_agent_result"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -m cataforge.runtime.hook.scripts.lint_format"
+          }
+        ]
+      },
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -m cataforge.runtime.hook.scripts.detect_correction"
+          }
+        ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -m cataforge.runtime.hook.scripts.detect_review_flag"
+          }
+        ]
       }
     ],
     "Stop": [
@@ -85,6 +139,15 @@
           {
             "type": "command",
             "command": "python -m cataforge.hook.scripts.notify_done"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -m cataforge.runtime.hook.scripts.notify_done"
           }
         ]
       }
@@ -98,6 +161,15 @@
             "command": "python -m cataforge.hook.scripts.notify_permission"
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -m cataforge.runtime.hook.scripts.notify_permission"
+          }
+        ]
       }
     ],
     "SessionStart": [
@@ -107,6 +179,24 @@
           {
             "type": "command",
             "command": "python -m cataforge.hook.scripts.session_context"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -m cataforge.runtime.hook.scripts.session_context"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -m cataforge.runtime.hook.scripts.deploy_drift"
           }
         ]
       }

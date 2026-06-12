@@ -3,15 +3,9 @@ name: sprint-review
 description: "Sprint 完成度审查 — 计划 vs 实际对比、AC 覆盖验证、范围偏移检测 (gold-plating / drift / 缺失)。当一个 Sprint 全部任务卡完成、需要进入下一 Sprint 或发布前的完成度评估时使用此 skill。本 skill 做 Sprint 级聚合：单任务 code-review 由 code-review review 负责，项目级腐化扫描由 code-review scan 负责，文档评审由 doc-review 负责。"
 argument-hint: "<sprint_number: 1|2|3...>"
 suggested-tools: Read, Glob, Grep, Bash
-depends: [doc-nav]
+depends: [context]
 disable-model-invocation: false
 user-invocable: true
-kg_adapter:
-  name: doc_read
-  config:
-    doc_id_param: doc_id
-    pre_dispatch_queries:
-      doc_summary: "SELECT ?label WHERE {\n  $doc_iri rdfs:label ?label .\n} LIMIT 1"
 ---
 
 # Sprint完成度审查 (sprint-review)
@@ -66,7 +60,7 @@ cataforge skill run sprint-review -- {N} \
 | `--format {text,json}` | text | `json`：结构化 issues，供 framework-review / CI 机读 |
 
 ### Step 2: Layer 2 — AI语义审查
-通过doc-nav加载dev-plan Sprint任务详情、arch接口契约、CODE-REVIEW报告，审查:
+通过context加载dev-plan Sprint任务详情、arch接口契约、CODE-REVIEW报告，审查:
 - 完成度(completeness): 所有计划交付物是否存在且功能完整，非空壳文件
 - AC覆盖(ac-coverage): 每个AC-NNN是否有对应测试且测试逻辑有效（非仅grep匹配）；至少一个关联测试**不**使用 `vi.mock` / `jest.mock` / `unittest.mock` 全 stub 替换被测包顶层导出（避免接口契约虚假绿色）
 - Wiring 完成度(wiring-completeness): 任务卡 `user_facing_critical_path: true` 或 `consumer_components` 非空时，验证 deliverable 真实挂载到至少一个消费点（路由 / app shell / 父组件 prop），而非仅"组件存在"。读取 implementer self-report 的 `wiring_complete` / `wiring_evidence` 字段（agent-result.schema 0.2.0+）做交叉核对；缺失 evidence 但任务声称 wiring_complete=true 时升 HIGH
@@ -97,13 +91,13 @@ Sprint审查额外category:
 
 ## Layer 1 检查项 (sprint_check.py)
 
-> 权威清单见 `cataforge.skill.builtins.sprint_review.CHECKS_MANIFEST`（framework-review 自动对账，本段与 manifest 不一致即 FAIL）。anchor 模式：每条 manifest 项必须在本段以 HTML check_id 注释形式出现（见下方各条），反之亦然。
+> 权威清单见 `cataforge.runtime.skill.builtins.sprint_review.CHECKS_MANIFEST`（framework-review 自动对账，本段与 manifest 不一致即 FAIL）。anchor 模式：每条 manifest 项必须在本段以 HTML check_id 注释形式出现（见下方各条），反之亦然。
 
 - <!-- check_id: task_status_done --> Sprint任务表中所有任务状态=done
 - <!-- check_id: deliverables_exist --> 每个任务的deliverables文件路径全部存在于磁盘
 - <!-- check_id: ac_coverage --> 每个任务的tdd_acceptance中AC-NNN在tests/目录下有对应引用
-- <!-- check_id: unplanned_files --> 检测计划外文件 (WARN)：src 范围内、未被 `.gitignore` 与默认 ignore 列表 (`node_modules/`, `dist/`, `*.tsbuildinfo` 等) 过滤、且不在任何任务 deliverables 中的文件视为 gold-plating 信号；候选集合默认通过 `git ls-files -co --exclude-standard` 取得，monorepo 友好
-- <!-- check_id: code_review_present --> 每个任务有对应的CODE-REVIEW报告(docs/reviews/code/CODE-REVIEW-{task_id}-*.md)（WARN：低风险任务可由sprint-review批量审查覆盖，缺少独立报告不阻塞）
+- <!-- check_id: unplanned_files --> 检测计划外文件 (LOW)：src 范围内、未被 `.gitignore` 与默认 ignore 列表 (`node_modules/`, `dist/`, `*.tsbuildinfo` 等) 过滤、且不在任何任务 deliverables 中的文件视为 gold-plating 信号；候选集合默认通过 `git ls-files -co --exclude-standard` 取得，monorepo 友好
+- <!-- check_id: code_review_present --> 每个任务有对应的CODE-REVIEW报告(docs/reviews/code/CODE-REVIEW-{task_id}-*.md)（MEDIUM：低风险任务可由sprint-review批量审查覆盖，缺少独立报告不阻塞）
 
 ## project_features schema
 
@@ -131,7 +125,7 @@ project_features:
 | `deliverables_accept_alternation` | bool | false | true 时 `check_deliverables` 把 `A \| B` 视为或关系（任一存在即过），同时 `check_unplanned_files` 把两候选都标为 planned（避免 gold-plating 误报） |
 | `unplanned_glob_patterns` | list[str] | `[]` | 每条 fnmatch 模式应用于 `check_unplanned_files` 输出；匹配的文件被滤掉。典型用途：项目级测试/fixture/helper 命名约定 |
 
-读取由 `cataforge.skill.builtins.sprint_review.sprint_check.load_project_features()` 完成；优先读非 sprint 分卷（不带 `-sN.md` 后缀）的第一个含 `project_features:` 的文件。
+读取由 `cataforge.runtime.skill.builtins.sprint_review.sprint_check.load_project_features()` 完成；优先读非 sprint 分卷（不带 `-sN.md` 后缀）的第一个含 `project_features:` 的文件。
 
 ## Anti-Patterns
 
@@ -142,5 +136,5 @@ project_features:
 
 ## 效率策略
 - Layer 1 先行（脚本结构检查不通过即跳过 AI 审查）；Layer 2 聚焦脚本不可覆盖的行为偏移和质量模式
-- 通过 doc-nav 按需加载，不全量读 dev-plan
+- 通过 context 按需加载，不全量读 dev-plan
 - **merged-review**：任务同质 sprint 单份 sprint-review 替代 N 份 CODE-REVIEW，跨任务模式更易识别

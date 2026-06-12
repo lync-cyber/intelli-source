@@ -60,7 +60,7 @@ instruction_file:
         runtime:   [项目状态, 执行环境]
         user_extensible: true
         always_overwrite_fields:
-          项目信息: [运行时]
+          项目信息: [运行时, 框架版本]
   additional_outputs: []
 
 dispatch:
@@ -96,6 +96,7 @@ hooks:
     notify_done: native
     notify_permission: degraded     # OpenCode has no Notification event
     session_context: native
+    deploy_drift: native
 
 features:
   cloud_agents: false
@@ -103,6 +104,7 @@ features:
   parallel_agents: false
   scheduled_tasks: false
   background_agents: false
+  subagent_interactive: false    # subagents block until complete and run non-interactively
   plan_mode: true                # Plan mode (suggest without changes)
   computer_use: false
   realtime_voice: false
@@ -147,3 +149,4 @@ context_injection:
     files:
       - AGENTS.md
       - .cataforge/rules/*.md
+      - .cataforge/platforms/opencode/overrides/rules/*.md

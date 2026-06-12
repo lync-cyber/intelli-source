@@ -62,7 +62,7 @@ instruction_file:
         runtime:   [项目状态, 执行环境]
         user_extensible: true
         always_overwrite_fields:
-          项目信息: [运行时]
+          项目信息: [运行时, 框架版本]
   additional_outputs: []
 
 dispatch:
@@ -99,6 +99,7 @@ hooks:
     notify_done: native            # Stop event, no matcher needed
     notify_permission: degraded    # no Notification event
     session_context: native        # SessionStart event, no matcher needed
+    deploy_drift: native           # SessionStart event, no matcher needed
 
 features:
   cloud_agents: true             # codex cloud — background parallel tasks
@@ -106,6 +107,7 @@ features:
   parallel_agents: true          # cloud parallel with --attempts best-of-N
   scheduled_tasks: false
   background_agents: true
+  subagent_interactive: false    # spawned agents run async in background, no user-question channel
   plan_mode: false
   computer_use: true             # native computer use capability
   realtime_voice: true           # WebRTC v2 voice sessions

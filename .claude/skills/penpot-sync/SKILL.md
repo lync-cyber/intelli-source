@@ -3,7 +3,7 @@ name: penpot-sync
 description: "Penpot 设计 Token 双向同步 — Penpot 设计文件与代码 / 文档间的颜色 / 字号 / 间距 / 圆角等 Token 同步。当 ui-spec 与 Penpot 设计的 token 不一致 / 需在两端互导时使用此 skill。本 skill 仅处理 Token 维度；组件代码生成由 penpot-implement 负责，设计 ↔ 代码一致性验证由 penpot-review 负责。"
 argument-hint: "<sync-direction: penpot-to-code|code-to-penpot|bidirectional>"
 suggested-tools: Read, Write, Edit, Glob, Grep
-depends: [doc-nav]
+depends: [context]
 disable-model-invocation: false
 user-invocable: true
 ---
@@ -49,7 +49,7 @@ user-invocable: true
 根据 sync-direction 参数:
 - `penpot-to-code`: Penpot Token → tokens.css
 - `code-to-penpot`: ui-spec Token → Penpot（通过 MCP 写入）
-- `bidirectional`(默认): ui-spec 为权威源，同时更新 Penpot 和 tokens.css
+- `bidirectional`(默认): 以 ui-spec 为唯一权威源，顺序执行两次受控单向写出（→ Penpot、→ tokens.css），不读回 Penpot 端改动反写 ui-spec，故无覆盖循环
 
 ### Step 5: 产出 tokens.css
 格式示例:
@@ -74,7 +74,7 @@ user-invocable: true
 - 禁止: 全量覆盖远端 Token —— 必须局部增量同步，保留 Penpot 端的手动微调；全量覆盖会丢失设计师未提交回 ui-spec 的中间状态
 - 禁止: 同步时跳过 ui-spec 比对 —— ui-spec.md 中的 Token 命名是契约源；不比对会让 Penpot 命名漂移持久化
 - 禁止: 在 Penpot 未启动时静默返回 success —— `cataforge penpot ensure` 失败时必须返回 blocked，否则下游 implementer 在空 Token 上施工
-- 避免: 双向自动同步 —— 单向（ui-spec → Penpot 或反向）每次明确方向；双向自动会产生覆盖循环
+- 避免: 无权威源的双向自动回写 —— Penpot 端改动反写 ui-spec、ui-spec 又写回 Penpot 会产生覆盖循环；默认 `bidirectional` 仅以 ui-spec 为权威源做两次单向写出，不反向读回
 
 ## 效率策略
 - 仅同步有差异的Token，不全量覆盖

@@ -3,22 +3,16 @@ name: platform-audit
 description: "平台能力审计 — 检索 AI IDE 最新文档，与 CataForge 平台配置进行差异分析，输出更新方案并执行修复。适用于定期对齐 Claude Code / Cursor / Codex / OpenCode 等平台的 tool / hook / agent / dispatch / sandbox / CLI / plugin / 扩展能力 / agent配置 / 平台特性 / 权限模型 / 模型路由 能力变化，确保 profile.yaml、adapter 源码、hook bridge、conformance 检查、测试用例保持最新。当用户提到平台升级、能力变化、profile 过期、跨平台兼容性检查、新增平台接入时，务必使用此 skill。"
 argument-hint: "[平台ID列表(逗号分隔) | all] [--scope tools,hooks,dispatch,agent,features,permissions,models,mcp]"
 suggested-tools: Read, Edit, Write, Glob, Grep, Bash, WebSearch, WebFetch, Agent
-depends: [doc-nav]
+depends: [context]
 disable-model-invocation: false
 user-invocable: true
-kg_adapter:
-  name: doc_read
-  config:
-    doc_id_param: doc_id
-    pre_dispatch_queries:
-      doc_summary: "SELECT ?label WHERE {\n  $doc_iri rdfs:label ?label .\n} LIMIT 1"
 ---
 
 # 平台能力审计 (platform-audit)
 
 ## 能力边界
 - 能做: 检索各 AI IDE 最新能力文档、与现有 profile.yaml 差异分析、更新配置/源码/测试、运行合规检查
-- 不做: 新增全新平台 adapter（需先在 `src/cataforge/platform/` 创建 adapter 类）、修改核心调度逻辑、审查 `.cataforge/` 下框架内部 agents/skills/hooks（由 framework-review 负责）
+- 不做: 新增全新平台 adapter（需先在 `src/cataforge/adapter/platform/` 创建 adapter 类）、修改核心调度逻辑、审查 `.cataforge/` 下框架内部 agents/skills/hooks（由 framework-review 负责）
 
 ## 设计原理
 
@@ -28,11 +22,11 @@ CataForge 通过多层抽象覆盖 AI IDE 的能力差异:
 2. **扩展能力 ID** (`EXTENDED_CAPABILITY_IDS`) — 部分平台独有的工具（notebook_edit, browser_preview, image_input, code_review）
 3. **Agent 配置** (`AGENT_FRONTMATTER_FIELDS`) — 17 个 agent 定义 frontmatter 字段的跨平台超集
 4. **平台特性** (`PLATFORM_FEATURES`) — 17 个 boolean 功能标志（cloud_agents, agent_teams, scheduled_tasks 等）
-5. **权限模型** (`PermissionMode`) — 8 种审批模式的跨平台枚举
+5. **权限模型** — 审批模式集，各平台在 `profile.yaml` 的 `permissions.modes` 声明所支持的子集
 6. **模型路由** — 可用模型列表和 per-agent 模型选择支持
 7. **Hook 事件** — 5 个标准事件 + 降级策略
 
-每个平台通过 `profile.yaml` 声明它如何映射这些抽象。平台版本快速迭代（Cursor v3.x、Codex 2026.04、Claude Code 2.1、OpenCode 1.3），工具名称/hook 事件/agent 格式/功能特性随时可能变化。本 skill 将"检索 → 对比 → 更新 → 验证"的完整审计流程标准化，防止配置漂移。
+每个平台通过 `profile.yaml` 声明它如何映射这些抽象。平台版本快速迭代，工具名称/hook 事件/agent 格式/功能特性随时可能变化（各平台当前能力快照见 [`references/capability-matrix.md`](references/capability-matrix.md)）。本 skill 将"检索 → 对比 → 更新 → 验证"的完整审计流程标准化，防止配置漂移。
 
 ## 输入规范
 调用方提供:
@@ -57,6 +51,7 @@ CataForge 通过多层抽象覆盖 AI IDE 的能力差异:
 | **quick-check** | 只想知道当前配置是否过期，不执行修改 | 指令 2 |
 | **deep `<platform_id>`** | 某平台刚发布重大更新，需深度审计 | 指令 3 |
 | **evaluate `<platform_name>`** | 评估新 AI IDE 是否可接入 | `references/evaluate-new-platform.md` |
+| **offline** | CI / 本地静态门禁：不联网、不需 LLM，只跑可执行的合规子集 | 指令 5 |
 
 ---
 
@@ -127,11 +122,12 @@ CataForge 通过多层抽象覆盖 AI IDE 的能力差异:
 对每个差异项，评估波及的文件:
 
 - `profile.yaml` — 几乎所有差异都需要更新
-- `src/cataforge/core/types.py` — CAPABILITY_IDS / OPTIONAL / EXTENDED / AGENT_FRONTMATTER_FIELDS / PLATFORM_FEATURES / PermissionMode
-- `src/cataforge/platform/<id>.py` — adapter 代码（tool_overrides / deploy_agents / inject_mcp_config）
-- `src/cataforge/platform/base.py` — 基类属性（仅当新增通用属性时）
-- `src/cataforge/hook/bridge.py` — hook 生成逻辑
-- `src/cataforge/platform/conformance.py` — 合规检查逻辑
+- `src/cataforge/core/types.py` — CAPABILITY_IDS / OPTIONAL / EXTENDED / AGENT_FRONTMATTER_FIELDS / PLATFORM_FEATURES
+- `profile.yaml` 的 `permissions.modes` — 各平台支持的审批模式集
+- `src/cataforge/adapter/platform/<id>.py` — adapter 代码（tool_overrides / deploy_agents / inject_mcp_config）
+- `src/cataforge/adapter/platform/base.py` — 基类属性（仅当新增通用属性时）
+- `src/cataforge/runtime/hook/bridge.py` — hook 生成逻辑
+- `src/cataforge/adapter/platform/conformance.py` — 合规检查逻辑
 - `.cataforge/platforms/<id>/overrides/dispatch-prompt.md` — 调度提示模板
 - `.cataforge/platforms/_schema.yaml` — profile 字段定义
 - `tests/test_platform.py` / `test_hook_bridge.py` / `test_translator.py` / `test_conformance.py` / `test_deployer_refactor.py`
@@ -154,8 +150,9 @@ CataForge 通过多层抽象覆盖 AI IDE 的能力差异:
 - 新增 `EXTENDED_CAPABILITY_IDS` 条目 — 当新工具出现在 2+ 平台上
 - 新增 `AGENT_FRONTMATTER_FIELDS` 条目 — 当新字段出现在 2+ 平台上
 - 新增 `PLATFORM_FEATURES` 条目 — 当新特性出现在 2+ 平台上
-- 新增 `PermissionMode` 枚举值 — 当新审批模式出现
 - 调整 `OPTIONAL_CAPABILITY_IDS` — 当可选能力变为必需或反之
+
+新增审批模式时不改 types.py — 在对应 `profile.yaml` 的 `permissions.modes` 声明即可。
 
 **Step 9: 更新源码**
 
@@ -192,8 +189,8 @@ CataForge 通过多层抽象覆盖 AI IDE 的能力差异:
 
 核心 + 扩展合规:
 ```bash
-python -c "from cataforge.platform.conformance import check_all_conformance; print('\n'.join(check_all_conformance()))"
-python -c "from cataforge.platform.conformance import check_all_extended_conformance; print('\n'.join(check_all_extended_conformance()))"
+python -c "from cataforge.adapter.platform.conformance import check_all_conformance; print('\n'.join(check_all_conformance()))"
+python -c "from cataforge.adapter.platform.conformance import check_all_extended_conformance; print('\n'.join(check_all_extended_conformance()))"
 ```
 
 确认所有平台通过核心合规（FAIL=0，WARN 仅针对已知缺失的可选能力）。扩展合规的 INFO 表示该平台不支持的扩展能力/特性，属于预期行为。
@@ -254,6 +251,24 @@ python -m ruff check src/ tests/
 ### 指令4: 新平台接入评估 (evaluate `<platform_name>`)
 
 完整流程见 `references/evaluate-new-platform.md`。**不修改仓库内任何文件**，输出可行性报告供决策。
+
+---
+
+### 指令5: 离线子集 (offline)
+
+CI 与本地预检用的无网络子集，由 builtin 执行、不需要 LLM：
+
+```bash
+cataforge skill run platform-audit -- --offline
+```
+
+跑三项静态检查并按严重度分级退出：
+
+- **core conformance** — 每端必需能力映射 + dispatch 声明；profile 加载失败或缺必需能力 → **阻断**（退出非 0）
+- **consistency** — 跨字段/跨平台一致性（工具替换、feature↔cap 路由不可见、隔离字段缺失、native 离群声明）→ **WARN**，打印但不阻断（追踪已接受的降级）
+- **profile schema** — 每端 profile.yaml 含 `_schema.yaml` 全部 required_fields；缺失 → **阻断**
+
+`version_tested` 时效是基于 git 历史的独立周扫守卫（`check_profile_version_tested`，anti-rot.yml），不在本子集内。需联网检索 + 修复的完整审计见指令 1。
 
 ---
 
