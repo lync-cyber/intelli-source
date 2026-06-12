@@ -40,7 +40,7 @@ deps: []
 
 ## 框架升级 0.9.1 后续（非阻塞，保留跟踪）
 
-- **[P3] KG 摄取残留 WARN — 79 个被引用但无定义源的 entity-id**：doctor `KG ingestion completeness` 在 collision 清零后仍报 WARN，列出 `API-010` / `API-026` / `API-029` / `CR-001` / `CR-002` 等 id 被 active docs 引用却在任何 active doc_type 源中无定义。根因疑为 `context.kg_active_doc_types` 未注册 API/CR 等条目的定义 doc_type（如 arch 的 API 章、变更请求源）。非阻塞（WARN 不 FAIL）。处理方向：注册缺失 doc_type，或将确属外部/历史引用的 id 标 inline-code 豁免。已并入 [上游反馈](feedback/feedback-suggest-kg-ingest-gate-legacy-docs-20260612.md)。
+- **[P3] KG 摄取残留 WARN — 76 个框架口径噪声（已定性，非阻塞，修复点在 CataForge 框架侧）**：doctor `KG ingestion completeness` 的 dangling 检查用完整 entity-prefix 正则扫"引用"，但 `TestCase`(TC) / `CoverageRule`(CR) / `SprintReviewIssue`(SR) 是纯关系/元数据 class —— 只参与关系抽取（如 TestCase `cf:verifies` T/AC/F），KG store 从不为其建实体节点（实证：store 仅 T/AC/E/M/API/F 六类）。故 active docs 里任何 TC-/CR-/SR- 编号提及（test-report 覆盖矩阵单列 71 个 `TC-`）结构性恒为 dangling，与文档写法无关。剩余 76 = TC×71 + CR×4 + SR×1。根因＝doctor dangling 候选集 ⊋ KG 实体化 class 集（口径不一致），属框架检查缺陷，修复在框架侧（dangling 引用集应限制为会实体化的 class）。原 79 中的 3 个 `API-010/026/029`（arch 已删编号的 prose 历史引用）已 inline-code 豁免。详见 [上游反馈](feedback/feedback-suggest-kg-ingest-gate-legacy-docs-20260612.md) §Proposal(3)。
 
 ---
 
