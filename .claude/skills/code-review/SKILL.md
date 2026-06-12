@@ -3,15 +3,9 @@ name: code-review
 description: "代码评审 — 任务粒度评审 (review) 与项目级健康度扫描 (scan) 双入口；代码质量检查、规范合规验证、安全漏洞检测、腐化指标扫描。当任务卡 GREEN 完成 / Sprint 发布前 / 用户要求扫描代码腐化时使用此 skill。审查范围限 src/ 业务代码：文档审查由 doc-review 负责；框架元资产 (.cataforge/) 审查由 framework-review 负责；Sprint 完成度由 sprint-review 负责。"
 argument-hint: "<代码文件路径或目录> | scan <path> [--focus <category[,...]>]"
 suggested-tools: Read, Glob, Grep, Bash
-depends: [doc-nav]
+depends: [context]
 disable-model-invocation: false
 user-invocable: true
-kg_adapter:
-  name: doc_read
-  config:
-    doc_id_param: doc_id
-    pre_dispatch_queries:
-      doc_summary: "SELECT ?label WHERE {\n  $doc_iri rdfs:label ?label .\n} LIMIT 1"
 ---
 
 # 代码评审 (code-review)
@@ -59,7 +53,7 @@ kg_adapter:
 
 命中短路时仍需按 Step 3/4 产出 `CODE-REVIEW-{task_id}-r{N}.md` 报告，front matter `status: approved`，并在报告标题下标注 `Layer 2 skipped (short-circuit: <触发条件>)`。降级场景（Layer 1 异常 / FAIL）不适用短路。
 
-通过doc-nav加载 arch#§7开发约定 和 arch#§5非功能架构，按以下维度审查（括号内为对应的 category 枚举值）:
+通过context加载 arch#§7开发约定 和 arch#§5非功能架构，按以下维度审查（括号内为对应的 category 枚举值）:
 - 命名规范(convention): 文件/变量/接口命名是否符合arch约定
 - 代码结构(structure): 模块组织、职责划分是否合理
 - 安全漏洞(security): OWASP Top 10 检查(注入/XSS/认证/敏感数据暴露等)
@@ -146,7 +140,7 @@ deps: []
 
 ## Layer 1 检查项 (code_lint.py)
 
-> 权威清单见 `cataforge.skill.builtins.code_review.CHECKS_MANIFEST`（framework-review 自动对账，本段与 manifest 不一致即 FAIL）。
+> 权威清单见 `cataforge.runtime.skill.builtins.code_review.CHECKS_MANIFEST`（framework-review 自动对账，本段与 manifest 不一致即 FAIL）。
 
 review 模式（按文件类型自动选择工具）:
 - ESLint (.js/.ts/.jsx/.tsx)
@@ -162,10 +156,10 @@ review 模式（按文件类型自动选择工具）:
 
 正则规则按语言拆到 YAML：
 
-- 默认（cataforge package）：`cataforge.skill.builtins.code_review.rules.wiring-{lang}.yaml`
+- 默认（cataforge package）：`cataforge.runtime.skill.builtins.code_review.rules.wiring-{lang}.yaml`
 - 项目 override（opt-in）：`<project>/.cataforge/skills/code-review/rules/wiring-{lang}.yaml`
 
-加新语言：在项目 `rules/` 放 `wiring-rust.yaml` 等；schema 见 `cataforge.skill.rules.loader.CURRENT_SCHEMA_VERSION`，必填字段 `schema_version: 1` / `rule_type: wiring` / `language` / `extensions`。framework-review B3-β `rules_schema_compliance` 自动校验项目 YAML。
+加新语言：在项目 `rules/` 放 `wiring-rust.yaml` 等；schema 见 `cataforge.runtime.skill.rules.loader.CURRENT_SCHEMA_VERSION`，必填字段 `schema_version: 1` / `rule_type: wiring` / `language` / `extensions`。framework-review B3-β `rules_schema_compliance` 自动校验项目 YAML。
 
 scan 模式额外的腐化 probe（按 --focus 选择性执行）:
 - duplication: jscpd（多语言：JS/TS/Py/Go/C#/Rust/Java/Kotlin/Swift）/ pmd-cpd (.java)

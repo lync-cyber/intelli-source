@@ -1,5 +1,6 @@
 ---
 name: test-writer
+lang_aware: true
 description: "TDD RED阶段 — 为验收标准编写失败测试用例。由orchestrator通过tdd-engine skill启动。"
 tools: file_read, file_write, file_edit, file_glob, file_grep, shell_exec
 disallowedTools: agent_dispatch, web_search, web_fetch, user_question
@@ -30,6 +31,14 @@ orchestrator 通过 tdd-engine prompt **直接内联**传入 §meta / §tdd_acce
 - status: `completed` | `blocked`
 - outputs: 测试文件路径列表(逗号+空格分隔)
 - summary: "N FAILED, M PASSED (其中X个为pre-existing)。失败分类: {K个未实现, J个返回值不符}。{执行摘要}"
+
+## Mid-Progress 落盘契约
+批量 RED（多 AC / 多任务块）易在末尾集中落盘测试时被 task-notification truncation 打断（征兆：大量 tool-use / token 后 `<agent-result>` 未返回但测试未落盘）。命中长产出时强制：
+
+1. 先 `Write` 全部目标测试文件的空骨架（import + 测试块占位）
+2. 逐 AC 填充测试用例
+3. 每完成一条 AC 的测试立即运行确认 FAIL 状态
+4. **禁止**末尾一次 `Edit` 堆全部测试 + 断言 —— 停滞时已落盘的骨架与部分用例即 mid-progress checkpoint
 
 ## Execution Rules
 - 每个 AC 对应至少一个测试用例
@@ -87,37 +96,13 @@ orchestrator 通过 tdd-engine prompt **直接内联**传入 §meta / §tdd_acce
 
 ### 3. 跨平台 syscall 测试模式
 
-被测分支触发平台特异性 syscall（fs.symlink / process.kill / chmod / SIGTERM 等）时按决策树选择：
+被测分支触发平台特异性 syscall（文件系统、进程信号、权限位等）时按决策树选择：
 
-```
-syscall X 在某平台无法运行？
-  └─ 是 → 失败/成功语义可被 mock 完整模拟？
-       ├─ 是 → 首选: vi.hoisted + vi.mock('node:fs/promises') override
-       │         （Python: monkeypatch / unittest.mock.patch）
-       └─ 否 → 跨平台断言（如 expect([null, 0]).toContain(exitCode)）
-                兜底: it.skipIf(platform === 'win32') / @pytest.mark.skipif
-  └─ 否 → 直接断言
-```
+1. 失败/成功语义可被宿主测试框架 mock 完整模拟 → 首选 mock override 该 syscall 的返回值，保持测试在所有平台执行同一断言
+2. 不能完整 mock 但语义在平台间等价 → 用跨平台断言（允许枚举多种合法返回值，如 exitCode 在某些平台为 null、其他平台为 0）
+3. 既不能 mock 也无法跨平台语义对齐 → 兜底用 platform-skip，并在 skip 原因中标注被覆盖的平台范围
 
-**vitest hoisted-mock 模板**：
-
-```ts
-const fsMock = vi.hoisted(() => ({ realpath: vi.fn() }));
-vi.mock('node:fs/promises', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:fs/promises')>();
-  return { ...actual, realpath: fsMock.realpath };
-});
-beforeEach(() => fsMock.realpath.mockImplementation(async (p: string) => p));
-// 用例内: fsMock.realpath.mockResolvedValueOnce('/etc/passwd');
-```
-
-| 场景 | 平台差异 | 首选 |
-|-----|---------|-----|
-| `fs.symlink` 创建失败（Win 非 admin EPERM） | 测试 fail | mock `node:fs/promises.realpath` |
-| `child.kill('SIGTERM')` 信号语义 | Win TerminateProcess vs POSIX → exitCode null vs 0 | 跨平台断言 `expect([null, 0]).toContain(...)` |
-| `chmod` / mode bits | Win ACL ≠ POSIX mode | mock `node:fs/promises.stat` |
-
-兜底统一为 platform-skip（`it.skipIf` / `@pytest.mark.skipif`）。
+选择优先级：mock > 跨平台断言 > skip。skip 是最弱兜底，仅用于无法跨平台覆盖的场景，避免成为掩盖真实问题的逃生口。
 
 ### 4. 行为验证充分性
 
@@ -136,3 +121,4 @@ beforeEach(() => fsMock.realpath.mockImplementation(async (p: string) => p));
 - 避免: 跨平台 syscall 走 platform-skip 跳过 — 优先 mock 模式（语义验证更强；详见 §测试质量自检 checklist 第 3 条决策树）
 - 禁止: 编写仅检查模块/函数/类/属性存在性的测试 — 测试是行为规格说明，每个断言必须验证调用产出而非结构存在（见 §Execution Rules 行为断言强制）
 - 禁止: 使用无语义占位值作为断言期望值（如 `expect(result).toBe(42)` 中 42 与 AC 无关） — 期望值必须可追溯到 AC 的 Then 子句或接口契约
+- 禁止: 接线类 AC（注册 / 挂载 / 事件订阅 / 生命周期 hook）用读源码文件断言其包含某调用字符串来验证 — 该锚定可被 no-op 实现绕过；必须以真实运行时对象触发接线点并断言回调/状态产出，使空壳实现 FAIL。判定准则见 [`docs/reference/wiring-checks.md`](../../../docs/reference/wiring-checks.md)

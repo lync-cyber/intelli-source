@@ -20,6 +20,7 @@ htmlcov/
 coverage.xml
 .claude/backup-*/
 .cataforge/.backups/
+.cataforge/kg/store/
 .agents/
 .codex/
 *.egg-info/

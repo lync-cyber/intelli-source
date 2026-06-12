@@ -105,6 +105,7 @@ Agent 定义支持的 frontmatter 字段超集:
 | 15 | `agent_memory` | Agent 级持久化记忆 | ✓ | - | - | - |
 | 16 | `plugin_marketplace` | Plugin 发现和安装 | ✓ | ✓ | ✓ | ✓ |
 | 17 | `context_management` | 上下文窗口管理 | ✓ | - | - | - |
+| 18 | `subagent_interactive` | 派发子代理可直接向用户提问 | - | - | - | - |
 
 > ✓* = experimental
 
@@ -127,7 +128,7 @@ Agent 定义支持的 frontmatter 字段超集:
 | 7 | `read_only` | 顾问模式 | - | - | ✓ | - |
 | 8 | `full_access` | 无限制 | - | - | ✓ | - |
 
-代码位置: `src/cataforge/core/types.py` — `PermissionMode`
+声明位置: 各平台 `profile.yaml` 的 `permissions.modes`
 
 ---
 

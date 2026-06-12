@@ -419,3 +419,8 @@
 {"ts": "2026-06-10T09:54:30+00:00", "event": "doc_finalize", "phase": "backlog-burndown", "detail": "文档finalize: arch-intellisource-v1-api (amendment: 新增 API-030 backfill-embeddings 端点契约)", "ref": "arch-intellisource-v1-api"}
 {"ts": "2026-06-11T07:20:05+00:00", "event": "state_change", "phase": "backlog-burndown", "detail": "resume: local main fast-forwarded 13c16d2->9c1553c (PR #108 merged); CLAUDE.md baseline reconciled"}
 {"ts": "2026-06-11T07:53:36+00:00", "event": "state_change", "phase": "backlog-burndown；release gate = approved（B-031 走查 GO）。pre-deploy 走查 15-20 已补跑全 GO（orchestrator 真起栈 2026-06-11，步骤 16 N/A）；B-069 version 缺陷闭环；确认 PR #107 已闭环 B-040/B-059/B-060", "detail": "skill-run: code-review Layer 1 passed", "agent": "reviewer", "status": "completed", "ref": "skill:code-review/code_lint"}
+{"ts": "2026-06-11T08:24:26+00:00", "event": "state_change", "phase": "backlog-burndown", "detail": "D1 Docker cache-bust merged to main via PR #109 (merge 3aff6b0); local main synced"}
+{"ts": "2026-06-12T02:07:24+00:00", "event": "session_start", "phase": "session", "detail": "IDE session started"}
+{"ts": "2026-06-12T02:07:39+00:00", "event": "session_start", "phase": "session", "detail": "IDE session started"}
+{"ts": "2026-06-12T02:11:03+00:00", "event": "session_start", "phase": "session", "detail": "IDE session started"}
+{"ts": "2026-06-12T02:11:28+00:00", "event": "session_start", "phase": "session", "detail": "IDE session started"}

@@ -5,11 +5,9 @@ tools: file_read, file_write, file_edit, file_glob, file_grep
 disallowedTools: agent_dispatch, user_question, shell_exec, web_search, web_fetch
 allowed_paths:
   - docs/reviews/retro/
-  - docs/reviews/CORRECTIONS-LOG.md
-  - docs/EVENT-LOG.jsonl
   - .cataforge/learnings/
 skills:
-  - doc-nav
+  - context
 model_tier: light
 inline_dispatch: true
 maxTurns: 30

@@ -1,6 +1,6 @@
 ---
 name: agent-dispatch
-description: "子代理调度 — 将Agent激活指令翻译为运行时具体操作。"
+description: "子代理调度 — 将Agent激活指令翻译为运行时具体操作。当 orchestrator 将某 phase agent 激活为 subagent_type 子代理、需要派发任务并解析返回值时由本 skill 翻译执行。"
 argument-hint: "<agent_id: 目录名如architect> <task: 任务描述>"
 suggested-tools: file_read, file_glob, file_grep, shell_exec, agent_dispatch
 depends: []
@@ -32,21 +32,19 @@ user-invocable: false
 > **单一事实来源**: 各 AGENT.md 的 `skills:` 字段（由 subagent_type 自动加载）。
 > 本文件不维护映射副本。查询当前映射请运行:
 > ```
-> grep -h 'skills:' -A 20 .cataforge/agents/*/AGENT.md
+> cataforge agent list --skills
 > ```
 
 ## 平台调度实现
 当前运行时平台由 `.cataforge/platforms/{platform_id}/profile.yaml` 声明。
 调度工具名和参数由 profile.yaml 的 `dispatch` 段定义。
 
-完整 prompt 模板见: `.cataforge/skills/agent-dispatch/templates/dispatch-prompt.md`（含 OVERRIDE 标记点）。
-平台 override 见: `.cataforge/platforms/{platform_id}/overrides/dispatch-prompt.md`。
+prompt 主模板: `.cataforge/skills/agent-dispatch/templates/dispatch-prompt.md`。
+平台特异性覆盖: `.cataforge/platforms/{platform_id}/overrides/dispatch-prompt.md`（若存在）。
 
-运行时工具层（`.cataforge/runtime/`）提供:
-- `profile_loader.py`: 加载平台 profile 和 tool_map
-- `template_renderer.py`: 基础模板 + override 合并
-- `frontmatter_translator.py`: AGENT.md 能力标识符翻译
-- `result_parser.py`: 4 级容错解析器
+调度前 orchestrator 自行 Read 主模板 + 当前平台 override（若有），两者由 LLM 上下文合并使用 —— OVERRIDE 块边界在源文件中以 `<!-- OVERRIDE:<section> -->` 注释标识，便于 LLM 识别替换语义。主模板已含平台分支（如 "Claude: .claude/rules，Cursor: .cursor/rules"），override 只在需要补充平台特异性内容时才填充对应块。
+
+deploy 阶段无运行时合并器；frontmatter 能力标识符翻译由 `cataforge.runtime.agent.translator.translate_agent_md` 负责，agent 返回值解析由 orchestrator 主循环按下方 §返回值解析与容错 处理。
 
 > 修改 prompt 模板影响所有通过 agent-dispatch 调度的 Agent，请谨慎变更并做 diff review。
 > TDD 子代理由 tdd-engine 直接调度，仅传入任务信息，通用约束和返回格式依赖 AGENT.md 自动加载，无需同步。
@@ -73,10 +71,10 @@ orchestrator 收到子代理返回后，按以下优先级解析:
    - 所有修改文件均在 allowed_paths 列表的目录下 → 正常
    - 存在 allowed_paths 以外的修改文件 → 使用 `git checkout -- {违规文件}` 回滚，在 summary 中标注"Agent 写入违规已回滚"，记录违规文件路径
 
-Python 实现: `.cataforge/runtime/result_parser.py`
+实现: orchestrator 主循环按上述优先级处理子代理返回，无独立 runtime 模块。
 
 ## 注意事项
-- 每个Phase Agent作为独立子代理运行，拥有自己的上下文窗口
+- `execution_host: subagent` 的 Phase Agent 作为独立子代理运行，拥有自己的上下文窗口（`inline` phase 由 orchestrator 主线程承载，不经本 skill，见 ORCHESTRATOR-PROTOCOLS.md §Inline Role Execution Protocol）
 - 子代理无法直接访问调用方的上下文，所有必要信息通过prompt传入
 - **子代理无法使用调度工具** — TDD子代理由orchestrator直接通过tdd-engine skill启动
 - subagent_type 使子代理自动加载 AGENT.md 中的角色定义、工具权限和约束
@@ -86,7 +84,7 @@ Python 实现: `.cataforge/runtime/result_parser.py`
 当前已配置: claude-code, cursor, codex, opencode。
 
 ## Anti-Patterns
-- 禁止: 在 light-inline / prototype-inline 档使用 agent_dispatch 调度子代理 — 内联档的设计前提是主线程直接执行，调度会撕裂上下文且违反 tdd-engine §Inline 触发条件
+- 禁止: 接受 light-inline / prototype-inline 档的调度请求 — 档位由 tdd-engine 判定，内联档前提是主线程直接执行，收到此类调度请求本身即上游错误，调度会撕裂上下文
 - 禁止: 跳过 §返回值解析与容错 Step 5 的 allowed_paths 写入范围校验 — `git diff` 检测的违规由本 skill 兜底，跳过会让 phase-bound agent 写入越权而无回滚
 - 禁止: 把任务上下文拆成多次 dispatch 增量传递 — 子代理无持久上下文，每次 dispatch 都是独立窗口；必须一次 prompt 内联全量信息，否则触发"上下文丢失型 blocked"
 - 避免: 在主线程读取子代理返回的全文再二次摘要 — 主线程上下文消耗翻倍，应让子代理在 `<agent-result>.summary` 内自摘要，主线程仅解析结构化字段

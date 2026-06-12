@@ -61,7 +61,7 @@ agent_config:
   isolation_modes: [worktree]
 
 instruction_file:
-  reads_claude_md: false
+  reads_claude_md: true           # Claude Code natively loads CLAUDE.md; targets[] drives the deploy output
   targets:
     - type: project_state_copy
       path: CLAUDE.md
@@ -74,7 +74,7 @@ instruction_file:
         runtime:   [项目状态, 执行环境]
         user_extensible: true
         always_overwrite_fields:
-          项目信息: [运行时]
+          项目信息: [运行时, 框架版本]
   additional_outputs: []
 
 dispatch:
@@ -110,6 +110,7 @@ hooks:
     notify_done: native
     notify_permission: native
     session_context: native
+    deploy_drift: native
 
 features:
   cloud_agents: false
@@ -117,6 +118,7 @@ features:
   parallel_agents: true          # up to 10 concurrent subagents
   scheduled_tasks: true          # CronCreate, ScheduleWakeup, RemoteTrigger
   background_agents: true
+  subagent_interactive: false    # dispatched subagents run headless; AskUserQuestion has no channel to the user
   plan_mode: true                # EnterPlanMode / ExitPlanMode
   computer_use: false            # available via MCP only, not native
   realtime_voice: false

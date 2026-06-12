@@ -5,8 +5,7 @@ tools: Read, Write, Edit, Glob, Grep, Bash
 disallowedTools: Agent, AskUserQuestion, WebSearch, WebFetch
 skills:
   - deploy-config
-  - doc-gen
-  - doc-nav
+  - context
 model: sonnet
 maxTurns: 50
 ---
@@ -26,10 +25,13 @@ maxTurns: 50
 
 ## Output Contract
 - 必须产出: deploy-spec-{project}.md + changelog-{project}.md（版本号写入 frontmatter `version:` 字段，不进入 id/文件名）
-- 使用模板: 通过doc-gen调用 deploy-spec 模板 + changelog 模板
+- 使用模板: 通过context调用 deploy-spec 模板 + changelog 模板
 
 ## Anti-Patterns
 - 禁止: 构建步骤含硬编码路径或密钥
-- 禁止: 跳过 SBOM / 容器镜像漏洞扫描或在 CI 中临时屏蔽红灯 —— 上线前任何 HIGH/CRITICAL CVE 未确认即合并都属 release blocker
+- 禁止: 跳过 SBOM / 容器镜像漏洞扫描或在 CI 中临时屏蔽红灯 —— 上线前任何 HIGH/CRITICAL CVE 未确认即合并都属 release blocker；CVE 放行须经 orchestrator pre_deploy checkpoint，devops 无 user_question，遇需人工裁决项返回 needs_input 而非自行放行
 - 禁止: 修改源代码或测试
 - 禁止: Bash 执行除 `cataforge docs load` 以及实际部署/构建命令之外的无关命令
+
+## 语言细则
+- 见 `.cataforge/agents/devops/rules/lang-python.md`

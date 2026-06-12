@@ -18,7 +18,7 @@ Agent tool:
     - 你的 AGENT.md 已通过 subagent_type 自动加载
 <!-- /OVERRIDE:startup_notes -->
     - 开始工作前，阅读你的核心 Skill 的 SKILL.md（见 AGENT.md skills 列表）
-    - 通用 Skill（doc-gen/doc-nav）仅在需要操作时查阅
+    - 通用 Skill（context/context）仅在需要操作时查阅
     - 所有文档和报告输出使用中文（代码、变量命名、框架参数除外）
     - 信息不足时标注[ASSUMPTION]并给出合理默认值
 
@@ -42,7 +42,8 @@ Agent tool:
 <!-- /OVERRIDE:tool_usage -->
 
     === 执行约束 ===
-    - 新建文档(task_type=new_creation)至少执行一轮用户确认
+    - 新建文档(task_type=new_creation)至少执行一轮用户确认；审查报告类产物（doc_type ∈ review / code-review / sprint-review / framework-review / design-review）豁免——verdict 经 orchestrator 流转，子代理仅在信息缺失时走 needs_input
+    - new_creation 产出文档的 frontmatter status 必须为 draft，门禁通过后由流程置 approved
 
 <!-- OVERRIDE:return_format -->
     === 返回格式(必须严格遵循) ===

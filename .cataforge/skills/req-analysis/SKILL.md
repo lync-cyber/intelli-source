@@ -1,18 +1,11 @@
 ---
 name: req-analysis
-description: "需求分析 — 需求拆解、用户故事编写、验收标准定义。"
+description: "需求分析 — 需求拆解、用户故事编写、验收标准定义。当用户提出新需求、需要编写 PRD、拆解功能点或定义优先级与验收标准时使用。"
 argument-hint: "<用户需求描述或已有PRD路径>"
 suggested-tools: Read, Write, Edit
-depends: [doc-gen, doc-nav, research]
+depends: [context, research]
 disable-model-invocation: false
 user-invocable: true
-kg_adapter:
-  name: feature_authoring
-  config:
-    doc_id_param: doc_id
-    pre_dispatch_queries:
-      existing_features: "SELECT ?id ?label WHERE {\n  ?f a cfa:Feature ; cfk:hasId ?id ; rdfs:label ?label ;\n     cfk:definedIn $doc_iri .\n} ORDER BY ?id"
-    write_back_schema: .cataforge/skills/doc-gen/schemas/feature.schema.json
 ---
 
 # 需求分析 (req-analysis)
@@ -35,7 +28,7 @@ kg_adapter:
 
 ### Step 1: 需求收集与澄清
 - 解析用户输入，识别功能域和核心诉求
-- 执行至少一轮 user-interview 确认核心需求方向，模糊/冲突需求通过追加提问澄清
+- 执行至少一轮 user-interview 确认核心需求方向，模糊/冲突需求通过追加提问澄清（inline 承载时主线程直接提问；派发子代理执行时经 needs_input 回传，见 research 指令2b）
 - 产出: 原始需求清单(非正式，工作文档)
 
 ### Step 2: 概述编写 (对应PRD §1)
@@ -66,13 +59,13 @@ kg_adapter:
   - 假设: 前提假设，标注[ASSUMPTION]
   - 调研记录: 引用research-note编号(如有)
 - §5 术语表: 领域特定术语(术语 | 定义)表
-- 通过doc-gen finalize交付PRD
+- 通过context finalize交付PRD
 
 ## Anti-Patterns
 - 禁止: 把 P0/P1/P2 优先级直接抄用户原话 —— 必须基于 MoSCoW 框架重新评估；否则出现"用户说全部 P0"的瀑布化退化
 - 禁止: 漏写非功能性需求章节 —— 仅功能列表的 PRD 在 ARCH 阶段无法做技术选型，architect 阻塞
 - 禁止: 在 PRD 写实现细节（"使用 React"）—— PRD 是 What/Why，实现细节属 ARCH 范畴；越界会让 architect 失去决策面
-- 避免: 一次访谈穷举所有问题 —— 累计 ≤ MAX_QUESTIONS_PER_BATCH，让用户保持回答质量
+- 禁止: 把验收标准写成主观描述（"体验流畅"）—— AC 必须可测（Given-When-Then 或明确通过条件），否则下游 QA / TDD 无从验证
 
 ## 效率策略
 - 先识别核心功能(P0)，再扩展次要功能

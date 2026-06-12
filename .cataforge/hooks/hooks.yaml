@@ -28,7 +28,7 @@ hooks:
     - matcher_capability: file_edit
       script: lint_format
       type: observe
-      description: "文件编辑后自动格式化"
+      description: "文件编辑后自动格式化（observe 类但允许 in-place rewrite —— linter --fix / formatter --write 落盘）"
     - matcher_capability: user_question
       script: detect_correction
       type: observe
@@ -52,7 +52,10 @@ hooks:
   SessionStart:
     - script: session_context
       type: observe
-      description: "会话初始化 + deploy 同步"
+      description: "记录 session_start 事件（不部署、不改 tracked 文件）"
+    - script: deploy_drift
+      type: observe
+      description: "检测 .cataforge 源/包版本漂移并提示 redeploy（不部署、不改 tracked 文件）"
 
 degradation_templates:
   guard_dangerous:
@@ -73,11 +76,11 @@ degradation_templates:
 
   detect_correction:
     strategy: skip
-    reason: "纠正学习为非关键功能"
+    reason: "原生 PostToolUse 不可用时降级为 alwaysApply 规则提醒；见 .cataforge/platforms/{platform}/overrides/rules/correction-record.md"
 
   detect_review_flag:
     strategy: skip
-    reason: "纠正学习为非关键功能 (review-flag 信号)"
+    reason: "纠正学习为非关键功能 (review-flag 信号)；且此 hook 依赖 agent_dispatch 的 PostToolUse 匹配，无 agent matcher 的平台不触发，统一降级为 skip"
 
   notify_permission:
     strategy: skip
@@ -101,3 +104,7 @@ degradation_templates:
   session_context:
     strategy: skip
     reason: "会话上下文初始化可降级"
+
+  deploy_drift:
+    strategy: skip
+    reason: "部署漂移提示为非关键功能"

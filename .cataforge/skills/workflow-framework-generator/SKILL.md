@@ -145,7 +145,7 @@ input: <输入描述>
 output: <输出描述>
 used_by: [<agent_id>]
 depends: [<skill_id>]
-suggested-tools: [<capability_id>]   # 注意短横线，非下划线 — SkillLoader (loader.py:231) 仅识别带短横线的键名
+suggested-tools: [<capability_id>]   # 注意短横线，非下划线 — SkillLoader 仅识别带短横线的键名
 ```
 
 **提取规则**：
@@ -226,7 +226,7 @@ phases:
 │   │       └── profile.yaml
 │   └── schemas/                    # 数据模型
 │       └── agent-result.schema.json
-├── docs/                           # 工作产出目录（空，由 doc-gen 在生成首份文档时调用 `cataforge docs index` 创建 .doc-index.json）
+├── docs/                           # 工作产出目录（空，由 context 在生成首份文档时调用 `cataforge docs index` 创建 .doc-index.json）
 └── README.md                       # 框架说明
 ```
 
@@ -241,12 +241,14 @@ phases:
 - `maxTurns` 根据任务复杂度设置（简单任务: 30, 中等: 80, 复杂: 150）
 - Agent 指令部分使用中文（与 CataForge 惯例一致），技术标识符使用英文
 
-每个 AGENT.md 必须包含以下章节：
+每个 AGENT.md 必须包含以下章节（`Identity` / `Input Contract` / `Output Contract` / `Anti-Patterns` 各为独立的 `## ` 二级标题）：
 1. **Role** — 角色定义与身份说明
-2. **Responsibilities** — 具体职责清单
-3. **Input/Output Contract** — 输入输出契约
-4. **Execution Protocol** — 执行协议（步骤、检查点）
-5. **Anti-Patterns** — 禁止行为
+2. **Identity** — 身份与协作边界
+3. **Responsibilities** — 具体职责清单
+4. **Input Contract** — 输入契约
+5. **Output Contract** — 输出契约
+6. **Execution Protocol** — 执行协议（步骤、检查点）
+7. **Anti-Patterns** — 禁止行为
 
 #### 3.3 生成 Skill 定义
 
@@ -339,6 +341,7 @@ phases:
 - [ ] framework.json 结构合法
 - [ ] profile.yaml 的 tool_map 覆盖所有使用到的能力标识符
 - [ ] hooks.yaml 的 matcher_capability 在目标平台有映射或有降级策略
+- [ ] 每个 AGENT.md 含独立的 `## Identity`、`## Input Contract`、`## Output Contract`、`## Anti-Patterns` 二级标题
 - [ ] 无未实现占位符（禁止出现待办标记或空壳逻辑）
 
 #### 4.2 平台兼容性检查
@@ -396,28 +399,13 @@ phases:
 
 ## 领域模式快速参考
 
-以下是常见领域的Agent/Skill/Workflow模式，详见 `references/domain-patterns.md`：
-
-| 领域 | 典型 Agent 角色 | 核心 Skill | 工作流模式 |
-|------|----------------|-----------|-----------|
-| 软件开发 | orchestrator, architect, implementer, reviewer, tester | tdd-engine, code-review, doc-gen | 线性+门禁 |
-| 内容创作 | planner, writer, editor, publisher | content-gen, seo-optimize, format-convert | 线性+修订循环 |
-| 电商运营 | analyst, copywriter, campaign-manager, data-analyst | market-research, copy-gen, data-viz | 并行+汇总 |
-| 研究分析 | researcher, analyst, synthesizer, reporter | literature-search, data-analysis, report-gen | 迭代深化 |
+常见领域（软件开发 / 内容创作 / 电商运营 / 研究分析等）的 Agent / Skill / Workflow 模式见 `references/domain-patterns.md`。
 
 ---
 
 ## 扩展机制
 
-生成的框架支持以下扩展方式：
-
-1. **新增 Agent**: 在 `agents/` 下创建新目录和 AGENT.md
-2. **新增 Skill**: 在 `skills/` 下创建新目录和 SKILL.md
-3. **新增 Workflow**: 在 `workflows/` 下创建新 YAML 文件
-4. **新增平台**: 在 `platforms/` 下创建新目录和 profile.yaml
-5. **自定义 Hook**: 在 `hooks/hooks.yaml` 中添加新规则
-
-每种扩展均不需要修改已有文件（开闭原则）。
+生成的框架遵循开闭原则：新增 Agent / Skill / Workflow / 平台 / Hook 均在 §3.1 目录树对应子目录下新建文件（`agents/` / `skills/` / `workflows/` / `platforms/` / `hooks/hooks.yaml`），不需修改已有文件。
 
 ---
 
@@ -434,5 +422,4 @@ phases:
 
 - 生成的框架使用 CataForge 能力标识符，部署时由 deployer 自动翻译为平台原生名称
 - Agent 指令内容使用中文（与 CataForge 项目惯例一致），技术标识符和配置键使用英文
-- 生成的文件不包含任何未实现占位符，每个文件都是完整可用的
-- 每个生成的文件都是完整可用的，不依赖后续手动补全
+- 生成的文件不包含任何未实现占位符，每个文件都是完整可用的，不依赖后续手动补全

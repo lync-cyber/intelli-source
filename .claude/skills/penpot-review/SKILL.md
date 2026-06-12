@@ -3,7 +3,7 @@ name: penpot-review
 description: "Penpot 设计 ↔ 代码一致性验证 — 比对 Penpot 设计与已实现代码的视觉一致性，产出差异报告与修复建议。当组件代码已实现且需要核对是否还原设计稿时使用此 skill。本 skill 专注 verification；代码骨架生成由 penpot-implement 负责，Token 同步由 penpot-sync 负责。"
 argument-hint: "<component-id: C-NNN 或代码文件路径>"
 suggested-tools: Read, Glob, Grep
-depends: [doc-nav]
+depends: [context]
 disable-model-invocation: false
 user-invocable: true
 ---
@@ -24,7 +24,7 @@ user-invocable: true
 - ui-spec#§2 中对应的 C-{NNN} 规范（作为参考）
 
 ## 输出规范
-- 设计一致性审查报告 `docs/reviews/design/DESIGN-REVIEW-{component_id}.md`
+- 设计一致性审查报告 `docs/reviews/design/DESIGN-REVIEW-{component_id}-r{N}.md`
 - 差异列表（属性/值/偏差量）
 - 修复建议
 
@@ -54,8 +54,17 @@ user-invocable: true
 ### Step 4: 产出审查报告
 格式:
 ```markdown
+---
+id: "design-review-{component_id}-r{N}"
+doc_type: design-review
+author: penpot-review
+status: draft
+deps: ["{component_id}"]
+date: "{date}"
+penpot: "{penpot_component_id}"
+---
+
 # DESIGN-REVIEW: {component_id}
-<!-- date: {date} | component: C-{NNN} | penpot: {penpot_component_id} -->
 
 ## 一致性摘要
 - 总属性数: {N}

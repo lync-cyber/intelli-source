@@ -1,7 +1,7 @@
 """Framework setup helper — called by the orchestrator during Bootstrap.
 
 This script is referenced from ``.cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md``
-and from the ``/bootstrap`` slash command.  It provides three subcommands:
+and from the ``framework-update`` skill's ``apply`` operation.  It provides three subcommands:
 
 - ``--emit-env-block``: detect the project's package ecosystem (uv / pnpm /
   cargo / ...) and print a Markdown block that the orchestrator injects into
@@ -27,7 +27,6 @@ import json
 import sys
 from pathlib import Path
 from typing import Any
-
 
 # ----------------------------------------------------------------------------
 # Stack detection
@@ -199,7 +198,7 @@ def cmd_platform(platform_id: str) -> int:
     documentation can reference a stable script path.
     """
     try:
-        from cataforge.cli.main import cli
+        from cataforge.interface.cli.main import cli
     except ImportError:
         print(
             "cataforge package not importable — please install it "

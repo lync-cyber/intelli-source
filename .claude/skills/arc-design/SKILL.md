@@ -1,26 +1,17 @@
 ---
 name: arc-design
-description: "架构设计 — 模块划分、接口定义、数据模型、系统架构建模。"
+description: "架构设计 — 模块划分、接口定义、数据模型、系统架构建模。当 PRD 完成、需要做架构风格选型、模块划分、接口契约或数据模型设计时使用此 skill。本 skill 不做需求分析（req-analysis）与 UI 设计（ui-design）。"
 argument-hint: "<PRD文档路径或功能需求描述>"
 suggested-tools: Read, Write, Edit, Glob, Grep
-depends: [doc-gen, doc-nav, tech-eval, research]
+depends: [context, tech-eval, research]
 disable-model-invocation: false
 user-invocable: true
-kg_adapter:
-  name: module_implements
-  config:
-    doc_id_param: doc_id
-    upstream_doc_param: prd_doc_iri
-    pre_dispatch_queries:
-      upstream_features: "SELECT ?id ?label WHERE {\n  ?f a cfa:Feature ; cfk:hasId ?id ; rdfs:label ?label ;\n     cfk:definedIn $doc_iri .\n} ORDER BY ?id"
-      existing_modules: "SELECT ?id ?label WHERE {\n  ?m a cfa:Module ; cfk:hasId ?id ; rdfs:label ?label ;\n     cfk:definedIn $doc_iri .\n} ORDER BY ?id"
-    write_back_schema: .cataforge/skills/doc-gen/schemas/module.schema.json
 ---
 
 # 架构设计 (arc-design)
 ## 能力边界
 - 能做: 架构风格选型、模块划分、接口契约定义、数据模型设计、系统上下文建模
-- 不做: 需求分析、UI设计、代码实现
+- 不做: 需求分析（req-analysis）、UI 设计（ui-design）、代码实现（implementer/TDD）
 
 ## 输入规范
 - PRD功能需求(F-{NNN}列表)
@@ -37,7 +28,7 @@ kg_adapter:
 ## 执行流程
 
 ### Step 1: 需求分析与架构决策 (对应ARCH §1)
-- 通过doc-nav加载PRD全文(首次需全量理解)
+- 通过context加载PRD全文(首次需全量理解)
 - §1.1 确定项目类型: fullstack | backend-only | CLI | API-only
   (此决定影响orchestrator是否跳过Phase 3 UI设计)
 - §1.2 架构风格选型: 结合tech-eval调研结果
@@ -75,12 +66,12 @@ kg_adapter:
   ```
 - 必填: request headers + body字段(type + required + desc)
 - 必填: response成功码 + 错误码schema
-- 接口数 > 10时，通过doc-gen拆分为arch-api分卷
+- 接口数 > 10时，通过context拆分为arch-api分卷
 
 ### Step 4: 数据模型 (对应ARCH §4)
 - 描述实体关系(1:N / M:N / 继承等，Mermaid erDiagram 格式)
 - 定义实体E-{NNN}，字段表格(字段 | 类型 | 约束 | 说明)
-- 实体数 > 8时，通过doc-gen拆分为arch-data分卷
+- 实体数 > 8时，通过context拆分为arch-data分卷
 
 ### Step 5: 非功能架构 (对应ARCH §5)
 - §5.1 性能方案: 缓存策略 / 异步处理 / 分页方案
@@ -94,11 +85,11 @@ kg_adapter:
 - §7.1 命名规范: 文件/变量/接口命名规则
 - §7.2 代码风格: Lint/格式化工具配置
 - §7.3 Git约定: 分支策略/Commit格式
-- 通过doc-gen finalize交付ARCH
+- 通过context finalize交付ARCH
 
 ## Anti-Patterns
 - 禁止: 在 ARCH 主卷塞入实现细节代码 —— ARCH 写接口契约 / 数据流 / 模块边界；实现归 implementer 的 src/，越界让两层职责粘连
-- 禁止: 跳过 §6 部署运行时章节 —— 没有部署拓扑的 ARCH 让 devops 无法产出 deploy-spec，下游断链
+- 禁止: 跳过 §5.4 配置管理章节 —— 没有配置形态决策（环境变量清单 / 加载策略 / secrets 处理）的 ARCH 让 deploy-config 与 devops 无据可依，下游断链
 - 禁止: 模块划分循环依赖 —— ARCH 阶段的依赖图必须是 DAG；循环会让 tech-lead 任务拆解无起点
 - 避免: 把多个候选方案并列写在 ARCH 正文 —— 终态决策入 ARCH，候选讨论进 research-note 或 decision-log
 
