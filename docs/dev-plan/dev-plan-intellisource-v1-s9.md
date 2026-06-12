@@ -10,7 +10,7 @@ split_from: dev-plan-intellisource-v1
 ---
 # Development Plan: IntelliSource — Sprint 9 (生产链路装配缺口闭环)
 
-> **Sprint 主题**: 收敛 API 与 Worker 至单一组合根 (composition root)；端到端「采集→处理→存储→分发→消息检索」生产路径打通；PRD AC-063「灵活组合」由 `AgentRunner.run_flexible` + YAML tool palette 落地（不引入 workflow CRUD API，合 arch 移除 API-010/011 决策）。
+> **Sprint 主题**: 收敛 API 与 Worker 至单一组合根 (composition root)；端到端「采集→处理→存储→分发→消息检索」生产路径打通；PRD AC-063「灵活组合」由 `AgentRunner.run_flexible` + YAML tool palette 落地（不引入 workflow CRUD API，合 arch 移除 `API-010/011` 决策）。
 > **前置依赖**: sprint-8r 批次 1-3 全部 approved（T-083 ~ T-093 = approved；T-094 集成测试可与 sprint-9 并行）；外部 code-review scan 识别 8 个 HIGH + 6 个 MEDIUM 装配缺口（详见 `docs/reviews/code/CODE-SCAN-20260522-r1.md` —— 本 sprint 立项依据）
 > **后置**: 全部 T-095~T-100 完成后，重新进入 pre_deploy_checkpoint GO/NO-GO 评估
 > **Sprint 目标**: 关闭 audit 全部 8 HIGH（CR-001/002/003/004/005/007/008 + CR-012）+ 4 MEDIUM（CR-006/009/010/011/013/014）；6 个 agent 工具在生产配置下不再返回 `status: degraded`；`/api/v1/search/chat` 通过 flexible mode 实现 PRD AC-063「灵活组合」

@@ -131,7 +131,7 @@ graph LR
   - `dev-plan-intellisource-v1-s10#§3.T-BF-1`（Celery 任务名称契约）
 
 - **arch-sync 说明**:
-  `POST /api/v1/content/backfill-embeddings` 是项目新增的公开 API 契约，当前 arch 文档（`arch-intellisource-v1-api`）中无此端点的契约条目。**推荐在本任务 deliverables 内内联契约**（不要求先提交 arch amendment、再开工）：实现后由 implementer 或 tech-lead 在 PR 描述中记录 API 契约摘要，**T-BF-2 PR 合并后由 tech-lead 提交 arch-amendment 补录该端点契约**，编号取 arch 当时的下一可用值（`[ASSUMPTION]` 待 arch amendment 时确认；注意 API-026~API-029 已在 `arch-intellisource-v1-api` 中声明为删除编号，不可复用），以 pre-deploy review 为硬性截止（两者以先到者为准）。理由：该端点语义简单（单动作 + 固定响应），内联契约不会导致下游 API/CLI 消费者对文档的误读；而强制先走 arch amendment 流程会造成不必要的等待。**追踪**: 此 arch-amendment 补录项登记进 BACKLOG（见 backfill 条目跟进项），防止无限期推迟；test-report / deploy-spec 引用 arch API 范围时应注意该 backfill 端点当前仅在 dev-plan 内联定义。若项目决策在 arch review 前冻结 API，可提前单独提交 arch-amendment。
+  `POST /api/v1/content/backfill-embeddings` 是项目新增的公开 API 契约，当前 arch 文档（`arch-intellisource-v1-api`）中无此端点的契约条目。**推荐在本任务 deliverables 内内联契约**（不要求先提交 arch amendment、再开工）：实现后由 implementer 或 tech-lead 在 PR 描述中记录 API 契约摘要，**T-BF-2 PR 合并后由 tech-lead 提交 arch-amendment 补录该端点契约**，编号取 arch 当时的下一可用值（`[ASSUMPTION]` 待 arch amendment 时确认；注意 `API-026~API-029` 已在 `arch-intellisource-v1-api` 中声明为删除编号，不可复用），以 pre-deploy review 为硬性截止（两者以先到者为准）。理由：该端点语义简单（单动作 + 固定响应），内联契约不会导致下游 API/CLI 消费者对文档的误读；而强制先走 arch amendment 流程会造成不必要的等待。**追踪**: 此 arch-amendment 补录项登记进 BACKLOG（见 backfill 条目跟进项），防止无限期推迟；test-report / deploy-spec 引用 arch API 范围时应注意该 backfill 端点当前仅在 dev-plan 内联定义。若项目决策在 arch review 前冻结 API，可提前单独提交 arch-amendment。
 
 - **notes**:
   - CLI 参照 `source.py` 模式：`_client.post(...)` + `emit(resp.json(), json_output=json_output)`；无本地 gateway 依赖。
