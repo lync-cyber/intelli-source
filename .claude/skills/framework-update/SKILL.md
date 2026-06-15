@@ -109,7 +109,7 @@ fresh install 报告缺平台时询问用户（`claude-code` 默认）并 `cataf
 1. 读 `framework.json`，更新 `upgrade.state`（`last_version` / `last_upgrade_date` / `last_commit`），用 Read + Edit 原地写入，保留其它字段
 2. `cataforge claude-md check`（如可用）surface hygiene 问题；FAIL 时建议用户跑 `cataforge claude-md compact`（非阻塞，仅提示）
 
-> `CLAUDE.md` §项目信息.框架版本 由 Step 3 deploy 阶段以 `0.9.1` 占位符盖入已安装包版本，本 skill 不写版本字段。
+> `CLAUDE.md` §项目信息.框架版本 由 Step 3 deploy 阶段以 `0.11.0` 占位符盖入已安装包版本，本 skill 不写版本字段。
 
 > bootstrap 中若遇 EVENT-LOG schema FAIL（历史旁路写入触发），按 hint 跑 `cataforge event accept-legacy` 设水位线即可，不影响本次同步。
 
@@ -121,8 +121,8 @@ fresh install 报告缺平台时询问用户（`claude-code` 默认）并 `cataf
 - **在 — 已初始化**: 不重跑 Project Bootstrap。若 `CLAUDE.md` §执行环境 仍是占位符或技术栈变化:
 
   ```bash
-  cataforge setup --emit-env-block      # 注入 §执行环境；exit 2 = 无已知技术栈
-  cataforge setup --apply-permissions   # 收紧 permissions.allow 到技术栈
+  python .cataforge/scripts/framework/setup.py --emit-env-block      # 注入 §执行环境；exit 2 = 无已知技术栈
+  python .cataforge/scripts/framework/setup.py --apply-permissions   # 收紧 permissions.allow 到技术栈
   ```
 
   exit 2 时写 `- 无自动检测到的标准包管理器（请根据实际技术栈手动填写）` 并询问用户包管理器 + 测试命令。随后交接 `/start-orchestrator continue` 做 phase 恢复。

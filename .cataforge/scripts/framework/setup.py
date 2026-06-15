@@ -10,13 +10,14 @@ and from the ``framework-update`` skill's ``apply`` operation.  It provides thre
 
 - ``--apply-permissions``: read the same detection result and narrow the
   Bash allowlist in ``.claude/settings.json`` (or the platform equivalent) to
-  the minimum commands needed for this stack, per least-privilege.
+  the minimum commands needed for this stack, per least-privilege.  On Windows
+  it also disables the PowerShell tool so shell commands stay on Git Bash.
 
 - ``--platform <id>``: a thin wrapper around ``cataforge setup --platform``
   kept here so the protocol documentation stays stable across CLI changes.
 
 The module name ``setup.py`` and the flag names are load-bearing: they are
-referenced by ``framework.json`` migration check ``mc-0.7.0-setup-emit-env``
+referenced by ``framework.json`` migration check ``mc-0.9.2-setup-emit-env``
 (path + patterns ``--emit-env-block`` + ``build_env_block``).
 """
 
@@ -166,6 +167,10 @@ def cmd_apply_permissions(root: Path) -> int:
         data = json.loads(settings.read_text(encoding="utf-8"))
         perms = data.setdefault("permissions", {})
         perms["allow"] = [f"Bash({p}*)" for p in allow_prefixes]
+        if sys.platform == "win32":
+            # Disable the PowerShell tool so shell commands stay on Git Bash.
+            data.setdefault("env", {})["CLAUDE_CODE_USE_POWERSHELL_TOOL"] = "0"
+            data.setdefault("defaultShell", "bash")
         settings.write_text(
             json.dumps(data, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",

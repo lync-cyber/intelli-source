@@ -4,7 +4,7 @@
 
 - 技术栈: Python 3.11+ / FastAPI / Celery + Redis / PostgreSQL + pgvector / SQLAlchemy 2.0 / litellm
 - 运行时: claude-code
-- 框架版本: 0.9.1
+- 框架版本: 0.11.0
   <!-- 由 cataforge deploy 自动盖入已安装包版本。SemVer: MAJOR=不兼容变更, MINOR=新功能, PATCH=修复 -->
 - 语言定位: 中文框架（提示词/文档/交互用中文；代码/变量/CLI参数用英文）
 - 执行模式: standard
@@ -14,14 +14,20 @@
 
 - 项目名称: IntelliSource
 
-## 执行环境 (Bootstrap 时由 `cataforge setup --emit-env-block` 填入)
+## 执行环境 (Bootstrap 时由 `python .cataforge/scripts/framework/setup.py --emit-env-block` 填入)
+
 <!-- 本节在 Bootstrap 步骤中生成。每次会话都会作为项目指令加载，
      权重高于 hook 注入的 additionalContext。项目生命周期内保持稳定。 -->
-{执行环境检测结果 — 未填入时 orchestrator 应在 Bootstrap 时调用:
- cataforge setup --emit-env-block}
+- 包管理器: uv（fallback: pip）
+- 安装: `uv sync`
+- 测试: `uv run pytest`（全量）；`uv run pytest tests/unit/<path>` 单文件
+- 类型: `uv run mypy --strict src/`
+- 格式: `uv run ruff format . && uv run ruff check .`
+- 容器: docker / docker-compose（docker/）
+- 迁移: `uv run alembic upgrade head`
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: backlog-burndown；release gate = approved（B-031 走查 GO，pre-deploy 15-20 全 GO）。框架已升级 0.4.1→0.9.1（scaffold 刷新 + IDE 重部署 + KG 摄取门禁修复，[PR #110](https://github.com/lync-cyber/intelli-source/pull/110) 已合并）；KG dangling WARN 处理（API-010/026/029 历史引用 inline-code 豁免 + 76 框架口径噪声定性 + feedback 归因修正）[PR #111](https://github.com/lync-cyber/intelli-source/pull/111) 已合并（CI 5 项检查全绿）；D1 Docker 缓存根治已闭环（[PR #109](https://github.com/lync-cyber/intelli-source/pull/109) 已合并）
+- 当前阶段: backlog-burndown；release gate = approved（B-031 走查 GO，pre-deploy 15-20 全 GO）。框架已升级 0.4.1→0.9.1（scaffold 刷新 + IDE 重部署 + KG 摄取门禁修复，[PR #110](https://github.com/lync-cyber/intelli-source/pull/110) 已合并），本次再升级 0.9.1→0.11.0（scaffold 136 文件刷新 + IDE 重部署 + CLAUDE.md §执行环境 去重，docs→context CLI 软弃用向后兼容，doctor all-pass，待提交）；KG dangling WARN 处理（API-010/026/029 历史引用 inline-code 豁免 + 76 框架口径噪声定性 + feedback 归因修正）[PR #111](https://github.com/lync-cyber/intelli-source/pull/111) 已合并（CI 5 项检查全绿）；D1 Docker 缓存根治已闭环（[PR #109](https://github.com/lync-cyber/intelli-source/pull/109) 已合并）
 - 当前回归基线: main HEAD c6e577d（[PR #106](https://github.com/lync-cyber/intelli-source/pull/106) ~ [PR #111](https://github.com/lync-cyber/intelli-source/pull/111) 已合并；#110 = cataforge 0.9.1 升级 + KG 摄取门禁修复，#111 = KG dangling WARN 处理）。D1 Docker 缓存根治（PR #109 已合并）：Dockerfile `ARG GIT_SHA`+`LABEL` bust src 层（依赖层 CACHED 保留）+ compose build.args + `intellisource up`/`make up` 注入 sha + `--rebuild` 逃生口 + `test_stack.py` 9 用例；受控实验证伪（改 GIT_SHA+改 src+不带 --no-cache → 镜像新 src，uv sync CACHED）；code-review approved_with_notes（R-001~R-004 inline 闭环）；ruff+mypy --strict 267+全量 unit exit 0 绿。前次全门禁基线 integration 160 PASS/1 skip + lint-imports 12/12（本轮未重跑）
 - 文档状态: prd / arch（含 API-030）/ dev-plan(主卷+s1~s9+s10) / test-report / deploy-spec（PRE-DEPLOY-WALKTHROUGH 步骤 15-20 已签字）/ backlog = approved；ui-spec = N/A；dev-plan-s8 = draft。test-report + dev-plan-s8r 经 KG 摄取门禁 inline-code 修复（跨文档裸 entity-id 包裹），doctor all-pass；KG store 已 gitignore（派生数据，`cataforge kg import` 可重建）
 - 剩余项目级真债（非阻塞）: 详见 [BACKLOG](docs/BACKLOG-intellisource-v1.md)。开放项 — P3 session-splitting 压缩设计(idea，待定)；P3 KG dangling WARN 76 个（TC/CR/SR 纯关系 class 框架口径噪声，已定性，修复点在 CataForge 框架侧）
@@ -30,12 +36,12 @@
 
 ## 文档导航
 
-- 导航索引: `docs/.doc-index.json`（机器索引，所有 Agent 通过 `cataforge docs load` 查询；缺失时运行 `cataforge docs index` 重建）
+- 导航索引: `docs/.doc-index.json`（机器索引，所有 Agent 通过 `cataforge context read` 查询；缺失时运行 `cataforge context index` 重建）
 - 通用规则: .claude/rules/COMMON-RULES.md
 - 子代理协议: .claude/rules/SUB-AGENT-PROTOCOLS.md
 - 编排协议: .cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md (orchestrator专属)
 - 状态码Schema: .cataforge/schemas/agent-result.schema.json
-- 加载原则: 按任务需要通过 `cataforge docs load` 加载相关章节，不全量加载
+- 加载原则: 按章节/条目粒度按需通过 `cataforge context read` 加载，不全量加载
 
 ## 全局约定
 
@@ -65,12 +71,3 @@
 ## 工具使用规范
 - 优先使用 LSP 工具（go_to_definition, find_references, hover）查找符号定义和引用
 - 避免用 grep/ripgrep 搜索代码符号，除非是搜索字符串字面量
-
-## 执行环境
-- 包管理器: uv（fallback: pip）
-- 安装: `uv sync`
-- 测试: `uv run pytest`（全量）；`uv run pytest tests/unit/<path>` 单文件
-- 类型: `uv run mypy --strict src/`
-- 格式: `uv run ruff format . && uv run ruff check .`
-- 容器: docker / docker-compose（docker/）
-- 迁移: `uv run alembic upgrade head`
