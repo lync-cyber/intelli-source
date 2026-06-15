@@ -17,7 +17,7 @@
 3. **创建目录结构**: 根据执行模式:
     - `standard` / `agile-lite`: `mkdir -p docs/{prd,arch,dev-plan,ui-spec,test-report,deploy-spec,research,changelog,reviews/{doc,code,sprint,retro}}`
     - `agile-prototype`: `mkdir -p docs/{brief,research,reviews/{doc,code}}`
-    - 存量项目带历史文档时，向用户确认归档方案：移入根级 `archive/`（docs 索引不扫描），或保留在 `docs/` 内并写 `docs/.docignore`（一行一个 glob，`dir/` 匹配整个子树）——否则 `cataforge docs validate` / doctor 会对缺 front matter 的历史文件报 orphan FAIL
+    - 存量项目带历史文档时，向用户确认归档方案：移入根级 `archive/`（docs 索引不扫描），或保留在 `docs/` 内并写 `docs/.docignore`（一行一个 glob，`dir/` 匹配整个子树）——否则 `cataforge context validate` / doctor 会对缺 front matter 的历史文件报 orphan FAIL
 4. **写入跨平台 `.gitattributes`** — 治理 Windows `core.autocrlf=true` + fixture/snapshot 字节哈希漂移。项目根无 `.gitattributes` 时写入下列最小集；已存在则**只读**判断（含 `eol=` 视为已归一化），不覆盖用户自定义：
 
     ```
@@ -59,12 +59,12 @@
     - `opencode` — OpenCode CLI
     确认后执行: `cataforge setup --platform {选定值}`，该命令将写入 `framework.json` 的 `runtime.platform` 字段并自动执行 deploy，生成对应平台的部署产物。若用户跳过选择则默认 `claude-code`。
 8. **填入 §执行环境 + 最小 permissions** — 按顺序运行两条命令:
-   - `cataforge setup --emit-env-block`：将输出注入 {INSTRUCTION_FILE} §执行环境 节以替换占位符。退出码 2 表示未检测到已知技术栈，此时将该节内容置为 `- 无自动检测到的标准包管理器（请根据实际技术栈手动填写）`。
-   - `cataforge setup --apply-permissions`：根据技术栈最小化平台配置中的 `permissions.allow`（Claude: `.claude/settings.json`，Cursor: `.cursor/hooks.json` + 权限策略），裁掉未使用的 Bash 白名单条目。
+   - `python .cataforge/scripts/framework/setup.py --emit-env-block`：将输出注入 {INSTRUCTION_FILE} §执行环境 节以替换占位符。退出码 2 表示未检测到已知技术栈，此时将该节内容置为 `- 无自动检测到的标准包管理器（请根据实际技术栈手动填写）`。
+   - `python .cataforge/scripts/framework/setup.py --apply-permissions`：根据技术栈最小化平台配置中的 `permissions.allow`（Claude: `.claude/settings.json`，Cursor: `.cursor/hooks.json` + 权限策略），裁掉未使用的 Bash 白名单条目。
    本步骤的目的是让包管理器/安装命令/测试命令以项目指令形式固化到 {INSTRUCTION_FILE}，并收紧运行时权限以符合最小权限原则。
 9. **初始化文档索引与知识图谱** —
    - `cataforge kg init`（幂等；首次创建图谱 store 并加载本体闭包，上下文方案未启用图后端或命令缺失时 WARN 跳过）
-   - `cataforge docs index`（生成空的 `docs/.doc-index.json` 文档索引缓存，首个文档落盘后由生成定稿增量刷新）
+   - `cataforge context index`（生成空的 `docs/.doc-index.json` 文档索引缓存，首个文档落盘后由生成定稿增量刷新）
 10. **进入初始阶段** — 通过 agent-dispatch 激活:
     - `standard` → product-manager（Phase 1 requirements）
     - `agile-lite` → product-manager（planning 阶段，按 §Mode Routing Protocol 产出 prd-lite 后链式激活 architect 产出 arch-lite）
@@ -130,7 +130,7 @@ Mode Routing Protocol 在以下时刻被调用:
    ```
 2. 确认 docs/reviews/doc/ 下存在对应 REVIEW 报告（取编号最大的 `-r{N}` 文件）
 3. 通过 agent-dispatch 调度原Agent (task_type=revision)，传递REVIEW报告路径
-4. 修复完成后重新激活 reviewer 执行门禁。reviewer 采用**增量审查模式**：仅审查 `git diff` 产出的变更部分（与上次审查的 commit baseline 比较），上轮报告中无 CRITICAL/HIGH 的维度标注 `[previously-approved]` 不重复审查，仅审查上轮 CRITICAL/HIGH 涉及的维度 + diff 新增代码的全维度。report 中每个 `[previously-approved]` 维度附注上轮 report 编号供追溯
+4. 修复完成后先按 §Phase Transition Protocol Step 5.3 执行 reconcile 收口（漂移按 Step 5.3 处置），再重新激活 reviewer 执行门禁。reviewer 采用**增量审查模式**：仅审查 `git diff` 产出的变更部分（与上次审查的 commit baseline 比较），上轮报告中无 CRITICAL/HIGH 的维度标注 `[previously-approved]` 不重复审查，仅审查上轮 CRITICAL/HIGH 涉及的维度 + diff 新增代码的全维度。report 中每个 `[previously-approved]` 维度附注上轮 report 编号供追溯
 5. 更新返工计数: needs_revision(N)。N≥2 时请求人工介入（收紧自 N≥3，避免低效 revision 循环）
 
 > 子代理收到 `task_type=revision` 后的修订步骤见 `{RULES_DIR}/SUB-AGENT-PROTOCOLS.md §task_type=revision 修订流程`。
@@ -146,7 +146,7 @@ Mode Routing Protocol 在以下时刻被调用:
    - **(1) 接受并继续**: 文档状态 → approved，进入下一 Phase
    - **(2) 要求修复选中的问题**: 选中问题 → needs_revision，进入 Revision Protocol
    - **(3) 暂停等待人工**: 不动文档状态，§当前阶段 标 hold
-   - **(4) 全量 inline-fix 后继续**（仅在下列条件**全部**成立时展示）: orchestrator/reviewer 主线程逐条扫 LOW 并 Edit / context write-section 直接修复（同会话），verdict 保持 approved_with_notes 但实质等价 approved，文档 status: draft → approved
+   - **(4) 全量 inline-fix 后继续**（仅在下列条件**全部**成立时展示）: orchestrator/reviewer 主线程逐条扫 LOW 并经 context `write-narrative` / `write` 落图、`context finalize` 重导出（同会话），verdict 保持 approved_with_notes 但实质等价 approved，文档 status: draft → approved
      - MEDIUM+LOW 问题数 ≥ 8（少量手修更直接）
      - 全部为表述漂移 / 格式 / 引用对齐 / 完整性补充（非设计缺陷）
      - 单次修改 ≤ 50 行（超过走 (2)）
@@ -164,7 +164,7 @@ Mode Routing Protocol 在以下时刻被调用:
 2. **更新 {INSTRUCTION_FILE} 文档状态** — 对应文档状态字段标记为 approved
 3. **更新 {INSTRUCTION_FILE} 阶段信息** — 按 {INSTRUCTION_FILE} Update Template 更新当前阶段、上次完成、下一步行动、已完成阶段
 4. **一致性验证** — 确认文档头 status 与 {INSTRUCTION_FILE} 字段一致
-5. **依赖新鲜度检查** — 运行 `cataforge docs validate`，检查 `stale_deps` 输出：
+5. **依赖新鲜度检查** — 运行 `cataforge context validate`，检查 `stale_deps` 输出：
    - 无 stale deps → 通过，继续 Step 5.5
    - 存在 stale deps → 向用户展示过期依赖清单并提供选项：
      1. 进入 cascade_amendment 更新受影响文档
@@ -174,9 +174,9 @@ Mode Routing Protocol 在以下时刻被调用:
     <!-- allow-doc-structure: sub-step of Phase Transition, not an independent numbered list -->
 5.3. **一致性最终守门** — 运行 `cataforge context reconcile`（上下文方案未启用图后端时为 no-op，WARN 跳过）:
    - 无漂移 → 通过，继续 Step 5.5
-   - 有漂移（missing / ghost 实体或关系）→ 向用户展示漂移报告摘要并提供选项：
-     1. 自动修复后重跑守门，PASS 后继续 Step 5.5
-     2. 进入 cascade_amendment 修订上游文档以匹配权威存储
+   - 有漂移 → 向用户展示漂移报告摘要并提供选项：
+     1. 自动修复（按 reconcile 报告 `documents[].remediation`）：`export`（图谱领先/未导出）→ `cataforge context finalize` 重导出；`ingest`（人改导出文件或 md 权威）→ `cataforge context ingest` 回灌；`manual`（conflict，两侧均变更）→ 转选项 3。修复后复跑 `cataforge context reconcile`，漂移归零后继续 Step 5.5
+     2. 进入 cascade_amendment 修订上游文档以匹配图谱
      3. 暂停，手动审查
    - 其它错误（store 未初始化等）→ WARN 跳过（记录到 EVENT-LOG 供 reflector 复盘），不阻塞
     <!-- allow-doc-structure: sub-step of Phase Transition, not an independent numbered list -->
@@ -398,7 +398,7 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
    - "回滚所有修订": `git checkout -- docs/{affected_dirs}` 恢复所有本轮修订的文档
 4. 回滚后变更请求状态重置，用户可调整范围后重新提交
 
-变更完成后回到原阶段继续执行。Amendment 与 Revision 的区别: Revision由reviewer发起（修复问题），Amendment由用户发起（适应变更），但执行机制复用agent-dispatch和reviewer审核流程。
+变更完成后先按 §Phase Transition Protocol Step 5.3 执行 reconcile 收口（漂移时 ingest 回灌），再回到原阶段继续执行。Amendment 与 Revision 的区别: Revision由reviewer发起（修复问题），Amendment由用户发起（适应变更），但执行机制复用agent-dispatch和reviewer审核流程。
 
 > 子代理收到 `task_type=amendment` 后的修订步骤见 `{RULES_DIR}/SUB-AGENT-PROTOCOLS.md §task_type=amendment 变更修订流程`。
 
