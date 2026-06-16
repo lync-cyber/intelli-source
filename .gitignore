@@ -21,6 +21,7 @@ coverage.xml
 .claude/backup-*/
 .cataforge/.backups/
 .cataforge/kg/store/
+.cataforge/kg/snapshots/
 docs/.kg-reconcile-report.json
 .agents/
 .codex/
