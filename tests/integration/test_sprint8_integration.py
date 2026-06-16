@@ -405,6 +405,7 @@ class TestCompactionConsistency:
     @pytest.mark.asyncio
     async def test_both_paths_keep_same_head_and_tail(self) -> None:
         from intellisource.llm.compaction import (
+            _chat_compaction_context_window,
             compact_messages,
             compact_messages_for_chat,
         )
@@ -444,7 +445,7 @@ class TestCompactionConsistency:
             profile = ModelProfile(
                 temperature=0.0,
                 max_tokens=max_tokens,
-                context_window=max(max_tokens * 2, 8192),
+                context_window=_chat_compaction_context_window(max_tokens),
             )
             result_b = await compact_messages(
                 list(messages),
