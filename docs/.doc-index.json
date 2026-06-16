@@ -1,15 +1,15 @@
 {
   "version": "1",
-  "generated_at": "2026-06-16T11:51:06.152390+00:00",
+  "generated_at": "2026-06-16T12:02:38.712316+00:00",
   "documents": {
     "backlog-intellisource-v1": {
       "file_path": "docs/BACKLOG-intellisource-v1.md",
       "doc_type": "backlog",
       "volume": "main",
       "status": "approved",
-      "total_lines": 72,
-      "est_tokens": 2156,
-      "content_hash": "b4a3401a",
+      "total_lines": 82,
+      "est_tokens": 2544,
+      "content_hash": "a14f5926",
       "sections": {}
     },
     "history-intellisource-v1": {
@@ -890,7 +890,7 @@
       "dep_hashes": {
         "arch-intellisource-v1-modules": "a5e24d54",
         "arch-intellisource-v1-api": "eb2b960c",
-        "backlog-intellisource-v1": "b4a3401a"
+        "backlog-intellisource-v1": "a14f5926"
       }
     },
     "dev-plan-intellisource-v1-s1": {
@@ -2742,7 +2742,7 @@
         "backlog-intellisource-v1"
       ],
       "dep_hashes": {
-        "backlog-intellisource-v1": "b4a3401a"
+        "backlog-intellisource-v1": "a14f5926"
       }
     },
     "research-b051-config-bootstrap-ux": {
@@ -2835,7 +2835,7 @@
         "backlog-intellisource-v1"
       ],
       "dep_hashes": {
-        "backlog-intellisource-v1": "b4a3401a"
+        "backlog-intellisource-v1": "a14f5926"
       }
     },
     "prompt-management-analysis": {
@@ -3250,7 +3250,7 @@
       ],
       "dep_hashes": {
         "arch-intellisource-v1-modules": "a5e24d54",
-        "backlog-intellisource-v1": "b4a3401a"
+        "backlog-intellisource-v1": "a14f5926"
       }
     },
     "review-arch-intellisource-v1-r1": {
