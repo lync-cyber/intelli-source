@@ -34,7 +34,14 @@ deps: []
 
 > 本批 R-001~R-010 + R-005 余量 + R-011/R-012 + P11/P12 已闭环，详见 [code-review r1](reviews/code/CODE-REVIEW-agentloop-hardening-r1.md) 与 [burndown r1](reviews/code/CODE-REVIEW-agentloop-burndown-r1.md)。以下为唯一保留的延后设计。
 
-- **[P3] session-splitting 压缩设计（idea，待定）**：以"分裂新 session + parent 血缘"替代当前 `compact_agent_messages` 就地压缩，换取可追溯压缩历史与并行分支。落地才需要 `ChatSession.parent_session_id`（就地压缩下无生产者也无消费者，属死 schema，未建列）。是否值得取决于是否需要审计压缩链路。
+- **[P3] session-splitting 压缩设计（已评估 2026-06-16：NO-GO）**：提案以"分裂新 session + parent 血缘"替代 `compact_agent_messages` / `compact_messages_for_chat` 就地压缩，换可追溯压缩历史 + 对话分支；落地需 `ChatSession.parent_session_id`（死 schema，未建列）。**评估结论 NO-GO**，四条代码/文档实证：
+  1. **agent-loop 压缩纯内存**：`compact_agent_messages` 仅经 gateway `compress_if_needed` 被 `agent/executors/flexible.py:_compress_history` 调用，对内存 message 列表 best-effort 压缩，无 `ChatSession` 行、不落库 → 该侧无行可分支，提案结构性不适用。
+  2. **唯一持久的 Chat 路径每次 persist 已硬截断最近 10 轮**（`MAX_HISTORY_TURNS=10` / `history[-20:]`，随"服务端会话记忆"特性原始引入的设计边界）→ "父会话留全量供审计"被产品边界而非疏漏阻断，要兑现须先推翻该特性的记忆窗口设定。
+  3. **摘要 LLM 调用经 `CostTracker` 已入 `LLMCallLog`(E-007)**（model/tokens/cost/latency/call_type 维度可观测），仅"被摘掉的原文"无处留存 → 压缩**事件+成本**已可观测，提案唯一新增的是"原文留存"。
+  4. **PRD 零审计/留存/对话分支需求**（`审计/留存/回放/fork/parent_session` 全无命中；唯一"分支"是 AC-014 的 pipeline 处理器条件分支，与对话无关）→ 两个收益均无需求消费者。
+  净判断：建列 + 迁移 + GC + token 解析重写全部服务一个 PRD 未提出的能力，属 YAGNI；维持死 schema 未建为正确状态。
+  - **重评触发**（满足任一才重启设计）：① 出现对话审计 / 合规留存需求；② 出现对话分支 / fork 功能需求；③ 因他因已要求全量 transcript 留存（届时血缘是廉价增量）。
+  - **重启时须补**（BACKLOG 原描述与提案均未覆盖）：(a) 客户端 token→head 解析需 forward / head 指针，仅 backward `parent_session_id` 不够；(b) 父链保留 / GC 策略以防无界增长；(c) `cleanup_expired` 的级联 / 血缘感知删除语义。
 
 ---
 
