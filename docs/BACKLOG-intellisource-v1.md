@@ -34,9 +34,27 @@ deps: []
 
 ### B-070 Chat 会话压缩与写入截断未协调 → AC-053 未兑现
 - **根因**：`api/chat_sessions.py:_persist_chat_turn` 每轮无条件 `history[-(MAX_HISTORY_TURNS*2):]` 删最旧轮次（与 token 预算 / LLM 可用性无关），早期历史在读取端 `compact_history` 摘要前即从库删除；且 `compact_history` 对 `prepare_session` 关闭后 detached 的 `stored_session` 改 `context["messages"]` 从不 commit，摘要仅服务本次请求 replay、请求结束即丢，库里恒为原始 ≤20 条。结果 [prd AC-053](prd/prd-intellisource-v1.md)「超 token 限制时自动摘要历史对话」实际未兑现：第 11 轮后压缩永远看不到第 1 轮，且每请求从同一 ≤20 条窗口重复重算摘要（既无积累也浪费 LLM 调用）。
-- **次生**：实现常量 `MAX_HISTORY_TURNS=10` / `CHAT_COMPACT_TOKEN_BUDGET=6000` 与 arch `[chat]` 段 `context_token_budget=2000` / `compress_after_turns=4`（[arch §5.1](arch/arch-intellisource-v1.md)）失配，且 persist 路径不读 `[chat]` 配置。
-- **修复方向**：写入端以 token-aware compaction 替代固定条数硬截断 —— append 新轮后若库存历史超 `context_token_budget` 则 `compact_messages_for_chat` 并**持久化** summary+recent（库存自界、旧上下文以结构化摘要存活）；读取端压缩降为安全网或移除冗余；常量改读 settings `[chat]`。新测试覆盖「>N 轮后早期上下文以摘要形式存活且持久化」。
+- **次生**：实现常量 `MAX_HISTORY_TURNS=10` / `CHAT_COMPACT_TOKEN_BUDGET=6000` 与 arch `[chat]` 段 `context_token_budget=2000` / `compress_after_turns=4`（[arch §5.1](arch/arch-intellisource-v1.md)）失配，且 persist 路径不读 `[chat]` 配置。→ **配置对齐已拆出 B-071 立项研判**（见下），本次 AC-053 修复按范围红线**未含**。
+- **修复方向**：写入端以 token-aware compaction 替代固定条数硬截断 —— append 新轮后若库存历史超预算则 `compact_messages_for_chat` 并**持久化** summary+recent（库存自界、旧上下文以结构化摘要存活）；`compact_history` 改纯函数（不污染 detached context）；webhooks 同源路径一并迁移。新测试覆盖「>N 轮后早期上下文以摘要形式存活且持久化」。
 - **来源**：session-splitting 评估（见下）副产暴露；定性见上游反馈无关，纯本项目实现债。
+
+---
+
+## P3 — 配置 / 规约（非阻塞）
+
+### B-071 arch `[chat]` 配置段与实现失配 — 立项研判（B-070 follow-up）
+- **现状（代码实证）**：arch §5.1 `[chat]` 配置表声明 4 参数，但**均未接入 Settings**（`core/settings.py` 无任何 chat/compaction 配置项），代码改用硬编码模块常量，且部分参数从未实现：
+  - `context_token_budget`(arch=2000) ←→ 代码有**两个不同 budget**：`_DEFAULT_CONTEXT_TOKEN_BUDGET=2000`（`llm/compaction.py` 默认 / agent 路径，巧合相符）与 `CHAT_COMPACT_TOKEN_BUDGET=6000`（`api/chat_sessions.py` chat persist/replay，**与 arch 2000 失配**）。
+  - `compress_after_turns`(arch=4) — **src 零引用、从未实现**（压缩按 token 预算触发，非轮次）。
+  - `compress_model`(arch=廉价模型) — 未实现（压缩走 gateway 默认模型路由，函数 `model` 默认 `"gpt-4o-mini"`）。
+  - `session_timeout_hours`(arch=24) — 待核实是否接入 `ChatSessionRepository.cleanup_expired`。
+  - 注：doc-review [REVIEW-dev-plan-r4](reviews/doc/REVIEW-dev-plan-intellisource-v1-r4.md) 曾断言这些参数"与 arch §5.1 完全对应"，但那是 doc↔doc 校验，代码接线从未落地。
+- **研判问题（立项待决，非本轮执行）**：
+  1. **收敛方向**：把 arch `[chat]` 真正接入 Settings（config 驱动），还是修订 arch §5.1 使其匹配已实现的硬编码现实？doc↔code 须二选一收敛，不能两套并存制造规格幻影。
+  2. **预算语义**：`context_token_budget`（replay 注入 LLM 的预算）与 chat persist 压缩触发预算是**一个**还是**两个**概念？arch 只定义一个，代码事实上有两个（2000 / 6000）；需决定统一命名取值，或显式区分两者并都纳管。
+  3. **未实现参数去留**：`compress_after_turns` / `compress_model` 是补实现（轮次触发 + 廉价模型压缩），还是从 arch 删除以消除规格幻影？
+- **优先级理由**：P3 — 硬编码常量 + doc/code 一致性；非阻塞（B-070 已用工作默认值兑现 AC-053，配置化只关乎可调性与规格诚实度）。
+- **触发**：下次动 chat 压缩 / 扩展 settings / 修订 arch §5.1 时一并处理。
 
 ---
 
