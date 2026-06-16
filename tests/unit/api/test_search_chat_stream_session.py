@@ -71,7 +71,9 @@ async def test_stream_persists_turn_and_emits_session_id(
     fixed_id = uuid.UUID("11111111-1111-1111-1111-111111111111")
 
     async def _fake_persist(
+        request: Any,
         db_manager: Any,
+        body: Any,
         *,
         stored_session: Any,
         session_uuid: Any,

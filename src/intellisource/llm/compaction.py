@@ -327,6 +327,18 @@ async def compact_agent_messages(
     return [*head, summary_msg, *tail]
 
 
+def _chat_compaction_context_window(max_tokens: int) -> int:
+    """Synthetic ``context_window`` for the profile-less chat compaction path.
+
+    Sized so the pipeline's recent-keep budget (``0.6 * window``) and trigger
+    threshold (``min(0.8 * window, max_tokens)``) both land at ``max_tokens``,
+    so the compacted result fits within the budget and does not re-cross the
+    threshold on the next turn. ``-(-x // y)`` is integer ceil so the budget is
+    never rounded down.
+    """
+    return -(-max_tokens * 10 // 6)
+
+
 async def compact_messages_for_chat(
     messages: list[dict[str, Any]],
     gateway: Any,
@@ -341,6 +353,12 @@ async def compact_messages_for_chat(
     ModelProfile is constructed from ``max_tokens`` so the existing pipeline
     treats it as the budget upper bound; pruning, summarization and the
     truncation fallback all behave identically to ``compact_messages``.
+
+    The synthetic ``context_window`` is sized so the pipeline's recent-keep
+    budget (``context_window * 0.6``) and trigger threshold
+    (``min(context_window * 0.8, max_tokens)``) both land at ``max_tokens``.
+    The compacted result therefore fits within ``max_tokens`` and does not
+    immediately re-cross the threshold on the next turn.
 
     Args:
         messages: Full conversation message list.
@@ -360,7 +378,7 @@ async def compact_messages_for_chat(
     profile = ModelProfile(
         temperature=0.0,
         max_tokens=max_tokens,
-        context_window=max(max_tokens * 2, 8192),
+        context_window=_chat_compaction_context_window(max_tokens),
     )
     return await compact_messages(
         messages,

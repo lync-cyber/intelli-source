@@ -141,6 +141,8 @@ async def agent_chat(request: Request, body: AgentChatRequest) -> Any:
         session_uuid=session_uuid,
         user_message=body.message,
         assistant_answer=answer,
+        llm_gateway=llm_gateway,
+        max_tokens_budget=body.max_tokens_budget,
     )
 
     return AgentChatResponse(
@@ -219,6 +221,8 @@ async def agent_chat_stream(request: Request, body: AgentChatRequest) -> Any:
                         session_uuid=session_uuid,
                         user_message=body.message,
                         assistant_answer=final_answer,
+                        llm_gateway=llm_gateway,
+                        max_tokens_budget=body.max_tokens_budget,
                     )
                     metadata["session_id"] = str(response_session_uuid)
                     if pending:

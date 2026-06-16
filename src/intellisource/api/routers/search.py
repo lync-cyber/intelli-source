@@ -171,7 +171,9 @@ async def chat_search(
     task_chain_id: str = str(flex_result.get("task_chain_id", ""))
 
     response_session_uuid = await _persist_chat_turn_tx(
+        request,
         db_manager,
+        body,
         stored_session=stored_session,
         session_uuid=session_uuid,
         user_message=body.message,
@@ -246,7 +248,9 @@ async def chat_search_stream(
                     # and surface the session token in the terminal event so the
                     # client can continue the conversation on the next request.
                     response_session_uuid = await _persist_chat_turn_tx(
+                        request,
                         db_manager,
+                        body,
                         stored_session=stored_session,
                         session_uuid=session_uuid,
                         user_message=body.message,
@@ -282,20 +286,28 @@ async def _prepare_chat_session(
 
 
 async def _persist_chat_turn_tx(
+    request: Request,
     db_manager: Any,
+    body: ChatSearchRequest,
     *,
     stored_session: Any,
     session_uuid: uuid.UUID | None,
     user_message: str,
     assistant_answer: str,
 ) -> uuid.UUID:
-    """Persist one user+assistant turn; delegates to api.chat_sessions."""
+    """Persist one user+assistant turn; delegates to api.chat_sessions.
+
+    Threads the request's ``llm_gateway`` and ``max_tokens_budget`` so the
+    appended history is token-aware compacted before persistence.
+    """
     return await persist_turn(
         db_manager,
         stored_session=stored_session,
         session_uuid=session_uuid,
         user_message=user_message,
         assistant_answer=assistant_answer,
+        llm_gateway=getattr(request.app.state, "llm_gateway", None),
+        max_tokens_budget=body.max_tokens_budget,
     )
 
 
