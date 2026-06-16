@@ -1,15 +1,15 @@
 {
   "version": "1",
-  "generated_at": "2026-06-16T08:05:34.523249+00:00",
+  "generated_at": "2026-06-16T12:02:38.712316+00:00",
   "documents": {
     "backlog-intellisource-v1": {
       "file_path": "docs/BACKLOG-intellisource-v1.md",
       "doc_type": "backlog",
       "volume": "main",
       "status": "approved",
-      "total_lines": 65,
-      "est_tokens": 1820,
-      "content_hash": "47397b51",
+      "total_lines": 82,
+      "est_tokens": 2544,
+      "content_hash": "a14f5926",
       "sections": {}
     },
     "history-intellisource-v1": {
@@ -890,7 +890,7 @@
       "dep_hashes": {
         "arch-intellisource-v1-modules": "a5e24d54",
         "arch-intellisource-v1-api": "eb2b960c",
-        "backlog-intellisource-v1": "47397b51"
+        "backlog-intellisource-v1": "a14f5926"
       }
     },
     "dev-plan-intellisource-v1-s1": {
@@ -2122,6 +2122,16 @@
       "content_hash": "2a6e33ba",
       "sections": {}
     },
+    "feedback-suggest-kg-dangling-warn-flags-relation-only-classes-tc-cr-sr-252-item-3-persists-on-0": {
+      "file_path": "docs/feedback/feedback-suggest-kg-dangling-scan-relation-only-persists-20260616.md",
+      "doc_type": "framework-feedback",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 27,
+      "est_tokens": 677,
+      "content_hash": "d8e0b30d",
+      "sections": {}
+    },
     "feedback-suggest-kg-ingestion-gate-hard-fails-legacy-approved-docs-on-major-upgrade-bare-entity": {
       "file_path": "docs/feedback/feedback-suggest-kg-ingest-gate-legacy-docs-20260612.md",
       "doc_type": "framework-feedback",
@@ -2732,7 +2742,7 @@
         "backlog-intellisource-v1"
       ],
       "dep_hashes": {
-        "backlog-intellisource-v1": "47397b51"
+        "backlog-intellisource-v1": "a14f5926"
       }
     },
     "research-b051-config-bootstrap-ux": {
@@ -2825,7 +2835,7 @@
         "backlog-intellisource-v1"
       ],
       "dep_hashes": {
-        "backlog-intellisource-v1": "47397b51"
+        "backlog-intellisource-v1": "a14f5926"
       }
     },
     "prompt-management-analysis": {
@@ -3240,7 +3250,7 @@
       ],
       "dep_hashes": {
         "arch-intellisource-v1-modules": "a5e24d54",
-        "backlog-intellisource-v1": "47397b51"
+        "backlog-intellisource-v1": "a14f5926"
       }
     },
     "review-arch-intellisource-v1-r1": {
