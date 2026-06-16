@@ -30,16 +30,6 @@ deps: []
 
 ---
 
-## P2 — 功能完整性（非阻塞，release 已放行）
-
-### B-070 Chat 会话压缩与写入截断未协调 → AC-053 未兑现
-- **根因**：`api/chat_sessions.py:_persist_chat_turn` 每轮无条件 `history[-(MAX_HISTORY_TURNS*2):]` 删最旧轮次（与 token 预算 / LLM 可用性无关），早期历史在读取端 `compact_history` 摘要前即从库删除；且 `compact_history` 对 `prepare_session` 关闭后 detached 的 `stored_session` 改 `context["messages"]` 从不 commit，摘要仅服务本次请求 replay、请求结束即丢，库里恒为原始 ≤20 条。结果 [prd AC-053](prd/prd-intellisource-v1.md)「超 token 限制时自动摘要历史对话」实际未兑现：第 11 轮后压缩永远看不到第 1 轮，且每请求从同一 ≤20 条窗口重复重算摘要（既无积累也浪费 LLM 调用）。
-- **次生**：实现常量 `MAX_HISTORY_TURNS=10` / `CHAT_COMPACT_TOKEN_BUDGET=6000` 与 arch `[chat]` 段 `context_token_budget=2000` / `compress_after_turns=4`（[arch §5.1](arch/arch-intellisource-v1.md)）失配，且 persist 路径不读 `[chat]` 配置。→ **配置对齐已拆出 B-071 立项研判**（见下），本次 AC-053 修复按范围红线**未含**。
-- **修复方向**：写入端以 token-aware compaction 替代固定条数硬截断 —— append 新轮后若库存历史超预算则 `compact_messages_for_chat` 并**持久化** summary+recent（库存自界、旧上下文以结构化摘要存活）；`compact_history` 改纯函数（不污染 detached context）；webhooks 同源路径一并迁移。新测试覆盖「>N 轮后早期上下文以摘要形式存活且持久化」。
-- **来源**：session-splitting 评估（见下）副产暴露；定性见上游反馈无关，纯本项目实现债。
-
----
-
 ## P3 — 配置 / 规约（非阻塞）
 
 ### B-071 arch `[chat]` 配置段与实现失配 — 立项研判（B-070 follow-up）
@@ -64,7 +54,7 @@ deps: []
 
 - **[P3] session-splitting 压缩设计（已评估 2026-06-16：NO-GO）**：提案以"分裂新 session + parent 血缘"替代 `compact_agent_messages` / `compact_messages_for_chat` 就地压缩，换可追溯压缩历史 + 对话分支；落地需 `ChatSession.parent_session_id`（死 schema，未建列）。**评估结论 NO-GO**，四条代码/文档实证：
   1. **agent-loop 压缩纯内存**：`compact_agent_messages` 仅经 gateway `compress_if_needed` 被 `agent/executors/flexible.py:_compress_history` 调用，对内存 message 列表 best-effort 压缩，无 `ChatSession` 行、不落库 → 该侧无行可分支，提案结构性不适用。
-  2. **唯一持久的 Chat 路径每次 persist 无条件硬截断最近 10 轮**（`MAX_HISTORY_TURNS=10` / `history[-20:]`），早期历史在读取端摘要前即从库删除 → "父会话留全量供审计" 无从谈起。**注**：该写入截断本身是与压缩特性未协调的残留、架空 AC-053（非"刻意产品边界"——已订正并单列为 **B-070 / P2**，见下），但其存在与否都不改变 session-splitting 结论：审计/分支收益无 PRD 消费者，且 AC-053 留存目标经就地写入端压缩即可达成（见 B-070），无需 parent 血缘。
+  2. **唯一持久的 Chat 路径每次 persist 无条件硬截断最近 10 轮**（`MAX_HISTORY_TURNS=10` / `history[-20:]`），早期历史在读取端摘要前即从库删除 → "父会话留全量供审计" 无从谈起。**注**：该写入截断本身是与压缩特性未协调的残留、架空 AC-053（非"刻意产品边界"——已订正并单列为 **B-070**（已闭环，[PR #118](https://github.com/lync-cyber/intelli-source/pull/118)，见「已闭环」段）），但其存在与否都不改变 session-splitting 结论：审计/分支收益无 PRD 消费者，且 AC-053 留存目标经就地写入端压缩即可达成（B-070），无需 parent 血缘。
   3. **摘要 LLM 调用经 `CostTracker` 已入 `LLMCallLog`(E-007)**（model/tokens/cost/latency/call_type 维度可观测），仅"被摘掉的原文"无处留存 → 压缩**事件+成本**已可观测，提案唯一新增的是"原文留存"。
   4. **PRD 零审计/留存/对话分支需求**（`审计/留存/回放/fork/parent_session` 全无命中；唯一"分支"是 AC-014 的 pipeline 处理器条件分支，与对话无关）→ 两个收益均无需求消费者。
   净判断：建列 + 迁移 + GC + token 解析重写全部服务一个 PRD 未提出的能力，属 YAGNI；维持死 schema 未建为正确状态。
@@ -98,3 +88,4 @@ deps: []
 - **PR #107**：agentloop-hardening — flexible loop 加固 + model failover + scheduler idempotency + agent observability（R-001~R-012 + P11/P12）。code-review approved 0 CRITICAL/HIGH（[hardening r1](reviews/code/CODE-REVIEW-agentloop-hardening-r1.md) / [burndown r1](reviews/code/CODE-REVIEW-agentloop-burndown-r1.md)）
 - **B-069 + pre-deploy 走查 15-20**（2026-06-11 真起栈，[CORRECTIONS-LOG](reviews/CORRECTIONS-LOG.md)）：步骤 15-20 全 GO（16 N/A）；B-069 `/health` version `0.0.0+unknown`→`0.4.6` inline 修复（version.py pyproject fallback + Dockerfile COPY pyproject + 3 单测）；确认 PR #107 已闭环上次走查（2026-05-29）的 B-040（trace_id 跨进程）/ B-059（broker 宕 fail-fast）/ B-060（失败 LLM 落 llm_call_logs）。D1（Windows BuildKit stale cache）转剩余真债跟踪。
 - **框架升级 0.4.1→0.9.1**（2026-06-12）：`cataforge bootstrap` 刷新 scaffold 162 文件 + IDE 产物重部署 + kg-first 初始化 KG store。升级激活的 `KG ingestion completeness` 门禁对 legacy approved 文档报 14 个跨文档 entity-id collision（importer 把裸 `T-`/`F-`/`AC-` 当定义）→ test-report(24) + dev-plan-s8r(3) 裸 id 改 inline-code 让定义唯一化，`kg import` + doctor all-pass；kg/store 加 gitignore。[PR #110](https://github.com/lync-cyber/intelli-source/pull/110)；上游反馈见 [feedback](feedback/feedback-suggest-kg-ingest-gate-legacy-docs-20260612.md)。
+- **B-070（[PR #118](https://github.com/lync-cyber/intelli-source/pull/118)）**：Chat 会话压缩兑现 [AC-053](prd/prd-intellisource-v1.md)「超 token 自动摘要历史对话」—— 写入端 `_bounded_history`→`compact_messages_for_chat` token-aware 压缩替代每轮 `history[-20:]` 硬截断，**持久化** summary+recent（旧上下文以结构化摘要存活）；webhooks 同源 persist 路径一并迁移；`compact_history` 改纯函数（不污染 detached `stored_session.context`）；compaction sizing 抽 `_chat_compaction_context_window` helper 收口（同 PR 第二 commit 修 AC-T071-9 集成 parity 回归）。由 session-splitting 评估（[PR #117](https://github.com/lync-cyber/intelli-source/pull/117) NO-GO）副产暴露；code-review approved_with_notes（R-001 MEDIUM budget 收口 + R-002 webhooks + R-003 测试隔离 + R-004 读写解耦 全整改）；全门禁含 integration（ruff+mypy --strict 267+全量 unit+全量 integration exit 0）全绿。配置对齐次生项拆为 **B-071**（开放 P3，[PR #119](https://github.com/lync-cyber/intelli-source/pull/119) 立项）。
