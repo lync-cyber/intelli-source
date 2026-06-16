@@ -11,7 +11,11 @@ from fastapi import APIRouter, Request, Response
 from fastapi.responses import PlainTextResponse
 
 from intellisource.agent.response_utils import extract_answer
-from intellisource.api.chat_sessions import MAX_HISTORY_TURNS
+from intellisource.api.chat_sessions import (
+    CHAT_COMPACT_TOKEN_BUDGET,
+    MAX_HISTORY_TURNS,
+    _bounded_history,
+)
 from intellisource.core.webhook_crypto import WeComCrypto, WeComCryptoError
 from intellisource.observability.logging import get_logger
 from intellisource.pipeline.definition_service import load_pipeline_config
@@ -80,17 +84,22 @@ async def _persist_cs_turn(
     prior_messages: list[dict[str, Any]],
     user_text: str,
     answer: str,
+    gateway: Any = None,
 ) -> None:
-    """Append the user+assistant turn to the channel+user session (best-effort)."""
+    """Append the user+assistant turn to the channel+user session (best-effort).
+
+    When the appended history exceeds the token budget it is token-aware
+    compacted into ``[summary, ...recent]`` (or char-budget truncated when no
+    gateway is available) so older multi-turn context survives as a summary
+    rather than being hard-sliced away.
+    """
     if db_manager is None:
         return
-    new_messages = (
-        prior_messages
-        + [
-            {"role": "user", "content": user_text},
-            {"role": "assistant", "content": answer},
-        ]
-    )[-(MAX_HISTORY_TURNS * 2) :]
+    appended = prior_messages + [
+        {"role": "user", "content": user_text},
+        {"role": "assistant", "content": answer},
+    ]
+    new_messages = await _bounded_history(appended, gateway, CHAT_COMPACT_TOKEN_BUDGET)
     from intellisource.storage.repositories.chat_session import ChatSessionRepository
 
     try:
@@ -118,6 +127,7 @@ async def _dispatch_chat_reply(
 ) -> None:
     """Resolve the channel+user session, run the agent, persist the turn, reply."""
     db_manager = getattr(app.state, "db", None)
+    gateway = getattr(app.state, "llm_gateway", None)
     try:
         config = load_pipeline_config("instant-search")
         session_id, prior_messages = await _load_cs_session(db_manager, channel, openid)
@@ -133,7 +143,14 @@ async def _dispatch_chat_reply(
         if not answer:
             answer = _FALLBACK_TEXT
         await _persist_cs_turn(
-            db_manager, channel, openid, session_id, prior_messages, user_text, answer
+            db_manager,
+            channel,
+            openid,
+            session_id,
+            prior_messages,
+            user_text,
+            answer,
+            gateway=gateway,
         )
         await cs_messenger.send_text(openid=openid, content=answer)
     except Exception:

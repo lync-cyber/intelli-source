@@ -342,6 +342,12 @@ async def compact_messages_for_chat(
     treats it as the budget upper bound; pruning, summarization and the
     truncation fallback all behave identically to ``compact_messages``.
 
+    The synthetic ``context_window`` is sized so the pipeline's recent-keep
+    budget (``context_window * 0.6``) and trigger threshold
+    (``min(context_window * 0.8, max_tokens)``) both land at ``max_tokens``.
+    The compacted result therefore fits within ``max_tokens`` and does not
+    immediately re-cross the threshold on the next turn.
+
     Args:
         messages: Full conversation message list.
         gateway: LLM gateway (may be ``None`` — caller falls back to
@@ -357,10 +363,13 @@ async def compact_messages_for_chat(
     if gateway is None:
         return _truncation_fallback_no_gateway(messages, max_tokens)
 
+    # context_window * 0.6 is the recent-keep budget; sizing it so that
+    # 0.6 * context_window == max_tokens caps the compacted result at the
+    # budget. -(-x // y) is integer ceil so the budget is never rounded down.
     profile = ModelProfile(
         temperature=0.0,
         max_tokens=max_tokens,
-        context_window=max(max_tokens * 2, 8192),
+        context_window=-(-max_tokens * 10 // 6),
     )
     return await compact_messages(
         messages,
