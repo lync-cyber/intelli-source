@@ -50,7 +50,7 @@ deps: []
 
 ## 部署/分发 新手友好度评估（DEPLOY-UX-EVAL 20260617，非阻塞）
 
-> 来源：[CODE-SCAN-deploy-ux-20260617-r1](reviews/code/CODE-SCAN-deploy-ux-20260617-r1.md)（四单元 = 部署/订阅/推送/模板）。本地起栈未被硬阻断，故无新增 P0；`G-NNN` 编号见报告。修复方向已折入用户 2026-06-17 决策（Q1=B+C / Q2=A / Q3=A / Q4=A）。两个 P1（B-072/B-073）已闭环（见「已闭环」段）；开放项为 B-074~B-077。
+> 来源：[CODE-SCAN-deploy-ux-20260617-r1](reviews/code/CODE-SCAN-deploy-ux-20260617-r1.md)（四单元 = 部署/订阅/推送/模板）。本地起栈未被硬阻断，故无新增 P0；`G-NNN` 编号见报告。修复方向已折入用户 2026-06-17 决策（Q1=B+C / Q2=A / Q3=A / Q4=A）。两个 P1（B-072/B-073）+ P2 B-076 已闭环（见「已闭环」段）；开放项为 B-074/B-075/B-077（代码/infra portion）。
 
 ### B-074 [P2] 远端主机就绪 + 置备 + registry 镜像（G-006 + G-013(registry)，决策 B+C）
 - **现状（代码实证）**：`docker/docker-compose.yml:75-76` 直接 `8000:8000` 暴露且全为 `build:` 模式；deploy-spec 与 PRE-DEPLOY-WALKTHROUGH 全文 `localhost`，无 reverse proxy / TLS / 域名 / systemd / 防火墙 / 入站 webhook 公网可达性指引；仓库无 ssh/ansible/置备脚本；远端回滚强依赖目标主机重建 zhparser（`docker/db.Dockerfile` 源码编译 SCWS+zhparser）。
@@ -65,16 +65,6 @@ deps: []
 - **修复方向（决策 A）**：① `config/templates/README.md` 补 `bundle` 字段表 + 端到端覆盖示例；② 文档明确"文件覆盖为主、DB 模板为辅"分工；③ CLI `template list` 增列扫描 `config/templates/` file override + 新增 `template validate`/`preview`。文档低成本，CLI 增强中等成本。
 - **进度**：①② 文档已交付 —— `config/templates/README.md` 重写（bundle/DigestItem/DigestSection 字段表 + 文件覆盖↔DB 分工 + 端到端覆盖示例 + 内置模板×格式矩阵含 json_feed + 缺失格式静默回落说明）。剩余 ③（CLI `template list` 增列 file override + `validate`/`preview`）= 代码，待续。
 - **触发**：下次动模板分发 / template CLI 时。
-
-### B-076 [P2] 推送渠道排障可观测性（G-007 + G-008 + G-009 + G-011，SMTP 默认改 A）
-- **现状（代码实证）**：
-  - SMTP：`docker/.env.example:113-114` 默认 `IS_SMTP_PORT=587` + `IS_SMTP_USE_TLS=true` → aiosmtplib 隐式 TLS（对应 465），与 587 STARTTLS 错配，from_env 无一致性校验。
-  - token errmsg：`_fetch_token` 抛带 errmsg 异常（`distributor/channels/wechat.py:101` / `wework.py:182`），被 distribute 的 `except Exception` 统一替换为 `network_error`（`wechat.py:197-199` / `wework.py:138-140`）。
-  - 半静默：渠道软禁用后匹配仍计入 `skipped`（`facade.py:163-173`），distribute 整体仍返回 `{"status":"ok"}`（`facade.py:241-245`）。
-  - doctor：LLM key 只看非空（`doctor.py:100-104`），`.env.example:67-68` 的 `sk-...` 占位被判已设；"not set" 项无修复指引（`doctor.py:84,98,104`）。
-- **影响**：邮件默认配置大概率握手失败；密钥错与网络抖动无法区分；"配了却没收到"易误判成功；doctor 误报。
-- **修复方向**：① （决策 A）`.env.example` 默认改 587 + `use_tls=false` + 注释 465↔true/587↔false，from_env 加端口-模式 WARN；② 保留原始 token errmsg 进 `error` 字段；③ distribute 返回体在 `skipped>0` 附 disabled_channels 提示，doctor 默认提醒软禁用渠道；④ doctor 识别占位 key + "not set" 附修复动作。
-- **触发**：下次动分发渠道 / doctor 自检时。
 
 ### B-077 [P3] 冷启动预检 + match_rules 语义文档 + 杂项（G-010 + G-012 + G-013 杂项）
 - **现状（代码实证）**：`init`/`up` 不检测 Docker daemon / `.env` 存在（`cli/commands/stack.py:56-60` 只捕 FileNotFoundError），手动 copy `.env.example` 绕过 init → 弱口令（占位非空，compose `:?` 不拦，`.env.example:18,27,36`）；match_rules 语义（AND/OR、大小写、keywords `+`/`!`/`/regex/`、source_names 强约束）仅在 `distributor/matcher.py` 与内部 dev-plan，`config/examples/subscriptions.example.yaml` 只演示 tags；embedding `start_period:1200s`（`docker-compose.yml:181`）无进度提示；`config/templates/README.md:3` 漏列 `json_feed`；j2 覆盖度不全（weekly-roundup 仅 html、push-card 无 html）→ 静默回落 default_format（`distributor/templates/base.py:42-44`）。
@@ -128,3 +118,4 @@ deps: []
 - **B-070（[PR #118](https://github.com/lync-cyber/intelli-source/pull/118)）**：Chat 会话压缩兑现 [AC-053](prd/prd-intellisource-v1.md)「超 token 自动摘要历史对话」—— 写入端 `_bounded_history`→`compact_messages_for_chat` token-aware 压缩替代每轮 `history[-20:]` 硬截断，**持久化** summary+recent（旧上下文以结构化摘要存活）；webhooks 同源 persist 路径一并迁移；`compact_history` 改纯函数（不污染 detached `stored_session.context`）；compaction sizing 抽 `_chat_compaction_context_window` helper 收口（同 PR 第二 commit 修 AC-T071-9 集成 parity 回归）。由 session-splitting 评估（[PR #117](https://github.com/lync-cyber/intelli-source/pull/117) NO-GO）副产暴露；code-review approved_with_notes（R-001 MEDIUM budget 收口 + R-002 webhooks + R-003 测试隔离 + R-004 读写解耦 全整改）；全门禁含 integration（ruff+mypy --strict 267+全量 unit+全量 integration exit 0）全绿。配置对齐次生项拆为 **B-071**（开放 P3，[PR #119](https://github.com/lync-cyber/intelli-source/pull/119) 立项）。
 - **B-072（G-001）**：失败推送审计落库 —— `facade.py` 失败两分支（渠道抛异常 / 渠道返回 `{"status":"failed"}`）补 `_record_push(status="failed", error_message=...)`，带与成功路径同口径脱敏 `recipient_id` + email/phone 脱敏 `error_message`，消除 `PushRecord.status=failed/error_message` 死列；落库统一在 facade 层（持有 session_factory），不走渠道 `from_env` 注入（与 session-per-request 不契合）；两失败分支去重抽 `_record_failed_push` helper。翻转 B-049 旧测试（失败时 `_record_push` 现以 `status="failed"` 被调用而非 `assert_not_called`）。新增 `test_facade_push_record_failed_b072.py`（AC1~AC6）；TDD light + REFACTOR(duplication)；全门禁绿（ruff+mypy --strict 267+全量 unit 3605 PASS+push-record integration 8 PASS）。
 - **B-073（G-002+G-003，决策 A）**：订阅静默失配 reload WARN —— `subscription_validator._warn_silent_misconfig` 在 `validate_subscriptions_file` 校验通过路径对四类静默错配发非阻塞 WARN：match_rules 未知键、无有效匹配维度（永不匹配）、非法 frequency、非法 timezone（`zoneinfo` try/except）；`VALID_FREQUENCIES` 定义在 `config/constants.py` 避免 config→distributor 反向导入（lint-imports 12 kept/0 broken）。WARN 不改 `validate_subscriptions_file` 成功/失败语义。新增 `test_subscription_reload_warn_b073.py`（AC1~AC6）；TDD light，无需 REFACTOR；全门禁绿。
+- **B-076（G-007+G-008+G-009+G-011，SMTP 默认改 A）**：推送渠道排障可观测性 —— ① `email.from_env` 端口↔TLS 一致性 WARN（465↔implicit TLS、587↔STARTTLS、1025/25↔plain），`.env.example` 默认 `IS_SMTP_USE_TLS=false`（配 587）；② facade.distribute 返回体新增 `disabled_channels`（软禁用/未注册渠道被跳过的去重列表，渠道 `failed` 不计入）；③ doctor 识别占位 LLM key（尾随 `...`）+ 为 `not set` 项（IS_DATABASE_URL/IS_REDIS_URL/IS_CELERY_BROKER_URL/LLM key）附 `.env` 修复指引。G-008（token errmsg 真实上浮）经核实早已实现，本批仅补 wechat/wework 回归护栏。新增 `test_b076_email_smtp_warn.py` / `test_b076_token_errmsg.py` / `test_b076_facade_disabled_channels.py` / `test_b076_doctor_placeholder.py`（共 19 用例）；TDD light，无需 REFACTOR；全门禁绿（ruff+mypy --strict 267+全量 unit 3624 PASS/5 deselected）。
