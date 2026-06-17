@@ -50,7 +50,7 @@ deps: []
 
 ## 部署/分发 新手友好度评估（DEPLOY-UX-EVAL 20260617，非阻塞）
 
-> 来源：[CODE-SCAN-deploy-ux-20260617-r1](reviews/code/CODE-SCAN-deploy-ux-20260617-r1.md)（四单元 = 部署/订阅/推送/模板）。本地起栈未被硬阻断，故无新增 P0；`G-NNN` 编号见报告。修复方向已折入用户 2026-06-17 决策（Q1=B+C / Q2=A / Q3=A / Q4=A）。两个 P1（B-072/B-073）已闭环（见「已闭环」段）；开放项为 B-074~B-077。
+> 来源：[CODE-SCAN-deploy-ux-20260617-r1](reviews/code/CODE-SCAN-deploy-ux-20260617-r1.md)（四单元 = 部署/订阅/推送/模板）。本地起栈未被硬阻断，故无新增 P0；`G-NNN` 编号见报告。修复方向已折入用户 2026-06-17 决策（Q1=B+C / Q2=A / Q3=A / Q4=A）。两个 P1（B-072/B-073）+ P2 B-075/B-076 + P3 B-077 已闭环（见「已闭环」段）；唯一开放项为 B-074（远端 infra portion）。
 
 ### B-074 [P2] 远端主机就绪 + 置备 + registry 镜像（G-006 + G-013(registry)，决策 B+C）
 - **现状（代码实证）**：`docker/docker-compose.yml:75-76` 直接 `8000:8000` 暴露且全为 `build:` 模式；deploy-spec 与 PRE-DEPLOY-WALKTHROUGH 全文 `localhost`，无 reverse proxy / TLS / 域名 / systemd / 防火墙 / 入站 webhook 公网可达性指引；仓库无 ssh/ansible/置备脚本；远端回滚强依赖目标主机重建 zhparser（`docker/db.Dockerfile` 源码编译 SCWS+zhparser）。
@@ -58,30 +58,6 @@ deps: []
 - **修复方向（决策 B+C）**：① 新增"远端部署主机就绪"文档（反代/TLS/防火墙/webhook 公网 URL 示例）；② 提供置备脚本或 `intellisource` 远端 target；③ 引入 prebuilt registry 镜像 + compose pull 模式（同解远端回滚重建依赖）。文档先行、自动化与镜像为中-大成本后续。
 - **进度**：① 文档已交付 —— [`docs/deploy/remote-host-readiness.md`](deploy/remote-host-readiness.md)（反代/TLS/防火墙/入站 webhook 公网可达/systemd/冷启动代价 + 对 deploy-spec 交叉引用）。剩余 ②③（置备脚本 + registry 镜像）= 代码/infra，待续。
 - **触发**：规划首次远端/生产部署时。
-
-### B-075 [P2] 模板可发现性 + 变量文档 + CLI validate/preview（G-004 + G-005，决策 A=文件覆盖为主）
-- **现状（代码实证）**：渲染唯一注入 `bundle`（`distributor/templates/render.py:39`），字段仅存在于 `distributor/templates/schemas.py:16-41`；`config/templates/README.md`（9 行）只说"放同名文件"不提字段。CLI `template list/add/rm`（`cli/commands/template.py`）只操作 DB `templates` 表，`config/templates/` 文件覆盖（`render.py:21,29`）永不出现在 list、无法 preview/validate；文件名拼错（kebab/snake 混淆，如 `daily_brief` vs `daily-brief`）→ FileSystemLoader 静默回落 builtin。
-- **影响**：写自定义模板须逆向读源码；不知该放文件还是敲命令；拼错文件名静默失效。
-- **修复方向（决策 A）**：① `config/templates/README.md` 补 `bundle` 字段表 + 端到端覆盖示例；② 文档明确"文件覆盖为主、DB 模板为辅"分工；③ CLI `template list` 增列扫描 `config/templates/` file override + 新增 `template validate`/`preview`。文档低成本，CLI 增强中等成本。
-- **进度**：①② 文档已交付 —— `config/templates/README.md` 重写（bundle/DigestItem/DigestSection 字段表 + 文件覆盖↔DB 分工 + 端到端覆盖示例 + 内置模板×格式矩阵含 json_feed + 缺失格式静默回落说明）。剩余 ③（CLI `template list` 增列 file override + `validate`/`preview`）= 代码，待续。
-- **触发**：下次动模板分发 / template CLI 时。
-
-### B-076 [P2] 推送渠道排障可观测性（G-007 + G-008 + G-009 + G-011，SMTP 默认改 A）
-- **现状（代码实证）**：
-  - SMTP：`docker/.env.example:113-114` 默认 `IS_SMTP_PORT=587` + `IS_SMTP_USE_TLS=true` → aiosmtplib 隐式 TLS（对应 465），与 587 STARTTLS 错配，from_env 无一致性校验。
-  - token errmsg：`_fetch_token` 抛带 errmsg 异常（`distributor/channels/wechat.py:101` / `wework.py:182`），被 distribute 的 `except Exception` 统一替换为 `network_error`（`wechat.py:197-199` / `wework.py:138-140`）。
-  - 半静默：渠道软禁用后匹配仍计入 `skipped`（`facade.py:163-173`），distribute 整体仍返回 `{"status":"ok"}`（`facade.py:241-245`）。
-  - doctor：LLM key 只看非空（`doctor.py:100-104`），`.env.example:67-68` 的 `sk-...` 占位被判已设；"not set" 项无修复指引（`doctor.py:84,98,104`）。
-- **影响**：邮件默认配置大概率握手失败；密钥错与网络抖动无法区分；"配了却没收到"易误判成功；doctor 误报。
-- **修复方向**：① （决策 A）`.env.example` 默认改 587 + `use_tls=false` + 注释 465↔true/587↔false，from_env 加端口-模式 WARN；② 保留原始 token errmsg 进 `error` 字段；③ distribute 返回体在 `skipped>0` 附 disabled_channels 提示，doctor 默认提醒软禁用渠道；④ doctor 识别占位 key + "not set" 附修复动作。
-- **触发**：下次动分发渠道 / doctor 自检时。
-
-### B-077 [P3] 冷启动预检 + match_rules 语义文档 + 杂项（G-010 + G-012 + G-013 杂项）
-- **现状（代码实证）**：`init`/`up` 不检测 Docker daemon / `.env` 存在（`cli/commands/stack.py:56-60` 只捕 FileNotFoundError），手动 copy `.env.example` 绕过 init → 弱口令（占位非空，compose `:?` 不拦，`.env.example:18,27,36`）；match_rules 语义（AND/OR、大小写、keywords `+`/`!`/`/regex/`、source_names 强约束）仅在 `distributor/matcher.py` 与内部 dev-plan，`config/examples/subscriptions.example.yaml` 只演示 tags；embedding `start_period:1200s`（`docker-compose.yml:181`）无进度提示；`config/templates/README.md:3` 漏列 `json_feed`；j2 覆盖度不全（weekly-roundup 仅 html、push-card 无 html）→ 静默回落 default_format（`distributor/templates/base.py:42-44`）。
-- **影响**：各为小摩擦，单独不阻断。
-- **修复方向**：`up` 前置检查 daemon + `.env` 友好提示；example.yaml 补全匹配维度 + README 加 match_rules 语义小节；`up` 输出 embedding 首拉等待提示；补 README `json_feed` 与缺失 j2 说明。
-- **进度**：文档面（G-012 + G-013 文档部分）已交付 —— 根 `README.md` 新增「订阅匹配规则 match_rules 语义」小节（5 个识别键 + keywords `+`/`!`/`/regex/` 操作符 + AND/OR 判定顺序）；`config/examples/subscriptions.example.yaml` 补全匹配维度示例 + quiet_hours 时区/跨午夜注释；`config/templates/README.md` 补 json_feed + 缺失格式静默回落说明。剩余 = G-010（`up`/`init` daemon+`.env` 预检 + 弱口令拦截）+ embedding 首拉进度提示 = 代码，待续。
-- **触发**：穿插在 `B-074` / `B-075` 落地时顺手处理。
 
 ---
 
@@ -128,3 +104,6 @@ deps: []
 - **B-070（[PR #118](https://github.com/lync-cyber/intelli-source/pull/118)）**：Chat 会话压缩兑现 [AC-053](prd/prd-intellisource-v1.md)「超 token 自动摘要历史对话」—— 写入端 `_bounded_history`→`compact_messages_for_chat` token-aware 压缩替代每轮 `history[-20:]` 硬截断，**持久化** summary+recent（旧上下文以结构化摘要存活）；webhooks 同源 persist 路径一并迁移；`compact_history` 改纯函数（不污染 detached `stored_session.context`）；compaction sizing 抽 `_chat_compaction_context_window` helper 收口（同 PR 第二 commit 修 AC-T071-9 集成 parity 回归）。由 session-splitting 评估（[PR #117](https://github.com/lync-cyber/intelli-source/pull/117) NO-GO）副产暴露；code-review approved_with_notes（R-001 MEDIUM budget 收口 + R-002 webhooks + R-003 测试隔离 + R-004 读写解耦 全整改）；全门禁含 integration（ruff+mypy --strict 267+全量 unit+全量 integration exit 0）全绿。配置对齐次生项拆为 **B-071**（开放 P3，[PR #119](https://github.com/lync-cyber/intelli-source/pull/119) 立项）。
 - **B-072（G-001）**：失败推送审计落库 —— `facade.py` 失败两分支（渠道抛异常 / 渠道返回 `{"status":"failed"}`）补 `_record_push(status="failed", error_message=...)`，带与成功路径同口径脱敏 `recipient_id` + email/phone 脱敏 `error_message`，消除 `PushRecord.status=failed/error_message` 死列；落库统一在 facade 层（持有 session_factory），不走渠道 `from_env` 注入（与 session-per-request 不契合）；两失败分支去重抽 `_record_failed_push` helper。翻转 B-049 旧测试（失败时 `_record_push` 现以 `status="failed"` 被调用而非 `assert_not_called`）。新增 `test_facade_push_record_failed_b072.py`（AC1~AC6）；TDD light + REFACTOR(duplication)；全门禁绿（ruff+mypy --strict 267+全量 unit 3605 PASS+push-record integration 8 PASS）。
 - **B-073（G-002+G-003，决策 A）**：订阅静默失配 reload WARN —— `subscription_validator._warn_silent_misconfig` 在 `validate_subscriptions_file` 校验通过路径对四类静默错配发非阻塞 WARN：match_rules 未知键、无有效匹配维度（永不匹配）、非法 frequency、非法 timezone（`zoneinfo` try/except）；`VALID_FREQUENCIES` 定义在 `config/constants.py` 避免 config→distributor 反向导入（lint-imports 12 kept/0 broken）。WARN 不改 `validate_subscriptions_file` 成功/失败语义。新增 `test_subscription_reload_warn_b073.py`（AC1~AC6）；TDD light，无需 REFACTOR；全门禁绿。
+- **B-075（G-004+G-005，决策 A=文件覆盖为主，CLI portion）**：模板可发现性 CLI —— 文档面（README bundle 字段表 + 文件覆盖↔DB 分工）此前已交付；本批补代码：新增 `distributor/templates/discovery.py`（`list_file_overrides` 扫 `*.{fmt}.j2` + `sample_bundle` + `validate_overrides`（试渲染捕 TemplateSyntaxError/SecurityError，未知名→warning，`only=` 可按名过滤）+ `render_preview`）；`template list` 增「文件覆盖」小节 + 服务不可达降级（仍列覆盖、exit 0）；新增 `template validate [name]`（error→exit 1，仅 warning→exit 0）+ `template preview <name> -f <fmt>`（未知名→exit 1）。新增 `test_b075_template_discovery.py`（cli + distributor 两文件，30 用例）；TDD light，无需 REFACTOR；全门禁绿（ruff+mypy --strict 268+全量 unit 3654 PASS/5 deselected）。
+- **B-076（G-007+G-008+G-009+G-011，SMTP 默认改 A）**：推送渠道排障可观测性 —— ① `email.from_env` 端口↔TLS 一致性 WARN（465↔implicit TLS、587↔STARTTLS、1025/25↔plain），`.env.example` 默认 `IS_SMTP_USE_TLS=false`（配 587）；② facade.distribute 返回体新增 `disabled_channels`（软禁用/未注册渠道被跳过的去重列表，渠道 `failed` 不计入）；③ doctor 识别占位 LLM key（尾随 `...`）+ 为 `not set` 项（IS_DATABASE_URL/IS_REDIS_URL/IS_CELERY_BROKER_URL/LLM key）附 `.env` 修复指引。G-008（token errmsg 真实上浮）经核实早已实现，本批仅补 wechat/wework 回归护栏。新增 `test_b076_email_smtp_warn.py` / `test_b076_token_errmsg.py` / `test_b076_facade_disabled_channels.py` / `test_b076_doctor_placeholder.py`（共 19 用例）；TDD light，无需 REFACTOR；全门禁绿（ruff+mypy --strict 267+全量 unit 3624 PASS/5 deselected）。
+- **B-077（G-010 + G-012/G-013 文档部分，P3）**：冷启动预检 —— 文档面（match_rules 语义小节 + example.yaml 匹配维度 + README json_feed/静默回落）此前已交付；本批补 G-010 代码：`stack.py` 新增 `_env_path` / `_docker_daemon_running`（`docker info`）/ `_weak_credential_vars`（值含 `change-me` 判定）/ `_preflight_up`，`up` 启动前依次校验 `.env` 存在 → 无占位弱口令 → Docker daemon 可达（任一失败友好提示 + exit 1），并在阻塞式 `--wait` 前打印 embedding(TEI) 首拉等待提示。同步更新 `test_stack.py` 6 个 + `test_main.py` 3 个 up 测试旁路预检。新增 `test_b077_up_preflight.py`（13 用例）；TDD light，无需 REFACTOR；全门禁绿（ruff+mypy --strict 268+全量 unit 3667 PASS/5 deselected）。

@@ -81,7 +81,9 @@ def _doctor_env(env: dict[str, str]) -> list[tuple[str, bool | None, str]]:
 
     db_url = env.get("IS_DATABASE_URL", "")
     if not db_url:
-        items.append(("IS_DATABASE_URL", False, "not set"))
+        items.append(
+            ("IS_DATABASE_URL", False, "not set — set IS_DATABASE_URL in .env")
+        )
     elif "asyncpg" not in db_url:
         items.append(
             (
@@ -95,13 +97,32 @@ def _doctor_env(env: dict[str, str]) -> list[tuple[str, bool | None, str]]:
 
     for var in ["IS_REDIS_URL", "IS_CELERY_BROKER_URL"]:
         val = env.get(var, "")
-        items.append((var, bool(val), "set" if val else "not set"))
+        if val:
+            items.append((var, True, "set"))
+        else:
+            items.append((var, False, f"not set — set {var} in .env"))
 
     llm_key = next((k for k in _PROVIDER_API_KEYS if env.get(k)), None)
     if llm_key:
-        items.append(("LLM key", True, f"{llm_key} set"))
+        val = env[llm_key]
+        if val.endswith("..."):
+            items.append(
+                (
+                    "LLM key",
+                    False,
+                    f"{llm_key} placeholder — replace with a real key in .env",
+                )
+            )
+        else:
+            items.append(("LLM key", True, f"{llm_key} set"))
     else:
-        items.append(("LLM key", False, f"none of {', '.join(_PROVIDER_API_KEYS)} set"))
+        items.append(
+            (
+                "LLM key",
+                False,
+                f"none of {', '.join(_PROVIDER_API_KEYS)} set — set one in .env",
+            )
+        )
 
     llm_cfg = env.get("IS_LLM_CONFIG_PATH", "config/llm_models.yaml")
     llm_cfg_path = pathlib.Path(llm_cfg)

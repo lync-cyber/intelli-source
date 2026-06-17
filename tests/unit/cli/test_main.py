@@ -672,9 +672,10 @@ class TestApiConfiguration:
 class TestComposeCommands:
     """up/down/migrate/logs/ps wrap `docker compose` via subprocess."""
 
+    @patch("intellisource.cli.commands.stack._preflight_up")
     @patch("intellisource.cli.commands.stack.subprocess")
     def test_up_runs_compose_up_detached(
-        self, mock_subprocess: MagicMock, runner: Any
+        self, mock_subprocess: MagicMock, _mock_preflight: MagicMock, runner: Any
     ) -> None:
         _skip_if_missing()
         mock_subprocess.run.return_value = MagicMock(returncode=0)
@@ -694,9 +695,10 @@ class TestComposeCommands:
         # never shell=True — Windows path quoting safety
         assert mock_subprocess.run.call_args.kwargs.get("shell", False) is False
 
+    @patch("intellisource.cli.commands.stack._preflight_up")
     @patch("intellisource.cli.commands.stack.subprocess")
     def test_compose_file_is_absolute_anchored_path(
-        self, mock_subprocess: MagicMock, runner: Any
+        self, mock_subprocess: MagicMock, _mock_preflight: MagicMock, runner: Any
     ) -> None:
         _skip_if_missing()
         mock_subprocess.run.return_value = MagicMock(returncode=0)
@@ -735,9 +737,10 @@ class TestComposeCommands:
         assert result.exit_code == 0
         assert mock_subprocess.run.call_args[0][0][-3:] == ["run", "--rm", "migrate"]
 
+    @patch("intellisource.cli.commands.stack._preflight_up")
     @patch("intellisource.cli.commands.stack.subprocess")
     def test_nonzero_exit_code_propagates(
-        self, mock_subprocess: MagicMock, runner: Any
+        self, mock_subprocess: MagicMock, _mock_preflight: MagicMock, runner: Any
     ) -> None:
         _skip_if_missing()
         mock_subprocess.run.return_value = MagicMock(returncode=2)
