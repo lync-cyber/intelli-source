@@ -56,12 +56,14 @@ deps: []
 - **现状（代码实证）**：`docker/docker-compose.yml:75-76` 直接 `8000:8000` 暴露且全为 `build:` 模式；deploy-spec 与 PRE-DEPLOY-WALKTHROUGH 全文 `localhost`，无 reverse proxy / TLS / 域名 / systemd / 防火墙 / 入站 webhook 公网可达性指引；仓库无 ssh/ansible/置备脚本；远端回滚强依赖目标主机重建 zhparser（`docker/db.Dockerfile` 源码编译 SCWS+zhparser）。
 - **影响**：无法据现有文档完成公网可访问的远端部署，回调类渠道在远端不可用。
 - **修复方向（决策 B+C）**：① 新增"远端部署主机就绪"文档（反代/TLS/防火墙/webhook 公网 URL 示例）；② 提供置备脚本或 `intellisource` 远端 target；③ 引入 prebuilt registry 镜像 + compose pull 模式（同解远端回滚重建依赖）。文档先行、自动化与镜像为中-大成本后续。
+- **进度**：① 文档已交付 —— [`docs/deploy/remote-host-readiness.md`](deploy/remote-host-readiness.md)（反代/TLS/防火墙/入站 webhook 公网可达/systemd/冷启动代价 + 对 deploy-spec 交叉引用）。剩余 ②③（置备脚本 + registry 镜像）= 代码/infra，待续。
 - **触发**：规划首次远端/生产部署时。
 
 ### B-075 [P2] 模板可发现性 + 变量文档 + CLI validate/preview（G-004 + G-005，决策 A=文件覆盖为主）
 - **现状（代码实证）**：渲染唯一注入 `bundle`（`distributor/templates/render.py:39`），字段仅存在于 `distributor/templates/schemas.py:16-41`；`config/templates/README.md`（9 行）只说"放同名文件"不提字段。CLI `template list/add/rm`（`cli/commands/template.py`）只操作 DB `templates` 表，`config/templates/` 文件覆盖（`render.py:21,29`）永不出现在 list、无法 preview/validate；文件名拼错（kebab/snake 混淆，如 `daily_brief` vs `daily-brief`）→ FileSystemLoader 静默回落 builtin。
 - **影响**：写自定义模板须逆向读源码；不知该放文件还是敲命令；拼错文件名静默失效。
 - **修复方向（决策 A）**：① `config/templates/README.md` 补 `bundle` 字段表 + 端到端覆盖示例；② 文档明确"文件覆盖为主、DB 模板为辅"分工；③ CLI `template list` 增列扫描 `config/templates/` file override + 新增 `template validate`/`preview`。文档低成本，CLI 增强中等成本。
+- **进度**：①② 文档已交付 —— `config/templates/README.md` 重写（bundle/DigestItem/DigestSection 字段表 + 文件覆盖↔DB 分工 + 端到端覆盖示例 + 内置模板×格式矩阵含 json_feed + 缺失格式静默回落说明）。剩余 ③（CLI `template list` 增列 file override + `validate`/`preview`）= 代码，待续。
 - **触发**：下次动模板分发 / template CLI 时。
 
 ### B-076 [P2] 推送渠道排障可观测性（G-007 + G-008 + G-009 + G-011，SMTP 默认改 A）
@@ -78,7 +80,8 @@ deps: []
 - **现状（代码实证）**：`init`/`up` 不检测 Docker daemon / `.env` 存在（`cli/commands/stack.py:56-60` 只捕 FileNotFoundError），手动 copy `.env.example` 绕过 init → 弱口令（占位非空，compose `:?` 不拦，`.env.example:18,27,36`）；match_rules 语义（AND/OR、大小写、keywords `+`/`!`/`/regex/`、source_names 强约束）仅在 `distributor/matcher.py` 与内部 dev-plan，`config/examples/subscriptions.example.yaml` 只演示 tags；embedding `start_period:1200s`（`docker-compose.yml:181`）无进度提示；`config/templates/README.md:3` 漏列 `json_feed`；j2 覆盖度不全（weekly-roundup 仅 html、push-card 无 html）→ 静默回落 default_format（`distributor/templates/base.py:42-44`）。
 - **影响**：各为小摩擦，单独不阻断。
 - **修复方向**：`up` 前置检查 daemon + `.env` 友好提示；example.yaml 补全匹配维度 + README 加 match_rules 语义小节；`up` 输出 embedding 首拉等待提示；补 README `json_feed` 与缺失 j2 说明。
-- **触发**：穿插在 `B-073` / `B-074` / `B-075` 落地时顺手处理。
+- **进度**：文档面（G-012 + G-013 文档部分）已交付 —— 根 `README.md` 新增「订阅匹配规则 match_rules 语义」小节（5 个识别键 + keywords `+`/`!`/`/regex/` 操作符 + AND/OR 判定顺序）；`config/examples/subscriptions.example.yaml` 补全匹配维度示例 + quiet_hours 时区/跨午夜注释；`config/templates/README.md` 补 json_feed + 缺失格式静默回落说明。剩余 = G-010（`up`/`init` daemon+`.env` 预检 + 弱口令拦截）+ embedding 首拉进度提示 = 代码，待续。
+- **触发**：穿插在 `B-074` / `B-075` 落地时顺手处理。
 
 ---
 
