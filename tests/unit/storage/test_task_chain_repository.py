@@ -1,4 +1,4 @@
-"""Tests for T-074: TaskChainRepository (AC-T074-1 through AC-T074-6).
+"""Tests for TaskChainRepository (AC-T074-1 through AC-T074-6).
 
 Each test maps to a specific AC and is expected to FAIL (RED phase)
 because TaskChainRepository does not exist yet.

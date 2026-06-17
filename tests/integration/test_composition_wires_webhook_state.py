@@ -1,9 +1,7 @@
-"""Integration tests for build_api_composition webhook wiring (R-001).
+"""Integration tests for build_api_composition webhook wiring.
 
-Closes the EXP-005 assembly gap surfaced in T-098 r1 code-review: the
-webhook router reads `app.state.wechat_webhook_token` /
-`wechat_cs_messenger` / `wework_cs_messenger` / `background_tasks` but no
-production code path was setting them. These
+The webhook router reads `app.state.wechat_webhook_token` /
+`wechat_cs_messenger` / `wework_cs_messenger` / `background_tasks`. These
 tests assert composition.build_api_composition sets each slot.
 """
 
@@ -69,7 +67,7 @@ def _isolated_composition_env(env: dict[str, str]) -> Iterator[None]:
 
 
 class TestWebhookStateAssembly:
-    """R-001: build_api_composition must populate webhook state slots."""
+    """build_api_composition must populate webhook state slots."""
 
     def test_tokens_set_when_env_present(self) -> None:
         """WeChat webhook token lands on app.state when env var is configured."""

@@ -1,4 +1,4 @@
-"""Tests for T-044: CLI tool commands.
+"""Tests for CLI tool commands.
 
 Covers:
   AC-T044-1: source list/add/update/delete commands

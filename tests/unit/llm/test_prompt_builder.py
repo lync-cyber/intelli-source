@@ -492,7 +492,7 @@ class TestPromptBuilderVariantStyle:
 
 
 class TestPromptPathComponentValidation:
-    """R-002: name/style must be a single filename component (defense-in-depth)."""
+    """name/style must be a single filename component (defense-in-depth)."""
 
     @pytest.mark.parametrize(
         "bad_name",

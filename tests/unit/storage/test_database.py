@@ -1,4 +1,4 @@
-"""Tests for T-002: Database connection management and ORM base.
+"""Tests for Database connection management and ORM base.
 
 Covers:
   AC-T002-1: DatabaseManager connects to a test database via AsyncSession

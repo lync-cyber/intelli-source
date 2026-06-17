@@ -1,4 +1,4 @@
-"""Sprint-8 integration tests (T-071).
+"""Sprint-8 integration tests.
 
 Covers AC-T071-1 through AC-T071-9 with cross-module paths.
 AC-T071-4 (circuit-breaker) is already covered in test_sprint7_integration.py.
@@ -395,7 +395,7 @@ class TestSmokeImportChain:
 
 
 # ===========================================================================
-# AC-T071-9: chat_session vs agent flexible compaction consistency (T-079)
+# AC-T071-9: chat_session vs agent flexible compaction consistency
 # ===========================================================================
 
 
@@ -474,12 +474,10 @@ class TestCompactionConsistency:
 
 
 class TestSSEAsgiEndToEnd:
-    """SR-005 superseded by B-001.
+    """End-to-end SSE coverage for ``/search/chat/stream``.
 
-    The original test mocked ``litellm.acompletion`` and asserted the legacy
-    SSE shape (``{content, done}``). B-001 routed ``/search/chat/stream``
-    through ``AgentRunner.run_flexible_stream`` and changed the SSE event
-    contract to ``{type: step|sources|token|done|error, ...}``. End-to-end
-    coverage now lives in
+    ``/search/chat/stream`` routes through ``AgentRunner.run_flexible_stream``
+    and emits the SSE event contract ``{type: step|sources|token|done|error,
+    ...}``. End-to-end coverage lives in
     ``tests/integration/test_search_chat_stream_uses_rag.py``.
     """

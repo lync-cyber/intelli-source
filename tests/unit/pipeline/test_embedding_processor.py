@@ -1,6 +1,4 @@
-"""B-045: EmbeddingProcessor populates ProcessedContent.embedding.
-
-Backlog: docs/BACKLOG-intellisource-v1.md §B-045.
+"""EmbeddingProcessor populates ProcessedContent.embedding.
 
 `processed_contents.embedding` is currently always NULL because no pipeline
 step writes to it — `VectorStore.upsert()` is defined but never called. This

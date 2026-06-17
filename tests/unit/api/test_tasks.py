@@ -1,4 +1,4 @@
-"""Tests for T-041: Task management API endpoints.
+"""Tests for Task management API endpoints.
 
 Covers:
   AC-062:     API supports manually triggering collection tasks and querying task status

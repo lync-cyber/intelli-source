@@ -1,4 +1,4 @@
-"""Unit tests for PROCESSOR_REGISTRY (T-096 AC-1, AC-9).
+"""Unit tests for PROCESSOR_REGISTRY (AC-1, AC-9).
 
 Verifies that:
 - PROCESSOR_REGISTRY exists in intellisource.pipeline.registry

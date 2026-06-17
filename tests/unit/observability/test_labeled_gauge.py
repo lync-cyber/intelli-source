@@ -1,6 +1,6 @@
-"""R-001: labeled gauge labelnames enforcement — RED/GREEN tests.
+"""labeled gauge labelnames enforcement — RED/GREEN tests.
 
-Acceptance criteria (R-001 gauge sub-system parity):
+Acceptance criteria (gauge sub-system parity):
   AC-R001-G1  register_labeled_gauge with labelnames is idempotent for same labelnames.
   AC-R001-G2  re-register with different labelnames raises ValueError.
   AC-R001-G3  set_labeled_gauge with wrong label keys raises KeyError (schema drift

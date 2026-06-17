@@ -1,4 +1,4 @@
-"""Tests for T-009: Configuration loading, hot-reload, and version management.
+"""Tests for Configuration loading, hot-reload, and version management.
 
 Covers:
   AC-T009-1: ConfigLoader.load_file() parses YAML/JSON and validates via ConfigValidator

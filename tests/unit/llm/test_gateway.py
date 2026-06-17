@@ -499,7 +499,7 @@ class TestTaskTypeModelRouting:
 
 
 # ===================================================================
-# T-053: ModelProfile defaults applied in LLMGateway
+# ModelProfile defaults applied in LLMGateway
 # ===================================================================
 
 _PROFILE_CONFIG = {

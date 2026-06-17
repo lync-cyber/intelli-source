@@ -1,4 +1,4 @@
-"""Tests for T-045: FastAPI application entry point and deployment.
+"""Tests for FastAPI application entry point and deployment.
 
 Covers:
   AC-065:    /docs provides OpenAPI/Swagger documentation automatically
@@ -194,9 +194,8 @@ class TestStartupInitialisation:
     async def test_startup_initialises_db_redis_celery(self) -> None:
         """Startup triggers Redis init and binds the Celery module singleton.
 
-        Updated by T-095: legacy assertion expected main.init_celery() to be
-        called; the unified-singleton fix removed that function and binds
-        scheduler.celery_app.celery_app to app.state.celery_app instead.
+        There is no main.init_celery(); startup binds
+        scheduler.celery_app.celery_app to app.state.celery_app.
         """
         if _MODULE_MISSING:
             pytest.fail(_SKIP_REASON)
@@ -246,9 +245,8 @@ class TestShutdownResourceRelease:
     async def test_shutdown_releases_resources(self) -> None:
         """Shutdown triggers cleanup for db and Redis.
 
-        Updated by T-095: Celery shutdown is no longer driven by the API
-        process (the singleton is owned by the worker side), so
-        main.shutdown_celery was removed.
+        Celery shutdown is not driven by the API process; the singleton is
+        owned by the worker side, so there is no main.shutdown_celery.
         """
         if _MODULE_MISSING:
             pytest.fail(_SKIP_REASON)

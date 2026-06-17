@@ -1,4 +1,4 @@
-"""Tests for tool permission level governance (T-065).
+"""Tests for tool permission level governance.
 
 Covers AC-T065-1 through AC-T065-7:
 - ToolDefinition gains permission_level field (auto/confirm/deny)

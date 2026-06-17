@@ -1,4 +1,4 @@
-"""Tests for B-057: subscription match_rules.source_names — per-source filtering.
+"""Tests for subscription match_rules.source_names — per-source filtering.
 
 source_names is a strong-constraint dimension on match_rules. When set, the
 subscription matches only content whose ``source_name`` is in the list. When
@@ -77,7 +77,7 @@ class TestSourceNamesConjunctionWithTags:
     def test_source_names_mismatch_drops_subscription_even_when_tags_match(
         self, matcher: SubscriptionMatcher
     ) -> None:
-        """B-057 强约束：tags 命中但 source_name 不在列表 → 整条订阅丢弃。"""
+        """强约束：tags 命中但 source_name 不在列表 → 整条订阅丢弃。"""
         sub = StubSubscription(match_rules={"source_names": ["HN RSS"], "tags": ["ai"]})
         content = StubContent(source_name="Other Source", tags=["ai"])
         assert matcher.match(content, [sub]) == []
@@ -152,7 +152,7 @@ class TestSourceNamesResolveFromRawContentChain:
     def test_resolves_source_name_from_raw_content_source_when_direct_empty(
         self, matcher: SubscriptionMatcher
     ) -> None:
-        """B-057: matcher should also check content.raw_content.source.name
+        """matcher should also check content.raw_content.source.name
         for cases where the direct source_name column is NULL but the relation
         is eager-loaded."""
 

@@ -1,4 +1,4 @@
-"""Integration tests for Celery worker wiring via scheduler.boot (T-075).
+"""Integration tests for Celery worker wiring via scheduler.boot.
 
 Covers AC-T075-1, AC-T075-2, and AC-T075-4:
 - AC-T075-1: worker_init creates an independent async session_factory from
@@ -323,7 +323,7 @@ class TestWorkerInitHandlerRealBuild:
         agent_runner) must complete without AttributeError and wire all singleton
         components via the real build_celery_tasks path.
 
-        N-003 refproof: if boot.py R-001 wiring is reverted this test fails
+        N-003 refproof: if boot.py wiring is reverted this test fails
         because get_celery_tasks() returns None (setattr not called) or
         build_celery_tasks raises AttributeError on a missing component.
         """

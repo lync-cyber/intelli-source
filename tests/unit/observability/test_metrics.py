@@ -1,4 +1,4 @@
-"""Tests for T-006: Observability module -- metrics collection.
+"""Tests for Observability module -- metrics collection.
 
 Covers:
   AC-058: MetricsCollector can register and record custom metrics

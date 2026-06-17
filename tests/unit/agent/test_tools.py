@@ -384,7 +384,7 @@ class TestRegistryEdgeCases:
 
 
 # ==================================================================
-# T-050: Atomic tool registration + llm_complete meta-tool
+# Atomic tool registration + llm_complete meta-tool
 # ==================================================================
 
 _ATOMIC_TOOL_NAMES = [

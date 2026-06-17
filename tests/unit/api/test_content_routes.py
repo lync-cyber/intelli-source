@@ -1,4 +1,4 @@
-"""Tests for T-042: API routes -- content/search/subscription/LLM/system.
+"""Tests for API routes -- content/search/subscription/LLM/system.
 
 Covers:
   AC-T042-1: GET /api/v1/contents -- content list with pagination and filtering

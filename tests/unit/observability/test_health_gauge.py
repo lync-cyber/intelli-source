@@ -1,4 +1,4 @@
-"""B-003: intellisource_health_status gauge — RED/GREEN tests.
+"""intellisource_health_status gauge — RED/GREEN tests.
 
 Three acceptance criteria:
   AC-B003-1  Three-state mapping: healthy=0, degraded=1, unhealthy=2 per component.

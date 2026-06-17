@@ -1,4 +1,4 @@
-"""Tests for T-091: ConfigWatcher lifespan wiring.
+"""Tests for ConfigWatcher lifespan wiring.
 
 Covers:
   AC-1: _lifespan instantiates ConfigWatcher and launches background task

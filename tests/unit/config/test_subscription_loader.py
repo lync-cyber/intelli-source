@@ -1,4 +1,4 @@
-"""Tests for SubscriptionConfigLoader (B-054 Phase 1)."""
+"""Tests for SubscriptionConfigLoader (Phase 1)."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""T-EMB-1: LLMGateway.embed() routes api_base/api_key to litellm for TEI.
+"""LLMGateway.embed() routes api_base/api_key to litellm for TEI.
 
 AC-1: embed() passes api_base and api_key to _aembedding when configured.
 AC-2: embed() returns None and never calls _aembedding when embedding_api_base is empty.
@@ -204,7 +204,7 @@ class TestEmbedGracefulDegradationNoApiBase:
     async def test_embed_keyless_tei_uses_placeholder_api_key(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """R-001: IS_EMBEDDING_API_KEY unset → api_key fallback 'tei', result non-None.
+        """IS_EMBEDDING_API_KEY unset → api_key fallback 'tei', result non-None.
 
         TEI keyless deployments omit IS_EMBEDDING_API_KEY.  embed() must reach
         _aembedding with a non-empty api_key and return a real vector, not None.

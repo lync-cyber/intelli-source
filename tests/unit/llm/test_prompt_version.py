@@ -1,4 +1,4 @@
-"""Tests for PromptBuilder.prompt_version + LLMGateway auto-fill (T-069).
+"""Tests for PromptBuilder.prompt_version + LLMGateway auto-fill.
 
 Covers:
 - AC-T069-1: prompt_version returns SHA-256 first 8 hex chars of template file.

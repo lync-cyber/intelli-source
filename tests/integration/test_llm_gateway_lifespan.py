@@ -1,4 +1,4 @@
-"""Integration tests for R-007: LLMGateway injection into app.state via _lifespan.
+"""Integration tests for LLMGateway injection into app.state via _lifespan.
 
 Verifies that after lifespan startup:
 - app.state.llm_gateway is not None
@@ -32,7 +32,7 @@ def _make_lifespan_patches() -> tuple[MagicMock, MagicMock, AsyncMock]:
 
 
 class TestLLMGatewayLifespanInjection:
-    """R-007: _lifespan injects LLMGateway into app.state.llm_gateway."""
+    """_lifespan injects LLMGateway into app.state.llm_gateway."""
 
     @pytest.mark.asyncio
     async def test_startup_sets_llm_gateway_on_app_state(self) -> None:

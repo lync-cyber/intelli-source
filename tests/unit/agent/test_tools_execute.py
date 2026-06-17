@@ -1,6 +1,6 @@
 """Tests for 6 agent tool execute functions — real implementation calls.
 
-Covers T-089 AC-1 through AC-7:
+Covers AC-1 through AC-7:
 
 AC-1: _collect_execute triggers CollectorRegistry.get(source_type).collect()
 AC-2: _process_execute triggers PipelineEngine.execute(ctx)
@@ -11,7 +11,7 @@ AC-6: _summarize_for_user_execute calls LLMGateway.complete() or .chat()
 AC-7: All 6 tools use ToolDeps for injection; AgentRunner.run() passes ToolDeps
       when invoking tools.
 
-ToolDeps shared design (also referenced by T-087 AC-4 / test_llm_complete_execute.py):
+ToolDeps shared design (also referenced by AC-4 / test_llm_complete_execute.py):
 - Location: src/intellisource/agent/deps.py
 - Fields: session_factory, llm_gateway, pipeline_engine, search_engine_factory,
           collector_registry, distributor
@@ -805,7 +805,7 @@ class TestToolDepsInjectionViaAgentRunner:
 
         assert has_tool_deps_param, (
             "AgentRunner.run_flexible() (or run()) must accept a 'tool_deps' parameter "
-            "to inject dependencies into tool execute functions (T-089 AC-7)"
+            "to inject dependencies into tool execute functions (AC-7)"
         )
 
     @pytest.mark.asyncio
@@ -903,12 +903,12 @@ class TestAllToolsAcceptToolDeps:
 
 
 # ---------------------------------------------------------------------------
-# R-003: run_flexible forwards tool_deps to tool execute functions
+# run_flexible forwards tool_deps to tool execute functions
 # ---------------------------------------------------------------------------
 
 
 class TestRunFlexibleForwardsToolDeps:
-    """R-003: run_flexible must forward tool_deps to tool execute functions."""
+    """run_flexible must forward tool_deps to tool execute functions."""
 
     @pytest.mark.asyncio
     async def test_run_flexible_forwards_tool_deps_to_execute(self) -> None:

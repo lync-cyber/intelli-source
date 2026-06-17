@@ -1,4 +1,4 @@
-"""B-005: MetricsCollector labeled counter subsystem — RED/GREEN tests.
+"""MetricsCollector labeled counter subsystem — RED/GREEN tests.
 
 Acceptance criteria:
   AC-B005-1  register_labeled_counter + increment_labeled_counter accumulate per label.
@@ -297,7 +297,7 @@ class TestLabeledCounterMetricsEndpoint:
 
 
 # ---------------------------------------------------------------------------
-# R-001: labelnames enforcement — typo / wrong keys raise KeyError.
+# labelnames enforcement — typo / wrong keys raise KeyError.
 # ---------------------------------------------------------------------------
 
 

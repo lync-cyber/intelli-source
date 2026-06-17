@@ -1,4 +1,4 @@
-"""Tests for PipelineEventLogger + AgentRunner integration (T-067).
+"""Tests for PipelineEventLogger + AgentRunner integration.
 
 Covers:
 - AC-T067-1: events written to a JSONL file.

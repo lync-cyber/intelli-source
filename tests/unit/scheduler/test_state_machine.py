@@ -1,4 +1,4 @@
-"""Tests for resolve_transition and SchedulerManager (T-028).
+"""Tests for resolve_transition and SchedulerManager.
 
 Covers:
 - AC-T028-4: SchedulerManager manages Celery Beat schedule registration

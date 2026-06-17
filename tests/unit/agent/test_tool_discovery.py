@@ -1,4 +1,4 @@
-"""Tests for AgentToolRegistry.auto_discover (T-066).
+"""Tests for AgentToolRegistry.auto_discover.
 
 Covers:
 - AC-T066-1: auto_discover() scans the tools/ directory.

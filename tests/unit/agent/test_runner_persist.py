@@ -1,4 +1,4 @@
-"""Tests for TaskChainPersister.persist parameterization (T-075 AC-T075-3).
+"""Tests for TaskChainPersister.persist parameterization (AC-T075-3).
 
 AgentRunner delegates persistence to ``self._persister`` (TaskChainPersister).
 Verifies that:

@@ -1,4 +1,4 @@
-"""Tests for T-088: CircuitBreaker wiring into LLMGateway.
+"""Tests for CircuitBreaker wiring into LLMGateway.
 
 Covers:
   AC-1: LLMGateway.__init__ accepts circuit_breaker kwarg (backward-compatible)
@@ -6,7 +6,7 @@ Covers:
         litellm NOT called
   AC-3: LLM success → record_success() called; LLM failure → record_failure() called
   AC-5: GET /api/v1/llm/status returns circuit_state;
-        endpoint requires X-API-Key auth (R-001); reads real gateway state (R-002)
+        endpoint requires X-API-Key auth; reads real gateway state
 """
 
 from __future__ import annotations
@@ -311,12 +311,12 @@ class TestLLMStatusEndpoint:
 
 
 # ---------------------------------------------------------------------------
-# R-001: Auth enforcement — /api/v1/llm/status rejects missing/invalid key
+# Auth enforcement — /api/v1/llm/status rejects missing/invalid key
 # ---------------------------------------------------------------------------
 
 
 class TestLLMStatusAuth:
-    """R-001: /api/v1/llm/status enforces X-API-Key when IS_API_KEY is set."""
+    """/api/v1/llm/status enforces X-API-Key when IS_API_KEY is set."""
 
     @pytest.mark.asyncio
     async def test_missing_api_key_returns_401(
@@ -357,12 +357,12 @@ class TestLLMStatusAuth:
 
 
 # ---------------------------------------------------------------------------
-# R-002: get_llm_gateway_status reads real LLMGateway from app.state
+# get_llm_gateway_status reads real LLMGateway from app.state
 # ---------------------------------------------------------------------------
 
 
 class TestLLMStatusRealGateway:
-    """R-002: /api/v1/llm/status reflects actual circuit state from app.state."""
+    """/api/v1/llm/status reflects actual circuit state from app.state."""
 
     @pytest.mark.asyncio
     async def test_status_reflects_injected_open_circuit(self) -> None:

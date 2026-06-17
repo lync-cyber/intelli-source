@@ -1,6 +1,4 @@
-"""B-049: facade.distribute must not report a failed channel send as 'sent'.
-
-Backlog: docs/BACKLOG-intellisource-v1.md §B-049.
+"""facade.distribute must not report a failed channel send as 'sent'.
 
 Channels swallow transport errors internally and return
 ``{"status": "failed", ...}`` rather than raising, so the facade's try/except

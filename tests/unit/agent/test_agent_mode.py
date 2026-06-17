@@ -357,7 +357,7 @@ class TestPreviewMode:
 
 
 class TestProcessModeBackwardCompat:
-    """AC-T064-5: process mode behaves identically to pre-T064 flexible mode."""
+    """AC-T064-5: process mode behaves identically to flexible mode."""
 
     async def test_process_mode_executes_distribute_tool(self) -> None:
         """distribute is executed normally in process mode."""

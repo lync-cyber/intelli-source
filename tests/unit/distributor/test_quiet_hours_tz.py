@@ -1,6 +1,6 @@
 """Tests for timezone-aware quiet hours enforcement.
 
-Covers AC-1 and AC-2 of T-093:
+Covers AC-1 and AC-2:
 - AC-1: Subscription.timezone field (default "Asia/Shanghai")
 - AC-2: _in_quiet_range uses zoneinfo.ZoneInfo(subscription.timezone) for
         UTC→local conversion before comparison; cross-midnight logic preserved.
@@ -151,7 +151,7 @@ class TestQuietHoursTimezoneConversion:
         assert ctrl.is_quiet_hours(sub) is True
 
     def test_invalid_timezone_falls_back_to_utc_without_raising(self):
-        """R-002: invalid timezone must not raise; fallback to UTC and log WARNING."""
+        """invalid timezone must not raise; fallback to UTC and log WARNING."""
         from structlog.testing import capture_logs
 
         # UTC 03:00 is outside quiet_hours 09:00-17:00 even in UTC

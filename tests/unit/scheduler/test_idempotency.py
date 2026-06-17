@@ -1,4 +1,4 @@
-"""Tests for idempotency module (T-029).
+"""Tests for idempotency module.
 
 Covers:
 - AC-036: Multi-worker concurrent execution without duplicate processing.
@@ -198,7 +198,7 @@ class TestIdempotencyGuardRelease:
 
 
 class TestIdempotencyGuardSuccessMarker:
-    """R-005: durable success marker covers non-UUID lock-key redelivery."""
+    """durable success marker covers non-UUID lock-key redelivery."""
 
     def test_result_marker_constants(self):
         """RESULT_MARKER_PREFIX + a TTL outliving the broker visibility timeout."""

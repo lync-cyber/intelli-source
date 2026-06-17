@@ -1,4 +1,4 @@
-"""DeepSeek V4 adapter coverage (B-041).
+"""DeepSeek V4 adapter coverage.
 
 Verifies:
 - build_extra_body returns None for non-deepseek models

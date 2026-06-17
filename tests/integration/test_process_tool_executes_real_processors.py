@@ -1,4 +1,4 @@
-"""Integration tests for AC-4, AC-5, AC-7 (T-096).
+"""Integration tests for AC-4, AC-5, AC-7.
 
 AC-4: _process_execute fetches RawContent via session_factory, builds a
 PipelineContext, calls pipeline_engine.execute() synchronously, and returns

@@ -1,4 +1,4 @@
-"""B-072: 失败推送落库 — 失败路径必须写入 status='failed' 的 PushRecord。
+"""失败推送落库 — 失败路径必须写入 status='failed' 的 PushRecord。
 
 AC1: 渠道返回 failed 状态时，_record_push 被调用且 status='failed'。
 AC2: 渠道抛异常时，_record_push 被调用且 status='failed'，error_message 含异常信息。

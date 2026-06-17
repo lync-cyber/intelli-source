@@ -1,6 +1,6 @@
 """Tests for Subscription.timezone and discipline_tags ORM fields.
 
-Covers AC-1 and AC-6 of T-093:
+Covers AC-1 and AC-6:
 - AC-1: Subscription ORM model has 'timezone' column (VARCHAR, default 'Asia/Shanghai')
 - AC-6: Subscription and Source ORM models have 'discipline_tags' ARRAY
         column (default [])
@@ -83,7 +83,7 @@ class TestSubscriptionDisciplineTagsColumn:
         """AC-6: discipline_tags is ARRAY (PG) / JSON (SQLite via Variant)."""
         col = _col(Subscription, "discipline_tags")
         type_name = type(col.type).__name__.upper()
-        # Variant pattern: ARRAY on PG, JSON on SQLite (T-093 task card)
+        # Variant pattern: ARRAY on PG, JSON on SQLite
         assert type_name in ("ARRAY", "JSON"), (
             f"Expected ARRAY (PG) or JSON (SQLite fallback) type "
             f"for discipline_tags, got {type_name}"

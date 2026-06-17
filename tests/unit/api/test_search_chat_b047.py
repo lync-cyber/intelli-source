@@ -1,6 +1,4 @@
-"""B-047: sync /search/chat sources extraction + answer shaping.
-
-Backlog: docs/BACKLOG-intellisource-v1.md §B-047.
+"""Sync /search/chat sources extraction + answer shaping.
 
 Two real-stack defects:
 - #23: extract_answer returned ``str(dict)`` of a get_content_detail step,

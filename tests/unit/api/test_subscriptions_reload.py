@@ -1,4 +1,4 @@
-"""Tests for /subscriptions router endpoints (B-054 Phase 1+2 + Layer 1+2)."""
+"""Tests for /subscriptions router endpoints (Phase 1+2 + Layer 1+2)."""
 
 from __future__ import annotations
 

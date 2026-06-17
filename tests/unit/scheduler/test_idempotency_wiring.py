@@ -1,4 +1,4 @@
-"""Tests for T-092 AC-3, AC-4, and AC-5.
+"""Tests for AC-3, AC-4, and AC-5.
 
 AC-3: The collection entry point (CeleryTasks.run_pipeline) calls
       IdempotencyGuard.acquire(task_id) AND FingerprintChecker.is_duplicate(fingerprint)
@@ -27,7 +27,7 @@ def _make_mock_pipeline_config(
     execution_mode: str = "strict",
 ) -> MagicMock:
     """Return a minimal PipelineLoader-like mock whose load() returns a
-    PipelineConfig with attribute access on .mode / .steps (T-095 contract)."""
+    PipelineConfig with attribute access on .mode / .steps."""
     cfg_mock = MagicMock()
     loaded = MagicMock()
     loaded.name = pipeline_name
@@ -619,12 +619,12 @@ class TestIdempotencyWiringEdgeCases:
 
 
 # ---------------------------------------------------------------------------
-# R-002 wiring: build_celery_tasks assembles all three guards as non-None
+# wiring: build_celery_tasks assembles all three guards as non-None
 # ---------------------------------------------------------------------------
 
 
 class TestBuildCeleryTasksGuardWiring:
-    """R-002: build_celery_tasks must wire all three idempotency components."""
+    """build_celery_tasks must wire all three idempotency components."""
 
     def test_build_celery_tasks_wires_three_guards_non_none(self) -> None:
         """CeleryTasks returned by build_celery_tasks must have

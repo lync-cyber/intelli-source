@@ -1,4 +1,4 @@
-"""Tests for T-037: HybridSearchEngine high-level search engine.
+"""Tests for HybridSearchEngine high-level search engine.
 
 Covers:
   AC-051:     Hybrid retrieval (keyword + vector semantic) returns relevant results

@@ -1,9 +1,8 @@
-"""Integration tests for /search/chat/stream (B-001).
+"""Integration tests for /search/chat/stream.
 
 Verifies the stream endpoint:
 - Routes through app.state.agent_runner.run_flexible_stream (NOT
-  llm_gateway.stream_complete directly — that was the pre-B-001 behaviour
-  that bypassed RAG).
+  llm_gateway.stream_complete directly, which would bypass RAG).
 - Returns 503 when agent_runner is unset.
 - Emits the documented SSE event shape (step / sources / token / done).
 - Echoes back the user message into run_flexible_stream.
@@ -65,7 +64,7 @@ def _parse_sse_payloads(body: str) -> list[dict[str, Any]]:
 
 
 class TestSearchChatStreamRoutesThroughRunner:
-    """B-001: stream endpoint must call runner.run_flexible_stream, not gateway."""
+    """Stream endpoint must call runner.run_flexible_stream, not gateway."""
 
     @pytest.mark.asyncio
     async def test_returns_503_when_agent_runner_missing(self) -> None:

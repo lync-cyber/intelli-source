@@ -1,4 +1,4 @@
-"""RED-phase tests for T-081: pg_container / pg_session / pg_truncate fixtures.
+"""Tests for pg_container / pg_session / pg_truncate fixtures.
 
 Validates the fixture contract defined in §interface_contract.  All tests in
 this file intentionally FAIL at the RED phase because the fixtures are not yet

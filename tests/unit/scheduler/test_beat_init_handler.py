@@ -1,6 +1,6 @@
 """beat_init signal handler — guards beat process bootstraps schedule from DB.
 
-Production failure (B-031 阶段 5 步骤 12, NO-GO #28):
+Production failure:
 
     beat process runs ``celery -A intellisource.scheduler.celery_app beat`` →
     celery_app.conf.beat_schedule is empty at import time → beat idles

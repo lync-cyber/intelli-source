@@ -1,6 +1,6 @@
-"""T-EMB-1 AC-6 + B-045: LLMGateway.embed() updated for TEI/BGE-M3 contract.
+"""LLMGateway.embed() for the TEI/BGE-M3 contract (AC-6).
 
-Tests updated for the new embed() contract:
+Covers the embed() contract:
 - 1024-dim vectors (BGE-M3 dimension, not 1536)
 - embed() requires IS_EMBEDDING_API_BASE to be set before calling _aembedding
 - empty-text and exception paths still return None (contract preserved)

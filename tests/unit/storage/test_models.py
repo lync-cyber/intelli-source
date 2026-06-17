@@ -1,4 +1,4 @@
-"""Tests for ORM model definitions (T-003).
+"""Tests for ORM model definitions.
 
 Verifies all 11 entity models have correct column types, constraints,
 foreign keys, defaults, indexes, and pgvector fields per arch spec.

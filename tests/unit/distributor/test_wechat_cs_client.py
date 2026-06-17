@@ -276,7 +276,7 @@ class TestWeChatCsClientSendText:
 
 
 class TestWeChatCsClientErrcodeHandling:
-    """R-008: get_access_token + send_text raise DistributorError on errcode != 0."""
+    """get_access_token + send_text raise DistributorError on errcode != 0."""
 
     async def test_get_access_token_raises_on_errcode_response(self) -> None:
         """Token fetch returning errcode=40013 must raise DistributorError."""
@@ -336,7 +336,7 @@ class TestWeChatCsClientErrcodeHandling:
 
 
 class TestWeChatCsClientRequiresHttpClient:
-    """R-007: __init__ rejects http_client=None instead of late AttributeError."""
+    """__init__ rejects http_client=None instead of late AttributeError."""
 
     def test_init_raises_when_http_client_is_none(self) -> None:
         """Constructor must raise ValueError when http_client is None."""

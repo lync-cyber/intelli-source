@@ -258,7 +258,7 @@ class TestConditionalFetch:
 
 
 # ---------------------------------------------------------------------------
-# AC-012: collect_with_retry retries transient transport errors (B-063)
+# AC-012: collect_with_retry retries transient transport errors
 # ---------------------------------------------------------------------------
 
 
@@ -279,7 +279,7 @@ class _FlakyCollector(BaseCollector):
 
 
 class TestCollectWithRetry:
-    """AC-012: transient transport failures are retried with backoff (B-063)."""
+    """AC-012: transient transport failures are retried with backoff."""
 
     @pytest.mark.asyncio
     async def test_retries_then_succeeds_on_transient_connect_error(self) -> None:

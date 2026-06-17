@@ -229,7 +229,7 @@ class TestModelRoutingConfig:
 
 
 # ===========================================================================
-# T-053: ModelProfile + get_profile()
+# ModelProfile + get_profile()
 # ===========================================================================
 
 SAMPLE_CONFIG_WITH_PROFILES = {

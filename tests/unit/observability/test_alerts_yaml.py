@@ -171,7 +171,7 @@ def test_critical_alerts_present() -> None:
 
 
 def test_health_degraded_alert_present() -> None:
-    """B-003: HealthDegradedFor5m alert must be present in alerts.yml."""
+    """HealthDegradedFor5m alert must be present in alerts.yml."""
     rules = _load_alerts()
     names = {r["alert"] for r in rules}
     assert "HealthDegradedFor5m" in names, (
@@ -180,7 +180,7 @@ def test_health_degraded_alert_present() -> None:
 
 
 def test_health_degraded_alert_references_health_status_metric() -> None:
-    """B-003: HealthDegradedFor5m expr must reference intellisource_health_status."""
+    """HealthDegradedFor5m expr must reference intellisource_health_status."""
     rules = _load_alerts()
     health_rule = next((r for r in rules if r["alert"] == "HealthDegradedFor5m"), None)
     assert health_rule is not None, "HealthDegradedFor5m rule not found"
@@ -190,7 +190,7 @@ def test_health_degraded_alert_references_health_status_metric() -> None:
 
 
 def test_health_degraded_alert_fires_on_nonzero() -> None:
-    """B-003: HealthDegradedFor5m must fire when gauge > 0 (degraded or unhealthy)."""
+    """HealthDegradedFor5m must fire when gauge > 0 (degraded or unhealthy)."""
     rules = _load_alerts()
     health_rule = next((r for r in rules if r["alert"] == "HealthDegradedFor5m"), None)
     assert health_rule is not None
@@ -202,12 +202,12 @@ def test_health_degraded_alert_fires_on_nonzero() -> None:
 
 
 # ---------------------------------------------------------------------------
-# B-029: LLMCallFailureRateHigh must be split by model label
+# LLMCallFailureRateHigh must be split by model label
 # ---------------------------------------------------------------------------
 
 
 def test_llm_failure_rate_alert_uses_sum_by_model() -> None:
-    """B-029: LLMCallFailureRateHigh expr must aggregate with sum by (model)."""
+    """LLMCallFailureRateHigh expr must aggregate with sum by (model)."""
     rules = _load_alerts()
     llm_rule = next((r for r in rules if r["alert"] == "LLMCallFailureRateHigh"), None)
     assert llm_rule is not None, "LLMCallFailureRateHigh rule not found"
@@ -219,7 +219,7 @@ def test_llm_failure_rate_alert_uses_sum_by_model() -> None:
 
 
 def test_llm_failure_rate_alert_annotations_reference_model_label() -> None:
-    """B-029: LLMCallFailureRateHigh annotations must reference {{ $labels.model }}."""
+    """LLMCallFailureRateHigh annotations must reference {{ $labels.model }}."""
     rules = _load_alerts()
     llm_rule = next((r for r in rules if r["alert"] == "LLMCallFailureRateHigh"), None)
     assert llm_rule is not None, "LLMCallFailureRateHigh rule not found"
@@ -234,7 +234,7 @@ def test_llm_failure_rate_alert_annotations_reference_model_label() -> None:
 
 
 def test_push_failure_rate_alert_uses_sum_by_channel() -> None:
-    """B-029: PushFailureRateHigh expr must aggregate with sum by (channel)."""
+    """PushFailureRateHigh expr must aggregate with sum by (channel)."""
     rules = _load_alerts()
     push_rule = next((r for r in rules if r["alert"] == "PushFailureRateHigh"), None)
     assert push_rule is not None, "PushFailureRateHigh rule not found"
@@ -246,7 +246,7 @@ def test_push_failure_rate_alert_uses_sum_by_channel() -> None:
 
 
 def test_push_failure_rate_alert_annotations_reference_channel_label() -> None:
-    """B-029: PushFailureRateHigh annotations must reference {{ $labels.channel }}."""
+    """PushFailureRateHigh annotations must reference {{ $labels.channel }}."""
     rules = _load_alerts()
     push_rule = next((r for r in rules if r["alert"] == "PushFailureRateHigh"), None)
     assert push_rule is not None, "PushFailureRateHigh rule not found"

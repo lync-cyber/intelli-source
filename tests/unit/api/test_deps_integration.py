@@ -1,8 +1,5 @@
-"""Tests for T-072 AC-T072-2 and AC-T072-3: get_db_session DI wiring and
+"""Tests for AC-T072-2 and AC-T072-3: get_db_session DI wiring and
 router migration away from local get_session stubs.
-
-RED phase — all tests in this file are expected to FAIL until the
-implementation is complete.
 """
 
 from __future__ import annotations

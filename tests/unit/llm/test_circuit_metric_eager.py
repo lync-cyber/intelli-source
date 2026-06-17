@@ -1,9 +1,8 @@
-"""B-014: llm_circuit_open registers at CircuitBreaker construction (not lazily).
+"""llm_circuit_open registers at CircuitBreaker construction (not lazily).
 
-Previously the gauge only appeared after a breaker first transitioned state, so
-a quiet API process never exposed ``llm_circuit_open`` on /api/v1/metrics. The
-gauge must exist (at 0) from the moment a breaker is built, which the API does
-at startup via ``build_llm_gateway``.
+The gauge must exist (at 0) from the moment a breaker is built — so that a
+quiet API process still exposes ``llm_circuit_open`` on /api/v1/metrics —
+which the API does at startup via ``build_llm_gateway``.
 """
 
 from __future__ import annotations

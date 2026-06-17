@@ -1,6 +1,6 @@
 """Tests for SubscriptionMatcher discipline_tags vs tags weight distinction.
 
-Covers AC-6 of T-093:
+Covers AC-6:
 - matcher.py distinguishes 'tags' and 'discipline_tags' in matching
 - discipline_tags match carries higher weight than generic tags match
 """

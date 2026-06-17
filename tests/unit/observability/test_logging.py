@@ -1,4 +1,4 @@
-"""Tests for T-006: Observability module -- structured logging.
+"""Tests for Observability module -- structured logging.
 
 Covers:
   AC-057: Log output contains structured fields: task_id, processing_stage, duration_ms

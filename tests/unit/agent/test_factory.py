@@ -1,8 +1,7 @@
 """Tests for build_agent_runner factory + get_agent_runner singleton accessor.
 
-Originally written for T-083 AC-2/AC-7. Updated by T-095 to reflect the
-keyword-only signature and the removal of `get_agent_runner()` silent
-fallback — those legacy behaviours were the bugs documented in CR-001.
+Covers AC-2/AC-7: the keyword-only signature and the absence of a
+`get_agent_runner()` silent fallback.
 """
 
 from __future__ import annotations
@@ -265,9 +264,7 @@ class TestToolDepsWiring:
     def test_get_agent_runner_raises_when_uninitialised(self) -> None:
         """get_agent_runner() must raise when no composition root has run yet.
 
-        Replaces the legacy `test_get_agent_runner_no_args_backward_compat` —
-        the silent fallback that returned a None-wired runner was CR-001
-        and is now removed.
+        There is no silent fallback returning a None-wired runner.
         """
         import intellisource.agent.factory as factory_mod
         from intellisource.agent.runner import get_agent_runner_holder
@@ -298,11 +295,7 @@ class TestToolDepsWiring:
             holder._runner = original
 
     def test_build_agent_runner_rejects_none_deps(self) -> None:
-        """build_agent_runner with None deps must raise ValueError.
-
-        Replaces the legacy `test_build_agent_runner_none_deps_allowed` —
-        accepting None was the silent-degradation bug behind CR-001.
-        """
+        """build_agent_runner with None deps must raise ValueError."""
         from intellisource.agent.factory import build_agent_runner
 
         with pytest.raises(ValueError):

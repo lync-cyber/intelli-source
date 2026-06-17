@@ -1,4 +1,4 @@
-"""Tests for T-001: Project skeleton and base configuration.
+"""Tests for Project skeleton and base configuration.
 
 Covers:
   AC-T001-1: pyproject.toml contains all core dependencies and is installable

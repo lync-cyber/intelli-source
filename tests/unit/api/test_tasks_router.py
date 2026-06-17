@@ -197,7 +197,7 @@ class TestCollectSingleSource:
         send_task_mock = app_with_celery.state.celery_app.send_task
         call_args = send_task_mock.call_args
         assert call_args.args[0] == "run_pipeline"
-        # T-095 contract: kwargs = {pipeline_name, params: {...}}
+        # contract: kwargs = {pipeline_name, params: {...}}
         sent_kwargs = call_args.kwargs["kwargs"]
         assert "pipeline_name" in sent_kwargs
         params = sent_kwargs["params"]
@@ -283,7 +283,7 @@ class TestCollectMultipleSources:
 
         calls = app_with_celery.state.celery_app.send_task.call_args_list
         for call in calls:
-            # T-095 contract: chain id lives under params, not at top level
+            # contract: chain id lives under params, not at top level
             assert call.kwargs["kwargs"]["params"]["task_chain_id"] == chain_id
 
     @pytest.mark.asyncio
@@ -490,7 +490,7 @@ class TestCollectInvalidSourceIds:
 
 
 class TestCollectSendTaskPrecision:
-    """Precise assertion on send_task arguments (R-006 resolution)."""
+    """Precise assertion on send_task arguments."""
 
     @pytest.mark.asyncio
     async def test_send_task_first_arg_is_run_pipeline(
@@ -549,7 +549,7 @@ class TestCollectSendTaskPrecision:
 
         call_args = app_with_celery.state.celery_app.send_task.call_args
         sent_kwargs = call_args.kwargs["kwargs"]
-        # T-095 contract: source_id is nested under params
+        # contract: source_id is nested under params
         assert sent_kwargs["params"]["source_id"] == str(SOURCE_ID)
 
     @pytest.mark.asyncio
@@ -580,7 +580,7 @@ class TestCollectSendTaskPrecision:
 
         call_args = app_with_celery.state.celery_app.send_task.call_args
         sent_kwargs = call_args.kwargs["kwargs"]
-        # T-095 contract: task_id is nested under params
+        # contract: task_id is nested under params
         assert sent_kwargs["params"]["task_id"] == str(FAKE_TASK_ID)
 
     @pytest.mark.asyncio
@@ -611,12 +611,12 @@ class TestCollectSendTaskPrecision:
 
         call_args = app_with_celery.state.celery_app.send_task.call_args
         sent_kwargs = call_args.kwargs["kwargs"]
-        # T-095 contract: priority is nested under params
+        # contract: priority is nested under params
         assert sent_kwargs["params"]["priority"] == "high"
 
 
 # ---------------------------------------------------------------------------
-# R-007 regression: datetime serialization in response body
+# datetime serialization in response body
 # ---------------------------------------------------------------------------
 
 

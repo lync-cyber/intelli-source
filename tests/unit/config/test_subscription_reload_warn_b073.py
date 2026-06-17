@@ -1,4 +1,4 @@
-"""B-073: reload 時静默错配 WARN 可观测性测试。
+"""reload 時静默错配 WARN 可观测性测试。
 
 AC1: match_rules 含未知键 → WARN 指明键名与订阅 name；订阅不被拒绝。
 AC2: match_rules 无任何有效匹配维度 → WARN 指明"永不匹配"；不拒绝。

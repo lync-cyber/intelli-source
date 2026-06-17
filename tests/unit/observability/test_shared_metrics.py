@@ -1,4 +1,4 @@
-"""Tests for the cross-process Redis-backed metric store (B-014 worker exposure).
+"""Tests for the cross-process Redis-backed metric store (worker exposure).
 
 The worker runs as a prefork pool (multiple child processes), each with its own
 ``MetricsCollector`` singleton that is never served over HTTP. ``RedisMetricStore``

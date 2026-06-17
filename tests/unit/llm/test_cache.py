@@ -1,4 +1,4 @@
-"""Tests for LLM result cache (T-052).
+"""Tests for LLM result cache.
 
 Covers:
 - LLMCache.cache_key() format
@@ -335,8 +335,7 @@ class TestCacheHitLogging:
         self, fake_redis: FakeRedis
     ) -> None:
         """On cache miss complete() falls through to the LLM and the cost
-        tracker records a status='success' row (not 'cached'). B-042 added
-        cost tracking to the complete() success path."""
+        tracker records a status='success' row (not 'cached')."""
         llm_cache = LLMCache(redis=fake_redis, ttl=3600)
         tracker = AsyncMock()
         tracker.log_call = AsyncMock()

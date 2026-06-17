@@ -1,4 +1,4 @@
-"""Tests for `intellisource content backfill-embeddings` CLI (T-BF-2 AC-4/5)."""
+"""Tests for `intellisource content backfill-embeddings` CLI (AC-4/5)."""
 
 from __future__ import annotations
 
@@ -222,12 +222,12 @@ class TestBackfillEmbeddingsCommand:
 
 
 # ---------------------------------------------------------------------------
-# R-006: Non-2xx response -> non-zero exit + error output (no crash on JSON)
+# Non-2xx response -> non-zero exit + error output (no crash on JSON)
 # ---------------------------------------------------------------------------
 
 
 class TestBackfillCommandErrorHandling:
-    """R-006: CLI checks HTTP status; non-2xx exits with code 1 + error output."""
+    """CLI checks HTTP status; non-2xx exits with code 1 + error output."""
 
     @patch("intellisource.cli._client.httpx")
     def test_503_exits_nonzero(self, mock_httpx: MagicMock, runner: CliRunner) -> None:

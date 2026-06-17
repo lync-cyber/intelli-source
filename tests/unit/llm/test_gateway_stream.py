@@ -284,12 +284,12 @@ class TestStreamCompleteExceptionPropagation:
 
 
 # ---------------------------------------------------------------------------
-# B-001.1: stream_complete accepts messages= kwarg
+# stream_complete accepts messages= kwarg
 # ---------------------------------------------------------------------------
 
 
 class TestStreamCompleteWithMessages:
-    """B-001.1: stream_complete must accept pre-built messages list."""
+    """stream_complete must accept pre-built messages list."""
 
     @pytest.mark.asyncio
     async def test_messages_kwarg_forwarded_verbatim(self) -> None:

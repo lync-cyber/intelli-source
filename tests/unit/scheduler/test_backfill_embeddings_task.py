@@ -1,4 +1,4 @@
-"""RED-phase tests for backfill_embeddings Celery task (T-BF-1 AC-3~AC-7).
+"""Tests for backfill_embeddings Celery task (AC-3~AC-7).
 
 AC-3: backfill_embeddings(batch_size=10) calls embed 3 times (once per NULL row),
       updates each row's embedding to the mock list[float] value, and skips
@@ -105,7 +105,7 @@ def _import_backfill_embeddings():
 
 
 class TestBackfillDepsGuard:
-    """R-003: None deps raise RuntimeError with a clear message before crashing."""
+    """None deps raise RuntimeError with a clear message before crashing."""
 
     async def test_raises_runtime_error_when_gateway_is_none(self) -> None:
         """RuntimeError raised immediately when gateway is None."""
@@ -712,12 +712,12 @@ class TestBackfillEmbeddingsAC7:
 
 
 # ---------------------------------------------------------------------------
-# R-005 -- Stateful pagination: no row is skipped due to offset mis-advance
+# Stateful pagination: no row is skipped due to offset mis-advance
 # ---------------------------------------------------------------------------
 
 
 class TestBackfillPaginationStateful:
-    """R-005: Multi-page stateful mock verifies all backfillable rows are updated.
+    """Multi-page stateful mock verifies all backfillable rows are updated.
 
     The mock models the real DB: rows that get update() called are removed from
     the IS-NULL set; permanently-skip rows (embed returns None) stay in IS-NULL

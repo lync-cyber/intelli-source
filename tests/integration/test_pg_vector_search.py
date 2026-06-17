@@ -1,4 +1,4 @@
-"""T-EMB-1 AC-6 + T-081: pgvector cosine similarity search + JSONB @> operator.
+"""AC-6: pgvector cosine similarity search + JSONB @> operator.
 
 Covers AC-4 (vector search via POST /api/v1/search) and AC-5 (JSONB @> filter
 against content_clusters.tags).

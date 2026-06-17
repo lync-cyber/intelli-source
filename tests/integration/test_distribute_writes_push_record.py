@@ -1,17 +1,12 @@
-"""Integration test for AC-7 — T-097 RED phase.
+"""Integration test for AC-7.
 
 AC-7: `_distribute_execute` must drive the real DistributorFacade so that at
 least one PushRecord row is written and the persisted recipient information
 is PII-masked (no plaintext email `@` or 11-digit phone numbers).
 
-These tests are expected to FAIL in RED phase because:
-- `build_distributor_facade()` still returns the T-095 stub `DistributorFacade`
-  whose `distribute()` returns `{"status": "pending", "reason": "stub", ...}`.
-- The stub never calls `PushRepository.create`, so no PushRecord rows land in
-  the DB and the PII-mask assertion is meaningless.
-- After T-097 GREEN, `build_distributor_facade` builds the real facade with
-  injected channels + matcher; `_distribute_execute` exercises the full
-  pipeline and persists masked PushRecord rows.
+`build_distributor_facade` builds the real facade with injected channels +
+matcher; `_distribute_execute` exercises the full pipeline and persists
+masked PushRecord rows.
 """
 
 from __future__ import annotations
@@ -82,7 +77,7 @@ def _make_mock_session_factory(
     mock_sub.frequency = "realtime"
     mock_sub.quiet_hours = None
 
-    # B-057: facade._load_content_and_subscriptions calls session.scalars
+    # facade._load_content_and_subscriptions calls session.scalars
     # twice — first for ProcessedContent (.one_or_none()), then for
     # Subscriptions (.all()). Each call needs its own scalars result.
     mock_content_scalars = MagicMock()
@@ -151,11 +146,7 @@ class TestDistributeWritesPushRecord:
     persisted row must not carry plaintext recipient PII."""
 
     async def test_distribute_returns_real_facade_result_shape(self) -> None:
-        """After T-097 the facade returns ok + matched/sent/skipped counters.
-
-        RED failure: T-095 stub returns `{"status": "pending", "reason": ...}`
-        without the counters the real facade is contracted to produce.
-        """
+        """The facade returns ok + matched/sent/skipped counters."""
         tool_deps = _make_tool_deps_with_real_facade()
         content_id = str(uuid.uuid4())
         subscription_id = str(uuid.uuid4())
@@ -186,11 +177,7 @@ class TestDistributeWritesPushRecord:
         )
 
     async def test_distribute_persists_at_least_one_push_record(self) -> None:
-        """T-097 facade must call PushRepository.create at least once.
-
-        RED failure: the T-095 stub returns immediately without touching
-        PushRepository, so the spy captures zero calls.
-        """
+        """The facade must call PushRepository.create at least once."""
         from intellisource.storage.repositories.push import PushRepository
 
         tool_deps = _make_tool_deps_with_real_facade()
@@ -214,17 +201,11 @@ class TestDistributeWritesPushRecord:
 
         assert len(captured) >= 1, (
             f"facade must call PushRepository.create at least once; "
-            f"got {len(captured)} calls. T-097 distribute pipeline is not wired."
+            f"got {len(captured)} calls. distribute pipeline is not wired."
         )
 
     async def test_distribute_pushrecord_kwargs_have_no_plaintext_pii(self) -> None:
-        """All kwargs passed to PushRepository.create must be PII-masked.
-
-        RED failure: the T-095 stub never reaches PushRepository.create, so
-        the per-kwarg scan trivially passes — but the empty-captures
-        assertion above already establishes the RED signal. This test
-        becomes meaningful (and must continue to pass) after T-097 lands.
-        """
+        """All kwargs passed to PushRepository.create must be PII-masked."""
         from intellisource.storage.repositories.push import PushRepository
 
         # Subscription channel_config carries plaintext PII that the facade
@@ -256,24 +237,22 @@ class TestDistributeWritesPushRecord:
                 **extra_kwargs,
             )
 
-        # AC-7 contract: zero captured calls means PushRecord never persisted (RED)
+        # AC-7 contract: zero captured calls means PushRecord never persisted
         assert len(captured) >= 1, (
             "PushRepository.create must be called by the real facade; "
-            f"got {len(captured)} calls — T-097 facade not wired."
+            f"got {len(captured)} calls — facade not wired."
         )
         for idx, kw in enumerate(captured):
             assert not _contains_plaintext_pii(kw), (
                 f"PushRepository.create call #{idx} contains plaintext PII: {kw!r}. "
-                "T-097 facade must mask recipient PII before persistence."
+                "facade must mask recipient PII before persistence."
             )
 
     async def test_distribute_envelope_carries_no_plaintext_pii(self) -> None:
         """The dict returned by `_distribute_execute` must not leak plaintext PII.
 
-        RED failure: the stub embeds the raw `content_id` / `subscription_id`
-        in the response (not PII per se), but more importantly the stub does
-        not mask any future recipient info. After T-097, with PII-tagged
-        inputs flowing through the facade, the return envelope must be clean.
+        With PII-tagged inputs flowing through the facade, the return
+        envelope must be clean.
         """
         tool_deps = _make_tool_deps_with_real_facade()
 
@@ -291,21 +270,21 @@ class TestDistributeWritesPushRecord:
         # The full envelope (incl. nested result) must not echo plaintext PII.
         assert not _contains_plaintext_pii(envelope), (
             f"distribute envelope leaks plaintext PII: {envelope!r}. "
-            "T-097 facade must scrub recipient hints before returning."
+            "facade must scrub recipient hints before returning."
         )
 
-        # The facade result must surface canonical counters, not the stub's
-        # `reason` field (which T-095 used to flag the stub).
+        # The facade result must surface canonical counters, not a stub-style
+        # `reason` field.
         inner = envelope.get("result", {})
         assert "reason" not in inner or inner.get("status") == "ok", (
             f"stub-only 'reason' key still present: result={inner!r}. "
-            "T-097 must drop the placeholder envelope."
+            "the facade must drop the placeholder envelope."
         )
 
     async def test_distribute_pushrecord_recipient_id_is_masked_and_persisted(
         self,
     ) -> None:
-        """Anti-regression (R-002): PushRepository.create must receive recipient_id
+        """Anti-regression: PushRepository.create must receive recipient_id
         and its value must be PII-masked (not plaintext email)."""
         from intellisource.storage.repositories.push import PushRepository
 
@@ -329,23 +308,22 @@ class TestDistributeWritesPushRecord:
             )
 
         assert len(captured) >= 1, (
-            "PushRepository.create must be called; "
-            "R-002 requires recipient_id to be persisted."
+            "PushRepository.create must be called; recipient_id must be persisted."
         )
         for idx, kw in enumerate(captured):
             assert "recipient_id" in kw, (
                 f"call #{idx}: PushRepository.create must receive recipient_id kwarg; "
-                f"got keys={list(kw.keys())}. R-002 not fixed."
+                f"got keys={list(kw.keys())}."
             )
             rid = kw["recipient_id"]
             # Must not be plaintext email (mock sub has to_addr=user@example.com)
             assert not _EMAIL_PLAINTEXT_RE.search(str(rid or "")), (
                 f"call #{idx}: recipient_id must be masked, got {rid!r}. "
-                "R-002 facade must pass _mask_recipient() output to repo.create."
+                "facade must pass _mask_recipient() output to repo.create."
             )
 
     async def test_distribute_dedup_integrity_error_is_idempotent(self) -> None:
-        """Anti-regression (R-004): when PushRepository.create raises IntegrityError
+        """Anti-regression: when PushRepository.create raises IntegrityError
         (duplicate push record), facade must still return status='ok' rather than
         raising."""
         from sqlalchemy.exc import IntegrityError
@@ -373,5 +351,5 @@ class TestDistributeWritesPushRecord:
         # Facade must not propagate IntegrityError; outer tool envelope must be ok.
         assert envelope.get("status") == "ok", (
             f"distribute must not raise on IntegrityError from PushRepository; "
-            f"got envelope={envelope!r}. R-004 idempotent dedup not in place."
+            f"got envelope={envelope!r}. idempotent dedup not in place."
         )
