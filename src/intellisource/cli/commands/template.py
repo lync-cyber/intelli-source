@@ -8,6 +8,11 @@ import typer
 
 from intellisource.cli import _client
 from intellisource.cli._format import emit
+from intellisource.distributor.templates.discovery import (
+    list_file_overrides,
+    render_preview,
+    validate_overrides,
+)
 
 template_app = typer.Typer()
 
@@ -17,8 +22,24 @@ def template_list(
     json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
 ) -> None:
     """List digest templates (built-in + custom)."""
-    resp = _client.get("/api/v1/templates")
-    emit(resp.json(), json_output=json_output)
+    api_ok = True
+    try:
+        resp = _client.get("/api/v1/templates")
+        emit(resp.json(), json_output=json_output)
+    except typer.Exit:
+        typer.echo("（服务不可达，仅显示本地文件覆盖）")
+        api_ok = False
+
+    overrides = list_file_overrides()
+    typer.echo("\n文件覆盖（config/templates/）：")
+    if overrides:
+        for name, formats in sorted(overrides.items()):
+            typer.echo(f"  {name}: {', '.join(formats)}")
+    else:
+        typer.echo("  无")
+
+    if not api_ok:
+        raise typer.Exit(code=0)
 
 
 @template_app.command("show")
@@ -89,3 +110,43 @@ def template_rm(
         typer.echo("Not found")
         raise typer.Exit(code=1)
     typer.echo("Deleted.")
+
+
+@template_app.command("validate")
+def template_validate(
+    name: str | None = typer.Argument(
+        None, help="Template name to validate (omit for all overrides)"
+    ),
+) -> None:
+    """Validate file override templates in config/templates/."""
+    issues = validate_overrides(only=name)
+
+    if not issues:
+        typer.echo("All overrides are valid.")
+        return
+
+    has_error = False
+    for issue in issues:
+        prefix = "ERROR" if issue.severity == "error" else "WARNING"
+        typer.echo(f"[{prefix}] {issue.template}.{issue.fmt}.j2: {issue.message}")
+        if issue.severity == "error":
+            has_error = True
+
+    if has_error:
+        raise typer.Exit(code=1)
+
+
+@template_app.command("preview")
+def template_preview(
+    name: str = typer.Argument(..., help="Template name to preview"),
+    fmt: str | None = typer.Option(
+        None, "--format", "-f", help="Output format (defaults to template's default)"
+    ),
+) -> None:
+    """Render a preview of a template using a sample bundle."""
+    try:
+        output = render_preview(name, fmt)
+    except ValueError as exc:
+        typer.echo(f"未知模板: {name!r} — {exc}")
+        raise typer.Exit(code=1) from None
+    typer.echo(output)
