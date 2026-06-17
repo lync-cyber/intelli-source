@@ -50,30 +50,20 @@ deps: []
 
 ## 部署/分发 新手友好度评估（DEPLOY-UX-EVAL 20260617，非阻塞）
 
-> 来源：[CODE-SCAN-deploy-ux-20260617-r1](reviews/code/CODE-SCAN-deploy-ux-20260617-r1.md)（四单元 = 部署/订阅/推送/模板）。本地起栈未被硬阻断，故无新增 P0；`G-NNN` 编号见报告。修复方向已折入用户 2026-06-17 决策（Q1=B+C / Q2=A / Q3=A / Q4=A）。
-
-### B-072 [P1] 失败推送审计落库缺失（G-001）
-- **现状（代码实证）**：`distributor/facade.py:204,226` 失败路径仅 `_record_push_outcome`（Prometheus 计数）后 `continue`；DB 落库 `_record_push`（`facade.py:234`）只在成功路径调用、`status` 硬编码 `"sent"`（`:364`）。`composition/builders.py:65-75` 构造渠道时不向 `from_env` 注入 `push_repo`，致 `distributor/base.py:144` 的失败落库分支永不触发。结果：`/push-records` 永远只有 `sent` 行，`PushRecord.error_message/retry_count/status=failed`（`storage/models.py:486-488`）为死列。
-- **影响**：推送失败无审计抓手，"为什么没收到"只能翻 worker 日志。
-- **修复方向**：`build_distributor_facade` 给 `from_env` 注入 `push_repo`（改签名 + 透传）；失败路径补 `_record_push(status="failed", error_message=...)`，复用 `base.py:197-204` 既有逻辑。单点改动。
-- **触发**：下次动分发链路 / 加推送可观测性时。
-
-### B-073 [P1] 订阅静默失配兜底（G-002 + G-003，决策 A=reload WARN）
-- **现状（代码实证）**：`config/subscription_validator.py` 不校验 `match_rules`；`distributor/matcher.py:36-42` 用 `rules.get(...)`，键拼错被忽略；全空 match_rules → `_matches` 直接 `return False`（`matcher.py:42`），订阅 active 却永不触发。`frequency` 为自由 str 无枚举（`config/subscription_models.py:19`），非法值经 `distributor/frequency.py:59` `interval=None → return True` 被当 realtime；`quiet_hours`/`timezone` 仅运行期暴露（`frequency.py:99-103` 无效时区静默回退 UTC）。
-- **影响**：写错规则/频率后订阅"假活"或行为反转，加载期零报错，直接打断 TTFV。
-- **修复方向（决策 A）**：reload 时对"match_rules 未知键 / 无任何有效匹配维度"WARN（不阻断）；`frequency` 收敛到已存在的 `FREQUENCY_OPTIONS`（`frequency.py:19-24`）；加载期校验 `quiet_hours` 的 `HH:MM` 与 `timezone` 有效性。可选叠加 `intellisource subscriptions test-match <id>` dry-run 诊断命令。
-- **触发**：下次动订阅校验 / 分发匹配时。
+> 来源：[CODE-SCAN-deploy-ux-20260617-r1](reviews/code/CODE-SCAN-deploy-ux-20260617-r1.md)（四单元 = 部署/订阅/推送/模板）。本地起栈未被硬阻断，故无新增 P0；`G-NNN` 编号见报告。修复方向已折入用户 2026-06-17 决策（Q1=B+C / Q2=A / Q3=A / Q4=A）。两个 P1（B-072/B-073）已闭环（见「已闭环」段）；开放项为 B-074~B-077。
 
 ### B-074 [P2] 远端主机就绪 + 置备 + registry 镜像（G-006 + G-013(registry)，决策 B+C）
 - **现状（代码实证）**：`docker/docker-compose.yml:75-76` 直接 `8000:8000` 暴露且全为 `build:` 模式；deploy-spec 与 PRE-DEPLOY-WALKTHROUGH 全文 `localhost`，无 reverse proxy / TLS / 域名 / systemd / 防火墙 / 入站 webhook 公网可达性指引；仓库无 ssh/ansible/置备脚本；远端回滚强依赖目标主机重建 zhparser（`docker/db.Dockerfile` 源码编译 SCWS+zhparser）。
 - **影响**：无法据现有文档完成公网可访问的远端部署，回调类渠道在远端不可用。
 - **修复方向（决策 B+C）**：① 新增"远端部署主机就绪"文档（反代/TLS/防火墙/webhook 公网 URL 示例）；② 提供置备脚本或 `intellisource` 远端 target；③ 引入 prebuilt registry 镜像 + compose pull 模式（同解远端回滚重建依赖）。文档先行、自动化与镜像为中-大成本后续。
+- **进度**：① 文档已交付 —— [`docs/deploy/remote-host-readiness.md`](deploy/remote-host-readiness.md)（反代/TLS/防火墙/入站 webhook 公网可达/systemd/冷启动代价 + 对 deploy-spec 交叉引用）。剩余 ②③（置备脚本 + registry 镜像）= 代码/infra，待续。
 - **触发**：规划首次远端/生产部署时。
 
 ### B-075 [P2] 模板可发现性 + 变量文档 + CLI validate/preview（G-004 + G-005，决策 A=文件覆盖为主）
 - **现状（代码实证）**：渲染唯一注入 `bundle`（`distributor/templates/render.py:39`），字段仅存在于 `distributor/templates/schemas.py:16-41`；`config/templates/README.md`（9 行）只说"放同名文件"不提字段。CLI `template list/add/rm`（`cli/commands/template.py`）只操作 DB `templates` 表，`config/templates/` 文件覆盖（`render.py:21,29`）永不出现在 list、无法 preview/validate；文件名拼错（kebab/snake 混淆，如 `daily_brief` vs `daily-brief`）→ FileSystemLoader 静默回落 builtin。
 - **影响**：写自定义模板须逆向读源码；不知该放文件还是敲命令；拼错文件名静默失效。
 - **修复方向（决策 A）**：① `config/templates/README.md` 补 `bundle` 字段表 + 端到端覆盖示例；② 文档明确"文件覆盖为主、DB 模板为辅"分工；③ CLI `template list` 增列扫描 `config/templates/` file override + 新增 `template validate`/`preview`。文档低成本，CLI 增强中等成本。
+- **进度**：①② 文档已交付 —— `config/templates/README.md` 重写（bundle/DigestItem/DigestSection 字段表 + 文件覆盖↔DB 分工 + 端到端覆盖示例 + 内置模板×格式矩阵含 json_feed + 缺失格式静默回落说明）。剩余 ③（CLI `template list` 增列 file override + `validate`/`preview`）= 代码，待续。
 - **触发**：下次动模板分发 / template CLI 时。
 
 ### B-076 [P2] 推送渠道排障可观测性（G-007 + G-008 + G-009 + G-011，SMTP 默认改 A）
@@ -90,7 +80,8 @@ deps: []
 - **现状（代码实证）**：`init`/`up` 不检测 Docker daemon / `.env` 存在（`cli/commands/stack.py:56-60` 只捕 FileNotFoundError），手动 copy `.env.example` 绕过 init → 弱口令（占位非空，compose `:?` 不拦，`.env.example:18,27,36`）；match_rules 语义（AND/OR、大小写、keywords `+`/`!`/`/regex/`、source_names 强约束）仅在 `distributor/matcher.py` 与内部 dev-plan，`config/examples/subscriptions.example.yaml` 只演示 tags；embedding `start_period:1200s`（`docker-compose.yml:181`）无进度提示；`config/templates/README.md:3` 漏列 `json_feed`；j2 覆盖度不全（weekly-roundup 仅 html、push-card 无 html）→ 静默回落 default_format（`distributor/templates/base.py:42-44`）。
 - **影响**：各为小摩擦，单独不阻断。
 - **修复方向**：`up` 前置检查 daemon + `.env` 友好提示；example.yaml 补全匹配维度 + README 加 match_rules 语义小节；`up` 输出 embedding 首拉等待提示；补 README `json_feed` 与缺失 j2 说明。
-- **触发**：穿插在 `B-073` / `B-074` / `B-075` 落地时顺手处理。
+- **进度**：文档面（G-012 + G-013 文档部分）已交付 —— 根 `README.md` 新增「订阅匹配规则 match_rules 语义」小节（5 个识别键 + keywords `+`/`!`/`/regex/` 操作符 + AND/OR 判定顺序）；`config/examples/subscriptions.example.yaml` 补全匹配维度示例 + quiet_hours 时区/跨午夜注释；`config/templates/README.md` 补 json_feed + 缺失格式静默回落说明。剩余 = G-010（`up`/`init` daemon+`.env` 预检 + 弱口令拦截）+ embedding 首拉进度提示 = 代码，待续。
+- **触发**：穿插在 `B-074` / `B-075` 落地时顺手处理。
 
 ---
 
@@ -135,3 +126,5 @@ deps: []
 - **B-069 + pre-deploy 走查 15-20**（2026-06-11 真起栈，[CORRECTIONS-LOG](reviews/CORRECTIONS-LOG.md)）：步骤 15-20 全 GO（16 N/A）；B-069 `/health` version `0.0.0+unknown`→`0.4.6` inline 修复（version.py pyproject fallback + Dockerfile COPY pyproject + 3 单测）；确认 PR #107 已闭环上次走查（2026-05-29）的 B-040（trace_id 跨进程）/ B-059（broker 宕 fail-fast）/ B-060（失败 LLM 落 llm_call_logs）。D1（Windows BuildKit stale cache）转剩余真债跟踪。
 - **框架升级 0.4.1→0.9.1**（2026-06-12）：`cataforge bootstrap` 刷新 scaffold 162 文件 + IDE 产物重部署 + kg-first 初始化 KG store。升级激活的 `KG ingestion completeness` 门禁对 legacy approved 文档报 14 个跨文档 entity-id collision（importer 把裸 `T-`/`F-`/`AC-` 当定义）→ test-report(24) + dev-plan-s8r(3) 裸 id 改 inline-code 让定义唯一化，`kg import` + doctor all-pass；kg/store 加 gitignore。[PR #110](https://github.com/lync-cyber/intelli-source/pull/110)；上游反馈见 [feedback](feedback/feedback-suggest-kg-ingest-gate-legacy-docs-20260612.md)。
 - **B-070（[PR #118](https://github.com/lync-cyber/intelli-source/pull/118)）**：Chat 会话压缩兑现 [AC-053](prd/prd-intellisource-v1.md)「超 token 自动摘要历史对话」—— 写入端 `_bounded_history`→`compact_messages_for_chat` token-aware 压缩替代每轮 `history[-20:]` 硬截断，**持久化** summary+recent（旧上下文以结构化摘要存活）；webhooks 同源 persist 路径一并迁移；`compact_history` 改纯函数（不污染 detached `stored_session.context`）；compaction sizing 抽 `_chat_compaction_context_window` helper 收口（同 PR 第二 commit 修 AC-T071-9 集成 parity 回归）。由 session-splitting 评估（[PR #117](https://github.com/lync-cyber/intelli-source/pull/117) NO-GO）副产暴露；code-review approved_with_notes（R-001 MEDIUM budget 收口 + R-002 webhooks + R-003 测试隔离 + R-004 读写解耦 全整改）；全门禁含 integration（ruff+mypy --strict 267+全量 unit+全量 integration exit 0）全绿。配置对齐次生项拆为 **B-071**（开放 P3，[PR #119](https://github.com/lync-cyber/intelli-source/pull/119) 立项）。
+- **B-072（G-001）**：失败推送审计落库 —— `facade.py` 失败两分支（渠道抛异常 / 渠道返回 `{"status":"failed"}`）补 `_record_push(status="failed", error_message=...)`，带与成功路径同口径脱敏 `recipient_id` + email/phone 脱敏 `error_message`，消除 `PushRecord.status=failed/error_message` 死列；落库统一在 facade 层（持有 session_factory），不走渠道 `from_env` 注入（与 session-per-request 不契合）；两失败分支去重抽 `_record_failed_push` helper。翻转 B-049 旧测试（失败时 `_record_push` 现以 `status="failed"` 被调用而非 `assert_not_called`）。新增 `test_facade_push_record_failed_b072.py`（AC1~AC6）；TDD light + REFACTOR(duplication)；全门禁绿（ruff+mypy --strict 267+全量 unit 3605 PASS+push-record integration 8 PASS）。
+- **B-073（G-002+G-003，决策 A）**：订阅静默失配 reload WARN —— `subscription_validator._warn_silent_misconfig` 在 `validate_subscriptions_file` 校验通过路径对四类静默错配发非阻塞 WARN：match_rules 未知键、无有效匹配维度（永不匹配）、非法 frequency、非法 timezone（`zoneinfo` try/except）；`VALID_FREQUENCIES` 定义在 `config/constants.py` 避免 config→distributor 反向导入（lint-imports 12 kept/0 broken）。WARN 不改 `validate_subscriptions_file` 成功/失败语义。新增 `test_subscription_reload_warn_b073.py`（AC1~AC6）；TDD light，无需 REFACTOR；全门禁绿。

@@ -70,7 +70,7 @@ class TestHealthRealChecker:
         assert "uptime_seconds" in body
 
     async def test_health_endpoint_swallows_checker_exception(self) -> None:
-        """R-004: /health must never raise even if HealthChecker explodes."""
+        """/health must never raise even if HealthChecker explodes."""
         app = FastAPI()
         from intellisource.api.routers.system import router as system_router
 

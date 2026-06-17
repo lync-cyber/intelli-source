@@ -6,7 +6,7 @@ import uuid
 from typing import TYPE_CHECKING, Any
 
 from intellisource.core.settings import get_settings
-from intellisource.distributor.pii import mask_email, mask_phone
+from intellisource.distributor.pii import mask_email, mask_error_message, mask_phone
 from intellisource.observability.logging import get_logger
 
 if TYPE_CHECKING:
@@ -15,7 +15,8 @@ if TYPE_CHECKING:
 
 _logger = get_logger(__name__)
 
-# B-005: distributor-layer labeled counter name.
+
+# distributor-layer labeled counter name.
 _METRIC_PUSHES_TOTAL: str = "pushes_total"
 _METRIC_PUSHES_DESC: str = "Push attempts by channel and outcome"
 
@@ -26,7 +27,7 @@ def _record_push_outcome(outcome: str, channel: str = "unknown") -> None:
     distribute runs in the prefork worker, whose local MetricsCollector is never
     served over HTTP. The API ``/api/v1/metrics`` endpoint can therefore only
     surface this family by reading it back from the shared Redis store, so each
-    outcome is mirrored there too (B-064). The two writes are independent — a
+    outcome is mirrored there too. The two writes are independent — a
     failure in one must not skip the other.
 
     outcome ∈ {"sent", "failed", "skipped"}.
@@ -193,15 +194,21 @@ class DistributorFacade:
                     sub.id,
                     channel_name,
                 )
+                reason = str(exc) or type(exc).__name__
                 skipped += 1
                 errors.append(
                     {
                         "subscription_id": str(sub.id),
                         "channel": channel_name,
-                        "reason": str(exc) or type(exc).__name__,
+                        "reason": reason,
                     }
                 )
-                _record_push_outcome("failed", channel=channel_name)
+                await self._record_failed_push(
+                    content_id=content_id,
+                    sub=sub,
+                    channel=channel_name,
+                    reason=reason,
+                )
                 continue
 
             # Channels swallow transport errors and return {"status": "failed"}
@@ -223,7 +230,12 @@ class DistributorFacade:
                         "reason": reason,
                     }
                 )
-                _record_push_outcome("failed", channel=channel_name)
+                await self._record_failed_push(
+                    content_id=content_id,
+                    sub=sub,
+                    channel=channel_name,
+                    reason=reason,
+                )
                 continue
 
             sent += 1
@@ -236,6 +248,7 @@ class DistributorFacade:
                 subscription_id=str(sub.id),
                 channel=channel_name,
                 recipient_id=_mask_recipient(recipient_raw),
+                status="sent",
             )
 
         return {
@@ -291,7 +304,7 @@ class DistributorFacade:
         """Load ProcessedContent + matching subscriptions via ContentRepository.
 
         Opens one session so the eager-loaded ``raw_content.source`` (needed by
-        SubscriptionMatcher for ``match_rules.source_names``, B-057) stays
+        SubscriptionMatcher for ``match_rules.source_names``) stays
         attached. A falsy ``subscription_id`` (None or "" from the strict
         distribute step, which has no subscription_id param) resolves to every
         active subscription rather than being treated as an invalid uuid; an
@@ -337,6 +350,26 @@ class DistributorFacade:
             repo = PushRepository(session=session)
             return await repo.exists(sub_uuid, content_uuid, channel)
 
+    async def _record_failed_push(
+        self,
+        *,
+        content_id: str,
+        sub: Any,
+        channel: str,
+        reason: str,
+    ) -> None:
+        """Record metric and persist a failed push record with masked PII."""
+        _record_push_outcome("failed", channel=channel)
+        recipient_raw = _extract_recipient(sub)
+        await self._record_push(
+            content_id=content_id,
+            subscription_id=str(sub.id),
+            channel=channel,
+            recipient_id=_mask_recipient(recipient_raw),
+            status="failed",
+            error_message=mask_error_message(reason),
+        )
+
     async def _record_push(
         self,
         *,
@@ -344,6 +377,8 @@ class DistributorFacade:
         subscription_id: str,
         channel: str,
         recipient_id: str | None = None,
+        status: str = "sent",
+        error_message: str | None = None,
     ) -> None:
         """Persist a push record with masked recipient info."""
         from intellisource.storage.repositories.push import PushRepository
@@ -361,8 +396,9 @@ class DistributorFacade:
                     subscription_id=sub_uuid,
                     content_id=content_uuid,
                     channel=channel,
-                    status="sent",
+                    status=status,
                     recipient_id=recipient_id,
+                    error_message=error_message,
                 )
                 await session.commit()
             except Exception as exc:

@@ -1,14 +1,9 @@
-"""T-095 RED AC-11: Celery app singleton unified between API and Worker.
+"""AC-11: Celery app singleton unified between API and Worker.
 
-After T-095:
-- main.init_celery() and main.shutdown_celery() are deleted
+- main.init_celery() and main.shutdown_celery() do not exist
 - main._lifespan binds app.state.celery_app to the module singleton in
   intellisource.scheduler.celery_app
 - API and Worker share the SAME Celery() instance (same task registry, conf)
-
-Current main: main.init_celery() creates a separate Celery() instance distinct
-from scheduler.celery_app's module-level singleton — task registration and conf
-are split across two objects (CR-012).
 """
 
 from __future__ import annotations
@@ -75,28 +70,28 @@ async def test_app_state_celery_app_is_module_singleton(
             assert celery_on_state is not None, "app.state.celery_app not set"
             assert celery_on_state is module_celery_app, (
                 f"AC-11: app.state.celery_app must BE the scheduler.celery_app module "
-                f"singleton (CR-012 dual-singleton fix); got distinct objects: "
+                f"singleton (dual-singleton fix); got distinct objects: "
                 f"id(state)={id(celery_on_state)} vs id(module)={id(module_celery_app)}"
             )
 
 
 def test_main_does_not_define_init_celery() -> None:
-    """AC-11 / AC-9 corollary: main.init_celery() is deleted after T-095."""
+    """AC-11 / AC-9 corollary: main.init_celery() does not exist."""
     import intellisource.main as main_mod
 
     assert not hasattr(main_mod, "init_celery"), (
         "AC-9: main.init_celery still exists; the dual-Celery-singleton bug "
-        "(CR-012) requires it be removed"
+        "requires it be removed"
     )
 
 
 def test_main_does_not_define_shutdown_celery() -> None:
-    """AC-11 / AC-9 corollary: main.shutdown_celery() is deleted after T-095."""
+    """AC-11 / AC-9 corollary: main.shutdown_celery() does not exist."""
     import intellisource.main as main_mod
 
     assert not hasattr(main_mod, "shutdown_celery"), (
         "AC-9: main.shutdown_celery still exists; the dual-Celery-singleton "
-        "bug (CR-012) requires it be removed"
+        "bug requires it be removed"
     )
 
 

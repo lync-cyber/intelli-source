@@ -1,4 +1,4 @@
-"""Integration test fixtures for T-081.
+"""Integration test fixtures.
 
 Provides pg_container (session-scoped pgvector PostgreSQL container),
 pg_session (function-scoped SAVEPOINT-isolated AsyncSession), and

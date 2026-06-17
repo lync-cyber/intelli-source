@@ -1,4 +1,4 @@
-"""Tests for T-072 AC-T072-1 and AC-T072-4: lifespan DatabaseManager DI and
+"""Tests for AC-T072-1 and AC-T072-4: lifespan DatabaseManager DI and
 real Redis/Celery initialisation.
 
 RED phase — all tests in this file are expected to FAIL until the
@@ -139,10 +139,9 @@ class TestInitRedis:
 class TestLifespanCeleryWiring:
     """Lifespan binds the module-level Celery singleton to app.state.
 
-    Updated by T-095: legacy AC-T072-4 asserted `init_celery()` constructed
-    a Celery instance during startup; the unified-singleton fix removes that
-    function. The API process now consumes the same Celery() instance the
-    Worker exposes from `intellisource.scheduler.celery_app`.
+    AC-T072-4: there is no `init_celery()`; the API process consumes the same
+    Celery() instance the Worker exposes from
+    `intellisource.scheduler.celery_app`.
     """
 
     def test_main_module_no_longer_defines_init_celery(self) -> None:
@@ -150,7 +149,7 @@ class TestLifespanCeleryWiring:
         import intellisource.main as main_module
 
         assert not hasattr(main_module, "init_celery"), (
-            "main.init_celery was removed by T-095 (CR-012 dual-singleton fix); "
+            "main.init_celery does not exist; "
             "use scheduler.celery_app.celery_app directly"
         )
 

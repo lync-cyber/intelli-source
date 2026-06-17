@@ -1,4 +1,4 @@
-"""Vector storage and hybrid search (T-005).
+"""Vector storage and hybrid search.
 
 Provides VectorStore for pgvector-based embedding storage/retrieval
 and HybridIndex for keyword/semantic/hybrid search modes.

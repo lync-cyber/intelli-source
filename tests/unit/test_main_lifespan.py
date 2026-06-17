@@ -1,11 +1,10 @@
 """Tests for lifespan-managed app.state.celery_app.
 
-Originally written for T-083 AC-3/AC-8. Updated by T-095 to reflect the
-unified Celery singleton: lifespan now binds `app.state.celery_app` to the
-module-level `intellisource.scheduler.celery_app.celery_app` instead of a
-fresh `init_celery()` instance, and no longer calls `.close()` on shutdown
-(the singleton is owned by the worker process; the API process is a
-consumer).
+Covers AC-3/AC-8. With the unified Celery singleton, lifespan binds
+`app.state.celery_app` to the module-level
+`intellisource.scheduler.celery_app.celery_app` and does not call `.close()`
+on shutdown (the singleton is owned by the worker process; the API process
+is a consumer).
 """
 
 from __future__ import annotations
@@ -44,7 +43,7 @@ class TestLifespanCeleryAppState:
 
     @pytest.mark.asyncio
     async def test_startup_celery_app_is_module_singleton(self) -> None:
-        """app.state.celery_app IS the module-level singleton (CR-012 fix)."""
+        """app.state.celery_app IS the module-level singleton."""
         mock_db = MagicMock()
         mock_db.close = AsyncMock()
 

@@ -1,4 +1,4 @@
-"""Tests for T-060: LLM statistics dashboard API.
+"""Tests for LLM statistics dashboard API.
 
 Covers:
   AC-T060-1: GET /api/v1/llm/stats?period= supports day/week/month
@@ -141,12 +141,12 @@ class TestPeriodParameter:
 
 
 # ---------------------------------------------------------------------------
-# R-001 fix: invalid period returns 400
+# invalid period returns 400
 # ---------------------------------------------------------------------------
 
 
 class TestInvalidPeriod:
-    """R-001: Invalid period value returns HTTP 400, not 500."""
+    """Invalid period value returns HTTP 400, not 500."""
 
     @pytest.mark.asyncio
     async def test_invalid_period_returns_400(self, llm_client: AsyncClient) -> None:

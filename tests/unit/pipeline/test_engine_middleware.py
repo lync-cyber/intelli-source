@@ -1,4 +1,4 @@
-"""Tests for T-084: PipelineEngine middleware integration and streaming (AC-1 to AC-6).
+"""Tests for PipelineEngine middleware integration and streaming (AC-1 to AC-6).
 
 Covers:
 - AC-1: MiddlewareChain before/after onion hooks wired into PipelineEngine.execute()
@@ -385,7 +385,7 @@ class TestAC5FactoryInstantiatesPipelineEngine:
 
             from intellisource.agent.factory import build_agent_runner
 
-            # T-095 contract: build_agent_runner is keyword-only and requires
+            # build_agent_runner is keyword-only and requires
             # five non-None deps.
             build_agent_runner(
                 session_factory=MagicMock(),
@@ -512,7 +512,7 @@ class TestAC6UnitMiddlewareAndConditionalSkip:
 
 
 # ===========================================================================
-# R-001: execute_stream fail_fast parity tests
+# execute_stream fail_fast parity tests
 # ===========================================================================
 
 
@@ -578,7 +578,7 @@ class TestExecuteStreamFailFastParity:
 
 
 # ===========================================================================
-# R-001 (r3): ctx["errors"] schema consistency — execute() vs execute_stream()
+# ctx["errors"] schema consistency — execute() vs execute_stream()
 # ===========================================================================
 
 

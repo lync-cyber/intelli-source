@@ -1,4 +1,4 @@
-"""B-033: build_distributor_facade soft-disables channels with missing env vars."""
+"""build_distributor_facade soft-disables channels with missing env vars."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Tests for T-083 AC-1 and AC-4.
+"""Tests for AC-1 and AC-4.
 
 Covers celery_app module-level instantiation and task registration.
 """

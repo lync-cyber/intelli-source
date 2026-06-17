@@ -1,6 +1,4 @@
-"""B-046: _process_execute populates ProcessedContent.published_at.
-
-Backlog: docs/BACKLOG-intellisource-v1.md §B-046.
+"""_process_execute populates ProcessedContent.published_at.
 
 The collector already parses pubDate/updated into RawContent.published_at, and
 ContentRepository.create already accepts a published_at kwarg, but

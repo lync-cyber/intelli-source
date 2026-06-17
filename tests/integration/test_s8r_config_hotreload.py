@@ -1,4 +1,4 @@
-"""T-094 AC-5: ConfigWatcher hot-reload integration.
+"""AC-5: ConfigWatcher hot-reload integration.
 
 Verifies that when on_config_change is invoked with a newly written YAML
 file path, the configured sources are loaded → validated → upserted via
@@ -80,7 +80,7 @@ class TestConfigHotReload:
     async def test_on_config_change_records_version_after_upsert(
         self, tmp_path: Path
     ) -> None:
-        """T-099 AC-6: ConfigVersionManager.record_version is invoked."""
+        """AC-6: ConfigVersionManager.record_version is invoked."""
         from intellisource.config.loader import ConfigVersionManager
         from intellisource.config.models import SourceConfig
 

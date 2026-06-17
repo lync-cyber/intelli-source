@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 
 def mask_email(email: str) -> str:
     """Mask *email*: keep first char of local part + full domain."""
@@ -35,3 +37,16 @@ def mask_phone(phone: str) -> str:
     first3 = "".join(local_digits[:3])
     last4 = "".join(local_digits[-4:])
     return first3 + "***" + last4
+
+
+_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+_PHONE_RE = re.compile(r"\+?\d[\d\s-]{6,}\d")
+
+
+def mask_error_message(msg: str | None) -> str | None:
+    """Redact email addresses and phone numbers in *msg* before persistence."""
+    if not msg:
+        return msg
+    masked = _EMAIL_RE.sub(lambda m: mask_email(m.group(0)), msg)
+    masked = _PHONE_RE.sub(lambda m: mask_phone(m.group(0)), masked)
+    return masked

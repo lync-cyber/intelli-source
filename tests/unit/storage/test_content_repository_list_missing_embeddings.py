@@ -1,4 +1,4 @@
-"""RED-phase tests for ContentRepository.list_missing_embeddings (T-BF-1 AC-1/AC-2).
+"""Tests for ContentRepository.list_missing_embeddings (AC-1/AC-2).
 
 AC-1: list_missing_embeddings(batch_size=2, offset=0) returns 2 NULL-embedding rows;
       all returned records have embedding == None; result is a list[ProcessedContent].

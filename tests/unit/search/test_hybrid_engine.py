@@ -1,6 +1,6 @@
 """Tests for HybridSearchEngine query wiring and gateway embed injection.
 
-Covers (T-EMB-2 AC-1..AC-7):
+Covers (AC-1..AC-7):
   AC-1: semantic mode with gateway calls embed() and passes resulting vector to index
   AC-2: embed() returning None → effective_mode degrades to keyword
   AC-3: embed() raising an exception → exception swallowed, degrades to keyword
@@ -9,7 +9,7 @@ Covers (T-EMB-2 AC-1..AC-7):
   AC-6: HybridSearchEngine without gateway degrades to keyword for semantic/hybrid
   AC-7: POST /search endpoint constructs HybridSearchEngine with gateway from app.state
 
-Also covers (T-085 legacy):
+Also covers:
   search() calls HybridIndex.search() with query + query_vector
   keyword_weight / vector_weight are forwarded to HybridIndex.search()
   search() with mock HybridIndex returns a non-empty result list
@@ -356,7 +356,7 @@ class TestSearchReturnsResults:
 
 
 # ===========================================================================
-# T-EMB-2: query-side semantic wiring (gateway embed injection)
+# query-side semantic wiring (gateway embed injection)
 # ===========================================================================
 
 

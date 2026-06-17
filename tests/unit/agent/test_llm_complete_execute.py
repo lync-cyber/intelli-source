@@ -1,10 +1,10 @@
 """Tests for _llm_complete_execute real LLMGateway invocation via ToolDeps.
 
-Covers T-087 AC-4:
+Covers AC-4:
 - _llm_complete_execute must call LLMGateway.complete() or LLMGateway.chat()
   through the ToolDeps-injected gateway instance (not return a placeholder).
 - The call must be made exactly once per invocation.
-- The returned result must not be the old placeholder {"status": "ok", ...}.
+- The returned result must not be a placeholder {"status": "ok", ...}.
 """
 
 from __future__ import annotations

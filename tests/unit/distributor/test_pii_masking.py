@@ -1,6 +1,6 @@
 """Tests for PII masking helpers in distributor/pii.py.
 
-Covers AC-8 of T-090.
+Covers AC-8.
 """
 
 from __future__ import annotations

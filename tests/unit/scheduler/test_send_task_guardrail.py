@@ -65,7 +65,7 @@ class TestSendTaskGuardrail:
         )
 
     def test_exact_path_match_does_not_bypass_for_shadow_file(self) -> None:
-        """R-003: a file whose path contains 'scheduler/dispatch.py' as a substring
+        """A file whose path contains 'scheduler/dispatch.py' as a substring
         but is not the canonical path must still be caught as a violation.
 
         This verifies the guard uses exact equality (==) not substring matching (in).

@@ -1,4 +1,4 @@
-"""Unit tests for build_collector_registry() — T-097 RED phase.
+"""Unit tests for build_collector_registry() — RED phase.
 
 AC-1: composition.build_collector_registry() returns a CollectorRegistry
 instance with rss / api / web adapters registered and the returned

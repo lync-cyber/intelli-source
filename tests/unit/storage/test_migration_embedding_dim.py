@@ -1,4 +1,4 @@
-"""T-EMB-1 AC-5: Alembic migration for embedding dimension resize (1536 → 1024).
+"""AC-5: Alembic migration for embedding dimension resize (1536 → 1024).
 
 Validates migration structure without a real DB:
 - The migration module exists in alembic/versions/

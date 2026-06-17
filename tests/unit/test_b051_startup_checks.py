@@ -1,4 +1,4 @@
-"""B-051 Phase D: startup config warnings and IS_API_KEY placeholder guard."""
+"""Phase D: startup config warnings and IS_API_KEY placeholder guard."""
 
 from __future__ import annotations
 

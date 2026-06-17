@@ -32,7 +32,7 @@ def _format_prometheus(
     Output follows ``# HELP`` + ``# TYPE`` + sample-line shape so a Prometheus
     scraper can consume the per-process exposition directly. Per-process
     aggregation is by design; cross-process roll-up belongs in the
-    deployment-level Prometheus aggregator (out of scope for T-099).
+    deployment-level Prometheus aggregator (out of scope here).
 
     ``suppress_empty_labeled`` names labeled-counter families that are also
     rendered from the shared store (pushes_total). When the local series for

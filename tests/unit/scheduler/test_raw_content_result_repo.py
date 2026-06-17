@@ -1,4 +1,4 @@
-"""Unit regression test for T-096 R-001:
+"""Unit regression test:
 
 `_RawContentResultRepo.create` must call `session.commit()` after updating
 the RawContent row, otherwise the status/processed_at writes are rolled
@@ -50,7 +50,7 @@ async def test_create_calls_session_commit_when_row_found() -> None:
     result = await repo.create({"content_id": str(uuid.uuid4()), "tool": "process"})
 
     assert session_mock.commit.await_count == 1, (
-        "R-001 regression: _RawContentResultRepo.create must call session.commit() "
+        "_RawContentResultRepo.create must call session.commit() "
         f"after updating RawContent; got {session_mock.commit.await_count} commit calls"
     )
     assert row.status == "processed"

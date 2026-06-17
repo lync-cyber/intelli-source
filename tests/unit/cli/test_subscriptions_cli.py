@@ -1,4 +1,4 @@
-"""Tests for `intellisource subscriptions` CLI subcommands (B-055)."""
+"""Tests for `intellisource subscriptions` CLI subcommands."""
 
 from __future__ import annotations
 

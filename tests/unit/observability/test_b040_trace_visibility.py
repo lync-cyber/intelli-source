@@ -1,4 +1,4 @@
-"""B-040: trace_id must be visible on real log lines (worker + api).
+"""trace_id must be visible on real log lines (worker + api).
 
 The walkthrough's ``grep trace_id=<uuid>`` found zero hits even though
 propagation worked: the worker let Celery hijack the root logger (clobbering
@@ -142,7 +142,7 @@ def test_worker_init_configures_logging_even_when_already_wired(
     idempotency guard. A forked prefork child inherits a non-None _celery_tasks
     and short-circuits; if setup_logging ran after the guard, that child would
     keep an unconfigured root logger and (with hijack=False) drop every INFO
-    line — exactly the trace_id= visibility gap B-040 closes.
+    line — exactly the trace_id= visibility gap this guards against.
     """
     import intellisource.scheduler.boot as boot_mod
 

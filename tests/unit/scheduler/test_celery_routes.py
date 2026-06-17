@@ -1,4 +1,4 @@
-"""Tests for T-092 AC-1 and AC-2.
+"""Tests for AC-1 and AC-2.
 
 AC-1: celery_app.conf contains task_routes and task_queues; run_pipeline routing
       config is non-empty and refers to at least one queue from PRIORITY_QUEUES /
@@ -224,8 +224,7 @@ class TestWorkerInitHandlerSignature:
         """worker_init_handler must call build_worker_composition() to obtain
         the runner + pipeline_loader rather than requiring them as kwargs.
 
-        Updated by T-095: legacy assertion targeted get_agent_runner();
-        composition root now flows through build_worker_composition.
+        The composition root flows through build_worker_composition.
         """
         from intellisource.scheduler.boot import worker_init_handler
 
@@ -261,8 +260,7 @@ class TestWorkerInitHandlerSignature:
     def test_handler_does_not_require_agent_runner_kwarg(self) -> None:
         """worker_init_handler must accept no kwargs and assemble its own deps.
 
-        Updated by T-095: the legacy assertion required get_agent_runner() to
-        be called; composition now flows through build_worker_composition.
+        Composition flows through build_worker_composition.
         """
         from intellisource.scheduler.boot import worker_init_handler
 
@@ -313,10 +311,9 @@ class TestGetAgentRunnerSingletonExists:
     def test_get_agent_runner_returns_without_args(self) -> None:
         """get_agent_runner() must accept zero positional arguments.
 
-        Updated by T-095: legacy behaviour was a silent fallback constructing
-        a None-wired runner. The function now raises RuntimeError when no
-        composition root has installed an instance — which is still a
-        zero-arg signature; we just guard TypeError specifically.
+        The function raises RuntimeError when no composition root has
+        installed an instance — which is still a zero-arg signature; we
+        just guard TypeError specifically.
         """
         import intellisource.agent.factory as factory_mod
         from intellisource.agent.runner import get_agent_runner_holder
@@ -340,12 +337,12 @@ class TestGetAgentRunnerSingletonExists:
 
 
 # ---------------------------------------------------------------------------
-# R-001: worker_process_init signal does not raise AttributeError
+# worker_process_init signal does not raise AttributeError
 # ---------------------------------------------------------------------------
 
 
 class TestWorkerInitSignalNoAttributeError:
-    """R-001: worker_init_handler uses the module-level celery_app singleton,
+    """worker_init_handler uses the module-level celery_app singleton,
     not a kwarg, so it must never raise AttributeError on signal dispatch."""
 
     @pytest.fixture(autouse=True)

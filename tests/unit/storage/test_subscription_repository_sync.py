@@ -1,4 +1,4 @@
-"""Tests for SubscriptionRepository.upsert + bulk_sync_from_configs (B-054 Phase 1)."""
+"""Tests for SubscriptionRepository.upsert + bulk_sync_from_configs."""
 
 from __future__ import annotations
 

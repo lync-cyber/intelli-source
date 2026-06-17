@@ -1,4 +1,4 @@
-"""B-014: Celery signal handlers mirror celery_* counters into the shared store.
+"""Celery signal handlers mirror celery_* counters into the shared store.
 
 Worker processes record ``celery_tasks_total`` / ``celery_task_failures_total``
 into the cross-process Redis store so the API ``/api/v1/metrics`` endpoint can

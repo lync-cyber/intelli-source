@@ -1,4 +1,4 @@
-"""Tests for T-043: Authentication middleware, request logging, and tracing.
+"""Tests for Authentication middleware, request logging, and tracing.
 
 Covers:
   AC-T043-1: AuthMiddleware validates X-API-Key header, returns 401 if invalid

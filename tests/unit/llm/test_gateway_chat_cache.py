@@ -1,6 +1,4 @@
-"""B-043: chat() path integrates LLMCache.
-
-Backlog: docs/BACKLOG-intellisource-v1.md §B-043.
+"""chat() path integrates LLMCache.
 
 Only complete() had a cache path; chat() (used by /search/chat via the flexible
 agent loop) never consulted the cache, so identical chat requests always hit the

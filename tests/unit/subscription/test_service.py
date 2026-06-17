@@ -1,4 +1,4 @@
-"""Tests for SubscriptionService — service layer (B-054 Layer 2)."""
+"""Tests for SubscriptionService — service layer (Layer 2)."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Tests for ReDoS protection in keyword matching (AC-5 of T-093).
+"""Tests for ReDoS protection in keyword matching (AC-5).
 
 security_sensitive=true:
 - /regex/ branch must use `regex.search(pattern, text, timeout=1.0)` (third-party

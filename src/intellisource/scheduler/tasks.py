@@ -432,7 +432,7 @@ class CeleryTasks:
 
 
 # ---------------------------------------------------------------------------
-# Backfill embeddings — T-BF-1
+# Backfill embeddings
 # ---------------------------------------------------------------------------
 
 
@@ -555,7 +555,7 @@ def _run_pipeline_body(**kwargs: Any) -> dict[str, Any]:
     if "params" not in kwargs:
         raise RuntimeError(
             "send_task kwargs missing 'params'; the legacy flat-kwargs shape "
-            "is rejected (T-095 AC-8). Use kwargs={'pipeline_name': ..., "
+            "is rejected (AC-8). Use kwargs={'pipeline_name': ..., "
             "'params': {...}} instead."
         )
     pipeline_name: str = kwargs.get("pipeline_name", "default")

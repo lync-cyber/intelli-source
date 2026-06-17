@@ -1,4 +1,4 @@
-"""Tests for T-040: Source CRUD API endpoints.
+"""Tests for Source CRUD API endpoints.
 
 Covers:
   AC-061:     API supports source creation/query/update/delete operations

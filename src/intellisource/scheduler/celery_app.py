@@ -48,7 +48,7 @@ celery_app.conf.worker_hijack_root_logger = False
 # off, our handler writes to the real stderr captured by the container.
 celery_app.conf.worker_redirect_stdouts = False
 
-# B-059 fast-fail: a dead Redis must not hang a publish from /tasks/collect.
+# fast-fail: a dead Redis must not hang a publish from /tasks/collect.
 # Two distinct connections are involved on send — the broker (publish) AND the
 # redis result store (Celery touches the backend during dispatch). BOTH must be
 # bounded, or the slower one dominates (the result backend otherwise retries

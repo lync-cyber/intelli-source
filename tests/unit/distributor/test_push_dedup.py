@@ -1,6 +1,6 @@
 """Tests for BaseDistributor dedup hooks and per-channel PushRecord integration.
 
-Covers AC-1 through AC-7 of T-090.
+Covers AC-1 through AC-7.
 """
 
 from __future__ import annotations
@@ -790,12 +790,12 @@ class TestAC7:
 
 
 # ---------------------------------------------------------------------------
-# AC-8 (R-001): PII masking applied to error_message before persistence
+# AC-8: PII masking applied to error_message before persistence
 # ---------------------------------------------------------------------------
 
 
 class TestAC8PiiMasking:
-    """R-001: error_message containing PII is masked before being written to DB."""
+    """error_message containing PII is masked before being written to DB."""
 
     @pytest.mark.asyncio
     async def test_error_message_email_is_masked_before_persist(self) -> None:
@@ -885,12 +885,12 @@ class TestAC8PiiMasking:
 
 
 # ---------------------------------------------------------------------------
-# R-002: IntegrityError on concurrent dedup race is swallowed (idempotent)
+# IntegrityError on concurrent dedup race is swallowed (idempotent)
 # ---------------------------------------------------------------------------
 
 
 class TestIntegrityErrorRace:
-    """R-002: Concurrent duplicate INSERT raises IntegrityError; silently ignored."""
+    """Concurrent duplicate INSERT raises IntegrityError; silently ignored."""
 
     @pytest.mark.asyncio
     async def test_integrity_error_on_create_does_not_propagate(self) -> None:
@@ -964,12 +964,12 @@ class TestIntegrityErrorRace:
 
 
 # ---------------------------------------------------------------------------
-# R-003: status enum — "sent" on success, "failed" on failure; invalid raises
+# status enum — "sent" on success, "failed" on failure; invalid raises
 # ---------------------------------------------------------------------------
 
 
 class TestStatusEnum:
-    """R-003: PushRecord.status aligns with arch E-010 allowed values."""
+    """PushRecord.status aligns with arch E-010 allowed values."""
 
     @pytest.mark.asyncio
     async def test_success_path_uses_sent_status(self) -> None:
@@ -1076,12 +1076,12 @@ class TestStatusEnum:
 
 
 # ---------------------------------------------------------------------------
-# R-006: retry_count reflects actual attempt index on success
+# retry_count reflects actual attempt index on success
 # ---------------------------------------------------------------------------
 
 
 class TestRetryCountTracking:
-    """R-006: retry_count written to PushRecord equals the winning attempt index."""
+    """retry_count written to PushRecord equals the winning attempt index."""
 
     @pytest.mark.asyncio
     async def test_first_attempt_success_retry_count_zero(self) -> None:

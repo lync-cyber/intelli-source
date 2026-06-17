@@ -136,9 +136,9 @@ def build_llm_gateway(
 
     ``session_factory`` is the per-call DB session opener forwarded to
     ``LLMGateway`` so successful chat / complete / stream calls can persist
-    ``llm_call_logs`` rows through a fresh ``CostTracker`` instance per call
-    (B-042). When ``None`` (legacy unit tests / standalone gateway
-    construction), the gateway runs without log_call persistence.
+    ``llm_call_logs`` rows through a fresh ``CostTracker`` instance per call.
+    When ``None`` (legacy unit tests / standalone gateway construction), the
+    gateway runs without log_call persistence.
     """
     circuit_breaker = CircuitBreaker(redis=redis_client)
     gateway = LLMGateway(

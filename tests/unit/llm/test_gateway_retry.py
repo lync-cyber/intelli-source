@@ -1,4 +1,4 @@
-"""Tests for LLMGateway exponential backoff retry logic (T-057).
+"""Tests for LLMGateway exponential backoff retry logic.
 
 Covers:
 - AC-T057-1: RECOVERABLE_TRANSIENT errors retried up to 3 times (4 total calls max)

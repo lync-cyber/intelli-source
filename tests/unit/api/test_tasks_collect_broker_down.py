@@ -1,4 +1,4 @@
-"""B-059: POST /tasks/collect must fast-fail with 503 when the broker is down.
+"""POST /tasks/collect must fast-fail with 503 when the broker is down.
 
 When task dispatch raises BrokerUnavailableError, the endpoint returns 503 and
 the just-created task rows are rolled back (the request session never commits).

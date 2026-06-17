@@ -134,7 +134,7 @@ class ContentRepository(BaseRepository[ProcessedContent]):
         """Load a ProcessedContent plus the subscriptions to distribute it to.
 
         ``raw_content.source`` is eager-loaded so SubscriptionMatcher can read
-        ``content.raw_content.source.name`` (``match_rules.source_names``, B-057)
+        ``content.raw_content.source.name`` (``match_rules.source_names``)
         without a lazy load outside the session. ``subscription_id`` None is the
         realtime broadcast path (the strict distribute step has no id): it resolves
         to active subscriptions whose ``frequency`` is ``realtime`` only, so

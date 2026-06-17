@@ -1,6 +1,6 @@
-"""Tests for T-080: DATABASE_URL environment variable support in DatabaseManager.
+"""Tests for DATABASE_URL environment variable support in DatabaseManager.
 
-Covers AC-3a, AC-3b, AC-3c from the T-080 acceptance criteria.
+Covers AC-3a, AC-3b, AC-3c.
 """
 
 from __future__ import annotations

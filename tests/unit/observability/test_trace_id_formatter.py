@@ -1,4 +1,4 @@
-"""Tests for B-040: worker log formatter injects trace_id contextvar.
+"""Tests for worker log formatter injects trace_id contextvar.
 
 Covers the TraceIdFormatter behavior used by stdlib `logging.getLogger(...)`
 calls in worker / api processes after setup_logging() is called at boot.
@@ -49,7 +49,7 @@ def _make_record(message: str, level: int = logging.INFO) -> logging.LogRecord:
 
 
 class TestTraceIdFormatter:
-    """B-040: stdlib Formatter that prepends trace_id from contextvar."""
+    """stdlib Formatter that prepends trace_id from contextvar."""
 
     def test_includes_trace_id_when_set(self) -> None:
         formatter = TraceIdFormatter()

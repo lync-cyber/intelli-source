@@ -1,4 +1,4 @@
-"""Unit tests for Alembic migration infrastructure (T-046).
+"""Unit tests for Alembic migration infrastructure.
 
 Validates that:
 - alembic/env.py exists and is correctly configured
@@ -272,14 +272,12 @@ class TestZhparserExtension:
         )
 
     def test_zhparser_no_exception_wrapper(self) -> None:
-        """B-032: zhparser must be a hard requirement, not behind EXCEPTION fallback.
+        """zhparser must be a hard requirement, not behind EXCEPTION fallback.
 
-        Prior to B-032 the migration wrapped CREATE EXTENSION zhparser in
-        ``DO $$ BEGIN ... EXCEPTION WHEN feature_not_supported THEN ...``
-        so the bare ``pgvector/pgvector:pg16`` image could still migrate.
-        Now that ``docker/db.Dockerfile`` ships zhparser the EXCEPTION
-        wrapper is removed; this regression guard fails the build if a
-        future revert reintroduces it.
+        ``docker/db.Dockerfile`` ships zhparser, so the migration must create
+        the extension unconditionally; this guard fails the build if a
+        ``DO $$ ... EXCEPTION WHEN feature_not_supported ...`` wrapper is
+        reintroduced.
         """
         source = _read_migration_source()
         zh_zone = re.search(
@@ -298,12 +296,12 @@ class TestZhparserExtension:
         )
         assert not bad, (
             "CREATE EXTENSION zhparser is still wrapped in DO/EXCEPTION; "
-            "B-032 expects the composite DB image to provide zhparser "
+            "the composite DB image must provide zhparser "
             "unconditionally."
         )
 
     def test_creates_zhparser_text_search_configuration(self) -> None:
-        """B-032: migration must create a TEXT SEARCH CONFIGURATION named ``zhparser``.
+        """Migration must create a TEXT SEARCH CONFIGURATION named ``zhparser``.
 
         storage/vector.py issues ``to_tsvector('zhparser', body_text)`` and
         ``websearch_to_tsquery('zhparser', :q)``, which require a

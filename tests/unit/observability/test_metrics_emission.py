@@ -303,7 +303,7 @@ class TestDistributorMetrics:
     async def test_sent_push_mirrors_into_shared_store(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """B-064: the push outcome is mirrored into the cross-process store so the
+        """The push outcome is mirrored into the cross-process store so the
         API /metrics endpoint can surface it (the prefork worker's local collector
         is never served over HTTP)."""
         import uuid
@@ -376,12 +376,12 @@ class TestDistributorMetrics:
 
 
 # ---------------------------------------------------------------------------
-# B-030 R-004: register labeled counters at __init__ time, not in hot path
+# register labeled counters at __init__ time, not in hot path
 # ---------------------------------------------------------------------------
 
 
 class TestRegisterAtInit:
-    """R-004: labeled counters must be registered in __init__, not per-call."""
+    """labeled counters must be registered in __init__, not per-call."""
 
     def test_distributor_facade_registers_pushes_total_on_init(self) -> None:
         """DistributorFacade.__init__ must register pushes_total immediately."""

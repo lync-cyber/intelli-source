@@ -1,4 +1,4 @@
-"""Tests for CeleryTasks scheduler module (T-027).
+"""Tests for CeleryTasks scheduler module.
 
 Covers:
 - AC-034: Celery task triggers AgentRunner pipeline execution,
@@ -71,7 +71,7 @@ def mock_agent_runner():
 @pytest.fixture()
 def mock_pipeline_config():
     """Provide a mock PipelineLoader whose load() returns a PipelineConfig-like
-    object (attribute access on .mode / .steps, per T-095 contract)."""
+    object (attribute access on .mode / .steps)."""
     config = MagicMock()
     loaded = MagicMock()
     loaded.name = "news_collect"
@@ -623,7 +623,7 @@ class TestEdgeCases:
 class _StatefulGuard:
     """Stateful IdempotencyGuard double: real Redis-like lock + success marker.
 
-    Backs R-005 with a faithful state machine instead of a call spy, so a
+    Backs the redelivery guard with a faithful state machine instead of a call spy, so a
     redelivery scenario is exercised end to end: acquire/release toggle a lock
     set, mark_succeeded/was_succeeded toggle a durable marker set.
     """
@@ -733,7 +733,7 @@ class TestCollectTaskLifecycle:
     def test_already_succeeded_task_short_circuits_redelivery(
         self, mock_agent_runner, mock_pipeline_config
     ):
-        """R-005: a Celery redelivery of an already-'success' task is skipped.
+        """A Celery redelivery of an already-'success' task is skipped.
 
         Side effects (content.create, chain advance, status writes) ran on the
         first delivery; re-running them on a broker redelivery would duplicate
@@ -852,7 +852,7 @@ class TestCollectTaskLifecycle:
     def test_durable_marker_short_circuits_redelivery_for_non_uuid_key(
         self, mock_agent_runner, mock_pipeline_config
     ):
-        """R-005: a non-UUID lock key's redelivery is skipped via the marker.
+        """A non-UUID lock key's redelivery is skipped via the marker.
 
         manual / source / fingerprint lock keys have no CollectTask row to
         consult (no session_factory here), so a durable success marker is what

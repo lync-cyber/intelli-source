@@ -105,7 +105,7 @@ def _run_pipeline_dispatch_kwargs(
     """Build the ``send_task('run_pipeline', kwargs=...)`` payload for *task*.
 
     Shared by the collect fan-out and the resume re-dispatch so both ship the
-    identical nested-params contract (T-095 AC-8). ``force`` is added only on
+    identical nested-params contract (AC-8). ``force`` is added only on
     resume, where the worker uses it to clear the idempotency lock left by the
     paused run before re-acquiring.
     """

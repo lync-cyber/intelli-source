@@ -571,12 +571,12 @@ class TestPushResultTracking:
 
 
 # ===========================================================================
-# R-005: WeWork attempt_fn try/except symmetry
+# WeWork attempt_fn try/except symmetry
 # ===========================================================================
 
 
 class TestWeWorkExceptionSymmetry:
-    """R-005: Network exceptions in attempt_fn produce a failed record."""
+    """Network exceptions in attempt_fn produce a failed record."""
 
     @pytest.mark.asyncio
     async def test_network_exception_produces_failed_result(

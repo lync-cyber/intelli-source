@@ -1,6 +1,6 @@
 """SQL integration tests for LLMCallLogRepository aggregation logic.
 
-Covers R-003 (test-quality): repository-level SQL verification with real SQLite
+Covers repository-level SQL verification with real SQLite
 in-memory database — no mocking of SQL execution paths.
 
 Scenarios:

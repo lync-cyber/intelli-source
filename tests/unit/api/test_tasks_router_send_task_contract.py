@@ -1,15 +1,11 @@
-"""T-095 RED AC-8: send_task kwargs contract on POST /tasks/collect.
+"""AC-8: send_task kwargs contract on POST /tasks/collect.
 
 Verifies that /tasks/collect calls celery.send_task("run_pipeline", kwargs=...)
-with the new contract:
+with the contract:
 - kwargs MUST contain top-level key 'pipeline_name' (e.g. "scheduled-collect")
 - kwargs MUST contain top-level key 'params' (a dict)
 - params dict MUST contain task_id, source_id (and ideally task_chain_id,
   trigger_type, priority, fingerprint)
-
-The current implementation (api/routers/tasks.py:154-162) ships kwargs flat:
-    {"source_id": ..., "task_id": ..., "task_chain_id": ..., "priority": ...}
-and is missing pipeline_name entirely — so these tests must FAIL on main.
 """
 
 from __future__ import annotations
@@ -244,7 +240,7 @@ async def test_send_task_kwargs_no_longer_flat(
 
 
 # ---------------------------------------------------------------------------
-# r2 R-001: source_type → pipeline_name routes via real Source.type lookup
+# source_type → pipeline_name routes via real Source.type lookup
 # ---------------------------------------------------------------------------
 
 
@@ -254,7 +250,7 @@ async def test_send_task_pipeline_name_routes_by_source_type(
     app_with_celery: FastAPI,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """r2 R-001: when SOURCE_TYPE_TO_PIPELINE has differentiated entries,
+    """When SOURCE_TYPE_TO_PIPELINE has differentiated entries,
     /tasks/collect must look up Source.type via SourceRepository.get_types_by_ids
     and route to the matching pipeline — not silently fall back to "rss"."""
     from intellisource.config.constants import SOURCE_TYPE_TO_PIPELINE
@@ -280,7 +276,7 @@ async def test_send_task_pipeline_name_routes_by_source_type(
     assert resp.status_code == 202, resp.text
     sent_kwargs = app_with_celery.state.celery_app.send_task.call_args.kwargs["kwargs"]
     assert sent_kwargs["pipeline_name"] == "web-collect", (
-        f"r2 R-001: pipeline_name must be resolved via Source.type lookup "
+        f"pipeline_name must be resolved via Source.type lookup "
         f"('web' → 'web-collect'); got {sent_kwargs['pipeline_name']!r}. "
         f"This is the EXP-005-shaped 'wired-but-inert' failure."
     )
@@ -291,7 +287,7 @@ async def test_send_task_pipeline_name_routes_by_source_type(
 async def test_send_task_pipeline_name_falls_back_when_source_missing(
     celery_client: AsyncClient, app_with_celery: FastAPI
 ) -> None:
-    """r2 R-001: when Source.type lookup returns no row (race / stale ID),
+    """When Source.type lookup returns no row (race / stale ID),
     fall back to "scheduled-collect" rather than crashing."""
     mock_task_repo = AsyncMock()
     mock_task_repo.create.return_value = _make_task_obj()

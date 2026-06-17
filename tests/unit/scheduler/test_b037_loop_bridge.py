@@ -1,6 +1,6 @@
-"""B-037 worker async/sync bridge hardening — RED tests.
+"""Worker async/sync bridge hardening — RED tests.
 
-Production failure (CORRECTIONS-LOG #12, B-031 阶段 1 步骤 4):
+Production failure:
 
     worker process consumes run_pipeline → CeleryTasks._run_sync(
     asyncio.run(coro)) opens loop A → aioredis client's connection pool
@@ -12,7 +12,7 @@ Production failure (CORRECTIONS-LOG #12, B-031 阶段 1 步骤 4):
 Same failure mode applies to async SQLAlchemy engines: the engine's
 connection pool is loop-bound on first checkout.
 
-Fix design (option A — per-task lazy + NullPool, see B-037 backlog):
+Fix design (option A — per-task lazy + NullPool):
 
 1. ``intellisource.scheduler.lazy_redis.LazyLoopRedis`` wraps aioredis
    client construction; caches one ``aioredis.Redis`` per running event
@@ -86,17 +86,17 @@ class _LoopBoundFakeRedis:
 
 class TestLazyLoopRedisImport:
     def test_module_exists(self) -> None:
-        """B-037 GREEN: scheduler.lazy_redis must exist."""
+        """scheduler.lazy_redis must exist."""
         import intellisource.scheduler.lazy_redis as mod
 
         assert hasattr(mod, "LazyLoopRedis"), (
-            "B-037: scheduler.lazy_redis must export LazyLoopRedis"
+            "scheduler.lazy_redis must export LazyLoopRedis"
         )
 
 
 class TestLazyLoopRedisPerLoopBinding:
     def test_fresh_client_per_event_loop(self) -> None:
-        """B-037 GREEN: LazyLoopRedis builds a NEW underlying client when
+        """LazyLoopRedis builds a NEW underlying client when
         invoked under a different running event loop, isolating per-task
         ``asyncio.run()`` boundaries from cross-loop pool reuse.
         """
@@ -118,7 +118,7 @@ class TestLazyLoopRedisPerLoopBinding:
         asyncio.run(_exercise())
 
         assert len(builds) == 2, (
-            f"B-037: LazyLoopRedis must build a fresh aioredis client per "
+            f"LazyLoopRedis must build a fresh aioredis client per "
             f"running event loop; got {len(builds)} builds across 2 "
             f"asyncio.run() invocations"
         )
@@ -146,7 +146,7 @@ class TestLazyLoopRedisPerLoopBinding:
         asyncio.run(_exercise())
 
         assert len(builds) == 1, (
-            f"B-037: LazyLoopRedis must reuse the per-loop client for "
+            f"LazyLoopRedis must reuse the per-loop client for "
             f"consecutive commands; got {len(builds)} builds"
         )
 
@@ -185,20 +185,20 @@ class TestLazyLoopRedisDelegatesAioredisInterface:
         asyncio.run(_exercise())
 
         assert calls == [(method_name, ("key", "value"), {})], (
-            f"B-037: LazyLoopRedis.{method_name} must delegate to the "
+            f"LazyLoopRedis.{method_name} must delegate to the "
             f"underlying aioredis client; got calls={calls}"
         )
 
 
 # ---------------------------------------------------------------------------
 # Regression: IdempotencyGuard survives repeated asyncio.run() with
-# LazyLoopRedis (the actual B-031 step-4 failure)
+# LazyLoopRedis
 # ---------------------------------------------------------------------------
 
 
 class TestIdempotencyGuardSurvivesCrossLoop:
     def test_acquire_release_across_two_asyncio_run_calls(self) -> None:
-        """B-037 regression: IdempotencyGuard wired with LazyLoopRedis must
+        """IdempotencyGuard wired with LazyLoopRedis must
         survive acquire-then-release across two separate ``asyncio.run()``
         invocations (mirrors CeleryTasks._run_sync semantics inside
         run_pipeline). Pre-fix, the second call raises
@@ -216,7 +216,7 @@ class TestIdempotencyGuardSurvivesCrossLoop:
 
         acquired = asyncio.run(guard.acquire("source-A"))
         assert acquired is True, (
-            "B-037: first acquire must return True (fake redis SET NX → True)"
+            "first acquire must return True (fake redis SET NX → True)"
         )
 
         asyncio.run(guard.release("source-A"))
@@ -232,7 +232,7 @@ class TestBootRedisFactoryReturnsLazyWrapper:
     def test_build_redis_client_returns_lazy_loop_redis(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """B-037 GREEN: scheduler.boot._build_redis_client must return a
+        """scheduler.boot._build_redis_client must return a
         ``LazyLoopRedis`` wrapper so all worker-side consumers get the
         per-loop isolation transparently.
         """
@@ -243,7 +243,7 @@ class TestBootRedisFactoryReturnsLazyWrapper:
 
         client = boot._build_redis_client()
         assert isinstance(client, LazyLoopRedis), (
-            f"B-037: _build_redis_client must return LazyLoopRedis; "
+            f"_build_redis_client must return LazyLoopRedis; "
             f"got {type(client).__name__}"
         )
 
@@ -252,7 +252,7 @@ class TestBootEngineUsesNullPool:
     def test_init_worker_session_factory_uses_null_pool(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """B-037 GREEN: worker engine must be constructed with
+        """worker engine must be constructed with
         ``poolclass=NullPool`` to avoid the engine's connection pool being
         bound to the first ``asyncio.run()`` loop and crashing on the
         second.
@@ -271,7 +271,7 @@ class TestBootEngineUsesNullPool:
             # sync core wrapped inside AsyncEngine.
             pool = boot._worker_engine.pool
             assert isinstance(pool, NullPool), (
-                f"B-037: worker engine pool must be NullPool to avoid "
+                f"worker engine pool must be NullPool to avoid "
                 f"cross-loop connection reuse; got {type(pool).__name__}"
             )
         finally:

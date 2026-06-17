@@ -261,7 +261,7 @@ class TestWeWorkCsClientSendText:
         )
 
     async def test_send_text_payload_contains_agentid(self) -> None:
-        """R-003: WeWork message/send payload must include agentid (required by API).
+        """WeWork message/send payload must include agentid (required by API).
 
         Without agentid the WeWork API returns errcode=40056 invalid agentid.
         """
@@ -297,7 +297,7 @@ class TestWeWorkCsClientSendText:
 
 
 class TestWeWorkCsClientErrcodeHandling:
-    """R-008: get_access_token + send_text raise DistributorError on errcode != 0."""
+    """get_access_token + send_text raise DistributorError on errcode != 0."""
 
     async def test_get_access_token_raises_on_errcode_response(self) -> None:
         """Token fetch returning errcode=40013 must raise DistributorError."""

@@ -1,6 +1,6 @@
 """Tests for VectorStore.search_similar and VectorStore.find_nearest_cluster.
 
-Covers T-087 AC-1 and AC-2:
+Covers AC-1 and AC-2:
 - AC-1: VectorStore.search_similar(query_vector, threshold, top_k) exists and filters
         results whose similarity score < threshold.
 - AC-2: VectorStore.find_nearest_cluster(embedding, threshold) exists and returns

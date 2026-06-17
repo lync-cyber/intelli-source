@@ -1,7 +1,7 @@
 """WF-4.1: load_prompt supports .prompt.md (front-matter + Jinja + required_vars).
 
-The legacy ``.txt`` + ``format_map`` path is unchanged and covered by the
-existing prompt tests; these cover only the new ``.prompt.md`` behaviour.
+The ``.txt`` + ``format_map`` path is covered by the other prompt tests;
+these cover the ``.prompt.md`` behaviour.
 """
 
 from __future__ import annotations

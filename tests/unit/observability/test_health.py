@@ -1,4 +1,4 @@
-"""Tests for T-007: Health check -- HealthChecker business logic.
+"""Tests for Health check -- HealthChecker business logic.
 
 Covers:
   AC-060: /api/v1/health returns component health status (database/redis/celery)

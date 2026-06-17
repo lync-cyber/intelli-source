@@ -57,7 +57,7 @@ class TestF09SchemaValidationUnconditional:
     ) -> None:
         """Valid JSON but fields violating schema must raise LLMOutputError.
 
-        Core regression for F-09: previously valid JSON bypassed schema validation.
+        Core coverage for F-09: valid JSON must not bypass schema validation.
         """
         gw = LLMGateway()
         # Valid JSON but 'name' field is missing (required by schema)

@@ -1,10 +1,9 @@
-"""B-014: the /api/v1/metrics endpoint must expose every advertised metric family.
+"""The /api/v1/metrics endpoint must expose every advertised metric family.
 
 A fresh API process scrape must surface the API-owned families (registered
 eagerly at startup, not only after first traffic) plus the worker-owned
 ``celery_*`` families (recorded in worker processes, surfaced via the shared
-Redis store). This is the automated, permanent replacement for the manual
-staging ``curl /api/v1/metrics | grep`` check the B-014 backlog item described.
+Redis store).
 """
 
 from __future__ import annotations
@@ -108,7 +107,7 @@ B014_FAMILIES = [
 
 
 class TestMetricsEndpointExposesAllFamilies:
-    """The B-014 grep families must all be present on a fresh scrape."""
+    """The metric families must all be present on a fresh scrape."""
 
     @pytest.mark.asyncio
     async def test_all_b014_families_present(self) -> None:

@@ -1,18 +1,13 @@
-"""Integration test for AC-6 — T-097 RED phase.
+"""Integration test for AC-6.
 
 AC-6: With build_worker_composition injecting a complete ToolDeps (including a
 real CollectorRegistry), calling _collect_execute(source_id, source_type='rss',
 tool_deps=deps) must return status='ok' with a non-empty collected list.  The
 result must NOT contain 'degraded'.
 
-These tests are expected to FAIL in RED phase because:
-- _collect_execute currently calls collector.collect(source_id=source_id, **kwargs)
-  where source_id is a plain string UUID.
-- RSSCollector.collect(source_config: dict) expects a dict with at least a 'url'
-  key — passing a raw UUID string causes a TypeError or returns an empty list.
-- After T-097 GREEN lands, _collect_execute will look up the Source row in DB
-  using source_id, build a source_config dict from it, and call
-  collector.collect(source_config=source_config) to return real items.
+_collect_execute looks up the Source row in DB using source_id, builds a
+source_config dict from it, and calls
+collector.collect(source_config=source_config) to return real items.
 """
 
 from __future__ import annotations
@@ -143,15 +138,15 @@ class TestCollectToolNotDegraded:
                 tool_deps=tool_deps,
             )
 
-        # After T-097: status should be 'ok' with real items from DB-backed source.
+        # status should be 'ok' with real items from DB-backed source.
         assert result["status"] == "ok", (
             f"_collect_execute must return status='ok' when registry is wired; "
-            f"got {result['status']!r}. T-097 must wire source_config from DB."
+            f"got {result['status']!r}. must wire source_config from DB."
         )
         collected = result.get("collected", [])
         assert len(collected) >= 1, (
             f"_collect_execute must return at least 1 item when source is RSS; "
-            f"got {len(collected)}. T-097 must fetch real feed data."
+            f"got {len(collected)}. must fetch real feed data."
         )
 
     async def test_collect_execute_result_not_degraded_when_registry_wired(
@@ -159,9 +154,9 @@ class TestCollectToolNotDegraded:
     ) -> None:
         """Result must not carry status='degraded' when collector_registry is present.
 
-        RED failure: because the current _collect_execute passes source_id string
-        to collect(), the collector returns [] — the test verifies the collected
-        list is non-empty (which will fail), proving T-097 wiring is incomplete.
+        _collect_execute builds a source_config dict from the DB Source row so
+        the collector returns real items; the test verifies the collected list
+        is non-empty.
         """
         source_id = str(uuid.uuid4())
         tool_deps = _make_tool_deps_with_registry()
@@ -184,7 +179,7 @@ class TestCollectToolNotDegraded:
         collected = result.get("collected", [])
         assert len(collected) >= 1, (
             f"collected list is empty (got {collected!r}) even though registry "
-            "is wired — T-097 must build source_config from DB before calling collect()"
+            "is wired — must build source_config from DB before calling collect()"
         )
 
     async def test_collect_execute_passes_url_to_rss_collector(self) -> None:
@@ -221,12 +216,11 @@ class TestCollectToolNotDegraded:
             "RSSCollector.collect must be called exactly once"
         )
         captured = received_kwargs[0]
-        # After T-097: collect(source_config={"url": ..., ...}).
-        # Before T-097: collect(source_id=<uuid_str>) — no 'url' key.
+        # collect is called as collect(source_config={"url": ..., ...}).
         assert "source_config" in captured, (
             f"_collect_execute must pass source_config={{...}} to collect(); "
             f"got kwargs keys: {list(captured.keys())}. "
-            "T-097 must fetch the Source row from DB and build source_config dict."
+            "collect must fetch the Source row from DB and build source_config dict."
         )
         sc = captured["source_config"]
         assert isinstance(sc, dict) and "url" in sc, (
@@ -281,13 +275,13 @@ class TestCollectToolNotDegraded:
         assert "source_config" in received_kwargs, (
             f"APICollector.collect must be called with source_config kwarg; "
             f"got keys: {list(received_kwargs.keys()) if received_kwargs else []}. "
-            "T-097 must build source_config dict from the DB Source row."
+            "collect must build source_config dict from the DB Source row."
         )
 
     async def test_collect_execute_unregistered_source_type_returns_degraded(
         self,
     ) -> None:
-        """Anti-regression (R-005): unregistered source_type must return degraded,
+        """Anti-regression: unregistered source_type must return degraded,
         not raise CollectorError."""
         tool_deps = _make_tool_deps_with_registry()
         result = await _collect_execute(
@@ -297,7 +291,7 @@ class TestCollectToolNotDegraded:
         )
         assert result["status"] == "degraded", (
             f"_collect_execute with unknown source_type must return status='degraded'; "
-            f"got {result['status']!r}. R-005: CollectorError must be caught."
+            f"got {result['status']!r}. CollectorError must be caught."
         )
         assert "unknown source_type" in result.get("reason", ""), (
             f"degraded reason must mention 'unknown source_type'; "

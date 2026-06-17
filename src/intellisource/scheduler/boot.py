@@ -1,4 +1,4 @@
-"""Worker-side bootstrap for Celery task wiring (T-075).
+"""Worker-side bootstrap for Celery task wiring.
 
 Provides session_factory initialization and CeleryTasks construction
 that are independent of the FastAPI application lifecycle.

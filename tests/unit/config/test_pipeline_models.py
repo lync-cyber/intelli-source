@@ -154,7 +154,7 @@ class TestPipelineConfigValidation:
 
 
 # ===================================================================
-# T-055: Pipeline config updates + system_prompt parsing
+# Pipeline config updates + system_prompt parsing
 # ===================================================================
 
 

@@ -1,4 +1,4 @@
-"""B-059: Celery broker fast-fail on dispatch.
+"""Celery broker fast-fail on dispatch.
 
 When the broker (Redis) is unreachable, task dispatch must fail fast and raise a
 typed BrokerUnavailableError instead of blocking on kombu reconnect. The publish

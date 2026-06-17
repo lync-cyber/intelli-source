@@ -1,4 +1,4 @@
-"""T-061: LLM 配置 Pydantic Schema 验证测试。
+"""LLM 配置 Pydantic Schema 验证测试。
 
 覆盖:
 - AC-T061-1: LLMModelsConfig Pydantic model 覆盖所有 YAML 字段
@@ -222,12 +222,12 @@ class TestLoadModelConfigValidation:
 
 
 # ===========================================================================
-# R-004: ValidationError wrapped as LLMError in LLMGateway init path
+# ValidationError wrapped as LLMError in LLMGateway init path
 # ===========================================================================
 
 
 class TestGatewayValidationErrorWrapping:
-    """R-004: pydantic.ValidationError 在 LLMGateway 初始化路径被包装为 LLMError。"""
+    """pydantic.ValidationError 在 LLMGateway 初始化路径被包装为 LLMError。"""
 
     def test_gateway_init_with_invalid_schema_raises_llm_error(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

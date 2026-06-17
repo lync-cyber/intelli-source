@@ -1,4 +1,4 @@
-"""Sprint-7 integration tests (T-063).
+"""Sprint-7 integration tests.
 
 Covers AC-T063-1 through AC-T063-7 with real cross-module paths.
 AC-T063-8 and AC-T063-9 are verified via external commands (see task summary).

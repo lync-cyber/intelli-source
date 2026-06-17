@@ -1,9 +1,8 @@
-"""B-060: failed LLM calls must be persisted to llm_call_logs.
+"""Failed LLM calls must be persisted to llm_call_logs.
 
-Before B-060 only the success path emitted an LLMCallRecord; retry-exhausted
-failures, timeouts, and circuit-open rejections left zero audit rows. These
-tests pin the contract that ``_unified_call_with_retry`` emits a failure record
-with a non-empty ``error_message`` for every terminal failure mode.
+These tests pin the contract that ``_unified_call_with_retry`` emits a failure
+record with a non-empty ``error_message`` for every terminal failure mode:
+retry-exhausted failures, timeouts, and circuit-open rejections.
 """
 
 from __future__ import annotations

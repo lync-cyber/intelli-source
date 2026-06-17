@@ -1,4 +1,4 @@
-"""T-095 RED: unit tests for intellisource.composition module.
+"""Unit tests for intellisource.composition module.
 
 Covers AC-1, AC-2, AC-3, AC-4, AC-5, AC-6, AC-7, AC-9.
 All tests in this file are expected to FAIL until the implementation exists.
@@ -262,10 +262,8 @@ class TestWorkerComposition:
 class TestBuildAgentRunnerKeywordOnly:
     """AC-4: build_agent_runner requires all 5 kwargs; None values rejected.
 
-    The legacy signature was build_agent_runner(session_factory, llm_gateway, *,
-    pipeline_config=None) and silently accepted None for session_factory and
-    llm_gateway. After T-095 the signature is keyword-only with 5 required
-    non-None args. Tests verify the "silent None acceptance" is gone.
+    The signature is keyword-only with 5 required non-None args; passing None
+    for any of them is rejected.
     """
 
     def test_build_agent_runner_rejects_none_session_factory(self) -> None:
@@ -596,12 +594,12 @@ class TestMainNoInitCelery:
 
 
 # ---------------------------------------------------------------------------
-# r2 R-003: CompositionError / CompositionNotInitialisedError hierarchy
+# CompositionError / CompositionNotInitialisedError hierarchy
 # ---------------------------------------------------------------------------
 
 
 class TestCompositionErrorHierarchy:
-    """r2 R-003: composition raises IntelliSourceError-rooted exceptions.
+    """Composition raises IntelliSourceError-rooted exceptions.
 
     Multiple inheritance keeps backward compat with `pytest.raises(ValueError)`
     / `pytest.raises(RuntimeError)` from existing AC-4 / AC-5 tests.
@@ -659,13 +657,13 @@ class TestCompositionErrorHierarchy:
 
 
 # ---------------------------------------------------------------------------
-# r2 R-004: AgentRunnerHolder API
+# AgentRunnerHolder API
 # ---------------------------------------------------------------------------
 
 
 class TestAgentRunnerHolder:
-    """r2 R-004: agent.runner.AgentRunnerHolder replaces module-level
-    `agent_factory._agent_runner` mutation."""
+    """agent.runner.AgentRunnerHolder owns agent runner state instead of
+    module-level `agent_factory._agent_runner` mutation."""
 
     def test_holder_singleton(self) -> None:
         """get_agent_runner_holder() returns the same instance every call."""
@@ -706,18 +704,18 @@ class TestAgentRunnerHolder:
         import intellisource.agent.factory as factory_mod
 
         assert not hasattr(factory_mod, "_agent_runner"), (
-            "r2 R-004: factory._agent_runner module state must be removed; "
+            "factory._agent_runner module state must be removed; "
             "singleton lives in agent.runner.AgentRunnerHolder"
         )
 
 
 # ---------------------------------------------------------------------------
-# r2 R-002: worker_init_handler is idempotent
+# worker_init_handler is idempotent
 # ---------------------------------------------------------------------------
 
 
 class TestWorkerInitHandlerIdempotent:
-    """r2 R-002: worker_init_handler must short-circuit on second invocation."""
+    """worker_init_handler must short-circuit on second invocation."""
 
     def test_second_invocation_does_not_rebuild(
         self, monkeypatch: pytest.MonkeyPatch
@@ -762,7 +760,7 @@ class TestWorkerInitHandlerIdempotent:
                 boot_mod.worker_init_handler()  # third call
 
             assert call_count["build_composition"] == 1, (
-                f"r2 R-002: build_worker_composition called "
+                f"build_worker_composition called "
                 f"{call_count['build_composition']} times across 3 invocations; "
                 f"expected idempotent guard to keep it at 1"
             )
@@ -771,13 +769,13 @@ class TestWorkerInitHandlerIdempotent:
 
 
 # ---------------------------------------------------------------------------
-# r2 R-006: tasks.py rejects legacy flat kwargs
+# tasks.py rejects legacy flat kwargs
 # ---------------------------------------------------------------------------
 
 
 class TestRunPipelineRejectsLegacyFlatKwargs:
-    """r2 R-006: worker-side `run_pipeline` task must reject kwargs lacking
-    a top-level 'params' key (the legacy flat shape AC-8 banned at the API)."""
+    """Worker-side `run_pipeline` task must reject kwargs lacking
+    a top-level 'params' key (the flat shape AC-8 bans at the API)."""
 
     def test_run_pipeline_raises_when_params_missing(self) -> None:
         from intellisource.scheduler.tasks import _run_pipeline_body

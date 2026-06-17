@@ -1,4 +1,4 @@
-"""T-BF-3: process.py inline embedding backfill for existing_processed branch.
+"""process.py inline embedding backfill for existing_processed branch.
 
 AC-1: existing_processed.embedding is None + ctx has list[float] -> repo.update
       called with id=existing_processed.id and embedding=<list[float]>.
@@ -299,12 +299,12 @@ class TestAC4Regression:
 
 
 # ---------------------------------------------------------------------------
-# R-004: Wrong-dimension embedding must NOT be written (inline backfill path)
+# Wrong-dimension embedding must NOT be written (inline backfill path)
 # ---------------------------------------------------------------------------
 
 
 class TestR004WrongDimensionNotBackfilled:
-    """R-004: Inline backfill must validate len(embedding) == EMBEDDING_DIM."""
+    """Inline backfill must validate len(embedding) == EMBEDDING_DIM."""
 
     @pytest.mark.asyncio
     async def test_wrong_dim_embedding_not_written(self) -> None:

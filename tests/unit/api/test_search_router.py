@@ -1,9 +1,9 @@
 """Tests for search router correctness.
 
 Covers:
-  R-001: search_mode is forwarded as mode= to HybridSearchEngine.search()
-  T-EMB-2 AC-7: gateway from app.state is passed to HybridSearchEngine
-  T-EMB-2 R-003: HTTP semantic request triggers gateway.embed via router→engine chain
+  search_mode is forwarded as mode= to HybridSearchEngine.search()
+  AC-7: gateway from app.state is passed to HybridSearchEngine
+  HTTP semantic request triggers gateway.embed via router→engine chain
 """
 
 from __future__ import annotations
@@ -32,12 +32,12 @@ def search_app() -> FastAPI:
 
 
 # ---------------------------------------------------------------------------
-# R-001: search_mode reaches engine.search() as mode=
+# search_mode reaches engine.search() as mode=
 # ---------------------------------------------------------------------------
 
 
 class TestSearchModeForwarding:
-    """R-001: router must call engine.search(mode=...) not search_mode=..."""
+    """router must call engine.search(mode=...) not search_mode=..."""
 
     async def test_search_mode_keyword_reaches_engine(
         self, search_app: FastAPI
@@ -104,17 +104,17 @@ class TestSearchModeForwarding:
 
 
 # ---------------------------------------------------------------------------
-# R-003: empty messages -> 400
+# empty messages -> 400
 # ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------
-# B-002: SearchRequest date_from / date_to typed as datetime
+# SearchRequest date_from / date_to typed as datetime
 # ---------------------------------------------------------------------------
 
 
 class TestSearchDateTypeValidation:
-    """B-002: date_from/date_to as datetime → FastAPI returns 422 on bad input."""
+    """date_from/date_to as datetime → FastAPI returns 422 on bad input."""
 
     async def test_search_accepts_iso_date_from(self, search_app: FastAPI) -> None:
         """Legal ISO 8601 date string parses into datetime and forwards to engine."""
@@ -188,7 +188,7 @@ class TestSearchDateTypeValidation:
 
 
 # ---------------------------------------------------------------------------
-# T-EMB-2 AC-7: /search endpoint injects llm_gateway from app.state
+# AC-7: /search endpoint injects llm_gateway from app.state
 # ---------------------------------------------------------------------------
 
 
@@ -284,7 +284,7 @@ class TestSearchEndpointGatewayWiring:
 
 
 # ---------------------------------------------------------------------------
-# T-EMB-2 R-003: HTTP → engine → embed end-to-end wiring
+# HTTP → engine → embed end-to-end wiring
 # (no HybridSearchEngine.search patch)
 # ---------------------------------------------------------------------------
 
@@ -299,7 +299,7 @@ def _make_fake_db_session() -> AsyncMock:
 
 
 class TestSemanticEmbedEndToEndWiring:
-    """R-003: router→engine→embed chain is exercised without patching engine.search."""
+    """router→engine→embed chain is exercised without patching engine.search."""
 
     async def test_semantic_request_triggers_gateway_embed_exactly_once(
         self, search_app: FastAPI

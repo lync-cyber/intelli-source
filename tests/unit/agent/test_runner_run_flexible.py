@@ -1,8 +1,8 @@
 """Tests for AgentRunner.run_flexible() consuming LLMResult from gateway.chat().
 
-Covers R-001 (T-086 revision): confirms run_flexible() correctly accesses
-LLMResult.content and LLMResult.metadata (tool_calls, finish_reason, usage)
-rather than treating the return value as a plain dict.
+Confirms run_flexible() correctly accesses LLMResult.content and
+LLMResult.metadata (tool_calls, finish_reason, usage) rather than treating
+the return value as a plain dict.
 """
 
 from __future__ import annotations
@@ -51,12 +51,12 @@ def _flexible_config(
 
 
 # ---------------------------------------------------------------------------
-# R-001: run_flexible consumes LLMResult shape (not plain dict)
+# run_flexible consumes LLMResult shape (not plain dict)
 # ---------------------------------------------------------------------------
 
 
 class TestRunFlexibleConsumesLLMResult:
-    """R-001: run_flexible() reads result.metadata instead of result.get(...)."""
+    """run_flexible() reads result.metadata instead of result.get(...)."""
 
     async def test_done_on_stop_finish_reason(self) -> None:
         """run_flexible stops when finish_reason='stop' in LLMResult.metadata."""
@@ -792,7 +792,7 @@ def _done_chunk(content_tokens: int = 2) -> dict[str, Any]:
 
 
 class TestRunFlexibleStreamTimeout:
-    """R-002: run_flexible_stream's per-chunk timeout / error / cleanup paths."""
+    """run_flexible_stream's per-chunk timeout / error / cleanup paths."""
 
     async def test_stream_completes_and_closes_generator(self) -> None:
         """Healthy stream surfaces token deltas, a success done event, aclose."""
@@ -879,7 +879,7 @@ class TestRunFlexibleStreamTimeout:
         assert stream.aclosed is True
 
     async def test_aclose_failure_does_not_break_the_run(self) -> None:
-        """R-009: a raising aclose during cleanup is swallowed, run still done."""
+        """A raising aclose during cleanup is swallowed, run still done."""
         stream = _FakeStream([{"content": "ok"}, _done_chunk()], aclose_raises=True)
         runner = AgentRunner(
             tool_registry=_make_tool_registry("web_search"),
@@ -900,7 +900,7 @@ class TestRunFlexibleStreamTimeout:
 
 
 class TestDriveIncrementalTokenAccounting:
-    """R-012: _drive feeds compress_if_needed an incremental token total."""
+    """_drive feeds compress_if_needed an incremental token total."""
 
     async def test_drive_passes_precomputed_total_to_compress(self) -> None:
         """The loop hands its running token estimate to the compactor.

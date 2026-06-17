@@ -1,4 +1,4 @@
-"""Tests for POST /api/v1/content/backfill-embeddings endpoint (T-BF-2 AC-1/2/3/6)."""
+"""Tests for POST /api/v1/content/backfill-embeddings endpoint (AC-1/2/3/6)."""
 
 from __future__ import annotations
 
@@ -309,12 +309,12 @@ class TestBackfillEmbeddingsResponseSchema:
 
 
 # ---------------------------------------------------------------------------
-# R-002: BrokerUnavailableError -> HTTP 503 (not 500)
+# BrokerUnavailableError -> HTTP 503 (not 500)
 # ---------------------------------------------------------------------------
 
 
 class TestBrokerUnavailable503:
-    """R-002: BrokerUnavailableError from send_task must map to HTTP 503."""
+    """BrokerUnavailableError from send_task must map to HTTP 503."""
 
     @pytest.mark.asyncio
     async def test_broker_unavailable_returns_503(self) -> None:

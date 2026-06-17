@@ -1,6 +1,6 @@
 """Tests for LLMGateway.chat() — messages-style API, JSON Mode, Function Calling.
 
-Covers T-086 acceptance criteria:
+Covers:
 - AC-1: chat() calls litellm messages-style API; messages passed through
 - AC-2: chat() with tools= forwards tools kwarg to litellm
 - AC-3: response_format= transparent passthrough for both complete() and chat()
@@ -545,16 +545,16 @@ class TestT086Security:
 
 
 # ===========================================================================
-# R-003 / R-006: content=None guard for Function Calling responses
+# content=None guard for Function Calling responses
 # ===========================================================================
 
 
 class TestT086ContentNoneGuard:
-    """R-003/R-006: chat() handles content=None when litellm returns tool_calls only."""
+    """chat() handles content=None when litellm returns tool_calls only."""
 
     @pytest.mark.asyncio
     async def test_content_none_with_tool_calls_returns_empty_string(self) -> None:
-        """R-003: content=None in Function Calling returns LLMResult(content='')."""
+        """content=None in Function Calling returns LLMResult(content='')."""
         from intellisource.llm.gateway import LLMResult
 
         gw = _make_gateway()
@@ -588,7 +588,7 @@ class TestT086ContentNoneGuard:
 
     @pytest.mark.asyncio
     async def test_content_none_does_not_raise_type_error(self) -> None:
-        """R-003: len(content) in CostTracker path safe when content is None."""
+        """len(content) in CostTracker path safe when content is None."""
         mock_session = AsyncMock()
         mock_session.add = MagicMock()
         mock_session.commit = AsyncMock()
@@ -619,16 +619,16 @@ class TestT086ContentNoneGuard:
 
 
 # ===========================================================================
-# R-004: chat() retry and UnsupportedParamsError downgrade
+# chat() retry and UnsupportedParamsError downgrade
 # ===========================================================================
 
 
 class TestT086ChatRetry:
-    """R-004: chat() uses _chat_call_with_retry for retry and UnsupportedParamsError."""
+    """chat() uses _chat_call_with_retry for retry and UnsupportedParamsError."""
 
     @pytest.mark.asyncio
     async def test_transient_rate_limit_error_retried_successfully(self) -> None:
-        """R-004a: RateLimitError on first call is retried; second call succeeds."""
+        """RateLimitError on first call is retried; second call succeeds."""
         from tenacity import wait_none
 
         from intellisource.llm.gateway import LLMResult

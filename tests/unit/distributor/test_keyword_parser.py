@@ -1,6 +1,6 @@
 """Tests for keyword_parser and scorer keyword weight integration.
 
-Covers AC-3 and AC-4 of T-093:
+Covers AC-3 and AC-4:
 - AC-3: distributor/keyword_parser.py provides parse_keyword_token(kw)
   returning (operator, value) tuple
 - AC-4: scorer._keyword_match_score uses parse_keyword_token; '+' weight × 2.0;

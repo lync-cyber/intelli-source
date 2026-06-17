@@ -1,18 +1,15 @@
-"""B-042: LLMGateway accepts session_factory and emits llm_call_logs.
+"""LLMGateway accepts session_factory and emits llm_call_logs.
 
-Backlog: docs/BACKLOG-intellisource-v1.md §B-042.
-
-CostTracker(session) binds to one session at construction, so the existing
-singleton LLMGateway cannot reuse it across requests. B-042 wires a
-session_factory through the gateway: each log_call opens its own session via
+CostTracker(session) binds to one session at construction, so a singleton
+LLMGateway cannot reuse it across requests. A session_factory is wired through
+the gateway instead: each log_call opens its own session via
 ``async with session_factory() as s: await CostTracker(s).log_call(record)``.
 
 Tests verify:
 - LLMGateway.__init__ accepts session_factory kwarg.
 - chat() / complete() / stream_complete() each emit a log row through that
   factory after a successful call.
-- The legacy ``cost_tracker=`` constructor still wins when both are present
-  (backward compat for the existing per-test fixtures).
+- The ``cost_tracker=`` constructor wins when both are present.
 - composition.build_llm_gateway forwards the factory into the gateway.
 """
 

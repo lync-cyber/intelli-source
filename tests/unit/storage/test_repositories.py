@@ -1,4 +1,4 @@
-"""Tests for T-004: Repository layer (data access).
+"""Tests for Repository layer (data access).
 
 Covers:
   AC-054:     Structured data CRUD operations (create/read/update/delete/list)
@@ -463,8 +463,8 @@ class TestContentRepositoryCRUD:
     async def test_get_with_subscriptions_none_resolves_active_only(
         self, session: AsyncSession
     ) -> None:
-        """subscription_id=None resolves to active subscriptions only (B-061),
-        with raw_content.source eager-loaded for source_names matching (B-057)."""
+        """subscription_id=None resolves to active subscriptions only,
+        with raw_content.source eager-loaded for source_names matching."""
         from intellisource.storage.repositories.content import ContentRepository
 
         repo = ContentRepository(session)
@@ -495,7 +495,7 @@ class TestContentRepositoryCRUD:
         """The broadcast path (subscription_id=None) resolves realtime
         subscriptions only; daily/weekly subscribers receive their bundled
         digest from PeriodicDigestRunner and must not be double-pushed per
-        item here (B-066)."""
+        item here."""
         from intellisource.storage.repositories.content import ContentRepository
 
         repo = ContentRepository(session)
@@ -525,7 +525,7 @@ class TestContentRepositoryCRUD:
     ) -> None:
         """A concrete subscription_id resolves that single row regardless of
         frequency — explicit one-off distribute is not restricted to realtime
-        the way the broadcast path is (B-066)."""
+        the way the broadcast path is."""
         from intellisource.storage.repositories.content import ContentRepository
 
         repo = ContentRepository(session)

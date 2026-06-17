@@ -1,20 +1,8 @@
-"""T-095 RED AC-10: worker_init_handler + run_pipeline does not crash.
+"""AC-10: worker_init_handler + run_pipeline does not crash.
 
 Simulates Celery worker bootstrap (worker_init_handler) under production-like
 config and invokes the registered run_pipeline task — must not raise
-AttributeError or TypeError. The current main branch crashes here because:
-
-1. agent.factory.get_agent_runner() defaults session_factory=None, llm_gateway=None
-   → ToolDeps fields are all None
-2. scheduler.boot.worker_init_handler passes pipeline_config=None to
-   build_celery_tasks
-3. scheduler.tasks.CeleryTasks.run_pipeline calls self._pipeline_config.load(...)
-   → AttributeError: 'NoneType' object has no attribute 'load'
-4. Even if non-None, scheduler.tasks uses config.get("execution_mode", ...) and
-   config.get("steps", []) which AttributeError because PipelineConfig is a
-   dataclass without .get()
-
-After T-095 fix:
+AttributeError or TypeError. The wired path:
 - worker_init_handler calls build_worker_composition(...) to assemble ToolDeps
 - build_celery_tasks receives a real PipelineLoader (not None)
 - CeleryTasks.run_pipeline uses config.mode / config.steps attribute access
@@ -79,7 +67,7 @@ def test_worker_init_handler_assembles_complete_tool_deps(env_for_worker: None) 
         # Trigger the handler (Celery normally fires this via signal).
         boot_mod.worker_init_handler(sender=object())
 
-    # After T-095, get_agent_runner returns a runner with non-None deps.
+    # get_agent_runner returns a runner with non-None deps.
     import intellisource.agent.factory as factory_mod
     from intellisource.llm.gateway import LLMGateway
 
@@ -154,13 +142,13 @@ def test_run_pipeline_does_not_raise_attribute_error(
     except AttributeError as exc:
         pytest.fail(
             f"AC-10: run_pipeline raised AttributeError on production path: {exc!r}. "
-            f"This is the crash described in CR-002 — pipeline_loader / config "
+            f"This is the crash in pipeline_loader / config "
             f"attribute access not yet wired."
         )
     except TypeError as exc:
         pytest.fail(
             f"AC-10: run_pipeline raised TypeError on production path: {exc!r}. "
-            f"This is the crash described in CR-007 — pipeline_engine.execute "
+            f"This is the crash in pipeline_engine.execute "
             f"contract mismatch or similar."
         )
 

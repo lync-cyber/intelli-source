@@ -1,4 +1,4 @@
-"""T-EMB-1 AC-3: Settings embedding fields — embedding_dimension, api_base, api_key."""
+"""AC-3: Settings embedding fields — embedding_dimension, api_base, api_key."""
 
 from __future__ import annotations
 

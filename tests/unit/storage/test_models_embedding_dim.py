@@ -1,4 +1,4 @@
-"""T-EMB-1 AC-4: ORM vector column dimensions must be 1024 and reference EMBEDDING_DIM.
+"""AC-4: ORM vector column dimensions must be 1024 and reference EMBEDDING_DIM.
 
 Tests verify:
 - ProcessedContent.embedding and ContentCluster.centroid have pgvector dim=1024

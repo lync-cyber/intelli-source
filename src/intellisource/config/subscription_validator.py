@@ -4,13 +4,21 @@ from __future__ import annotations
 
 import json
 from typing import Any, Final, get_args
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
 from pydantic import ValidationError
 
-from intellisource.config.constants import MAX_NAME_LENGTH, RENDER_MODES
+from intellisource.config.constants import (
+    MAX_NAME_LENGTH,
+    RENDER_MODES,
+    VALID_FREQUENCIES,
+)
 from intellisource.config.subscription_models import SubscriptionConfig
 from intellisource.config.validator import _resolve_env_vars
+from intellisource.observability.logging import get_logger
+
+_logger = get_logger(__name__)
 
 _ALLOWED_CHANNELS: Final[frozenset[str]] = frozenset(
     get_args(SubscriptionConfig.model_fields["channel"].annotation)
@@ -20,6 +28,15 @@ _ALLOWED_WEWORK_MSG_TYPES: Final[frozenset[str]] = frozenset(
     {"text", "markdown", "news"}
 )
 _ALLOWED_RENDER_MODES: Final[frozenset[str]] = frozenset(RENDER_MODES)
+
+# Single source of truth for recognized match_rules keys.
+_KNOWN_MATCH_RULE_KEYS: Final[frozenset[str]] = frozenset(
+    {"keywords", "tags", "discipline_tags", "source_names", "min_score"}
+)
+# Dimensions that actually produce content matches (excluding scalar modifiers).
+_EFFECTIVE_MATCH_DIMENSIONS: Final[frozenset[str]] = frozenset(
+    {"keywords", "tags", "discipline_tags", "source_names"}
+)
 
 
 class SubscriptionValidationError(ValueError):
@@ -94,6 +111,56 @@ _CHANNEL_VALIDATORS = {
     "wework": _validate_wework_config,
     "wechat": _validate_wechat_config,
 }
+
+
+def _warn_silent_misconfig(config: SubscriptionConfig) -> None:
+    """Emit WARNING logs for silent misconfigurations that would cause the
+    subscription to be active but never trigger a push.
+
+    Does not raise; all checks are non-blocking.
+    """
+    name = config.name
+    rules = config.match_rules or {}
+
+    # AC1: unknown match_rules keys
+    unknown_keys = set(rules.keys()) - _KNOWN_MATCH_RULE_KEYS
+    if unknown_keys:
+        _logger.warning(
+            "subscription %r has unknown match_rules keys %r — "
+            "these will be silently ignored by the matcher",
+            name,
+            sorted(unknown_keys),
+        )
+
+    # AC2: no effective match dimension → subscription will never match
+    has_effective = any(bool(rules.get(dim)) for dim in _EFFECTIVE_MATCH_DIMENSIONS)
+    if not has_effective:
+        _logger.warning(
+            "subscription %r has no effective match dimensions "
+            "(keywords/tags/discipline_tags/source_names are all empty) — "
+            "this subscription will never match any content",
+            name,
+        )
+
+    # AC3: invalid frequency
+    if config.frequency not in VALID_FREQUENCIES:
+        _logger.warning(
+            "subscription %r has invalid frequency %r; valid values are %s",
+            name,
+            config.frequency,
+            sorted(VALID_FREQUENCIES),
+        )
+
+    # AC4: invalid timezone
+    try:
+        ZoneInfo(config.timezone)
+    except (ZoneInfoNotFoundError, KeyError):
+        _logger.warning(
+            "subscription %r has invalid timezone %r; "
+            "the scheduler will fall back to UTC at runtime",
+            name,
+            config.timezone,
+        )
 
 
 class SubscriptionValidator:
@@ -183,6 +250,7 @@ class SubscriptionValidator:
             try:
                 sub = self.validate_subscription(sub_data)
                 self.validate(sub)
+                _warn_silent_misconfig(sub)
                 results.append(sub)
             except (ValidationError, SubscriptionValidationError) as e:
                 errors.append(f"Subscription index {i}: {e}")

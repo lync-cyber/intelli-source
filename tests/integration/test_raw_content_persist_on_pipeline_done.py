@@ -1,4 +1,4 @@
-"""Integration tests for AC-6 and AC-8 (T-096).
+"""Integration tests for AC-6 and AC-8.
 
 AC-6: _RawContentResultRepo.create(result) persists status="processed" and
 processed_at=utcnow() back to the RawContent row when result contains
@@ -105,9 +105,8 @@ class TestRawContentResultRepoCreate:
         # Refresh and verify DB state.
         await pg_session.refresh(raw)
 
-        # RawContent.status must exist and equal "processed" — if the attribute
-        # is missing on the model (pre-GREEN), this raises AttributeError which
-        # counts as a meaningful FAIL (implementation not yet done).
+        # RawContent.status must exist and equal "processed"; a missing
+        # attribute raises AttributeError, which counts as a meaningful FAIL.
         assert raw.status == "processed", (  # type: ignore[attr-defined]
             f"AC-6: RawContent.status must be 'processed' after create(), "
             f"got {raw.status!r}"  # type: ignore[attr-defined]
@@ -196,7 +195,7 @@ class TestRunPipelinePersistsProcessedStatus:
         to the pytest-asyncio outer loop would hit "another operation in
         progress" on asyncpg. NullPool ensures every ``factory()`` checkout
         opens a fresh asyncpg connection bound to whichever loop is running —
-        the production worker path (B-037) uses the same pattern.
+        the production worker path uses the same pattern.
         """
         from sqlalchemy.ext.asyncio import (  # noqa: PLC0415
             async_sessionmaker,

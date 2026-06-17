@@ -1,4 +1,4 @@
-"""Tests for T-073: GET /api/v1/clusters endpoint + ClusterRepository.
+"""Tests for GET /api/v1/clusters endpoint + ClusterRepository.
 
 fields aligned to arch API-016 (authoritative; supersedes dev-plan task-card naming)
 
@@ -647,12 +647,12 @@ class TestClusterRepositoryExport:
 
 
 # ===========================================================================
-# R-002 fixes: invalid cursor / limit boundary tests
+# invalid cursor / limit boundary tests
 # ===========================================================================
 
 
 class TestClustersInputBoundaries:
-    """R-002: Input boundary and error handling for cursor and limit params."""
+    """Input boundary and error handling for cursor and limit params."""
 
     @pytest.mark.asyncio
     async def test_t073_ac1_invalid_cursor_returns_400(
@@ -719,12 +719,12 @@ class TestClustersInputBoundaries:
 
 
 # ===========================================================================
-# R-005: tag wildcard safety
+# tag wildcard safety
 # ===========================================================================
 
 
 class TestClustersTagWildcard:
-    """R-005: Tag filter must not treat LIKE wildcards as glob patterns."""
+    """Tag filter must not treat LIKE wildcards as glob patterns."""
 
     @pytest.mark.asyncio
     async def test_t073_ac2_tag_with_percent_does_not_match_all(

@@ -11,17 +11,15 @@ from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from intellisource.config.constants import VALID_FREQUENCIES
 from intellisource.distributor.clock import Clock, DefaultClock
 from intellisource.observability.logging import get_logger
 
 _logger = get_logger(__name__)
 
-FREQUENCY_OPTIONS: set[str] = {
-    "realtime",
-    "hourly",
-    "daily",
-    "weekly",
-}
+#: Canonical valid push frequencies, single-sourced from the config layer so the
+#: scheduler domain logic and the subscription reload validator agree.
+FREQUENCY_OPTIONS: frozenset[str] = VALID_FREQUENCIES
 
 _FREQUENCY_INTERVALS: dict[str, timedelta] = {
     "hourly": timedelta(hours=1),

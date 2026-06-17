@@ -1,4 +1,4 @@
-"""Unit tests for DistributorFacade (T-097 RED phase).
+"""Unit tests for DistributorFacade (RED phase).
 
 Covers:
 - AC-2: DistributorFacade class shape (__init__ signature + distribute method)

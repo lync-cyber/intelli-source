@@ -1,4 +1,4 @@
-"""Tests for T-005: pgvector vector storage and retrieval.
+"""Tests for pgvector vector storage and retrieval.
 
 Covers:
   AC-055:     Vector data stored correctly; cosine similarity retrieval works
