@@ -1,4 +1,4 @@
-"""High-level hybrid search engine (T-037).
+"""High-level hybrid search engine.
 
 Wraps low-level DB queries and adds filtering, enriched result fields,
 configurable fusion weights, and query-time tracking.

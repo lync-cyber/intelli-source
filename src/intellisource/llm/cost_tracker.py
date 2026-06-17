@@ -1,4 +1,4 @@
-"""Cost tracking for LLM calls (T-021)."""
+"""Cost tracking for LLM calls."""
 
 from __future__ import annotations
 

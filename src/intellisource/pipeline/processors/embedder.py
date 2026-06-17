@@ -1,4 +1,4 @@
-"""EmbeddingProcessor — populates ``ctx['embedding']`` via LLM (B-045).
+"""EmbeddingProcessor — populates ``ctx['embedding']`` via LLM.
 
 Reads ``body_text`` (and falls back to ``title`` if body is empty) from the
 pipeline context, asks ``llm_gateway.embed(text)`` for a vector, and writes

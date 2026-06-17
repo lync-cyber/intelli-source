@@ -1,4 +1,4 @@
-"""Per-loop aioredis client cache (B-037).
+"""Per-loop aioredis client cache.
 
 ``LazyLoopRedis`` wraps ``aioredis.from_url`` construction so that each
 running asyncio event loop receives its own underlying ``aioredis.Redis``

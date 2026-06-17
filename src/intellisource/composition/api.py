@@ -38,7 +38,7 @@ def build_api_composition(
 
     The API process and Worker process share the SAME Celery() instance via
     the module-level `intellisource.scheduler.celery_app.celery_app` — this
-    is what closes CR-012 (dual-singleton).
+    resolves the dual-singleton problem.
     """
     # Trigger @celery_app.task(name="run_pipeline") registration so the API
     # process can `send_task("run_pipeline", ...)` and hit the same task

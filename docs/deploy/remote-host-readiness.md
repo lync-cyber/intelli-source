@@ -437,7 +437,7 @@ ExecStart=/usr/bin/docker compose -f docker/docker-compose.yml up --remove-orpha
 
 ### 7.2 缓解建议（先构建后切换）
 
-在不等待后续 registry 镜像方案（B-074 后续项）落地之前，建议：
+在 registry 镜像方案（见 §7.3）落地之前，建议：
 
 1. **提前构建**：在正式切流量前，在目标主机预先构建 `db` 镜像并验证：
 
@@ -468,7 +468,7 @@ ExecStart=/usr/bin/docker compose -f docker/docker-compose.yml up --remove-orpha
 
 ### 7.3 后续方向
 
-registry 镜像方案（B-074 后续项）将预构建 `intellisource/db:pg16-pgvector-zhparser` 并推送到私有 registry，远端拉取即用，消除源码编译步骤。当前阶段先用上述缓解建议。
+规划中的 registry 镜像方案将预构建 `intellisource/db:pg16-pgvector-zhparser` 并推送到私有 registry，远端拉取即用，消除源码编译步骤。当前阶段先用上述缓解建议。
 
 ---
 

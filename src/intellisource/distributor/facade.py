@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 _logger = get_logger(__name__)
 
 
-# B-005: distributor-layer labeled counter name.
+# distributor-layer labeled counter name.
 _METRIC_PUSHES_TOTAL: str = "pushes_total"
 _METRIC_PUSHES_DESC: str = "Push attempts by channel and outcome"
 
@@ -27,7 +27,7 @@ def _record_push_outcome(outcome: str, channel: str = "unknown") -> None:
     distribute runs in the prefork worker, whose local MetricsCollector is never
     served over HTTP. The API ``/api/v1/metrics`` endpoint can therefore only
     surface this family by reading it back from the shared Redis store, so each
-    outcome is mirrored there too (B-064). The two writes are independent — a
+    outcome is mirrored there too. The two writes are independent — a
     failure in one must not skip the other.
 
     outcome ∈ {"sent", "failed", "skipped"}.
@@ -304,7 +304,7 @@ class DistributorFacade:
         """Load ProcessedContent + matching subscriptions via ContentRepository.
 
         Opens one session so the eager-loaded ``raw_content.source`` (needed by
-        SubscriptionMatcher for ``match_rules.source_names``, B-057) stays
+        SubscriptionMatcher for ``match_rules.source_names``) stays
         attached. A falsy ``subscription_id`` (None or "" from the strict
         distribute step, which has no subscription_id param) resolves to every
         active subscription rather than being treated as an invalid uuid; an

@@ -1,4 +1,4 @@
-"""ORM model definitions for all entities (T-003).
+"""ORM model definitions for all entities.
 
 Defines the SQLAlchemy 2.0 mapped models for every persisted entity.
 """

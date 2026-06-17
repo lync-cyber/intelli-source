@@ -1,4 +1,4 @@
-"""Database connection management and ORM base (T-002).
+"""Database connection management and ORM base.
 
 Provides ``DatabaseManager`` — an async connection pool manager built on
 SQLAlchemy 2.0's ``create_async_engine`` and ``async_sessionmaker``.
