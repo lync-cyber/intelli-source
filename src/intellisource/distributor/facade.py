@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import re
 import uuid
 from typing import TYPE_CHECKING, Any
 
 from intellisource.core.settings import get_settings
-from intellisource.distributor.pii import mask_email, mask_phone
+from intellisource.distributor.pii import mask_email, mask_error_message, mask_phone
 from intellisource.observability.logging import get_logger
 
 if TYPE_CHECKING:
@@ -15,18 +14,6 @@ if TYPE_CHECKING:
     from intellisource.distributor.matcher import SubscriptionMatcher
 
 _logger = get_logger(__name__)
-
-_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
-_PHONE_RE = re.compile(r"\+?\d[\d\s-]{6,}\d")
-
-
-def _mask_error_message(msg: str | None) -> str | None:
-    """Redact email addresses and phone numbers in *msg* before persistence."""
-    if not msg:
-        return msg
-    masked = _EMAIL_RE.sub(lambda m: mask_email(m.group(0)), msg)
-    masked = _PHONE_RE.sub(lambda m: mask_phone(m.group(0)), masked)
-    return masked
 
 
 # B-005: distributor-layer labeled counter name.
@@ -380,7 +367,7 @@ class DistributorFacade:
             channel=channel,
             recipient_id=_mask_recipient(recipient_raw),
             status="failed",
-            error_message=_mask_error_message(reason),
+            error_message=mask_error_message(reason),
         )
 
     async def _record_push(

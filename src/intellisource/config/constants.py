@@ -18,7 +18,6 @@ DEFAULT_TOOL_TIMEOUT_S: Final[float] = 60.0
 
 RenderMode = Literal["code", "llm-assisted", "llm-freeform"]
 RENDER_MODES: Final[tuple[RenderMode, ...]] = ("code", "llm-assisted", "llm-freeform")
-DEFAULT_RENDER_MODE: Final[RenderMode] = "code"
 
 #: Source.type → pipeline yaml name. Read by ``/tasks/collect`` send_task and
 #: the Beat sync. Lives in the cross-cutting config layer so api and scheduler

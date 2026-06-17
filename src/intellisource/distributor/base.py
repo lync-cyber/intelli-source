@@ -4,19 +4,15 @@ from __future__ import annotations
 
 import abc
 import hashlib
-import re
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.exc import IntegrityError
 
-from intellisource.distributor.pii import mask_email, mask_phone
+from intellisource.distributor.pii import mask_error_message
 
 if TYPE_CHECKING:
     from intellisource.storage.repositories.push import PushRepository
-
-_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
-_PHONE_RE = re.compile(r"\+?\d[\d\s-]{6,}\d")
 
 _VALID_STATUSES = frozenset({"pending", "sent", "delivered", "failed"})
 
@@ -76,14 +72,6 @@ class BaseDistributor(abc.ABC):
             **extra,
         }
 
-    def _mask_error_message(self, msg: str | None) -> str | None:
-        """Redact any email addresses and phone numbers in *msg* before persistence."""
-        if not msg:
-            return msg
-        masked = _EMAIL_RE.sub(lambda m: mask_email(m.group(0)), msg)
-        masked = _PHONE_RE.sub(lambda m: mask_phone(m.group(0)), masked)
-        return masked
-
     async def record_push(
         self,
         subscription_id: Any,
@@ -112,7 +100,7 @@ class BaseDistributor(abc.ABC):
             channel=channel,
             status=status,
             retry_count=retry_count,
-            error_message=self._mask_error_message(error_message),
+            error_message=mask_error_message(error_message),
             recipient_hash=recipient_hash,
         )
 
