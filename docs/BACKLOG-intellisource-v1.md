@@ -50,19 +50,7 @@ deps: []
 
 ## 部署/分发 新手友好度评估（DEPLOY-UX-EVAL 20260617，非阻塞）
 
-> 来源：[CODE-SCAN-deploy-ux-20260617-r1](reviews/code/CODE-SCAN-deploy-ux-20260617-r1.md)（四单元 = 部署/订阅/推送/模板）。本地起栈未被硬阻断，故无新增 P0；`G-NNN` 编号见报告。修复方向已折入用户 2026-06-17 决策（Q1=B+C / Q2=A / Q3=A / Q4=A）。
-
-### B-072 [P1] 失败推送审计落库缺失（G-001）
-- **现状（代码实证）**：`distributor/facade.py:204,226` 失败路径仅 `_record_push_outcome`（Prometheus 计数）后 `continue`；DB 落库 `_record_push`（`facade.py:234`）只在成功路径调用、`status` 硬编码 `"sent"`（`:364`）。`composition/builders.py:65-75` 构造渠道时不向 `from_env` 注入 `push_repo`，致 `distributor/base.py:144` 的失败落库分支永不触发。结果：`/push-records` 永远只有 `sent` 行，`PushRecord.error_message/retry_count/status=failed`（`storage/models.py:486-488`）为死列。
-- **影响**：推送失败无审计抓手，"为什么没收到"只能翻 worker 日志。
-- **修复方向**：`build_distributor_facade` 给 `from_env` 注入 `push_repo`（改签名 + 透传）；失败路径补 `_record_push(status="failed", error_message=...)`，复用 `base.py:197-204` 既有逻辑。单点改动。
-- **触发**：下次动分发链路 / 加推送可观测性时。
-
-### B-073 [P1] 订阅静默失配兜底（G-002 + G-003，决策 A=reload WARN）
-- **现状（代码实证）**：`config/subscription_validator.py` 不校验 `match_rules`；`distributor/matcher.py:36-42` 用 `rules.get(...)`，键拼错被忽略；全空 match_rules → `_matches` 直接 `return False`（`matcher.py:42`），订阅 active 却永不触发。`frequency` 为自由 str 无枚举（`config/subscription_models.py:19`），非法值经 `distributor/frequency.py:59` `interval=None → return True` 被当 realtime；`quiet_hours`/`timezone` 仅运行期暴露（`frequency.py:99-103` 无效时区静默回退 UTC）。
-- **影响**：写错规则/频率后订阅"假活"或行为反转，加载期零报错，直接打断 TTFV。
-- **修复方向（决策 A）**：reload 时对"match_rules 未知键 / 无任何有效匹配维度"WARN（不阻断）；`frequency` 收敛到已存在的 `FREQUENCY_OPTIONS`（`frequency.py:19-24`）；加载期校验 `quiet_hours` 的 `HH:MM` 与 `timezone` 有效性。可选叠加 `intellisource subscriptions test-match <id>` dry-run 诊断命令。
-- **触发**：下次动订阅校验 / 分发匹配时。
+> 来源：[CODE-SCAN-deploy-ux-20260617-r1](reviews/code/CODE-SCAN-deploy-ux-20260617-r1.md)（四单元 = 部署/订阅/推送/模板）。本地起栈未被硬阻断，故无新增 P0；`G-NNN` 编号见报告。修复方向已折入用户 2026-06-17 决策（Q1=B+C / Q2=A / Q3=A / Q4=A）。两个 P1（B-072/B-073）已闭环（见「已闭环」段）；开放项为 B-074~B-077。
 
 ### B-074 [P2] 远端主机就绪 + 置备 + registry 镜像（G-006 + G-013(registry)，决策 B+C）
 - **现状（代码实证）**：`docker/docker-compose.yml:75-76` 直接 `8000:8000` 暴露且全为 `build:` 模式；deploy-spec 与 PRE-DEPLOY-WALKTHROUGH 全文 `localhost`，无 reverse proxy / TLS / 域名 / systemd / 防火墙 / 入站 webhook 公网可达性指引；仓库无 ssh/ansible/置备脚本；远端回滚强依赖目标主机重建 zhparser（`docker/db.Dockerfile` 源码编译 SCWS+zhparser）。
@@ -135,3 +123,5 @@ deps: []
 - **B-069 + pre-deploy 走查 15-20**（2026-06-11 真起栈，[CORRECTIONS-LOG](reviews/CORRECTIONS-LOG.md)）：步骤 15-20 全 GO（16 N/A）；B-069 `/health` version `0.0.0+unknown`→`0.4.6` inline 修复（version.py pyproject fallback + Dockerfile COPY pyproject + 3 单测）；确认 PR #107 已闭环上次走查（2026-05-29）的 B-040（trace_id 跨进程）/ B-059（broker 宕 fail-fast）/ B-060（失败 LLM 落 llm_call_logs）。D1（Windows BuildKit stale cache）转剩余真债跟踪。
 - **框架升级 0.4.1→0.9.1**（2026-06-12）：`cataforge bootstrap` 刷新 scaffold 162 文件 + IDE 产物重部署 + kg-first 初始化 KG store。升级激活的 `KG ingestion completeness` 门禁对 legacy approved 文档报 14 个跨文档 entity-id collision（importer 把裸 `T-`/`F-`/`AC-` 当定义）→ test-report(24) + dev-plan-s8r(3) 裸 id 改 inline-code 让定义唯一化，`kg import` + doctor all-pass；kg/store 加 gitignore。[PR #110](https://github.com/lync-cyber/intelli-source/pull/110)；上游反馈见 [feedback](feedback/feedback-suggest-kg-ingest-gate-legacy-docs-20260612.md)。
 - **B-070（[PR #118](https://github.com/lync-cyber/intelli-source/pull/118)）**：Chat 会话压缩兑现 [AC-053](prd/prd-intellisource-v1.md)「超 token 自动摘要历史对话」—— 写入端 `_bounded_history`→`compact_messages_for_chat` token-aware 压缩替代每轮 `history[-20:]` 硬截断，**持久化** summary+recent（旧上下文以结构化摘要存活）；webhooks 同源 persist 路径一并迁移；`compact_history` 改纯函数（不污染 detached `stored_session.context`）；compaction sizing 抽 `_chat_compaction_context_window` helper 收口（同 PR 第二 commit 修 AC-T071-9 集成 parity 回归）。由 session-splitting 评估（[PR #117](https://github.com/lync-cyber/intelli-source/pull/117) NO-GO）副产暴露；code-review approved_with_notes（R-001 MEDIUM budget 收口 + R-002 webhooks + R-003 测试隔离 + R-004 读写解耦 全整改）；全门禁含 integration（ruff+mypy --strict 267+全量 unit+全量 integration exit 0）全绿。配置对齐次生项拆为 **B-071**（开放 P3，[PR #119](https://github.com/lync-cyber/intelli-source/pull/119) 立项）。
+- **B-072（G-001）**：失败推送审计落库 —— `facade.py` 失败两分支（渠道抛异常 / 渠道返回 `{"status":"failed"}`）补 `_record_push(status="failed", error_message=...)`，带与成功路径同口径脱敏 `recipient_id` + email/phone 脱敏 `error_message`，消除 `PushRecord.status=failed/error_message` 死列；落库统一在 facade 层（持有 session_factory），不走渠道 `from_env` 注入（与 session-per-request 不契合）；两失败分支去重抽 `_record_failed_push` helper。翻转 B-049 旧测试（失败时 `_record_push` 现以 `status="failed"` 被调用而非 `assert_not_called`）。新增 `test_facade_push_record_failed_b072.py`（AC1~AC6）；TDD light + REFACTOR(duplication)；全门禁绿（ruff+mypy --strict 267+全量 unit 3605 PASS+push-record integration 8 PASS）。
+- **B-073（G-002+G-003，决策 A）**：订阅静默失配 reload WARN —— `subscription_validator._warn_silent_misconfig` 在 `validate_subscriptions_file` 校验通过路径对四类静默错配发非阻塞 WARN：match_rules 未知键、无有效匹配维度（永不匹配）、非法 frequency、非法 timezone（`zoneinfo` try/except）；`VALID_FREQUENCIES` 定义在 `config/constants.py` 避免 config→distributor 反向导入（lint-imports 12 kept/0 broken）。WARN 不改 `validate_subscriptions_file` 成功/失败语义。新增 `test_subscription_reload_warn_b073.py`（AC1~AC6）；TDD light，无需 REFACTOR；全门禁绿。
