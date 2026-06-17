@@ -6,6 +6,10 @@ from typing import Final, Literal
 
 MAX_NAME_LENGTH: Final[int] = 100
 
+VALID_FREQUENCIES: Final[frozenset[str]] = frozenset(
+    {"realtime", "hourly", "daily", "weekly"}
+)
+
 #: Per-call deadlines for the flexible agent loop. Single-sourced here so the
 #: PipelineConfig defaults and the executor module constants resolve to one value
 #: and cannot drift apart.
