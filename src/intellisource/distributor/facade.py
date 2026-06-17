@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from typing import TYPE_CHECKING, Any
 
@@ -14,6 +15,19 @@ if TYPE_CHECKING:
     from intellisource.distributor.matcher import SubscriptionMatcher
 
 _logger = get_logger(__name__)
+
+_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+_PHONE_RE = re.compile(r"\+?\d[\d\s-]{6,}\d")
+
+
+def _mask_error_message(msg: str | None) -> str | None:
+    """Redact email addresses and phone numbers in *msg* before persistence."""
+    if not msg:
+        return msg
+    masked = _EMAIL_RE.sub(lambda m: mask_email(m.group(0)), msg)
+    masked = _PHONE_RE.sub(lambda m: mask_phone(m.group(0)), masked)
+    return masked
+
 
 # B-005: distributor-layer labeled counter name.
 _METRIC_PUSHES_TOTAL: str = "pushes_total"
@@ -193,15 +207,21 @@ class DistributorFacade:
                     sub.id,
                     channel_name,
                 )
+                reason = str(exc) or type(exc).__name__
                 skipped += 1
                 errors.append(
                     {
                         "subscription_id": str(sub.id),
                         "channel": channel_name,
-                        "reason": str(exc) or type(exc).__name__,
+                        "reason": reason,
                     }
                 )
-                _record_push_outcome("failed", channel=channel_name)
+                await self._record_failed_push(
+                    content_id=content_id,
+                    sub=sub,
+                    channel=channel_name,
+                    reason=reason,
+                )
                 continue
 
             # Channels swallow transport errors and return {"status": "failed"}
@@ -223,7 +243,12 @@ class DistributorFacade:
                         "reason": reason,
                     }
                 )
-                _record_push_outcome("failed", channel=channel_name)
+                await self._record_failed_push(
+                    content_id=content_id,
+                    sub=sub,
+                    channel=channel_name,
+                    reason=reason,
+                )
                 continue
 
             sent += 1
@@ -236,6 +261,7 @@ class DistributorFacade:
                 subscription_id=str(sub.id),
                 channel=channel_name,
                 recipient_id=_mask_recipient(recipient_raw),
+                status="sent",
             )
 
         return {
@@ -337,6 +363,26 @@ class DistributorFacade:
             repo = PushRepository(session=session)
             return await repo.exists(sub_uuid, content_uuid, channel)
 
+    async def _record_failed_push(
+        self,
+        *,
+        content_id: str,
+        sub: Any,
+        channel: str,
+        reason: str,
+    ) -> None:
+        """Record metric and persist a failed push record with masked PII."""
+        _record_push_outcome("failed", channel=channel)
+        recipient_raw = _extract_recipient(sub)
+        await self._record_push(
+            content_id=content_id,
+            subscription_id=str(sub.id),
+            channel=channel,
+            recipient_id=_mask_recipient(recipient_raw),
+            status="failed",
+            error_message=_mask_error_message(reason),
+        )
+
     async def _record_push(
         self,
         *,
@@ -344,6 +390,8 @@ class DistributorFacade:
         subscription_id: str,
         channel: str,
         recipient_id: str | None = None,
+        status: str = "sent",
+        error_message: str | None = None,
     ) -> None:
         """Persist a push record with masked recipient info."""
         from intellisource.storage.repositories.push import PushRepository
@@ -361,8 +409,9 @@ class DistributorFacade:
                     subscription_id=sub_uuid,
                     content_id=content_uuid,
                     channel=channel,
-                    status="sent",
+                    status=status,
                     recipient_id=recipient_id,
+                    error_message=error_message,
                 )
                 await session.commit()
             except Exception as exc:

@@ -133,7 +133,9 @@ async def test_failed_status_does_not_write_sent_push_record() -> None:
     with patch.object(facade, "_record_push", new=AsyncMock()) as mock_record:
         await facade.distribute(content_id=str(content.id), subscription_id=str(sub.id))
 
-    mock_record.assert_not_called()
+    mock_record.assert_called_once()
+    kwargs = mock_record.call_args.kwargs
+    assert kwargs["status"] == "failed", "失败路径必须写 status='failed'，绝不写 'sent'"
 
 
 @pytest.mark.asyncio
