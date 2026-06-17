@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import TYPE_CHECKING, Any
@@ -18,6 +19,36 @@ if TYPE_CHECKING:
     from intellisource.storage.repositories.push import PushRepository
 
 DEFAULT_SMTP_PORT: int = 587
+
+_logger = logging.getLogger(__name__)
+
+# Ports where implicit TLS (use_tls=True) is expected.
+_IMPLICIT_TLS_PORTS: frozenset[int] = frozenset({465})
+
+
+def _check_smtp_port_tls_consistency(port: int, use_tls: bool) -> None:
+    """Log a WARNING when port and TLS mode are inconsistent.
+
+    465 expects implicit TLS (use_tls=True); 587/25/1025 expect STARTTLS or
+    plain (use_tls=False). Mismatches are non-blocking but indicate likely
+    misconfiguration.
+    """
+    if port in _IMPLICIT_TLS_PORTS and not use_tls:
+        _logger.warning(
+            "SMTP port %d is typically used with implicit TLS (use_tls=true); "
+            "current config has use_tls=false. "
+            "Mapping: 465↔use_tls=true (implicit TLS), 587↔use_tls=false (STARTTLS), "
+            "1025/25↔use_tls=false (local plain dev).",
+            port,
+        )
+    elif port not in _IMPLICIT_TLS_PORTS and use_tls:
+        _logger.warning(
+            "SMTP port %d is typically used with STARTTLS or plain (use_tls=false); "
+            "current config has use_tls=true (implicit TLS). "
+            "Mapping: 465↔use_tls=true (implicit TLS), 587↔use_tls=false (STARTTLS), "
+            "1025/25↔use_tls=false (local plain dev).",
+            port,
+        )
 
 
 class EmailDistributor(BaseDistributor):
@@ -60,6 +91,7 @@ class EmailDistributor(BaseDistributor):
         port = int(port_str) if port_str else DEFAULT_SMTP_PORT
         use_tls_str = settings.smtp_use_tls.strip().lower()
         use_tls = use_tls_str in {"true", "1", "yes"}
+        _check_smtp_port_tls_consistency(port, use_tls)
         return cls(
             smtp_host=host,
             smtp_port=port,

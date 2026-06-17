@@ -157,6 +157,9 @@ class DistributorFacade:
         # AttributeError) surfaces in the return value / task result instead of
         # being swallowed into an opaque skipped count.
         errors: list[dict[str, Any]] = []
+        # Channels skipped because no adapter is registered (soft-disabled).
+        # Deduplicated; channel distribute() returning "failed" does not count.
+        disabled_channels_seen: set[str] = set()
 
         for sub in matched:
             channel_name: str = getattr(sub, "channel", "")
@@ -170,6 +173,8 @@ class DistributorFacade:
                         "reason": "channel not configured or disabled",
                     }
                 )
+                if channel_name:
+                    disabled_channels_seen.add(channel_name)
                 _record_push_outcome("skipped", channel=channel_name or "unknown")
                 continue
 
@@ -257,6 +262,7 @@ class DistributorFacade:
             "sent": sent,
             "skipped": skipped,
             "errors": errors,
+            "disabled_channels": sorted(disabled_channels_seen),
         }
 
     async def _hydrate_db_templates(self) -> None:
