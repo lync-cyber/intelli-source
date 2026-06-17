@@ -63,12 +63,14 @@ class TestGitSha:
 class TestUpNormal:
     """up() without --rebuild: single compose up -d --wait --build with GIT_SHA env."""
 
+    @patch("intellisource.cli.commands.stack._preflight_up")
     @patch("intellisource.cli.commands.stack._git_sha", return_value="abc1234")
     @patch("intellisource.cli.commands.stack.subprocess")
     def test_up_argv_contains_up_flags(
         self,
         mock_subprocess: MagicMock,
         _mock_sha: MagicMock,
+        _mock_preflight: MagicMock,
         runner: CliRunner,
     ) -> None:
         mock_subprocess.run.return_value = MagicMock(returncode=0)
@@ -83,12 +85,14 @@ class TestUpNormal:
         assert "--wait" in argv
         assert "--build" in argv
 
+    @patch("intellisource.cli.commands.stack._preflight_up")
     @patch("intellisource.cli.commands.stack._git_sha", return_value="abc1234")
     @patch("intellisource.cli.commands.stack.subprocess")
     def test_up_env_contains_git_sha(
         self,
         mock_subprocess: MagicMock,
         _mock_sha: MagicMock,
+        _mock_preflight: MagicMock,
         runner: CliRunner,
     ) -> None:
         mock_subprocess.run.return_value = MagicMock(returncode=0)
@@ -99,12 +103,14 @@ class TestUpNormal:
         passed_env: dict[str, Any] = mock_subprocess.run.call_args.kwargs["env"]
         assert passed_env["GIT_SHA"] == "abc1234"
 
+    @patch("intellisource.cli.commands.stack._preflight_up")
     @patch("intellisource.cli.commands.stack._git_sha", return_value="abc1234")
     @patch("intellisource.cli.commands.stack.subprocess")
     def test_up_shell_false(
         self,
         mock_subprocess: MagicMock,
         _mock_sha: MagicMock,
+        _mock_preflight: MagicMock,
         runner: CliRunner,
     ) -> None:
         mock_subprocess.run.return_value = MagicMock(returncode=0)
@@ -122,12 +128,14 @@ class TestUpNormal:
 class TestUpRebuild:
     """up --rebuild: two compose calls in order — build --no-cache, then up."""
 
+    @patch("intellisource.cli.commands.stack._preflight_up")
     @patch("intellisource.cli.commands.stack._git_sha", return_value="abc1234")
     @patch("intellisource.cli.commands.stack.subprocess")
     def test_rebuild_calls_build_then_up_in_order(
         self,
         mock_subprocess: MagicMock,
         _mock_sha: MagicMock,
+        _mock_preflight: MagicMock,
         runner: CliRunner,
     ) -> None:
         mock_subprocess.run.return_value = MagicMock(returncode=0)
@@ -151,12 +159,14 @@ class TestUpRebuild:
         assert "--wait" in second_call
         assert "--build" not in second_call
 
+    @patch("intellisource.cli.commands.stack._preflight_up")
     @patch("intellisource.cli.commands.stack._git_sha", return_value="abc1234")
     @patch("intellisource.cli.commands.stack.subprocess")
     def test_rebuild_both_calls_carry_git_sha(
         self,
         mock_subprocess: MagicMock,
         _mock_sha: MagicMock,
+        _mock_preflight: MagicMock,
         runner: CliRunner,
     ) -> None:
         mock_subprocess.run.return_value = MagicMock(returncode=0)
@@ -167,12 +177,14 @@ class TestUpRebuild:
         for c in mock_subprocess.run.call_args_list:
             assert c.kwargs["env"]["GIT_SHA"] == "abc1234"
 
+    @patch("intellisource.cli.commands.stack._preflight_up")
     @patch("intellisource.cli.commands.stack._git_sha", return_value="abc1234")
     @patch("intellisource.cli.commands.stack.subprocess")
     def test_rebuild_short_flag(
         self,
         mock_subprocess: MagicMock,
         _mock_sha: MagicMock,
+        _mock_preflight: MagicMock,
         runner: CliRunner,
     ) -> None:
         mock_subprocess.run.return_value = MagicMock(returncode=0)

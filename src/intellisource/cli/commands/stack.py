@@ -7,13 +7,79 @@ Registered directly on the root app: ``up`` / ``down`` / ``migrate`` / ``logs``
 from __future__ import annotations
 
 import os
+import pathlib
 import subprocess
 
 import typer
 
+from intellisource.cli.commands.doctor import _load_dotenv_file
 from intellisource.core.paths import project_root
 
 _COMPOSE_FILE_PARTS = ("docker", "docker-compose.yml")
+
+_WEAK_CREDENTIAL_VARS = (
+    "IS_DB_PASSWORD",
+    "IS_REDIS_PASSWORD",
+    "IS_API_KEY",
+)
+
+
+def _env_path() -> pathlib.Path:
+    """Return the absolute path to the docker/.env file."""
+    return project_root() / "docker" / ".env"
+
+
+def _docker_daemon_running() -> bool:
+    """Return True if the Docker daemon responds to 'docker info'."""
+    try:
+        result = subprocess.run(  # noqa: S603
+            ["docker", "info"],
+            capture_output=True,
+            text=True,
+            shell=False,
+        )
+        return result.returncode == 0
+    except FileNotFoundError:
+        return False
+
+
+def _weak_credential_vars(env_path: pathlib.Path) -> list[str]:
+    """Return names of credential variables whose values contain 'change-me'."""
+    env_vars = _load_dotenv_file(str(env_path))
+    return [
+        name
+        for name in _WEAK_CREDENTIAL_VARS
+        if "change-me" in env_vars.get(name, "").lower()
+    ]
+
+
+def _preflight_up() -> None:
+    """Run cold-start checks before launching the stack; exit 1 on any failure."""
+    path = _env_path()
+    if not path.exists():
+        typer.echo(
+            "Error: docker/.env not found.\n"
+            "Run 'intellisource init' to generate .env with strong credentials,\n"
+            "or copy docker/.env.example to docker/.env and set real passwords."
+        )
+        raise typer.Exit(code=1)
+
+    weak_vars = _weak_credential_vars(path)
+    if weak_vars:
+        typer.echo(
+            "Error: docker/.env contains placeholder credentials.\n"
+            "The following variables still use 'change-me' values:\n"
+            "  " + "\n  ".join(weak_vars) + "\n"
+            "Run 'intellisource init' to generate strong credentials automatically."
+        )
+        raise typer.Exit(code=1)
+
+    if not _docker_daemon_running():
+        typer.echo(
+            "Error: Docker daemon is not running or Docker is not installed.\n"
+            "Start Docker Desktop (or the Docker service) and retry."
+        )
+        raise typer.Exit(code=1)
 
 
 def _compose_args(*args: str) -> list[str]:
@@ -73,6 +139,12 @@ def up(
     ),
 ) -> None:
     """Start the full stack, injecting GIT_SHA to bust the src layer cache."""
+    _preflight_up()
+    typer.echo(
+        "Note: first-time startup downloads the embedding (TEI) model, which may take"
+        " several minutes. The stack will appear to hang on the embedding health check"
+        " — this is normal."
+    )
     sha = _git_sha()
     env = {**os.environ, "GIT_SHA": sha}
     if rebuild:
