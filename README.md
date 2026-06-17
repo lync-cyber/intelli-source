@@ -58,6 +58,29 @@ Windows PowerShell / macOS / Linux 命令**完全一致**——`intellisource up
 
 > `diff` / `config status` 的 reload 预览会区分两种语义：**subscriptions reload 是全量同步**（YAML 删掉的订阅被 PAUSE）；**sources reload 是加法 upsert**（YAML 没有的 DB 信源 PRESERVE 保留）。`subscriptions show` 额外标注 digest 的 **configured render_mode** 与"协作者缺失时降级 code"提示。
 
+### 订阅匹配规则（match_rules 语义）
+
+订阅的 `match_rules` 决定"哪些内容会推给这条订阅"。**只识别下面 5 个键**，其它键名（含拼写错误）在 `reload` 时记 WARN 并被静默忽略——看到 WARN 先核对键名。可运行示例见 [`config/examples/subscriptions.example.yaml`](config/examples/subscriptions.example.yaml)。
+
+| 键 | 类型 | 作用 | 命中语义 |
+|----|------|------|---------|
+| `keywords` | `list[str]` | 标题+正文关键词 | 见下方操作符表（混合 AND / OR） |
+| `tags` | `list[str]` | 内容标签 | **OR**：命中任一即正向匹配 |
+| `discipline_tags` | `list[str]` | 学科标签（与 tags 独立的维度） | **OR**：命中任一即正向匹配 |
+| `source_names` | `list[str]` | 信源名白名单 | **强约束**：设置后内容信源必须在列表内，否则整条丢弃 |
+| `min_score` | `float` | 相关性阈值 | 通过其它维度后，分数 < 阈值再过滤掉（`0` = 不过滤） |
+
+**`keywords` 操作符**（按 token 前缀）：
+
+| 写法 | 含义 | 语义 |
+|------|------|------|
+| `word` | 普通词 | **OR** 正向信号；大小写不敏感 |
+| `+word` | 必含 | **AND** 强约束；缺失则整条丢弃；大小写不敏感 |
+| `!word` | 必不含 | **AND** 强约束；出现则整条丢弃；大小写不敏感 |
+| `/pattern/` | 正则 | 命中即正向信号；**大小写敏感**，带 1s ReDoS 超时保护（超时按未命中处理） |
+
+**判定顺序**：① 若 `keywords/tags/discipline_tags/source_names` 全空 → 永不匹配（reload 时 WARN）；② `source_names` 强约束先过；③ `keywords` 的 `+`/`!` 强约束先过；④ 再要求至少命中一个**正向维度**（`keywords` 普通词/正则、`tags`、`discipline_tags`、或已通过的 `source_names`），否则丢弃；⑤ 最后按 `min_score` 过滤。一句话：`+`/`!`/`source_names` 是 AND 硬门槛，普通 `keywords`/`tags`/`discipline_tags` 是 OR 正向信号。
+
 ## 对话检索（chat）
 
 对已采集的资料库做基于检索的对话（RAG）。CLI 与 Web 两个入口对接同一组 `/search/chat` 端点：

@@ -46,6 +46,9 @@ subscriptions:
       tags: ["tech"]
     frequency: "daily"
     quiet_hours:
+      # 静默时段：落在 [start, end) 内不推送（周期 digest 顺延到时段结束）。
+      # 时间按本订阅的 timezone 解释（未配 timezone 时默认 Asia/Shanghai）。
+      # 支持跨午夜：start > end 时表示跨天，如 22:00→08:00 = 夜间静默。
       start: "22:00"
       end: "08:00"
 
@@ -55,3 +58,25 @@ subscriptions:
     match_rules:
       tags: ["security"]
     frequency: "realtime"
+
+  # ── 完整匹配维度示例（match_rules 五个已识别键；其它键名 reload 时 WARN 但不阻断）──
+  # 命中规则（详见仓库根 README.md §订阅匹配规则 match_rules 语义）：
+  #   先过强约束（source_names / keywords 的 + 必含 / ! 必不含），再 OR 命中任一正向维度
+  #   （keywords 普通词 / tags / discipline_tags），最后按 min_score 过滤。
+  - name: "AI 安全深度 - Email"
+    channel: "email"
+    channel_config:
+      to_addr: "${IS_DIGEST_EMAIL_TO}"
+    match_rules:
+      keywords:
+        - "transformer"        # 普通词：大小写不敏感，命中即正向匹配（OR）
+        - "+security"          # + 必含：整条订阅要求正文含 "security"（AND 强约束）
+        - "!招聘"               # ! 必不含：正文出现即整条丢弃
+        - "/CVE-\\d{4}-\\d+/"  # /regex/：正则匹配（大小写敏感，带 ReDoS 超时保护）
+      tags: ["ai", "security"]          # 任一标签命中即正向匹配（OR）
+      discipline_tags: ["cybersecurity"] # 学科标签，与 tags 独立的另一正向维度
+      source_names: ["HN RSS", "arXiv"]  # 强约束：内容信源必须在此列表，否则整条丢弃
+      min_score: 0.6                     # 相关性阈值：低于此分的内容被过滤（0 = 不过滤）
+    frequency: "weekly"
+    timezone: "Asia/Shanghai"
+
