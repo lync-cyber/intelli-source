@@ -48,6 +48,52 @@ deps: []
 
 ---
 
+## 部署/分发 新手友好度评估（DEPLOY-UX-EVAL 20260617，非阻塞）
+
+> 来源：[CODE-SCAN-deploy-ux-20260617-r1](reviews/code/CODE-SCAN-deploy-ux-20260617-r1.md)（四单元 = 部署/订阅/推送/模板）。本地起栈未被硬阻断，故无新增 P0；`G-NNN` 编号见报告。修复方向已折入用户 2026-06-17 决策（Q1=B+C / Q2=A / Q3=A / Q4=A）。
+
+### B-072 [P1] 失败推送审计落库缺失（G-001）
+- **现状（代码实证）**：`distributor/facade.py:204,226` 失败路径仅 `_record_push_outcome`（Prometheus 计数）后 `continue`；DB 落库 `_record_push`（`facade.py:234`）只在成功路径调用、`status` 硬编码 `"sent"`（`:364`）。`composition/builders.py:65-75` 构造渠道时不向 `from_env` 注入 `push_repo`，致 `distributor/base.py:144` 的失败落库分支永不触发。结果：`/push-records` 永远只有 `sent` 行，`PushRecord.error_message/retry_count/status=failed`（`storage/models.py:486-488`）为死列。
+- **影响**：推送失败无审计抓手，"为什么没收到"只能翻 worker 日志。
+- **修复方向**：`build_distributor_facade` 给 `from_env` 注入 `push_repo`（改签名 + 透传）；失败路径补 `_record_push(status="failed", error_message=...)`，复用 `base.py:197-204` 既有逻辑。单点改动。
+- **触发**：下次动分发链路 / 加推送可观测性时。
+
+### B-073 [P1] 订阅静默失配兜底（G-002 + G-003，决策 A=reload WARN）
+- **现状（代码实证）**：`config/subscription_validator.py` 不校验 `match_rules`；`distributor/matcher.py:36-42` 用 `rules.get(...)`，键拼错被忽略；全空 match_rules → `_matches` 直接 `return False`（`matcher.py:42`），订阅 active 却永不触发。`frequency` 为自由 str 无枚举（`config/subscription_models.py:19`），非法值经 `distributor/frequency.py:59` `interval=None → return True` 被当 realtime；`quiet_hours`/`timezone` 仅运行期暴露（`frequency.py:99-103` 无效时区静默回退 UTC）。
+- **影响**：写错规则/频率后订阅"假活"或行为反转，加载期零报错，直接打断 TTFV。
+- **修复方向（决策 A）**：reload 时对"match_rules 未知键 / 无任何有效匹配维度"WARN（不阻断）；`frequency` 收敛到已存在的 `FREQUENCY_OPTIONS`（`frequency.py:19-24`）；加载期校验 `quiet_hours` 的 `HH:MM` 与 `timezone` 有效性。可选叠加 `intellisource subscriptions test-match <id>` dry-run 诊断命令。
+- **触发**：下次动订阅校验 / 分发匹配时。
+
+### B-074 [P2] 远端主机就绪 + 置备 + registry 镜像（G-006 + G-013(registry)，决策 B+C）
+- **现状（代码实证）**：`docker/docker-compose.yml:75-76` 直接 `8000:8000` 暴露且全为 `build:` 模式；deploy-spec 与 PRE-DEPLOY-WALKTHROUGH 全文 `localhost`，无 reverse proxy / TLS / 域名 / systemd / 防火墙 / 入站 webhook 公网可达性指引；仓库无 ssh/ansible/置备脚本；远端回滚强依赖目标主机重建 zhparser（`docker/db.Dockerfile` 源码编译 SCWS+zhparser）。
+- **影响**：无法据现有文档完成公网可访问的远端部署，回调类渠道在远端不可用。
+- **修复方向（决策 B+C）**：① 新增"远端部署主机就绪"文档（反代/TLS/防火墙/webhook 公网 URL 示例）；② 提供置备脚本或 `intellisource` 远端 target；③ 引入 prebuilt registry 镜像 + compose pull 模式（同解远端回滚重建依赖）。文档先行、自动化与镜像为中-大成本后续。
+- **触发**：规划首次远端/生产部署时。
+
+### B-075 [P2] 模板可发现性 + 变量文档 + CLI validate/preview（G-004 + G-005，决策 A=文件覆盖为主）
+- **现状（代码实证）**：渲染唯一注入 `bundle`（`distributor/templates/render.py:39`），字段仅存在于 `distributor/templates/schemas.py:16-41`；`config/templates/README.md`（9 行）只说"放同名文件"不提字段。CLI `template list/add/rm`（`cli/commands/template.py`）只操作 DB `templates` 表，`config/templates/` 文件覆盖（`render.py:21,29`）永不出现在 list、无法 preview/validate；文件名拼错（kebab/snake 混淆，如 `daily_brief` vs `daily-brief`）→ FileSystemLoader 静默回落 builtin。
+- **影响**：写自定义模板须逆向读源码；不知该放文件还是敲命令；拼错文件名静默失效。
+- **修复方向（决策 A）**：① `config/templates/README.md` 补 `bundle` 字段表 + 端到端覆盖示例；② 文档明确"文件覆盖为主、DB 模板为辅"分工；③ CLI `template list` 增列扫描 `config/templates/` file override + 新增 `template validate`/`preview`。文档低成本，CLI 增强中等成本。
+- **触发**：下次动模板分发 / template CLI 时。
+
+### B-076 [P2] 推送渠道排障可观测性（G-007 + G-008 + G-009 + G-011，SMTP 默认改 A）
+- **现状（代码实证）**：
+  - SMTP：`docker/.env.example:113-114` 默认 `IS_SMTP_PORT=587` + `IS_SMTP_USE_TLS=true` → aiosmtplib 隐式 TLS（对应 465），与 587 STARTTLS 错配，from_env 无一致性校验。
+  - token errmsg：`_fetch_token` 抛带 errmsg 异常（`distributor/channels/wechat.py:101` / `wework.py:182`），被 distribute 的 `except Exception` 统一替换为 `network_error`（`wechat.py:197-199` / `wework.py:138-140`）。
+  - 半静默：渠道软禁用后匹配仍计入 `skipped`（`facade.py:163-173`），distribute 整体仍返回 `{"status":"ok"}`（`facade.py:241-245`）。
+  - doctor：LLM key 只看非空（`doctor.py:100-104`），`.env.example:67-68` 的 `sk-...` 占位被判已设；"not set" 项无修复指引（`doctor.py:84,98,104`）。
+- **影响**：邮件默认配置大概率握手失败；密钥错与网络抖动无法区分；"配了却没收到"易误判成功；doctor 误报。
+- **修复方向**：① （决策 A）`.env.example` 默认改 587 + `use_tls=false` + 注释 465↔true/587↔false，from_env 加端口-模式 WARN；② 保留原始 token errmsg 进 `error` 字段；③ distribute 返回体在 `skipped>0` 附 disabled_channels 提示，doctor 默认提醒软禁用渠道；④ doctor 识别占位 key + "not set" 附修复动作。
+- **触发**：下次动分发渠道 / doctor 自检时。
+
+### B-077 [P3] 冷启动预检 + match_rules 语义文档 + 杂项（G-010 + G-012 + G-013 杂项）
+- **现状（代码实证）**：`init`/`up` 不检测 Docker daemon / `.env` 存在（`cli/commands/stack.py:56-60` 只捕 FileNotFoundError），手动 copy `.env.example` 绕过 init → 弱口令（占位非空，compose `:?` 不拦，`.env.example:18,27,36`）；match_rules 语义（AND/OR、大小写、keywords `+`/`!`/`/regex/`、source_names 强约束）仅在 `distributor/matcher.py` 与内部 dev-plan，`config/examples/subscriptions.example.yaml` 只演示 tags；embedding `start_period:1200s`（`docker-compose.yml:181`）无进度提示；`config/templates/README.md:3` 漏列 `json_feed`；j2 覆盖度不全（weekly-roundup 仅 html、push-card 无 html）→ 静默回落 default_format（`distributor/templates/base.py:42-44`）。
+- **影响**：各为小摩擦，单独不阻断。
+- **修复方向**：`up` 前置检查 daemon + `.env` 友好提示；example.yaml 补全匹配维度 + README 加 match_rules 语义小节；`up` 输出 embedding 首拉等待提示；补 README `json_feed` 与缺失 j2 说明。
+- **触发**：穿插在 `B-073` / `B-074` / `B-075` 落地时顺手处理。
+
+---
+
 ## agentloop-hardening 后续（非阻塞，保留跟踪）
 
 > 本批 R-001~R-010 + R-005 余量 + R-011/R-012 + P11/P12 已闭环，详见 [code-review r1](reviews/code/CODE-REVIEW-agentloop-hardening-r1.md) 与 [burndown r1](reviews/code/CODE-REVIEW-agentloop-burndown-r1.md)。以下为唯一保留的延后设计。
