@@ -50,7 +50,7 @@ deps: []
 
 ## 部署/分发 新手友好度评估（DEPLOY-UX-EVAL 20260617，非阻塞）
 
-> 来源：[CODE-SCAN-deploy-ux-20260617-r1](reviews/code/CODE-SCAN-deploy-ux-20260617-r1.md)（四单元 = 部署/订阅/推送/模板）。本地起栈未被硬阻断，故无新增 P0；`G-NNN` 编号见报告。修复方向已折入用户 2026-06-17 决策（Q1=B+C / Q2=A / Q3=A / Q4=A）。两个 P1（B-072/B-073）+ P2 B-075/B-076 + P3 B-077 已闭环（见「已闭环」段）；唯一开放项为 B-074（远端 infra portion）。
+> 来源：[CODE-SCAN-deploy-ux-20260617-r1](reviews/code/CODE-SCAN-deploy-ux-20260617-r1.md)（四单元 = 部署/订阅/推送/模板）。本地起栈未被硬阻断，故无新增 P0；`G-NNN` 编号见报告。修复方向已折入用户 2026-06-17 决策（Q1=B+C / Q2=A / Q3=A / Q4=A）。两个 P1（B-072/B-073）+ P2 B-075/B-076 + P3 B-077 已闭环（见「已闭环」段）；开放项：B-074（远端 infra portion）+ B-078/B-079（2026-06-18 真实冷启动会话新增：init key 非幂等 + doctor 无鉴权探针）。
 
 ### B-074 [P2] 远端主机就绪 + 置备 + registry 镜像（G-006 + G-013(registry)，决策 B+C）
 - **现状（代码实证）**：`docker/docker-compose.yml:75-76` 直接 `8000:8000` 暴露且全为 `build:` 模式；deploy-spec 与 PRE-DEPLOY-WALKTHROUGH 全文 `localhost`，无 reverse proxy / TLS / 域名 / systemd / 防火墙 / 入站 webhook 公网可达性指引；仓库无 ssh/ansible/置备脚本；远端回滚强依赖目标主机重建 zhparser（`docker/db.Dockerfile` 源码编译 SCWS+zhparser）。
@@ -58,6 +58,23 @@ deps: []
 - **修复方向（决策 B+C）**：① 新增"远端部署主机就绪"文档（反代/TLS/防火墙/webhook 公网 URL 示例）；② 提供置备脚本或 `intellisource` 远端 target；③ 引入 prebuilt registry 镜像 + compose pull 模式（同解远端回滚重建依赖）。文档先行、自动化与镜像为中-大成本后续。
 - **进度**：① 文档已交付 —— [`docs/deploy/remote-host-readiness.md`](deploy/remote-host-readiness.md)（反代/TLS/防火墙/入站 webhook 公网可达/systemd/冷启动代价 + 对 deploy-spec 交叉引用）。剩余 ②③（置备脚本 + registry 镜像）= 代码/infra，待续。
 - **触发**：规划首次远端/生产部署时。
+
+### B-078 [P2] `init` API key 非幂等 —— re-init 静默作废运行栈鉴权（2026-06-18 冷启动会话实证）
+
+- **现状（代码实证）**：[`init.py`](../src/intellisource/cli/commands/init.py) API key 在交互模式留空时每次 `secrets.token_hex(32)` 重新生成并覆盖 `docker/.env`，而 DB/Redis 密码经 `_password_keeping_existing` 幂等复用已有真实值。后果：re-init 换了 key，但运行中容器仍持**创建时烘焙的旧 key**（`up` 失败或 Docker 整机重启用 `restart: unless-stopped` 拉起时不重读 `.env`）→ host CLI 用新 key 调受保护接口恒 `401 Unauthorized`。
+- **实证**：2026-06-18 真实冷启动会话复现 —— `doctor --check-api` 全绿但 `source list`/`subscriptions reload` 401；实测运行容器烘焙 key 与 `docker/.env` key MISMATCH。
+- **影响**：re-init 静默作废正在运行栈的鉴权，新手无法定位（doctor 假绿，见 B-079）；属"起栈第一公里"陷阱，与 B-077 冷启动预检同源。
+- **修复方向（决策待定）**：API key 比照 DB/Redis 走幂等 —— 存在真实 `IS_API_KEY` 即复用（交互留空时沿用并提示"沿用现有 key"，仅缺失/占位才生成）；并在确实更换 key 时显式提示"需 `intellisource up` 重建容器使新 key 生效"。
+- **优先级理由**：P2 —— footgun（有 workaround：重建容器或恢复旧 key），非阻塞但坑深、误导性强。
+- **进度**：已 TDD light 闭环（branch `claude/deploy-ux-b078-b079`）—— `_resolve_api_key` 实现优先级 + 占位符过滤；[code-review r1](reviews/code/CODE-REVIEW-B-078-B-079-r1.md) approved（R-001 MEDIUM 占位符过滤等 4 项同分支整改）；门禁绿（ruff+mypy --strict 268+全量 unit exit 0）。待 commit/PR。
+
+### B-079 [P2] `doctor --check-api` 无鉴权探针 —— key 漂移时假绿（2026-06-18 实证）
+
+- **现状（代码实证）**：[`doctor.py`](../src/intellisource/cli/commands/doctor.py) `_probe_api_health` 仅探**无需鉴权**的 `GET /health`；`_doctor_env` 对 `IS_API_KEY` 只校验非空/非占位，**从不用该 key 发一个受保护请求**。结果容器 key 与 `.env` key 漂移（见 B-078）时 doctor 仍报 "All required items OK" + "API /health healthy"，而所有受保护 CLI 命令 401。
+- **影响**：doctor 给假安全感，掩盖鉴权配置漂移，是 B-078 难以定位的直接放大器；与 B-076 doctor 增强同属可观测性。
+- **修复方向**：`--check-api` 增加一个携带 `X-API-Key`（取自 `.env`）的受保护端点探针，区分 200（key 一致）/ 401（key 漂移 → 提示"容器 key 与 .env 不一致，运行 `intellisource up` 重建容器"）/ 其他网络态。
+- **优先级理由**：P2 —— 可观测性缺口，与 B-076 doctor 增强同档；非阻塞。
+- **进度**：已 TDD light 闭环（同 branch）—— `_probe_api_auth` 带 X-API-Key 探 `GET /sources`，doctor `--check-api` 接入；对**真实漂移栈**活体验证通过（旧 doctor 假绿 → 新 doctor 报 `[FAIL] API auth 401 — key drift detected`）；门禁绿。待 commit/PR。
 
 ---
 
