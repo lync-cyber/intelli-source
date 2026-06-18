@@ -9,7 +9,7 @@ from typing import Any
 
 import typer
 
-from intellisource.cli.commands.doctor import _load_dotenv_file
+from intellisource.cli.commands.doctor import _API_KEY_PLACEHOLDER, _load_dotenv_file
 from intellisource.core.encoding import read_text, write_text
 from intellisource.core.paths import project_root
 
@@ -220,6 +220,48 @@ def _prompt_channel() -> dict[str, str]:
     return updates
 
 
+def _resolve_api_key(env_path: pathlib.Path, *, non_interactive: bool) -> str:
+    """Return the API key according to priority: os.environ > .env existing > generate.
+
+    In interactive mode the user is prompted first; a blank response falls
+    through to the priority chain. An existing real key from .env is reused
+    (a message is printed) so a re-run never silently invalidates a running
+    stack. The ``.env.example`` placeholder is treated as absent so it is
+    never reused as a live credential.
+    """
+
+    def _real(value: str) -> str:
+        value = value.strip()
+        return "" if value == _API_KEY_PLACEHOLDER else value
+
+    existing_key = _real(_load_dotenv_file(str(env_path)).get("IS_API_KEY", ""))
+
+    if non_interactive:
+        environ_key = _real(os.environ.get("IS_API_KEY", ""))
+        if environ_key:
+            return environ_key
+        if existing_key:
+            return existing_key
+        return secrets.token_hex(32)
+
+    # Interactive path — prompt first
+    user_input: str = typer.prompt(
+        "API key for IntelliSource (leave blank to auto-generate)", default=""
+    ).strip()
+    if user_input:
+        return user_input
+
+    # Blank input → reuse an existing real key, else generate
+    if existing_key:
+        typer.echo("Reusing existing IS_API_KEY from .env")
+        return existing_key
+
+    # No existing key — generate a new one
+    new_key = secrets.token_hex(32)
+    typer.echo(f"Generated: {new_key}")
+    return new_key
+
+
 def _password_keeping_existing(
     existing: dict[str, str], var: str, placeholder: str
 ) -> tuple[str, bool]:
@@ -328,15 +370,7 @@ def init(
     typer.echo("Welcome to IntelliSource setup.\n")
 
     # --- API key ---
-    if non_interactive:
-        api_key = os.environ.get("IS_API_KEY") or secrets.token_hex(32)
-    else:
-        api_key = typer.prompt(
-            "API key for IntelliSource (leave blank to auto-generate)", default=""
-        )
-        if not api_key:
-            api_key = secrets.token_hex(32)
-            typer.echo(f"Generated: {api_key}")
+    api_key = _resolve_api_key(env_path, non_interactive=non_interactive)
 
     # --- LLM provider ---
     chosen_provider = _resolve_provider(provider, non_interactive)
