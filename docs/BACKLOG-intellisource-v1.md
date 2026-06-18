@@ -66,7 +66,7 @@ deps: []
 - **影响**：re-init 静默作废正在运行栈的鉴权，新手无法定位（doctor 假绿，见 B-079）；属"起栈第一公里"陷阱，与 B-077 冷启动预检同源。
 - **修复方向（决策待定）**：API key 比照 DB/Redis 走幂等 —— 存在真实 `IS_API_KEY` 即复用（交互留空时沿用并提示"沿用现有 key"，仅缺失/占位才生成）；并在确实更换 key 时显式提示"需 `intellisource up` 重建容器使新 key 生效"。
 - **优先级理由**：P2 —— footgun（有 workaround：重建容器或恢复旧 key），非阻塞但坑深、误导性强。
-- **进度**：已 TDD light 闭环（branch `claude/deploy-ux-b078-b079`）—— `_resolve_api_key` 实现优先级 + 占位符过滤；[code-review r1](reviews/code/CODE-REVIEW-B-078-B-079-r1.md) approved（R-001 MEDIUM 占位符过滤等 4 项同分支整改）；门禁绿（ruff+mypy --strict 268+全量 unit exit 0）。待 commit/PR。
+- **进度**：已 TDD light 闭环（branch `claude/deploy-ux-b078-b079`）—— `_resolve_api_key` 实现优先级 + 占位符过滤；[code-review r1](reviews/code/CODE-REVIEW-B-078-B-079-r1.md) approved（R-001 MEDIUM 占位符过滤等 4 项同分支整改）；门禁绿（ruff+mypy --strict 268+全量 unit exit 0）。[PR #124](https://github.com/lync-cyber/intelli-source/pull/124) 待合并。
 
 ### B-079 [P2] `doctor --check-api` 无鉴权探针 —— key 漂移时假绿（2026-06-18 实证）
 
@@ -74,7 +74,7 @@ deps: []
 - **影响**：doctor 给假安全感，掩盖鉴权配置漂移，是 B-078 难以定位的直接放大器；与 B-076 doctor 增强同属可观测性。
 - **修复方向**：`--check-api` 增加一个携带 `X-API-Key`（取自 `.env`）的受保护端点探针，区分 200（key 一致）/ 401（key 漂移 → 提示"容器 key 与 .env 不一致，运行 `intellisource up` 重建容器"）/ 其他网络态。
 - **优先级理由**：P2 —— 可观测性缺口，与 B-076 doctor 增强同档；非阻塞。
-- **进度**：已 TDD light 闭环（同 branch）—— `_probe_api_auth` 带 X-API-Key 探 `GET /sources`，doctor `--check-api` 接入；对**真实漂移栈**活体验证通过（旧 doctor 假绿 → 新 doctor 报 `[FAIL] API auth 401 — key drift detected`）；门禁绿。待 commit/PR。
+- **进度**：已 TDD light 闭环（同 branch）—— `_probe_api_auth` 带 X-API-Key 探 `GET /sources`，doctor `--check-api` 接入；对**真实漂移栈**活体验证通过（旧 doctor 假绿 → 新 doctor 报 `[FAIL] API auth 401 — key drift detected`）；门禁绿。[PR #124](https://github.com/lync-cyber/intelli-source/pull/124) 待合并。
 
 ---
 
