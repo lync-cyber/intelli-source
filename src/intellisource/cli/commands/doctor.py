@@ -161,6 +161,28 @@ def _doctor_env(env: dict[str, str]) -> list[tuple[str, bool | None, str]]:
     return items
 
 
+def _probe_api_auth(api_key: str, *, timeout: float = 3.0) -> tuple[str, str]:
+    """Probe a protected endpoint with X-API-Key; classify auth outcome.
+
+    Returns (outcome, detail) where outcome is one of:
+
+    - ``"ok"``            — 2xx or non-401 4xx (key is accepted or endpoint behaves
+                            unexpectedly but is not rejecting our key)
+    - ``"unauthorized"``  — 401 (key known to be wrong / drifted)
+    - ``"inconclusive"``  — network error or 5xx (cannot determine key validity)
+    """
+    url = f"{base_url()}/sources"
+    try:
+        resp = httpx.get(url, headers={"X-API-Key": api_key}, timeout=timeout)
+    except Exception:  # noqa: BLE001 — doctor must never traceback
+        return "inconclusive", "network error"
+    if resp.status_code == 401:
+        return "unauthorized", "401 Unauthorized"
+    if resp.status_code >= 500:
+        return "inconclusive", f"HTTP {resp.status_code}"
+    return "ok", f"HTTP {resp.status_code}"
+
+
 _HEALTH_PROBE_ATTEMPTS = 5
 _HEALTH_PROBE_BACKOFF_SECONDS = 1.0
 
@@ -257,6 +279,21 @@ def doctor(
             typer.echo(f"  [OK]  {'API /health':<35} {status}")
             for w in payload.get("missing_config", []) or []:
                 typer.echo(f"  [--]  {'API warning':<35} {w}")
+            api_key = env.get("IS_API_KEY", "")
+            if api_key and api_key != _API_KEY_PLACEHOLDER:
+                auth_outcome, auth_detail = _probe_api_auth(api_key)
+                if auth_outcome == "ok":
+                    typer.echo(f"  [OK]  {'API auth':<35} key accepted")
+                elif auth_outcome == "unauthorized":
+                    typer.echo(
+                        f"  [FAIL]  {'API auth':<35} 401 — key drift detected;"
+                        " run `intellisource up` to rebuild"
+                    )
+                    errors += 1
+                else:
+                    typer.echo(
+                        f"  [--]  {'API auth':<35} cannot verify ({auth_detail})"
+                    )
         elif outcome == "starting":
             typer.echo(
                 f"  [--]  {'API /health':<35} "
