@@ -10,7 +10,7 @@ deps: []
 
 > CLAUDE.md §项目状态 归档 — 历史闭环条目的详细 prose 留在此文件，CLAUDE.md 仅保留摘要 + 链接。
 > 写入顺序：旧 → 新；最新闭环保留在 CLAUDE.md 直到归档轮替。
-> 最后归档：2026-06-08 (PR #69~#94 + 大规模重构走查后整理；CLAUDE.md/BACKLOG 精简，闭环 prose 收口到本文件 + CORRECTIONS-LOG + git)
+> 最后归档：2026-06-19 (PR #102~#126 + 框架 0.9.1→0.12.0 + deploy-ux 评估批归档轮替；CLAUDE.md/BACKLOG 精简，闭环 prose 收口到本文件 + CORRECTIONS-LOG + git)
 
 ## audit-fix
 - **audit-fix-pr53** (commit 7e10e77): F-01~F-11 P0 + F-12~F-27 P1 + F-28~F-48 P2/P3 — 39 项，详见 PR #53 描述
@@ -89,6 +89,26 @@ deps: []
 ## 部署债根治
 
 - **D1 Docker 缓存根治** (分支 `fix/d1-docker-cache-bust`): Windows Docker Desktop BuildKit 对 `COPY src/` 的 mtime checksum 失效 → 普通 rebuild 镜像 src 旧（致 PR #107 合并后 api lifespan 因 `fallback_models` schema 崩）。根治 = Dockerfile `ARG GIT_SHA` + `LABEL org.opencontainers.image.revision` 置于 `COPY src/` 前（sha 变 → LABEL 层 cache miss → bust src 层，依赖层 `uv sync` 仍 CACHED）+ `docker-compose.yml` 四服务 `build.args.GIT_SHA` + `intellisource up`/`make up` 自动注入 `git rev-parse HEAD` + `intellisource up --rebuild`/`make rebuild` 逃生口（dirty-tree）。受控实验证伪：改 GIT_SHA + 改 src 内容 + **不带 --no-cache** → 镜像拿到新 src（marker FOUND）且 uv sync 层 CACHED。新增 `tests/unit/cli/test_stack.py` 9 用例（argv/env 注入 + rebuild 顺序 + `_git_sha` 兜底）。code-review approved_with_notes（R-001~R-004 inline 闭环），详见 [code-review r1](reviews/code/CODE-REVIEW-d1-docker-cache-bust-r1.md)
+
+## PR #102 ~ #126 + framework 0.9.1→0.12.0 + deploy-ux 评估批（2026-06-08 → 2026-06-19 归档）
+
+> 单行索引；详细 prose 在各 PR / commit + code-review 报告 + [CORRECTIONS-LOG](reviews/CORRECTIONS-LOG.md)。
+
+- **PR #102 / T-MCP-GW**：BGE-M3 本地 embedding（T-EMB-1/2/3）— `_embed.py` 经 TEI 路由（api_base/key/dimension 走 Settings）+ 向量列 1536→1024 迁移（`g0h1i2j3k4l5`）+ 查询/RAG semantic 接线（`HybridSearchEngine` 注入 gateway）+ docker-compose TEI 服务；MCP 默认 search factory 懒注入进程级 `LLMGateway` 单例，搜索 keyword-only→semantic/hybrid。approved（[T-EMB-1](reviews/code/CODE-REVIEW-T-EMB-1-r1.md) / [T-EMB-2](reviews/code/CODE-REVIEW-T-EMB-2-r1.md) / [T-MCP-GW](reviews/code/CODE-REVIEW-T-MCP-GW-r1.md)）
+- **PR #106**：B-067（TEI healthcheck start_period 120s→1200s）+ B-068（embedding backfill：`list_missing_embeddings` + `backfill_embeddings` Celery 任务 + `POST /content/backfill-embeddings`（arch API-030）+ `content backfill-embeddings` CLI）。code-review 抓 1 CRITICAL 分页跳行 + 3 HIGH，approved_with_notes（[r2](reviews/code/CODE-REVIEW-T-BF-backfill-r2.md)）
+- **PR #107**：agentloop-hardening — flexible loop 加固 + model failover + scheduler idempotency + agent observability（R-001~R-012 + P11/P12），approved 0 CRITICAL/HIGH（[hardening r1](reviews/code/CODE-REVIEW-agentloop-hardening-r1.md) / [burndown r1](reviews/code/CODE-REVIEW-agentloop-burndown-r1.md)）
+- **B-069 + pre-deploy 走查 15-20**（2026-06-11 真起栈）：步骤 15-20 全 GO（16 N/A）；B-069 `/health` version `0.0.0+unknown`→`0.4.6` inline 修（version.py pyproject fallback + Dockerfile COPY pyproject + 3 单测）；确认 #107 闭环上次走查 B-040/B-059/B-060；D1 转剩余真债。
+- **框架 0.4.1→0.9.1**（[PR #110](https://github.com/lync-cyber/intelli-source/pull/110)，2026-06-12）：scaffold 162 文件刷新 + IDE 重部署 + kg-first 初始化；KG 门禁对 legacy approved 文档报 14 个跨文档 entity-id collision（importer 把裸 `T-`/`F-`/`AC-` 当定义）→ test-report/dev-plan-s8r 裸 id 改 inline-code；kg/store 加 gitignore。[feedback](feedback/feedback-suggest-kg-ingest-gate-legacy-docs-20260612.md)
+- **框架 0.9.1→0.12.0**（[#113](https://github.com/lync-cyber/intelli-source/pull/113) 0.11.0 / [#115](https://github.com/lync-cyber/intelli-source/pull/115) 0.11.2+KG 全量重建 / [#125](https://github.com/lync-cyber/intelli-source/pull/125) 0.12.0）：scaffold 刷新 + `setup.py`→`cataforge setup` CLI shim + doc-gen schemas/templates retire + IDE 重部署 + CLAUDE.md §执行环境 去重；KG dangling WARN 处理（API-010/026/029 inline-code 豁免 + 76 框架口径噪声定性）[#111](https://github.com/lync-cyber/intelli-source/pull/111) + D1 Docker 缓存根治 [#109](https://github.com/lync-cyber/intelli-source/pull/109)。
+- **B-070**（[PR #118](https://github.com/lync-cyber/intelli-source/pull/118)）：Chat 会话压缩兑现 AC-053「超 token 自动摘要历史对话」— 写入端 `_bounded_history`→`compact_messages_for_chat` token-aware 压缩替代 `history[-20:]` 硬截断 + **持久化** summary+recent；webhooks 同源 persist 迁移；`compact_history` 改纯函数。由 session-splitting 评估（[#117](https://github.com/lync-cyber/intelli-source/pull/117) NO-GO）副产暴露；approved_with_notes（R-001~R-004 整改）。
+- **B-071**（[PR #126](https://github.com/lync-cyber/intelli-source/pull/126)，B-070 follow-up）：arch §5.1 `[chat]` 配置段 ↔ 实现失配「精简混合」收敛。研判：5 参数中 `compress_after_turns`/`compress_model` 从未实现、`session_timeout_hours=24` 与代码 `CHAT_SESSION_TTL_DAYS=30` 单位+值双失配、`context_token_budget=2000` 为 vestigial 库默认（实共用 `=6000`）、引用的 `settings.example.toml` 不存在且 TOML 非本项目机制（实为 `IS_*` env）。收敛：接入 `IS_CHAT_COMPACT_TOKEN_BUDGET=6000`/`IS_CHAT_SESSION_TTL_DAYS=30`（`ge=1`）+ `MAX_HISTORY_TURNS=10` 留常量 + 退役 2000 + 删 2 幽灵参数 + arch/.env 同步。approved_with_notes（[r1](reviews/code/CODE-REVIEW-B-071-r1.md)，R-003 `ge=1` + R-001 整改）。
+- **deploy-ux 评估批 B-072 ~ B-079**（[CODE-SCAN-deploy-ux-20260617-r1](reviews/code/CODE-SCAN-deploy-ux-20260617-r1.md)，用户决策 Q1=B+C/Q2=A/Q3=A/Q4=A）：
+  - **B-072**（#122）失败推送审计落库 — `facade.py` 失败两分支补 `_record_push(status="failed")` + 脱敏 recipient_id/error_message，消除 `PushRecord` 死列，翻转 B-049 旧测试。
+  - **B-073**（#122）订阅静默失配 reload WARN — `_warn_silent_misconfig` 四类非阻塞 WARN（未知键/永不匹配/非法 frequency/非法 timezone）+ `VALID_FREQUENCIES` 入 `config/constants`。
+  - **B-075**（#123）模板可发现性 CLI — `distributor/templates/discovery.py`（`list_file_overrides`/`validate_overrides`/`render_preview`）+ `template list/validate/preview` 子命令。
+  - **B-076**（#123）推送渠道排障可观测性 — `email.from_env` 端口↔TLS WARN + `.env.example` 默认 `IS_SMTP_USE_TLS=false` + facade `disabled_channels` 返回 + doctor 占位 LLM key 识别。
+  - **B-077**（#123）冷启动预检 G-010 — `stack.py` `up` 前校验 `.env` 存在→无占位弱口令→Docker daemon 可达（任一失败 exit 1）+ embedding 首拉等待提示。
+  - **B-078 + B-079**（#124，2026-06-18 真实冷启动会话）— init `_resolve_api_key` 幂等（`os.environ`>`.env` 现有>生成，过滤占位符）+ doctor `--check-api` `_probe_api_auth`（带 `X-API-Key` 探 `GET /sources`，401→key drift 重建指引）；对真实漂移栈活体验证通过。[r1](reviews/code/CODE-REVIEW-B-078-B-079-r1.md)
 
 ## Learnings Registry (详细见各 RETRO 报告)
 
