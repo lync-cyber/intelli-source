@@ -294,4 +294,4 @@ erDiagram
 
 **索引**: `idx_chat_session_user` (channel, channel_user_id), `idx_chat_session_active` (last_active_at)
 
-**清理策略**: 超过 `chat.session_timeout_hours`（见 settings.example.toml）无活跃的会话自动清理
+**清理策略**: 超过 `IS_CHAT_SESSION_TTL_DAYS`（默认 30 天，见 arch §5.1 对话配置）无活跃的会话由 `cleanup_chat_sessions` beat 任务自动清理

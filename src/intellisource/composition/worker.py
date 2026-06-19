@@ -110,7 +110,7 @@ def build_worker_composition(
     )
 
     # Wire the session factory the ``cleanup_chat_sessions`` beat task uses to
-    # purge chat sessions inactive past CHAT_SESSION_TTL_DAYS.
+    # purge chat sessions inactive past the IS_CHAT_SESSION_TTL_DAYS TTL.
     setattr(_worker_celery_app, "_chat_session_cleanup_factory", session_factory)
 
     return WorkerComposition(

@@ -95,6 +95,14 @@ class Settings(BaseSettings):
     embedding_api_key: str = Field("", validation_alias="IS_EMBEDDING_API_KEY")
     embedding_dimension: int = Field(1024, validation_alias="IS_EMBEDDING_DIMENSION")
 
+    # --- Chat conversation compaction (arch §5.1 [chat]) ---
+    chat_compact_token_budget: int = Field(
+        6000, ge=1, validation_alias="IS_CHAT_COMPACT_TOKEN_BUDGET"
+    )
+    chat_session_ttl_days: int = Field(
+        30, ge=1, validation_alias="IS_CHAT_SESSION_TTL_DAYS"
+    )
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

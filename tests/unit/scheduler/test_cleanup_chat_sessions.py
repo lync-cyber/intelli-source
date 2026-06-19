@@ -2,17 +2,23 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import pytest
 
 import intellisource.storage.repositories.chat_session as chat_repo_mod
+from intellisource.core.settings import get_settings
 from intellisource.scheduler import tasks as tasks_mod
-from intellisource.scheduler.tasks import (
-    CHAT_SESSION_TTL_DAYS,
-    _cleanup_chat_sessions_body,
-)
+from intellisource.scheduler.tasks import _cleanup_chat_sessions_body
+
+
+@pytest.fixture(autouse=True)
+def _clear_settings_cache() -> Iterator[None]:
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 class _FakeSession:
@@ -37,9 +43,9 @@ def test_cleanup_body_raises_when_not_wired(monkeypatch: pytest.MonkeyPatch) -> 
         _cleanup_chat_sessions_body()
 
 
-def test_cleanup_body_purges_expired_when_wired(
+def _run_cleanup_capturing_before(
     monkeypatch: pytest.MonkeyPatch,
-) -> None:
+) -> tuple[dict[str, Any], _FakeSession]:
     captured: dict[str, Any] = {}
     sess = _FakeSession()
 
@@ -59,8 +65,25 @@ def test_cleanup_body_purges_expired_when_wired(
     monkeypatch.setattr(chat_repo_mod, "ChatSessionRepository", _Repo)
 
     result = _cleanup_chat_sessions_body()
+    captured["result"] = result
+    return captured, sess
 
-    assert result == {"deleted": 7}
+
+def test_cleanup_body_purges_expired_when_wired(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("IS_CHAT_SESSION_TTL_DAYS", raising=False)
+    captured, sess = _run_cleanup_capturing_before(monkeypatch)
+
+    assert captured["result"] == {"deleted": 7}
     assert sess.committed is True
-    expected = datetime.now(timezone.utc) - timedelta(days=CHAT_SESSION_TTL_DAYS)
+    expected = datetime.now(timezone.utc) - timedelta(days=30)
+    assert abs((captured["before"] - expected).total_seconds()) < 3600
+
+
+def test_cleanup_cutoff_reads_settings_ttl(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("IS_CHAT_SESSION_TTL_DAYS", "1")
+    captured, _sess = _run_cleanup_capturing_before(monkeypatch)
+
+    expected = datetime.now(timezone.utc) - timedelta(days=1)
     assert abs((captured["before"] - expected).total_seconds()) < 3600

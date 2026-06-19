@@ -14,6 +14,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from intellisource.core.settings import get_settings
 from intellisource.llm.compaction import compact_messages_for_chat
 from intellisource.observability.logging import get_logger
 
@@ -21,8 +22,12 @@ logger = get_logger(__name__)
 
 CHAT_CHANNEL_API: str = "api"
 MAX_HISTORY_TURNS: int = 10
-CHAT_COMPACT_TOKEN_BUDGET: int = 6000
 _CHARS_PER_TOKEN: int = 4
+
+
+def _compact_token_budget() -> int:
+    """Effective chat-history compaction budget (IS_CHAT_COMPACT_TOKEN_BUDGET)."""
+    return get_settings().chat_compact_token_budget
 
 
 def _estimate_tokens(messages: list[dict[str, Any]]) -> int:
@@ -109,7 +114,7 @@ async def persist_turn(
     response_session_uuid = session_uuid or uuid.uuid4()
     if db_manager is None:
         return response_session_uuid
-    budget = max_tokens_budget or CHAT_COMPACT_TOKEN_BUDGET
+    budget = max_tokens_budget or _compact_token_budget()
     try:
         async with db_manager.get_session() as db_session:
             response_session_uuid = await _persist_chat_turn(
@@ -155,7 +160,7 @@ async def _persist_chat_turn(
     user_message: str,
     assistant_answer: str,
     llm_gateway: Any = None,
-    budget: int = CHAT_COMPACT_TOKEN_BUDGET,
+    budget: int,
 ) -> uuid.UUID:
     """Append the new user+assistant turn to ChatSession.context.messages.
 
@@ -212,7 +217,7 @@ async def compact_history(
     untouched DB history rather than this read-side compaction result. Falls
     back to the raw history on any error.
     """
-    budget = max_tokens_budget or CHAT_COMPACT_TOKEN_BUDGET
+    budget = max_tokens_budget or _compact_token_budget()
     try:
         messages: list[dict[str, Any]] = stored_session.context["messages"]
         if _estimate_tokens(messages) <= budget:

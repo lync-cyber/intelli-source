@@ -195,7 +195,7 @@ C4Context
 - 信源配置缓存：热加载后写入 Redis，TTL 与配置刷新周期一致，避免每次请求读取数据库
 - LLM 调用结果缓存：相同内容指纹 + 相同处理类型的 LLM 调用结果缓存 24h，减少重复调用
 - 检索结果缓存：高频查询关键词缓存 5min（短 TTL，保证时效性）
-- 对话上下文压缩：多轮对话通过意图分离 + token 预算滑动窗口 + 异步摘要压缩控制上下文 token 消耗，参数见 settings.example.toml `[chat]` 段
+- 对话上下文压缩：多轮对话通过意图分离 + token 预算滑动窗口 + 异步摘要压缩控制上下文 token 消耗，参数见 `IS_CHAT_*` 环境变量（本节对话配置表）
 - 源级 HTTP 缓存：Collector 基类内置 HTTP 条件请求支持（ETag / If-Modified-Since），源内容未变化时跳过解析，减少计算开销；缓存头信息持久化到 E-001 的 `http_etag` 和 `http_last_modified` 字段
 - 源级 TTL 配置：每个源可在 E-001 `metadata` 中自定义 `cache_ttl`（秒），覆盖全局默认 TTL，适配不同源的更新频率差异
 
@@ -218,15 +218,14 @@ C4Context
 - 按信源配置独立的请求速率限制，使用 Redis 令牌桶算法实现（prd#§2 F-003 AC-011）
 - 分布式锁（Redis）防止同一信源的重复采集（prd#§2 F-008 AC-037）
 
-**对话配置** (settings.example.toml `[chat]` 段):
+**对话配置** (`IS_CHAT_*` 环境变量，见 `docker/.env.example`):
 
-| 配置项 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| context_token_budget | int | 2000 | 上下文注入 LLM 的最大 token 预算 |
-| compress_after_turns | int | 4 | 超过 N 轮后触发压缩检查 |
-| compress_model | string | — | 压缩使用的廉价模型（如 gpt-4o-mini），为空则使用默认模型 |
-| session_timeout_hours | int | 24 | 会话超时清理时间（小时） |
-| max_recent_turns | int | 10 | recent_turns 数组硬上限 |
+| 环境变量 | 类型 | 默认值 | 说明 |
+|----------|------|--------|------|
+| IS_CHAT_COMPACT_TOKEN_BUDGET | int | 6000 | 对话历史压缩预算（persist 写入与 replay 读取共用）；估算 token 超此值即 token-aware 摘要压缩为 `[summary, ...recent]` |
+| IS_CHAT_SESSION_TTL_DAYS | int | 30 | 不活跃会话清理 TTL（天），由 `cleanup_chat_sessions` beat 任务执行 |
+
+压缩后保留的最近轮次硬上限固定为 10（`api.chat_sessions.MAX_HISTORY_TURNS`，内部行为常量，非环境可调）。压缩按 token 预算触发、摘要走 LLM gateway 默认模型路由（无独立轮次阈值或廉价模型配置）。
 
 ### 5.2 安全方案
 
