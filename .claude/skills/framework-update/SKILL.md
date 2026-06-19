@@ -109,7 +109,7 @@ fresh install 报告缺平台时询问用户（`claude-code` 默认）并 `cataf
 1. 读 `framework.json`，更新 `upgrade.state`（`last_version` / `last_upgrade_date` / `last_commit`），用 Read + Edit 原地写入，保留其它字段
 2. `cataforge claude-md check`（如可用）surface hygiene 问题；FAIL 时建议用户跑 `cataforge claude-md compact`（非阻塞，仅提示）
 
-> `CLAUDE.md` §项目信息.框架版本 由 Step 3 deploy 阶段以 `0.11.2` 占位符盖入已安装包版本，本 skill 不写版本字段。
+> `CLAUDE.md` §项目信息.框架版本 由 Step 3 deploy 阶段以 `0.12.0` 占位符盖入已安装包版本，本 skill 不写版本字段。
 
 > bootstrap 中若遇 EVENT-LOG schema FAIL（历史旁路写入触发），按 hint 跑 `cataforge event accept-legacy` 设水位线即可，不影响本次同步。
 

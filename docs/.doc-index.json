@@ -1,15 +1,15 @@
 {
   "version": "1",
-  "generated_at": "2026-06-16T13:24:36.202695+00:00",
+  "generated_at": "2026-06-19T11:01:10.417265+00:00",
   "documents": {
     "backlog-intellisource-v1": {
       "file_path": "docs/BACKLOG-intellisource-v1.md",
       "doc_type": "backlog",
       "volume": "main",
       "status": "approved",
-      "total_lines": 91,
-      "est_tokens": 2964,
-      "content_hash": "262154e4",
+      "total_lines": 126,
+      "est_tokens": 5030,
+      "content_hash": "6ddcb2c6",
       "sections": {}
     },
     "history-intellisource-v1": {
@@ -890,7 +890,230 @@
       "dep_hashes": {
         "arch-intellisource-v1-modules": "a5e24d54",
         "arch-intellisource-v1-api": "eb2b960c",
-        "backlog-intellisource-v1": "262154e4"
+        "backlog-intellisource-v1": "6ddcb2c6"
+      }
+    },
+    "remote-host-readiness-v1": {
+      "file_path": "docs/deploy/remote-host-readiness.md",
+      "doc_type": "deploy-spec",
+      "volume": "main",
+      "status": "draft",
+      "total_lines": 487,
+      "est_tokens": 4212,
+      "content_hash": "120fc715",
+      "sections": {
+        "1": {
+          "heading": "## 1 主机层缺口清单",
+          "line_start": 35,
+          "line_end": 49,
+          "est_tokens": 162,
+          "deps": [],
+          "level": 2,
+          "items": {}
+        },
+        "2": {
+          "heading": "## 2 反向代理",
+          "line_start": 50,
+          "line_end": 203,
+          "est_tokens": 1296,
+          "deps": [],
+          "level": 2,
+          "items": {
+            "2.1": {
+              "heading": "### 2.1 问题",
+              "line_start": 52,
+              "line_end": 71,
+              "est_tokens": 131,
+              "deps": []
+            },
+            "2.2": {
+              "heading": "### 2.2 Nginx 最小配置",
+              "line_start": 72,
+              "line_end": 162,
+              "est_tokens": 942,
+              "deps": []
+            },
+            "2.3": {
+              "heading": "### 2.3 Caddy（替代方案，自动 TLS）",
+              "line_start": 163,
+              "line_end": 203,
+              "est_tokens": 218,
+              "deps": []
+            }
+          }
+        },
+        "3": {
+          "heading": "## 3 TLS 与域名",
+          "line_start": 204,
+          "line_end": 248,
+          "est_tokens": 261,
+          "deps": [],
+          "level": 2,
+          "items": {
+            "3.1": {
+              "heading": "### 3.1 域名 A 记录",
+              "line_start": 206,
+              "line_end": 220,
+              "est_tokens": 74,
+              "deps": []
+            },
+            "3.2": {
+              "heading": "### 3.2 Let's Encrypt（certbot + nginx）",
+              "line_start": 221,
+              "line_end": 239,
+              "est_tokens": 140,
+              "deps": []
+            },
+            "3.3": {
+              "heading": "### 3.3 证书就绪验证",
+              "line_start": 240,
+              "line_end": 248,
+              "est_tokens": 42,
+              "deps": []
+            }
+          }
+        },
+        "4": {
+          "heading": "## 4 防火墙",
+          "line_start": 249,
+          "line_end": 296,
+          "est_tokens": 388,
+          "deps": [],
+          "level": 2,
+          "items": {
+            "4.1": {
+              "heading": "### 4.1 目标规则",
+              "line_start": 251,
+              "line_end": 262,
+              "est_tokens": 73,
+              "deps": []
+            },
+            "4.2": {
+              "heading": "### 4.2 UFW 配置",
+              "line_start": 263,
+              "line_end": 290,
+              "est_tokens": 266,
+              "deps": []
+            },
+            "4.3": {
+              "heading": "### 4.3 云安全组（AWS/阿里云等）",
+              "line_start": 291,
+              "line_end": 296,
+              "est_tokens": 44,
+              "deps": []
+            }
+          }
+        },
+        "5": {
+          "heading": "## 5 入站 webhook 公网可达性",
+          "line_start": 297,
+          "line_end": 354,
+          "est_tokens": 507,
+          "deps": [],
+          "level": 2,
+          "items": {
+            "5.1": {
+              "heading": "### 5.1 链路概览",
+              "line_start": 299,
+              "line_end": 315,
+              "est_tokens": 112,
+              "deps": []
+            },
+            "5.2": {
+              "heading": "### 5.2 docker/.env 中的公网回调 URL",
+              "line_start": 316,
+              "line_end": 338,
+              "est_tokens": 235,
+              "deps": []
+            },
+            "5.3": {
+              "heading": "### 5.3 配置验证步骤",
+              "line_start": 339,
+              "line_end": 354,
+              "est_tokens": 151,
+              "deps": []
+            }
+          }
+        },
+        "6": {
+          "heading": "## 6 进程托管（systemd）",
+          "line_start": 355,
+          "line_end": 423,
+          "est_tokens": 595,
+          "deps": [],
+          "level": 2,
+          "items": {
+            "6.1": {
+              "heading": "### 6.1 目标",
+              "line_start": 357,
+              "line_end": 360,
+              "est_tokens": 29,
+              "deps": []
+            },
+            "6.2": {
+              "heading": "### 6.2 systemd unit 示例",
+              "line_start": 361,
+              "line_end": 408,
+              "est_tokens": 402,
+              "deps": []
+            },
+            "6.3": {
+              "heading": "### 6.3 GIT_SHA 注入（避免 src 层缓存问题）",
+              "line_start": 409,
+              "line_end": 423,
+              "est_tokens": 156,
+              "deps": []
+            }
+          }
+        },
+        "7": {
+          "heading": "## 7 冷启动与回滚代价",
+          "line_start": 424,
+          "line_end": 474,
+          "est_tokens": 478,
+          "deps": [],
+          "level": 2,
+          "items": {
+            "7.1": {
+              "heading": "### 7.1 DB 镜像冷启动代价",
+              "line_start": 426,
+              "line_end": 437,
+              "est_tokens": 166,
+              "deps": []
+            },
+            "7.2": {
+              "heading": "### 7.2 缓解建议（先构建后切换）",
+              "line_start": 438,
+              "line_end": 468,
+              "est_tokens": 262,
+              "deps": []
+            },
+            "7.3": {
+              "heading": "### 7.3 后续方向",
+              "line_start": 469,
+              "line_end": 474,
+              "est_tokens": 43,
+              "deps": []
+            }
+          }
+        },
+        "8": {
+          "heading": "## 8 交叉引用",
+          "line_start": 475,
+          "line_end": 487,
+          "est_tokens": 218,
+          "deps": [],
+          "level": 2,
+          "items": {}
+        }
+      },
+      "deps": [
+        "deploy-spec-intellisource-v1",
+        "pre-deploy-walkthrough-v1"
+      ],
+      "dep_hashes": {
+        "deploy-spec-intellisource-v1": "0f1b811f",
+        "pre-deploy-walkthrough-v1": "b9dd4a0f"
       }
     },
     "dev-plan-intellisource-v1-s1": {
@@ -2742,7 +2965,7 @@
         "backlog-intellisource-v1"
       ],
       "dep_hashes": {
-        "backlog-intellisource-v1": "262154e4"
+        "backlog-intellisource-v1": "6ddcb2c6"
       }
     },
     "research-b051-config-bootstrap-ux": {
@@ -2835,7 +3058,7 @@
         "backlog-intellisource-v1"
       ],
       "dep_hashes": {
-        "backlog-intellisource-v1": "262154e4"
+        "backlog-intellisource-v1": "6ddcb2c6"
       }
     },
     "prompt-management-analysis": {
@@ -2995,6 +3218,20 @@
       "est_tokens": 28494,
       "content_hash": "772e4a7f",
       "sections": {}
+    },
+    "code-review-B-078-B-079-r1": {
+      "file_path": "docs/reviews/code/CODE-REVIEW-B-078-B-079-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "approved",
+      "total_lines": 120,
+      "est_tokens": 1910,
+      "content_hash": "0dc3870b",
+      "sections": {},
+      "deps": [
+        "B-078",
+        "B-079"
+      ]
     },
     "code-review-T-BF-backfill-r1": {
       "file_path": "docs/reviews/code/CODE-REVIEW-T-BF-backfill-r1.md",
@@ -3250,7 +3487,80 @@
       ],
       "dep_hashes": {
         "arch-intellisource-v1-modules": "a5e24d54",
-        "backlog-intellisource-v1": "262154e4"
+        "backlog-intellisource-v1": "6ddcb2c6"
+      }
+    },
+    "code-scan-deploy-ux-20260617-r1": {
+      "file_path": "docs/reviews/code/CODE-SCAN-deploy-ux-20260617-r1.md",
+      "doc_type": "code-review",
+      "volume": "main",
+      "status": "draft",
+      "total_lines": 162,
+      "est_tokens": 3660,
+      "content_hash": "23aa1a3e",
+      "sections": {
+        "1": {
+          "heading": "## 1. 结论摘要",
+          "line_start": 18,
+          "line_end": 33,
+          "est_tokens": 464,
+          "deps": [],
+          "level": 2,
+          "items": {}
+        },
+        "2": {
+          "heading": "## 2. 现状映射表（4 单元 × 现状 / 友好度 / 缺口）",
+          "line_start": 34,
+          "line_end": 44,
+          "est_tokens": 431,
+          "deps": [],
+          "level": 2,
+          "items": {}
+        },
+        "3": {
+          "heading": "## 3. 缺口清单（按 severity 排序）",
+          "line_start": 45,
+          "line_end": 126,
+          "est_tokens": 2004,
+          "deps": [],
+          "level": 2,
+          "items": {}
+        },
+        "4": {
+          "heading": "## 4. 改进优先级（项目 P 语义对齐）",
+          "line_start": 127,
+          "line_end": 144,
+          "est_tokens": 282,
+          "deps": [],
+          "level": 2,
+          "items": {}
+        },
+        "5": {
+          "heading": "## 5. 已决策的开放问题（用户 2026-06-17）",
+          "line_start": 145,
+          "line_end": 155,
+          "est_tokens": 108,
+          "deps": [],
+          "level": 2,
+          "items": {}
+        },
+        "6": {
+          "heading": "## 6. 已具备（正面，避免回归时误删）",
+          "line_start": 156,
+          "line_end": 162,
+          "est_tokens": 167,
+          "deps": [],
+          "level": 2,
+          "items": {}
+        }
+      },
+      "deps": [
+        "backlog-intellisource-v1",
+        "pre-deploy-walkthrough-v1"
+      ],
+      "dep_hashes": {
+        "backlog-intellisource-v1": "6ddcb2c6",
+        "pre-deploy-walkthrough-v1": "b9dd4a0f"
       }
     },
     "review-arch-intellisource-v1-r1": {
