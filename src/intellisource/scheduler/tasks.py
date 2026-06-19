@@ -16,6 +16,7 @@ from typing import Any, TypeVar
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intellisource.core.pipeline_loader import PipelineLoader
+from intellisource.core.settings import get_settings
 from intellisource.observability.logging import get_logger
 from intellisource.scheduler.celery_app import celery_app
 from intellisource.scheduler.queues import PRIORITY_QUEUES, TRIGGER_TYPE_QUEUES
@@ -30,7 +31,6 @@ _R = TypeVar("_R")
 
 MAX_RETRIES: int = 3
 RETRY_BACKOFF_BASE: int = 1
-CHAT_SESSION_TTL_DAYS: int = 30
 
 __all__ = [
     "PRIORITY_QUEUES",
@@ -623,7 +623,8 @@ def _cleanup_chat_sessions_body() -> dict[str, Any]:
             ChatSessionRepository,
         )
 
-        before = datetime.now(timezone.utc) - timedelta(days=CHAT_SESSION_TTL_DAYS)
+        ttl_days = get_settings().chat_session_ttl_days
+        before = datetime.now(timezone.utc) - timedelta(days=ttl_days)
         async with factory() as session:
             deleted = await ChatSessionRepository(session).cleanup_expired(before)
             await session.commit()

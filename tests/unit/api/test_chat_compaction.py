@@ -17,7 +17,7 @@ def _request(gateway: Any = None) -> SimpleNamespace:
 
 
 def _over_budget_messages() -> list[dict[str, str]]:
-    # > CHAT_COMPACT_TOKEN_BUDGET (6000 tokens ≈ 24000 chars) to cross threshold.
+    # > default chat budget (6000 tokens ≈ 24000 chars) to cross threshold.
     return [{"role": "user", "content": "x" * 600} for _ in range(50)]
 
 

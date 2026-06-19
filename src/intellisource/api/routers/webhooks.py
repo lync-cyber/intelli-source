@@ -12,9 +12,9 @@ from fastapi.responses import PlainTextResponse
 
 from intellisource.agent.response_utils import extract_answer
 from intellisource.api.chat_sessions import (
-    CHAT_COMPACT_TOKEN_BUDGET,
     MAX_HISTORY_TURNS,
     _bounded_history,
+    _compact_token_budget,
 )
 from intellisource.core.webhook_crypto import WeComCrypto, WeComCryptoError
 from intellisource.observability.logging import get_logger
@@ -99,7 +99,7 @@ async def _persist_cs_turn(
         {"role": "user", "content": user_text},
         {"role": "assistant", "content": answer},
     ]
-    new_messages = await _bounded_history(appended, gateway, CHAT_COMPACT_TOKEN_BUDGET)
+    new_messages = await _bounded_history(appended, gateway, _compact_token_budget())
     from intellisource.storage.repositories.chat_session import ChatSessionRepository
 
     try:

@@ -19,6 +19,9 @@ from intellisource.observability.logging import get_logger
 logger = get_logger(__name__)
 
 _PROTECTED_TOOL_COUNT = 3
+# Library fallback only — every caller passes an explicit budget. Chat callers
+# resolve theirs from IS_CHAT_COMPACT_TOKEN_BUDGET; the agent loop passes a
+# context-window-derived trigger.
 _DEFAULT_CONTEXT_TOKEN_BUDGET = 2000
 _AGENT_PROTECT_LAST_N = 20
 # Absolute token budget that triggers agent-history compaction. A fraction of a
@@ -55,7 +58,7 @@ def needs_compaction(
         messages: Current message list.
         gateway: LLM gateway providing estimate_tokens().
         profile: ModelProfile for the active model.
-        context_token_budget: System-level token budget (arch §5.1 [chat]).
+        context_token_budget: Compaction budget supplied by the caller.
         model: Model identifier passed to estimate_tokens.
 
     Returns:
@@ -160,8 +163,7 @@ async def compact_messages(
         messages: Full conversation message list.
         gateway: LLM gateway providing estimate_tokens() and complete().
         profile: ModelProfile for the active model (provides context_window).
-        context_token_budget: System-level budget from config.chat
-            (arch §5.1, default 2000).
+        context_token_budget: Compaction budget supplied by the caller.
         model: Model identifier used for token estimation.
 
     Returns:
