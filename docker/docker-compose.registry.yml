@@ -1,0 +1,37 @@
+# Registry override — use with:
+#   docker compose -f docker/docker-compose.yml -f docker/docker-compose.registry.yml pull
+#   docker compose -f docker/docker-compose.yml -f docker/docker-compose.registry.yml up -d --no-build
+#
+# This file adds `image:` keys pointing to GHCR prebuilt images so that
+# `docker compose ... pull` fetches all five service images from the registry
+# and subsequent `up --no-build` uses those images without local compilation.
+#
+# WHY `build:` is retained: Docker Compose merge semantics cannot unset a key
+# defined in the base file. Setting `image:` alongside `build:` is intentional
+# — `pull` fetches the named image; `up --no-build` uses the cached image and
+# ignores `build:`. Running `up` without `--no-build` would still rebuild
+# locally if the image is absent; always use `--no-build` in registry mode to
+# guarantee the prebuilt image is used.
+#
+# Environment variables:
+#   IS_IMAGE_TAG    — app image tag (default: latest)
+#   IS_DB_IMAGE_TAG — DB image tag  (default: pg16-pgvector-zhparser)
+
+name: intellisource
+
+services:
+
+  db:
+    image: ghcr.io/lync-cyber/intellisource-db:${IS_DB_IMAGE_TAG:-pg16-pgvector-zhparser}
+
+  migrate:
+    image: ghcr.io/lync-cyber/intellisource:${IS_IMAGE_TAG:-latest}
+
+  api:
+    image: ghcr.io/lync-cyber/intellisource:${IS_IMAGE_TAG:-latest}
+
+  worker:
+    image: ghcr.io/lync-cyber/intellisource:${IS_IMAGE_TAG:-latest}
+
+  beat:
+    image: ghcr.io/lync-cyber/intellisource:${IS_IMAGE_TAG:-latest}

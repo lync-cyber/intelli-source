@@ -358,42 +358,18 @@ IS_WECHAT_WEBHOOK_TOKEN=<your-token>
 
 用 systemd unit 托管 `docker compose up`（或 `intellisource up`），实现开机自启和崩溃后自动重启。
 
-### 6.2 systemd unit 示例
+### 6.2 systemd unit 模板文件
 
-```ini
-# /etc/systemd/system/intellisource.service
-[Unit]
-Description=IntelliSource Docker Compose Stack
-Documentation=https://github.com/lync-cyber/intelli-source
-After=docker.service network-online.target
-Requires=docker.service
+systemd unit 定义位于 `docker/intellisource.service`。该文件使用 `__WORKING_DIRECTORY__` 占位符，由 `scripts/provision-remote.sh` 在安装时替换为实际仓库路径（默认 `/opt/intellisource`）。
 
-[Service]
-Type=simple
-WorkingDirectory=/opt/intellisource
-# intellisource up 等价于：
-#   GIT_SHA=$(git -C /opt/intellisource rev-parse HEAD) docker compose \
-#     -f docker/docker-compose.yml up
-# 若未安装 uv/intellisource CLI，可直接用 docker compose 命令：
-ExecStart=/usr/bin/docker compose -f docker/docker-compose.yml up --remove-orphans
-ExecStop=/usr/bin/docker compose -f docker/docker-compose.yml down
-Restart=on-failure
-RestartSec=10s
-# 启动超时需比 embedding 冷启动时间长（模型下载 ~20 分钟；首次后有缓存）
-TimeoutStartSec=1800
-TimeoutStopSec=30
-# 确保容器以当前 git sha 构建（防 src 层缓存问题，见 deploy-spec §1.2）
-Environment=GIT_SHA=unknown
-
-[Install]
-WantedBy=multi-user.target
-```
-
-> 将仓库克隆路径替换 `WorkingDirectory` 中的 `/opt/intellisource`，与实际路径保持一致。
-
-启用并启动：
+手动安装（不使用置备脚本）：
 
 ```bash
+# 将占位符替换为实际路径后安装
+sudo sed 's|__WORKING_DIRECTORY__|/opt/intellisource|g' \
+    docker/intellisource.service \
+    > /etc/systemd/system/intellisource.service
+sudo chmod 644 /etc/systemd/system/intellisource.service
 sudo systemctl daemon-reload
 sudo systemctl enable intellisource.service
 sudo systemctl start intellisource.service
@@ -406,18 +382,22 @@ sudo systemctl status intellisource.service
 sudo journalctl -u intellisource.service -f
 ```
 
-### 6.3 GIT_SHA 注入（避免 src 层缓存问题）
+### 6.3 版本钉选与溯源（registry 模式）
 
-直接用 `docker compose up` 时不自动注入 `GIT_SHA`，可能导致 src 代码层未更新（参见 `deploy-spec §1.2`）。生产部署建议通过 ExecStartPre 注入：
+registry 模式以 `--no-build` 启动，主机不本地构建，因此部署版本不由构建期 `GIT_SHA` 决定，而由 `IS_IMAGE_TAG`（镜像 sha tag）决定（缺省 `latest`，生产建议钉到具体 sha）。在 `docker/intellisource.service` 以可选 `EnvironmentFile` 加载的 `/etc/intellisource/deploy.env` 中设置：
 
-```ini
-[Service]
-ExecStartPre=/bin/bash -c 'echo GIT_SHA=$(git rev-parse HEAD) > /run/intellisource.env'
-EnvironmentFile=-/run/intellisource.env
-ExecStart=/usr/bin/docker compose -f docker/docker-compose.yml up --remove-orphans
+```bash
+# /etc/intellisource/deploy.env
+IS_IMAGE_TAG=<deployed-sha>
+IS_DB_IMAGE_TAG=pg16-pgvector-zhparser
 ```
 
-或在 CD 流程更新代码后，显式 `docker compose build --build-arg GIT_SHA=$(git rev-parse HEAD)` 再 `up`。
+已部署镜像对应的提交可从镜像 `org.opencontainers.image.revision` label 回溯（构建时由 `docker/Dockerfile` 写入）：
+
+```bash
+docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' \
+    ghcr.io/lync-cyber/intellisource:${IS_IMAGE_TAG:-latest}
+```
 
 ---
 
@@ -466,9 +446,54 @@ ExecStart=/usr/bin/docker compose -f docker/docker-compose.yml up --remove-orpha
    docker compose -f docker/docker-compose.yml up -d db
    ```
 
-### 7.3 后续方向
+### 7.3 Registry 镜像模式（GHCR）
 
-规划中的 registry 镜像方案将预构建 `intellisource/db:pg16-pgvector-zhparser` 并推送到私有 registry，远端拉取即用，消除源码编译步骤。当前阶段先用上述缓解建议。
+预构建镜像已推送到 GHCR，消除远端 zhparser 源码编译步骤。
+
+**镜像地址**：
+
+| 镜像 | 说明 |
+|------|------|
+| `ghcr.io/lync-cyber/intellisource:<sha>` | App 镜像（api / worker / beat / migrate） |
+| `ghcr.io/lync-cyber/intellisource:latest` | App 镜像最新 main 构建 |
+| `ghcr.io/lync-cyber/intellisource-db:pg16-pgvector-zhparser` | DB 镜像（pgvector + zhparser） |
+| `ghcr.io/lync-cyber/intellisource-db:<sha>` | DB 镜像特定 sha 版本 |
+
+**拉取镜像**（`docker/docker-compose.registry.yml` 作为 override）：
+
+```bash
+# 登录 GHCR（需具备 packages:read 权限的 PAT 或 GitHub Actions GITHUB_TOKEN）
+echo $CR_PAT | docker login ghcr.io -u <github-username> --password-stdin
+
+# 拉取全部 5 个服务镜像
+docker compose \
+    -f docker/docker-compose.yml \
+    -f docker/docker-compose.registry.yml \
+    pull
+
+# 启动（--no-build 确保使用拉取的镜像，不触发本地构建）
+docker compose \
+    -f docker/docker-compose.yml \
+    -f docker/docker-compose.registry.yml \
+    up -d --no-build
+```
+
+指定特定 sha tag（秒级回滚）：
+
+```bash
+IS_IMAGE_TAG=<prev-sha> docker compose \
+    -f docker/docker-compose.yml \
+    -f docker/docker-compose.registry.yml \
+    up -d --no-build --no-deps --force-recreate api worker
+```
+
+**置备脚本**：`scripts/provision-remote.sh` 自动执行上述 pull 步骤，以及防火墙、systemd unit 安装等所有主机层配置：
+
+```bash
+sudo bash scripts/provision-remote.sh --working-dir /opt/intellisource
+# 预演（不实际修改系统）：
+sudo bash scripts/provision-remote.sh --working-dir /opt/intellisource --dry-run
+```
 
 ---
 

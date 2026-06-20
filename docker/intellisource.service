@@ -1,0 +1,36 @@
+[Unit]
+Description=IntelliSource Docker Compose Stack
+Documentation=https://github.com/lync-cyber/intelli-source
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=__WORKING_DIRECTORY__
+
+# Registry mode starts with `--no-build`, so the deployed version is selected by
+# IS_IMAGE_TAG (an image sha tag) — not a build-time GIT_SHA, which `--no-build`
+# never consumes. Pin IS_IMAGE_TAG in the optional drop-in below to roll
+# forward/back; absent it, compose falls back to `latest`. The deployed commit
+# is recoverable from the image's org.opencontainers.image.revision label
+# (stamped by docker/Dockerfile at build time).
+EnvironmentFile=-/etc/intellisource/deploy.env
+
+ExecStart=/usr/bin/docker compose \
+    -f __WORKING_DIRECTORY__/docker/docker-compose.yml \
+    -f __WORKING_DIRECTORY__/docker/docker-compose.registry.yml \
+    up --no-build --remove-orphans
+ExecStop=/usr/bin/docker compose \
+    -f __WORKING_DIRECTORY__/docker/docker-compose.yml \
+    -f __WORKING_DIRECTORY__/docker/docker-compose.registry.yml \
+    down
+
+Restart=on-failure
+RestartSec=10s
+
+# Generous timeout covers embedding model cold-start (~20 min on first pull).
+TimeoutStartSec=1800
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
