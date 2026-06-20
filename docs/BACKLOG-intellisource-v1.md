@@ -32,14 +32,18 @@ deps: []
 
 ## 部署/分发 新手友好度评估（DEPLOY-UX-EVAL 20260617，非阻塞）
 
-> 来源：[CODE-SCAN-deploy-ux-20260617-r1](reviews/code/CODE-SCAN-deploy-ux-20260617-r1.md)（四单元 = 部署/订阅/推送/模板）。本地起栈未被硬阻断，故无新增 P0；`G-NNN` 编号见报告。修复方向已折入用户 2026-06-17 决策（Q1=B+C / Q2=A / Q3=A / Q4=A）。B-072/B-073/B-075/B-076/B-077/B-078/B-079 已闭环（见「已闭环」段）；唯一开放项：B-074（远端 infra portion ②③ 置备脚本 + registry 镜像）。
+> 来源：[CODE-SCAN-deploy-ux-20260617-r1](reviews/code/CODE-SCAN-deploy-ux-20260617-r1.md)（四单元 = 部署/订阅/推送/模板）。本地起栈未被硬阻断，故无新增 P0；`G-NNN` 编号见报告。修复方向已折入用户 2026-06-17 决策（Q1=B+C / Q2=A / Q3=A / Q4=A）。B-072/B-073/B-075/B-076/B-077/B-078/B-079 已闭环（见「已闭环」段）；唯一开放项：B-074（远端 infra ①②③ 产出物已交付 + 本地验证，剩真实环境验证待首次远端部署）。
 
 ### B-074 [P2] 远端主机就绪 + 置备 + registry 镜像（G-006 + G-013(registry)，决策 B+C）
 - **现状（代码实证）**：`docker/docker-compose.yml:75-76` 直接 `8000:8000` 暴露且全为 `build:` 模式；deploy-spec 与 PRE-DEPLOY-WALKTHROUGH 全文 `localhost`，无 reverse proxy / TLS / 域名 / systemd / 防火墙 / 入站 webhook 公网可达性指引；仓库无 ssh/ansible/置备脚本；远端回滚强依赖目标主机重建 zhparser（`docker/db.Dockerfile` 源码编译 SCWS+zhparser）。
 - **影响**：无法据现有文档完成公网可访问的远端部署，回调类渠道在远端不可用。
 - **修复方向（决策 B+C）**：① 新增"远端部署主机就绪"文档（反代/TLS/防火墙/webhook 公网 URL 示例）；② 提供置备脚本或 `intellisource` 远端 target；③ 引入 prebuilt registry 镜像 + compose pull 模式（同解远端回滚重建依赖）。文档先行、自动化与镜像为中-大成本后续。
-- **进度**：① 文档已交付 —— [`docs/deploy/remote-host-readiness.md`](deploy/remote-host-readiness.md)（反代/TLS/防火墙/入站 webhook 公网可达/systemd/冷启动代价 + 对 deploy-spec 交叉引用）。剩余 ②③（置备脚本 + registry 镜像）= 代码/infra，待续。
-- **触发**：规划首次远端/生产部署时。
+- **进度**：①②③ 产出物已交付 + 本地验证（compose config / bash -n / YAML / dry-run 全 PASS，镜像名 CI·compose·文档三处一致）：
+  - ① [`docs/deploy/remote-host-readiness.md`](deploy/remote-host-readiness.md)（反代/TLS/防火墙/入站 webhook 公网可达/systemd/版本钉选+溯源/冷启动代价）。
+  - ② Bash 置备脚本 [`scripts/provision-remote.sh`](../scripts/provision-remote.sh)（幂等：docker 检查 / `.env` 初始化 / UFW / nginx 样板 / systemd 安装 / GHCR pull，支持 `--dry-run`）+ systemd 模板 [`docker/intellisource.service`](../docker/intellisource.service)（registry 模式 `--no-build`，`IS_IMAGE_TAG` 钉选）。
+  - ③ CI 推送工作流 [`.github/workflows/publish-images.yml`](../.github/workflows/publish-images.yml)（push main / tag v* / dispatch；trivy HIGH/CRITICAL 阻塞 push；SBOM artifact；推 GHCR app+db 镜像）+ compose pull override [`docker/docker-compose.registry.yml`](../docker/docker-compose.registry.yml)（消除远端 zhparser 重编译）；deploy-spec §2.2/§3.1/§3.6 同步（含秒级 registry 回滚）。
+- **剩余（需真实环境，沙盒不可验）**：① GHCR push 权限（`GITHUB_TOKEN` packages:write 真实 GHA run 才验）；② trivy 扫描实际镜像零 HIGH/CRITICAL（命中需升级 base 或 `.trivyignore` 经 pre_deploy 裁决）；③ 置备脚本在真实 Linux 主机端到端（UFW/systemd/docker login）；④ GHCR pull 鉴权（私有包需 packages:read PAT）；⑤ DB 镜像首次无缓存构建耗时 vs 60min timeout。
+- **触发**：规划首次远端/生产部署时执行上述真实环境验证（owner=运维）。
 
 ---
 

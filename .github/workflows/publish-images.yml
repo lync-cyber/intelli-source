@@ -1,0 +1,157 @@
+name: Publish Images to GHCR
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # -----------------------------------------------------------------------
+      # App image metadata
+      # -----------------------------------------------------------------------
+      - name: App image metadata
+        id: meta-app
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/lync-cyber/intellisource
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=long
+            type=semver,pattern={{version}}
+
+      # -----------------------------------------------------------------------
+      # DB image metadata
+      # -----------------------------------------------------------------------
+      - name: DB image metadata
+        id: meta-db
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/lync-cyber/intellisource-db
+          tags: |
+            type=raw,value=pg16-pgvector-zhparser
+            type=sha,format=long
+
+      # -----------------------------------------------------------------------
+      # Build app image (load locally for trivy scan, no push yet)
+      # -----------------------------------------------------------------------
+      - name: Build app image (local)
+        id: build-app
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+          load: true
+          tags: ghcr.io/lync-cyber/intellisource:scan-candidate
+          cache-from: type=gha,scope=app-image
+          cache-to: type=gha,scope=app-image,mode=max
+
+      # -----------------------------------------------------------------------
+      # Build DB image (load locally for trivy scan, no push yet)
+      # -----------------------------------------------------------------------
+      - name: Build DB image (local)
+        id: build-db
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/db.Dockerfile
+          load: true
+          tags: ghcr.io/lync-cyber/intellisource-db:scan-candidate
+          cache-from: type=gha,scope=db-image
+          cache-to: type=gha,scope=db-image,mode=max
+
+      # -----------------------------------------------------------------------
+      # Trivy scan — app image
+      # HIGH/CRITICAL CVEs block push (deploy-spec §1.4 / §4.6 gate).
+      # -----------------------------------------------------------------------
+      - name: Trivy scan — app image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ghcr.io/lync-cyber/intellisource:scan-candidate
+          format: table
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+          ignore-unfixed: false
+
+      # -----------------------------------------------------------------------
+      # Trivy scan — DB image
+      # -----------------------------------------------------------------------
+      - name: Trivy scan — DB image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ghcr.io/lync-cyber/intellisource-db:scan-candidate
+          format: table
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+          ignore-unfixed: false
+
+      # -----------------------------------------------------------------------
+      # SBOM — app image (CycloneDX JSON, attached as workflow artifact)
+      # -----------------------------------------------------------------------
+      - name: Generate SBOM — app image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ghcr.io/lync-cyber/intellisource:scan-candidate
+          format: cyclonedx
+          output: sbom-app-${{ github.sha }}.json
+
+      - name: Upload SBOM artifact — app
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-app-${{ github.sha }}
+          path: sbom-app-${{ github.sha }}.json
+          retention-days: 90
+
+      # -----------------------------------------------------------------------
+      # Push app image (all computed tags)
+      # -----------------------------------------------------------------------
+      - name: Push app image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+          push: true
+          tags: ${{ steps.meta-app.outputs.tags }}
+          labels: ${{ steps.meta-app.outputs.labels }}
+          cache-from: type=gha,scope=app-image
+          cache-to: type=gha,scope=app-image,mode=max
+
+      # -----------------------------------------------------------------------
+      # Push DB image (all computed tags)
+      # -----------------------------------------------------------------------
+      - name: Push DB image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/db.Dockerfile
+          push: true
+          tags: ${{ steps.meta-db.outputs.tags }}
+          labels: ${{ steps.meta-db.outputs.labels }}
+          cache-from: type=gha,scope=db-image
+          cache-to: type=gha,scope=db-image,mode=max
