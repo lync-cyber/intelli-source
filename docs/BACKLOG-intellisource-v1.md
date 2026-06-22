@@ -30,15 +30,9 @@ deps: []
 
 ---
 
-## 部署/分发 新手友好度评估（DEPLOY-UX-EVAL 20260617，非阻塞）
+## 部署/分发 新手友好度评估（DEPLOY-UX-EVAL 20260617）
 
-> 来源：[CODE-SCAN-deploy-ux-20260617-r1](reviews/code/CODE-SCAN-deploy-ux-20260617-r1.md)（四单元 = 部署/订阅/推送/模板）。本地起栈未被硬阻断，故无新增 P0；`G-NNN` 编号见报告。修复方向已折入用户 2026-06-17 决策（Q1=B+C / Q2=A / Q3=A / Q4=A）。B-072/B-073/B-075/B-076/B-077/B-078/B-079 已闭环（见「已闭环」段）；唯一开放项：B-074（①②⑤ 经真实 CI 闭环，剩 ③④ 真机验证，详见下）。
-
-### B-074 [P2] 远端主机就绪 + 置备 + registry 镜像（决策 B+C）
-产出物已交付：[远端就绪文档](deploy/remote-host-readiness.md) / [provision-remote.sh](../scripts/provision-remote.sh) + [systemd 模板](../docker/intellisource.service) / [GHCR 推送工作流](../.github/workflows/publish-images.yml) + [registry compose override](../docker/docker-compose.registry.yml)；deploy-spec §1.4/§2.2/§3.1/§3.6 同步。
-- **已闭环（真实 CI 验证，[#130](https://github.com/lync-cyber/intelli-source/pull/130)/[#131](https://github.com/lync-cyber/intelli-source/pull/131)）**：① GHCR push；② app+DB trivy 门禁（CVE 加固 + `ignore-unfixed: true` + gosu `skip-files`，详见 [deploy-spec §1.4](deploy-spec/deploy-spec-intellisource-v1.md)）；⑤ DB 无缓存构建 ≤60min。
-- **剩余（需真实远端主机）**：③ 置备脚本真机端到端（UFW/systemd/docker login，本地 `--dry-run` 已 PASS）；④ GHCR pull 鉴权（`packages:read` PAT）。
-- **触发**：首次远端/生产部署时执行 ③④（owner=运维）。
+> 全部已闭环（B-072~B-079 + B-074），见「已闭环」段。B-074 五条真实环境验证全过（①②⑤ CI、③④ Vultr Debian13 真机）。
 
 ---
 
@@ -81,3 +75,4 @@ deps: []
 - **B-069 + 框架 0.4.1→0.12.0**（#109~#125）：pre-deploy 走查 15-20 GO（B-069 health version 修）+ scaffold 刷新 + KG 全量重建 + KG dangling WARN 处理 + D1 Docker 缓存根治
 - **B-070 / B-071**：Chat 压缩兑现 AC-053 token-aware（#118）+ arch §5.1 `[chat]` 配置精简混合收敛（接入 `IS_CHAT_*` 两 knob + 退役 vestigial 2000 + 删 2 幽灵参数，#126）
 - **deploy-ux 评估批 B-072 ~ B-079**（[CODE-SCAN-deploy-ux-20260617-r1](reviews/code/CODE-SCAN-deploy-ux-20260617-r1.md)）：失败推送审计 / 订阅 reload WARN（#122）+ 模板可发现性 CLI / 推送渠道可观测性 / 冷启动预检 G-010（#123）+ init key 幂等 / doctor 鉴权探针（#124）
+- **B-074 远端 infra**（远端就绪文档 + provision-remote.sh + systemd 模板 + GHCR 推送工作流 + registry compose；deploy-spec §1.4/§2.2/§3.1/§3.6）：镜像 CVE 加固 + trivy `ignore-unfixed:true` + gosu `skip-files`（#130/#131）；5 条真实环境验证全过 —— ①GHCR push·②app+DB trivy·⑤DB 构建经 CI，③provision 脚本端到端·④GHCR pull 鉴权经 Vultr Debian13 真机
