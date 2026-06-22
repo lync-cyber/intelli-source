@@ -2,7 +2,7 @@
 name: penpot-sync
 description: "Penpot 设计 Token 双向同步 — Penpot 设计文件与代码 / 文档间的颜色 / 字号 / 间距 / 圆角等 Token 同步。当 ui-spec 与 Penpot 设计的 token 不一致 / 需在两端互导时使用此 skill。本 skill 仅处理 Token 维度；组件代码生成由 penpot-implement 负责，设计 ↔ 代码一致性验证由 penpot-review 负责。"
 argument-hint: "<sync-direction: penpot-to-code|code-to-penpot|bidirectional>"
-suggested-tools: Read, Write, Edit, Glob, Grep
+suggested-tools: file_read, file_write, file_edit, file_glob, file_grep
 depends: [context]
 disable-model-invocation: false
 user-invocable: true
@@ -11,7 +11,7 @@ user-invocable: true
 # 设计Token双向同步 (penpot-sync)
 ## 能力边界
 - 能做: 从Penpot读取设计Token、将Token写入CSS变量文件、从ui-spec同步Token到Penpot、Token一致性检查
-- 不做: 组件设计、页面布局、代码实现
+- 不做: 组件设计、页面布局、代码实现、以 Penpot 为权威源反写 ui-spec（Step 4 bidirectional 仅以 ui-spec 为权威源，从 Penpot 读取 Token 仅用于比对）
 
 ## 前置条件
 - {INSTRUCTION_FILE} `设计工具` 字段为 `penpot`

@@ -2,7 +2,7 @@
 name: task-decomp
 description: "任务拆分 — 功能到任务的分解，确保粒度单一可控。当 ARCH 完成、需要拆解任务卡、划分 Sprint 或定义 TDD 验收标准时使用。"
 argument-hint: "<ARCH文档路径或模块列表>"
-suggested-tools: Read, Write, Edit, Grep
+suggested-tools: file_read, file_write, file_edit, file_grep
 depends: [context, task-dep-analysis]
 disable-model-invocation: false
 user-invocable: true
@@ -38,7 +38,7 @@ user-invocable: true
    - Then 子句必须包含可断言的具体值或约束，禁止"实现 X"、"支持 Y"等无行为描述
 4. 定义deliverables(明确交付文件)
 5. 定义context_load(context引用)
-6. 建立依赖图: 调用 task-dep-analysis skill，脚本自动生成 Mermaid 依赖图并写入 dev-plan#§2
+6. 建立依赖图: 调用 task-dep-analysis skill 计算拓扑/关键路径/环检测，再用 `cataforge viz tasks --format mermaid` 产出 Mermaid 依赖图并写入 dev-plan#§2
 7. 按依赖关系划分Sprint(参考 task-dep-analysis 输出的 sprint_groups)，遵循 MVP 切分原则:
    - 每个 Sprint 的产出应包含至少一个用户可感知的完整功能
    - 优先安排用户核心路径（`user_facing_critical_path: true`）的任务到前几个 Sprint

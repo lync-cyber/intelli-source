@@ -2,7 +2,7 @@
 name: ui-design
 description: "UI设计 — 页面布局、组件规范、交互流程、组件目录维护。当需要做 UI 设计、定义设计 token、规划页面与组件、设计交互流程或维护组件目录时使用。"
 argument-hint: "<prd文档路径或功能需求ID>"
-suggested-tools: Read, Write, Edit
+suggested-tools: file_read, file_write, file_edit
 depends: [context, research]
 disable-model-invocation: false
 user-invocable: true
@@ -88,7 +88,7 @@ user-invocable: true
 4. Token变量化，确保全局一致
 
 ### Step 9: [Penpot可选] 设计一致性验证
-若 {INSTRUCTION_FILE} `设计工具` 为 `penpot`，调用 penpot-review 验证设计文件与ui-spec的一致性
+若 {INSTRUCTION_FILE} `设计工具` 为 `penpot`，在 penpot-implement 产出代码骨架后由 orchestrator 调度 penpot-review 验证设计与实现的一致性（penpot-review 前置要求组件已实现，故不在本设计阶段直接调用）
 
 ## Anti-Patterns
 - 禁止: 跳过 Token 阶段直接画组件 —— Token 是设计系统基础，未先确立会让组件层风格漂移，后期返工成本高

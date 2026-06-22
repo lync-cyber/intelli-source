@@ -1,5 +1,5 @@
 {
-  "version": "0.12.0",
+  "version": "0.13.0",
   "runtime_api_version": "1.0",
   "runtime": {
     "platform": "claude-code"
@@ -13,9 +13,9 @@
       "token_env": "GITHUB_TOKEN"
     },
     "state": {
-      "last_commit": "",
-      "last_version": "0.12.0",
-      "last_upgrade_date": "2026-06-19T11:06:22+00:00",
+      "last_commit": "187b7943321d4926e805393bf1ea8c6a749c5574",
+      "last_version": "0.13.0",
+      "last_upgrade_date": "2026-06-22T05:05:56+00:00",
       "event_log_validate_since": "2026-05-03T05:06:54+00:00"
     }
   },
@@ -42,7 +42,7 @@
     "base_namespace": "https://cataforge.dev/instance/"
   },
   "context": {
-    "strategy": "kg-first",
+    "mode": "hybrid",
     "kg_active_doc_types": [
       "prd",
       "arch",
@@ -53,7 +53,8 @@
     ]
   },
   "project": {
-    "languages": []
+    "languages": [],
+    "design_tool": "none"
   },
   "claude_md_limits": {
     "max_bytes": 30000,
@@ -82,6 +83,10 @@
       "complexity",
       "duplication",
       "coupling"
+    ],
+    "TDD_INLINE_ELIGIBLE_MODES": [
+      "agile-lite",
+      "agile-prototype"
     ],
     "SPRINT_REVIEW_MICRO_TASK_COUNT": 3,
     "CODE_REVIEW_L2_SKIP_TASK_KINDS": [
@@ -493,6 +498,18 @@
       "patterns": [
         "cataforge setup",
         "env-block"
+      ]
+    },
+    {
+      "id": "mc-0.13.0-task-dep-mermaid",
+      "release_version": "0.13.0",
+      "deprecate_after": "0.15.0",
+      "description": "task-dep-analysis 的 mermaid 表面已收编进 cataforge viz tasks；下游 task-dep-analysis/SKILL.md 须把依赖图 mermaid 产出改走 cataforge viz tasks --format mermaid，task-dep-analysis 仅保留 --format json 分析职责",
+      "type": "file_must_not_contain",
+      "path": ".cataforge/skills/task-dep-analysis/SKILL.md",
+      "allow_missing": true,
+      "patterns": [
+        "--format json|mermaid"
       ]
     }
   ]

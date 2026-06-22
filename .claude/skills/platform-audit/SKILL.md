@@ -2,7 +2,7 @@
 name: platform-audit
 description: "平台能力审计 — 检索 AI IDE 最新文档，与 CataForge 平台配置进行差异分析，输出更新方案并执行修复。适用于定期对齐 Claude Code / Cursor / Codex / OpenCode 等平台的 tool / hook / agent / dispatch / sandbox / CLI / plugin / 扩展能力 / agent配置 / 平台特性 / 权限模型 / 模型路由 能力变化，确保 profile.yaml、adapter 源码、hook bridge、conformance 检查、测试用例保持最新。当用户提到平台升级、能力变化、profile 过期、跨平台兼容性检查、新增平台接入时，务必使用此 skill。"
 argument-hint: "[平台ID列表(逗号分隔) | all] [--scope tools,hooks,dispatch,agent,features,permissions,models,mcp]"
-suggested-tools: Read, Edit, Write, Glob, Grep, Bash, WebSearch, WebFetch, Agent
+suggested-tools: file_read, file_edit, file_write, file_glob, file_grep, shell_exec, web_search, web_fetch, agent_dispatch
 depends: [context]
 disable-model-invocation: false
 user-invocable: true
@@ -307,7 +307,7 @@ cataforge skill run platform-audit -- --offline
 
 ## Anti-Patterns
 - 禁止: 修改 adapter 代码而不先更新 profile.yaml —— profile 是 single source of truth；倒序修改让代码与配置漂移
-- 禁止: 审计单一平台 —— 平台对比矩阵价值在横向；至少 claude-code / codex / cursor 同审才能暴露能力差异
+- 禁止: 在 full 模式下只审单一平台 —— 平台对比矩阵价值在横向，full 模式至少 claude-code / codex / cursor 同审才能暴露能力差异；针对单平台的深度审计应走 `deep <platform_id>` 模式
 - 禁止: 把 audit 报告写入 docs/reviews/code/ 或 doc/ —— 与业务审查混淆会污染 sprint-review 聚合
 - 避免: 在 capability 表里用主观语义（"良好支持" / "基本可用"）—— 必须用 yes / no / partial 三态枚举，否则 deploy-time 选不出能力差异
 
