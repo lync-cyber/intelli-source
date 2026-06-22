@@ -32,18 +32,13 @@ deps: []
 
 ## 部署/分发 新手友好度评估（DEPLOY-UX-EVAL 20260617，非阻塞）
 
-> 来源：[CODE-SCAN-deploy-ux-20260617-r1](reviews/code/CODE-SCAN-deploy-ux-20260617-r1.md)（四单元 = 部署/订阅/推送/模板）。本地起栈未被硬阻断，故无新增 P0；`G-NNN` 编号见报告。修复方向已折入用户 2026-06-17 决策（Q1=B+C / Q2=A / Q3=A / Q4=A）。B-072/B-073/B-075/B-076/B-077/B-078/B-079 已闭环（见「已闭环」段）；唯一开放项：B-074（远端 infra ①②③ 产出物已交付 + 本地验证，剩真实环境验证待首次远端部署）。
+> 来源：[CODE-SCAN-deploy-ux-20260617-r1](reviews/code/CODE-SCAN-deploy-ux-20260617-r1.md)（四单元 = 部署/订阅/推送/模板）。本地起栈未被硬阻断，故无新增 P0；`G-NNN` 编号见报告。修复方向已折入用户 2026-06-17 决策（Q1=B+C / Q2=A / Q3=A / Q4=A）。B-072/B-073/B-075/B-076/B-077/B-078/B-079 已闭环（见「已闭环」段）；唯一开放项：B-074（①②⑤ 经真实 CI 闭环，剩 ③④ 真机验证，详见下）。
 
-### B-074 [P2] 远端主机就绪 + 置备 + registry 镜像（G-006 + G-013(registry)，决策 B+C）
-- **现状（代码实证）**：`docker/docker-compose.yml:75-76` 直接 `8000:8000` 暴露且全为 `build:` 模式；deploy-spec 与 PRE-DEPLOY-WALKTHROUGH 全文 `localhost`，无 reverse proxy / TLS / 域名 / systemd / 防火墙 / 入站 webhook 公网可达性指引；仓库无 ssh/ansible/置备脚本；远端回滚强依赖目标主机重建 zhparser（`docker/db.Dockerfile` 源码编译 SCWS+zhparser）。
-- **影响**：无法据现有文档完成公网可访问的远端部署，回调类渠道在远端不可用。
-- **修复方向（决策 B+C）**：① 新增"远端部署主机就绪"文档（反代/TLS/防火墙/webhook 公网 URL 示例）；② 提供置备脚本或 `intellisource` 远端 target；③ 引入 prebuilt registry 镜像 + compose pull 模式（同解远端回滚重建依赖）。文档先行、自动化与镜像为中-大成本后续。
-- **进度**：①②③ 产出物已交付 + 本地验证（compose config / bash -n / YAML / dry-run 全 PASS，镜像名 CI·compose·文档三处一致）：
-  - ① [`docs/deploy/remote-host-readiness.md`](deploy/remote-host-readiness.md)（反代/TLS/防火墙/入站 webhook 公网可达/systemd/版本钉选+溯源/冷启动代价）。
-  - ② Bash 置备脚本 [`scripts/provision-remote.sh`](../scripts/provision-remote.sh)（幂等：docker 检查 / `.env` 初始化 / UFW / nginx 样板 / systemd 安装 / GHCR pull，支持 `--dry-run`）+ systemd 模板 [`docker/intellisource.service`](../docker/intellisource.service)（registry 模式 `--no-build`，`IS_IMAGE_TAG` 钉选）。
-  - ③ CI 推送工作流 [`.github/workflows/publish-images.yml`](../.github/workflows/publish-images.yml)（push main / tag v* / dispatch；trivy HIGH/CRITICAL 阻塞 push；SBOM artifact；推 GHCR app+db 镜像）+ compose pull override [`docker/docker-compose.registry.yml`](../docker/docker-compose.registry.yml)（消除远端 zhparser 重编译）；deploy-spec §2.2/§3.1/§3.6 同步（含秒级 registry 回滚）。
-- **剩余（需真实环境，沙盒不可验）**：① GHCR push 权限（`GITHUB_TOKEN` packages:write 真实 GHA run 才验）；② trivy 扫描实际镜像零 HIGH/CRITICAL（命中需升级 base 或 `.trivyignore` 经 pre_deploy 裁决）；③ 置备脚本在真实 Linux 主机端到端（UFW/systemd/docker login）；④ GHCR pull 鉴权（私有包需 packages:read PAT）；⑤ DB 镜像首次无缓存构建耗时 vs 60min timeout。
-- **触发**：规划首次远端/生产部署时执行上述真实环境验证（owner=运维）。
+### B-074 [P2] 远端主机就绪 + 置备 + registry 镜像（决策 B+C）
+产出物已交付：[远端就绪文档](deploy/remote-host-readiness.md) / [provision-remote.sh](../scripts/provision-remote.sh) + [systemd 模板](../docker/intellisource.service) / [GHCR 推送工作流](../.github/workflows/publish-images.yml) + [registry compose override](../docker/docker-compose.registry.yml)；deploy-spec §1.4/§2.2/§3.1/§3.6 同步。
+- **已闭环（真实 CI 验证，[#130](https://github.com/lync-cyber/intelli-source/pull/130)/[#131](https://github.com/lync-cyber/intelli-source/pull/131)）**：① GHCR push；② app+DB trivy 门禁（CVE 加固 + `ignore-unfixed: true` + gosu `skip-files`，详见 [deploy-spec §1.4](deploy-spec/deploy-spec-intellisource-v1.md)）；⑤ DB 无缓存构建 ≤60min。
+- **剩余（需真实远端主机）**：③ 置备脚本真机端到端（UFW/systemd/docker login，本地 `--dry-run` 已 PASS）；④ GHCR pull 鉴权（`packages:read` PAT）。
+- **触发**：首次远端/生产部署时执行 ③④（owner=运维）。
 
 ---
 
@@ -64,7 +59,7 @@ deps: []
 
 ## 框架升级 0.9.1 后续（非阻塞，保留跟踪）
 
-- **[P3] KG 摄取残留 WARN — 76 个框架口径噪声（已定性，非阻塞，修复点在 CataForge 框架侧）**：doctor `KG ingestion completeness` 的 dangling 检查用完整 entity-prefix 正则扫"引用"，但 `TestCase`(TC) / `CoverageRule`(CR) / `SprintReviewIssue`(SR) 是纯关系/元数据 class —— 只参与关系抽取（如 TestCase `cf:verifies` T/AC/F），KG store 从不为其建实体节点（实证：store 仅 T/AC/E/M/API/F 六类）。故 active docs 里任何 TC-/CR-/SR- 编号提及（test-report 覆盖矩阵单列 71 个 `TC-`）结构性恒为 dangling，与文档写法无关。剩余 76 = TC×71 + CR×4 + SR×1。根因＝doctor dangling 候选集 ⊋ KG 实体化 class 集（口径不一致），属框架检查缺陷，修复在框架侧（dangling 引用集应限制为会实体化的 class）。原 79 中的 3 个 `API-010/026/029`（arch 已删编号的 prose 历史引用）已 inline-code 豁免。详见 [上游反馈](feedback/feedback-suggest-kg-ingest-gate-legacy-docs-20260612.md) §Proposal(3)。
+- **[P3] KG 摄取残留 WARN 76（框架口径噪声，非阻塞）**：doctor `KG ingestion completeness` 的 dangling 检查用完整 entity-prefix 正则扫引用，但 TC/CR/SR 是纯关系 class、KG 从不建实体节点，故 active docs 里的 TC-/CR-/SR- 提及（76 = TC×71 + CR×4 + SR×1）结构性恒 dangling。根因在框架侧（dangling 候选集应限于会实体化的 class）。上游 [CataForge#292](https://github.com/lync-cyber/CataForge/issues/292) 已 COMPLETED 关闭（含代码定位 + 修复方向 A/B），但 **0.13.0 doctor 仍复现 WARN 76 → 修复未在该包生效，待框架升级复验**。详见 [feedback](feedback/feedback-suggest-kg-dangling-scan-relation-only-persists-20260616.md)。
 
 ---
 
