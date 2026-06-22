@@ -67,23 +67,24 @@ docker buildx build \
 
 ### 1.4 容器镜像漏洞扫描（门禁）
 
-上线门禁：任何 HIGH / CRITICAL CVE 未确认即合并属于 release blocker。
+上线门禁：镜像中**有可用修复**的 HIGH / CRITICAL CVE 未确认即合并属于 release blocker。门禁以 `ignore-unfixed=true` 限定在可处置的 CVE —— 无 upstream 修复的 Debian base 镜像 CVE（status `affected` / `fix_deferred`，Fixed Version 为空）不阻塞，否则门禁会被项目无法修复的 base CVE 永久卡死。
 
 ```bash
-# 使用 trivy 扫描镜像
-trivy image --severity HIGH,CRITICAL intellisource:${GIT_SHA_SHORT}
-# 期望：exit code 0（无 HIGH/CRITICAL）
-
-# 或使用 grype
-grype intellisource:${GIT_SHA_SHORT} --fail-on high
+# CI 门禁口径：只 gate 有 fix 的 HIGH/CRITICAL
+trivy image --severity HIGH,CRITICAL --ignore-unfixed=true --exit-code 1 \
+    ghcr.io/lync-cyber/intellisource:${TAG}
 # 期望：exit code 0
+
+# 审计口径：含无-fix CVE，定期复查 base 镜像 unfixed 集
+trivy image --severity HIGH,CRITICAL --ignore-unfixed=false \
+    ghcr.io/lync-cyber/intellisource:${TAG}
 ```
 
-CI 中集成扫描步骤，扫描失败（发现 HIGH/CRITICAL 漏洞）阻塞合并。发现漏洞时：
+CI 中两个 trivy 步骤（app + db 镜像）按门禁口径阻塞 push（见 `.github/workflows/publish-images.yml`）。发现可修复漏洞时：
 
 1. 评估 CVE 是否影响 IntelliSource 的使用场景（上下文豁免需有书面记录）
-2. 如影响，升级依赖包或基础镜像后重新扫描
-3. 豁免条目必须记录在 CORRECTIONS-LOG 并附 CVE 编号和豁免原因
+2. 如影响，升级依赖包（`uv lock --upgrade-package <pkg>`）或基础镜像后重新扫描
+3. 确需豁免某条**有-fix** CVE：加入 `.trivyignore` 并附 CVE 编号 + 理由 + 复查日期，同步记录到 CORRECTIONS-LOG
 
 ---
 

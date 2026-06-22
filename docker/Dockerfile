@@ -50,6 +50,10 @@ COPY config/ ./config/
 COPY alembic/ ./alembic/
 COPY alembic/alembic.ini ./alembic.ini
 
+# App runs from the isolated /app/.venv; system pip/setuptools/wheel are never
+# on its import path. Remove them so their CVEs (and bulk) leave the image.
+RUN python -m pip uninstall -y pip setuptools wheel
+
 # Drop root: every service (api, worker, beat, migrate) runs as this user.
 # /app stays owned by it because the worker/beat write runtime artifacts into
 # the working directory (celery beat schedule, pipeline-events.jsonl); the
