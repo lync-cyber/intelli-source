@@ -102,6 +102,10 @@ jobs:
 
       # -----------------------------------------------------------------------
       # Trivy scan — DB image
+      # skip-files drops /usr/local/bin/gosu: the base-image privilege-drop
+      # binary only setuid+execs, so its embedded Go stdlib CVEs are off its
+      # path, and its Go version is pinned by upstream (we can't rebuild it).
+      # See deploy-spec §1.4 (trusted base-binary skip).
       # -----------------------------------------------------------------------
       - name: Trivy scan — DB image
         uses: aquasecurity/trivy-action@master
@@ -111,6 +115,7 @@ jobs:
           exit-code: "1"
           severity: HIGH,CRITICAL
           ignore-unfixed: true
+          skip-files: usr/local/bin/gosu
 
       # -----------------------------------------------------------------------
       # SBOM — app image (CycloneDX JSON, attached as workflow artifact)

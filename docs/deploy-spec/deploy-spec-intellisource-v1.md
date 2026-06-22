@@ -85,6 +85,7 @@ CI 中两个 trivy 步骤（app + db 镜像）按门禁口径阻塞 push（见 `
 1. 评估 CVE 是否影响 IntelliSource 的使用场景（上下文豁免需有书面记录）
 2. 如影响，升级依赖包（`uv lock --upgrade-package <pkg>`）或基础镜像后重新扫描
 3. 确需豁免某条**有-fix** CVE：加入 `.trivyignore` 并附 CVE 编号 + 理由 + 复查日期，同步记录到 CORRECTIONS-LOG
+4. base 镜像提供、上游钉死版本、且 CVE 不在该二进制执行路径上的**可信工具二进制**（如 postgres entrypoint 的 `gosu`，CVE 全在内嵌 Go stdlib 而它只 setuid+exec）：在对应 trivy 步用 `skip-files: <path>` 整体跳过，避免逐 CVE 维护，理由记录在工作流注释
 
 ---
 
