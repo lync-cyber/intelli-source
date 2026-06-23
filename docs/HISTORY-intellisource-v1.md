@@ -110,6 +110,15 @@ deps: []
   - **B-077**（#123）冷启动预检 G-010 — `stack.py` `up` 前校验 `.env` 存在→无占位弱口令→Docker daemon 可达（任一失败 exit 1）+ embedding 首拉等待提示。
   - **B-078 + B-079**（#124，2026-06-18 真实冷启动会话）— init `_resolve_api_key` 幂等（`os.environ`>`.env` 现有>生成，过滤占位符）+ doctor `--check-api` `_probe_api_auth`（带 `X-API-Key` 探 `GET /sources`，401→key drift 重建指引）；对真实漂移栈活体验证通过。[r1](reviews/code/CODE-REVIEW-B-078-B-079-r1.md)
 
+## PR #127 ~ #132 + framework 0.12.0→0.14.0 + B-074 闭环 + KG WARN 清零（2026-06-19 → 2026-06-23 归档）
+
+> 单行索引；详细 prose 在各 PR / commit + [CORRECTIONS-LOG](reviews/CORRECTIONS-LOG.md)。
+
+- **框架 0.12.0→0.14.0**：0.12→0.13 + 0.13→0.14 scaffold 刷新（0.14 写 160 文件）+ IDE 重部署。升级事故：某次 bootstrap/upgrade 删 gitignored `kg/store` 的 CURRENT → doctor KG FAIL，从 `.cataforge/.backups/<ts>/kg/store` 恢复，escalate [CataForge#339](https://github.com/lync-cyber/CataForge/issues/339)（OPEN）。
+- **镜像 CVE 加固 + 门禁**（[#130](https://github.com/lync-cyber/intelli-source/pull/130)/[#131](https://github.com/lync-cyber/intelli-source/pull/131)）：trivy 门禁 `ignore-unfixed: true` + DB gosu `skip-files`（base 工具链无-fix CVE 裁决）。本机 Docker registry-mirror 收敛：仅留 `docker.m.daocloud.io`（`docker.xuanyuan.me` 等对 `docker/*` 命名空间 403 的源已删并重启复验；备份 `daemon.json.bak.20260618`）。
+- **B-074 全闭环**（远端 infra，末个项目级真债）：①②⑤ 经真实 CI、③④ 经 Vultr Debian13 真机（provision 脚本端到端 + GHCR PAT 拉私有镜像），5 条真实环境验证全过 → 项目级真债清零。[#132](https://github.com/lync-cyber/intelli-source/pull/132) 状态收口。注意：实际起栈 1GB Vultr 跑 embedding 会 OOM，需 ≥2-4GB 或 swap。
+- **KG WARN 76 清零**（2026-06-23，framework-update 0.14.0 后）：doctor `KG ingestion completeness` 的 76 dangling（TC×71 + CR×4 + SR×1）—— 旧定性「框架口径噪声、恒 dangling」被推翻，实证 0.14.0 内置 reference_only 降级（home doc_type active + 参与 relation → info）。清零手段：test-report 71 TC 覆盖矩阵任务列改 strict-xref `dev-plan#§S.T-NNN`（产生 `TC verifies T` 边 → TC×71 降 info；同步清掉 Sprint heading 里 `` `T-NNN` `` 避免 `_section_subject_entity` 污染 section subject）+ CR/SR inline-code 豁免 + 非标准 id `T-007a`→`T-101` 编号规范化（AC-T007a→AC-T101，TC-008 取消豁免改 verifies；历史 SPRINT-REVIEW-s1 保留原名）。`cataforge kg repair` 同步 store（顺带修正预存 relation drift，drift-check 220→0），doctor all-pass。
+
 ## Learnings Registry (详细见各 RETRO 报告)
 
 - [RETRO-intellisource-v1.md](reviews/retro/RETRO-intellisource-v1.md) — 6 EXP (sprint-1~7)，应用决策 deferred → backlog B-016

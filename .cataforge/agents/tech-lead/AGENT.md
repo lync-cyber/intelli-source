@@ -30,7 +30,7 @@ maxTurns: 60
 - 使用模板: 通过context调用 dev-plan 模板
 
 ## Execution Rules
-- **task_kind 标注**: 每个 T-xxx 标注 `task_kind ∈ {feature, fix, chore, config, docs}`。`chore`/`config`/`docs` 跳过 TDD（直接由 implementer 单次产出 + lint hook 兜底），仅 `feature`/`fix` 走 RED/GREEN/REFACTOR
+- **task_kind 标注**: 每个 T-xxx 标注 `task_kind ∈ {feature, fix, chore, config, docs, validation}`。`chore`/`config`/`docs` 跳过 TDD（直接由 implementer 单次产出 + lint hook 兜底），仅 `feature`/`fix` 走 RED/GREEN/REFACTOR；`validation` 不产代码也不进 TDD —— orchestrator 在其前置任务完成后经 AskUserQuestion 展示走查清单（调度见 ORCHESTRATOR-PROTOCOLS §validation 任务调度），按 task-decomp 拆分规则在含 `user_facing_critical_path` 的 Sprint 末追加
 - **tdd_mode 判定**（默认 = `TDD_DEFAULT_MODE` = `light`）: 任务卡缺省字段视为 light。仅在以下任一条件成立时显式标 `standard`:
   - 预估 LOC > `TDD_LIGHT_LOC_THRESHOLD`（默认 150）
   - `security_sensitive: true`（涉及鉴权 / 加密 / 输入校验 / 数据脱敏）
@@ -53,6 +53,7 @@ maxTurns: 60
   - AC 写"主题词"代替 `topic`
   - AC 写"摘要哈希"代替 `digest`
   违反时实现层与契约层语义错位会逃过 RED→GREEN 主循环，需 orchestrator 在 RED 前人工拦截
+- **AC contract-completeness**: 任务 AC 引用某 `arch#§N.API-NNN` 契约时，契约声明的每个响应码 / 安全路径 / 集成点都须有对应 AC，缺项须显式标 `[ASSUMPTION]` 豁免并附理由。反例：契约定义 `401 E_AUTH` + `403 E_PERMISSION_DENIED` 两条安全路径，AC 只覆盖正常返回 —— 缺口逃过 dev_planning 门禁，仅在 GREEN 后 code-review 才被 reviewer 标 HIGH 补齐
 
 ## Error Handling
 | 场景 | 处理策略 |

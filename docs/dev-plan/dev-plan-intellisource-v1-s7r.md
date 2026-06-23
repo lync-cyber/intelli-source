@@ -18,7 +18,7 @@ split_from: dev-plan-intellisource-v1
 [NAV]
 - §3 任务卡详细
   - T-080 runner.py DB_URL 环境变量化（12-factor §III Config）
-  - T-081 testcontainers-postgres fixture（BD-001 / SR-002 闭环）
+  - T-081 testcontainers-postgres fixture（BD-001 / `SR-002` 闭环）
   - T-082 tests/ ruff 债务清理（BD-003 / ~166 处 pre-existing 违规）
 [/NAV]
 
@@ -69,7 +69,7 @@ split_from: dev-plan-intellisource-v1
 
 ---
 
-### T-081: testcontainers-postgres fixture（BD-001 / SR-002 闭环）
+### T-081: testcontainers-postgres fixture（BD-001 / `SR-002` 闭环）
 
 - **目标**: 引入 `testcontainers[postgres]` 将 `tests/integration/` 下的 22 个集成测试从 SQLite mock 迁移至真实 PostgreSQL（含 pgvector 扩展），并新增 pgvector 向量检索与 JSONB 操作符专项集成测试，覆盖 test-report BD-001 缺口
 - **task_kind**: feature

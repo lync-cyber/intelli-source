@@ -63,111 +63,111 @@ required_sections:
 
 矩阵按 Sprint/模块组织，列出代表性 TC 并映射到 dev-plan AC。覆盖状态：covered = 有直接测试；partial = AC 部分或通过集成间接覆盖；uncovered = 无测试或测试为纯 mock 无真实路径。
 
-### Sprint 1: 基础设施与数据层 (`T-001`~T-009, T-007a)
+### Sprint 1: 基础设施与数据层
 
 | 用例ID | 任务 | 关联 AC | 测试文件 | 类型 | 覆盖状态 |
 |--------|------|---------|---------|------|---------|
-| TC-001 | `T-001` 项目骨架 | AC-T001-1~5 | test_project_structure.py | Unit | covered |
-| TC-002 | T-002 数据库连接 | AC-T002-1~4 | test_database.py | Unit | covered |
-| TC-003 | T-003 ORM模型 | AC-T003-1~5 | test_models.py | Unit | covered |
-| TC-004 | T-004 Repository | AC-054, AC-T004-1~5 | test_repositories.py | Unit | covered |
-| TC-005 | T-005 pgvector | AC-055, `AC-056`, AC-T005-1~4 | test_vector.py | Unit | partial（SQLite mock；真 PG 向量检索未覆盖）|
-| TC-006 | T-006 结构化日志 | AC-057~059, AC-T006-1~2 | test_logging.py, test_metrics.py | Unit | covered |
-| TC-007 | T-007 健康检查 | AC-060, AC-T007-1~4 | test_health.py | Unit | covered |
-| TC-008 | T-007a 错误分类 | AC-T007a-1~3 | test_errors.py | Unit | covered |
-| TC-009 | T-008 配置模型 | AC-001, AC-003, AC-T008-1~3 | test_models.py(config) | Unit | covered |
-| TC-010 | T-009 配置加载 | AC-002, AC-004, AC-T009-1~5 | test_loader.py | Unit | covered |
+| TC-001 | dev-plan#§1.T-001 项目骨架 | AC-T001-1~5 | test_project_structure.py | Unit | covered |
+| TC-002 | dev-plan#§1.T-002 数据库连接 | AC-T002-1~4 | test_database.py | Unit | covered |
+| TC-003 | dev-plan#§1.T-003 ORM模型 | AC-T003-1~5 | test_models.py | Unit | covered |
+| TC-004 | dev-plan#§1.T-004 Repository | AC-054, AC-T004-1~5 | test_repositories.py | Unit | covered |
+| TC-005 | dev-plan#§1.T-005 pgvector | AC-055, `AC-056`, AC-T005-1~4 | test_vector.py | Unit | partial（SQLite mock；真 PG 向量检索未覆盖）|
+| TC-006 | dev-plan#§1.T-006 结构化日志 | AC-057~059, AC-T006-1~2 | test_logging.py, test_metrics.py | Unit | covered |
+| TC-007 | dev-plan#§1.T-007 健康检查 | AC-060, AC-T007-1~4 | test_health.py | Unit | covered |
+| TC-008 | dev-plan#§1.T-101 错误分类 | AC-T101-1~3 | test_errors.py | Unit | covered |
+| TC-009 | dev-plan#§1.T-008 配置模型 | AC-001, AC-003, AC-T008-1~3 | test_models.py(config) | Unit | covered |
+| TC-010 | dev-plan#§1.T-009 配置加载 | AC-002, AC-004, AC-T009-1~5 | test_loader.py | Unit | covered |
 
-### Sprint 2: 采集引擎与处理管道 (`T-010`~T-018)
-
-| 用例ID | 任务 | 关联 AC | 测试文件 | 类型 | 覆盖状态 |
-|--------|------|---------|---------|------|---------|
-| TC-011 | `T-010` 采集器基类/注册中心 | `AC-005`, AC-T010-1~7 | test_base.py, test_registry.py | Unit | covered |
-| TC-012 | T-011 RSS采集 | AC-006~008, AC-T011-1~2 | test_rss.py | Unit | partial（网络请求 mock；真 feedparser 解析正常路径覆盖；错误分支 85% 覆盖）|
-| TC-013 | T-012 Web爬虫 | AC-006~007, AC-T012-1~4 | test_web.py | Unit | covered |
-| TC-014 | T-013 API采集 | AC-006~008, AC-T013-1~2 | test_api.py | Unit | covered |
-| TC-015 | T-014 速率限制 | AC-010~011, AC-T014-1~3 | test_rate_limiter.py | Unit | covered |
-| TC-016 | T-015 自适应调度 | AC-009, AC-012, AC-T015-1~3 | test_adaptive.py | Unit | covered |
-| TC-017 | T-016 管道引擎 | AC-013, AC-015~016, AC-T016-1~4 | test_engine.py, test_middleware.py, test_context.py | Unit | covered |
-| TC-018 | T-017 条件分支/批处理 | AC-014, AC-017, AC-T017-1~3 | test_condition.py, test_batch.py | Unit | covered |
-| TC-019 | T-018 内置处理器 | AC-015, AC-T018-1~4 | test_processors.py | Unit | covered |
-
-### Sprint 3: LLM智能处理 (`T-019`~T-026)
+### Sprint 2: 采集引擎与处理管道
 
 | 用例ID | 任务 | 关联 AC | 测试文件 | 类型 | 覆盖状态 |
 |--------|------|---------|---------|------|---------|
-| TC-020 | `T-019` LLM统一网关 | `AC-028`, `AC-031` | test_gateway.py | Unit | covered |
-| TC-021 | T-020 熔断器/降级 | AC-029~030 | test_circuit_breaker.py, test_fallback.py | Unit | covered |
-| TC-022 | T-021 优先级队列/成本追踪 | AC-032~033 | test_priority_queue.py, test_cost_tracker.py | Unit | covered |
-| TC-023 | T-022 LLM结构化提取 | AC-018, AC-021 | test_tools.py(pipeline) | Unit | covered |
-| TC-024 | T-023 语义去重 | AC-019, AC-022 | test_processors.py(pipeline), test_filter.py(llm) | Unit | covered |
-| TC-025 | T-024 内容聚类 | AC-020 | test_processors.py(pipeline) | Unit | covered |
-| TC-026 | T-025 摘要/打标 | AC-023~024 | test_processors.py(pipeline) | Unit | covered |
-| TC-027 | T-026 敏感词过滤 | AC-025 | test_filter.py(llm) | Unit | covered |
+| TC-011 | dev-plan#§2.T-010 采集器基类/注册中心 | `AC-005`, AC-T010-1~7 | test_base.py, test_registry.py | Unit | covered |
+| TC-012 | dev-plan#§2.T-011 RSS采集 | AC-006~008, AC-T011-1~2 | test_rss.py | Unit | partial（网络请求 mock；真 feedparser 解析正常路径覆盖；错误分支 85% 覆盖）|
+| TC-013 | dev-plan#§2.T-012 Web爬虫 | AC-006~007, AC-T012-1~4 | test_web.py | Unit | covered |
+| TC-014 | dev-plan#§2.T-013 API采集 | AC-006~008, AC-T013-1~2 | test_api.py | Unit | covered |
+| TC-015 | dev-plan#§2.T-014 速率限制 | AC-010~011, AC-T014-1~3 | test_rate_limiter.py | Unit | covered |
+| TC-016 | dev-plan#§2.T-015 自适应调度 | AC-009, AC-012, AC-T015-1~3 | test_adaptive.py | Unit | covered |
+| TC-017 | dev-plan#§2.T-016 管道引擎 | AC-013, AC-015~016, AC-T016-1~4 | test_engine.py, test_middleware.py, test_context.py | Unit | covered |
+| TC-018 | dev-plan#§2.T-017 条件分支/批处理 | AC-014, AC-017, AC-T017-1~3 | test_condition.py, test_batch.py | Unit | covered |
+| TC-019 | dev-plan#§2.T-018 内置处理器 | AC-015, AC-T018-1~4 | test_processors.py | Unit | covered |
 
-### Sprint 4: 任务编排与分发 (`T-027`~T-036)
-
-| 用例ID | 任务 | 关联 AC | 测试文件 | 类型 | 覆盖状态 |
-|--------|------|---------|---------|------|---------|
-| TC-028 | `T-027` Celery任务定义 | `AC-034`~035 | test_tasks.py | Unit | covered |
-| TC-029 | T-028 任务状态机 | AC-038~039 | test_state_machine.py | Unit | covered |
-| TC-030 | T-029 幂等保护 | AC-036~037 | test_idempotency.py | Unit | covered |
-| TC-031 | T-030 AgentRunner双模式 | AC-066~067 | test_runner.py | Unit | covered |
-| TC-032 | T-031 分发器/订阅规则 | AC-043, AC-043a, AC-T031-4~6 | test_matcher.py, test_scorer.py | Unit | covered |
-| TC-033 | T-032 微信公众号分发 | AC-040, AC-044~045 | test_wechat.py | Unit | covered |
-| TC-034 | T-033 企业微信分发 | AC-041, AC-044~045 | test_wework.py | Unit | covered |
-| TC-035 | T-034 邮件分发 | AC-042, AC-044~045 | test_email.py | Unit | covered |
-| TC-036 | T-035 推送频率控制 | AC-046 | test_frequency.py | Unit | covered |
-| TC-037 | T-036 Agent工具注册 | AC-066 | test_tools.py(agent) | Unit | covered |
-
-### Sprint 5: 检索/API/CLI与集成 (`T-037`~T-046)
+### Sprint 3: LLM智能处理
 
 | 用例ID | 任务 | 关联 AC | 测试文件 | 类型 | 覆盖状态 |
 |--------|------|---------|---------|------|---------|
-| TC-038 | `T-037` 混合检索引擎 | `AC-051`, `AC-056` | test_hybrid.py | Unit | partial（SQLite mock；真实 pgvector 向量融合路径 75% 行覆盖，lines 47-71 PG专有路径未执行）|
-| TC-039 | T-038 即时检索/对话压缩 | AC-050, AC-052~053 | test_chat_session.py | Unit | covered |
-| TC-040 | T-039 Webhook回调 | AC-T039 | test_webhooks.py | Unit | covered |
-| TC-041 | T-040~T-042 API路由层 | AC-061~065 | test_sources.py, test_content_routes.py, test_tasks.py, test_llm_routes.py | Unit | covered |
-| TC-042 | T-043 认证中间件 | AC-061 | test_middleware.py | Unit | covered |
-| TC-043 | T-044 CLI工具 | AC-064 | test_main.py(cli) | Unit | covered |
-| TC-044 | T-045 FastAPI入口 | AC-065 | test_app_entry.py, test_lifespan.py | Unit | covered |
-| TC-045 | T-046 Alembic迁移 | AC-054 | test_migration.py | Unit | covered |
+| TC-020 | dev-plan#§3.T-019 LLM统一网关 | `AC-028`, `AC-031` | test_gateway.py | Unit | covered |
+| TC-021 | dev-plan#§3.T-020 熔断器/降级 | AC-029~030 | test_circuit_breaker.py, test_fallback.py | Unit | covered |
+| TC-022 | dev-plan#§3.T-021 优先级队列/成本追踪 | AC-032~033 | test_priority_queue.py, test_cost_tracker.py | Unit | covered |
+| TC-023 | dev-plan#§3.T-022 LLM结构化提取 | AC-018, AC-021 | test_tools.py(pipeline) | Unit | covered |
+| TC-024 | dev-plan#§3.T-023 语义去重 | AC-019, AC-022 | test_processors.py(pipeline), test_filter.py(llm) | Unit | covered |
+| TC-025 | dev-plan#§3.T-024 内容聚类 | AC-020 | test_processors.py(pipeline) | Unit | covered |
+| TC-026 | dev-plan#§3.T-025 摘要/打标 | AC-023~024 | test_processors.py(pipeline) | Unit | covered |
+| TC-027 | dev-plan#§3.T-026 敏感词过滤 | AC-025 | test_filter.py(llm) | Unit | covered |
 
-### Sprint 6: 处理器/智能体架构重构 (`T-047`~T-056)
-
-| 用例ID | 任务 | 关联 AC | 测试文件 | 类型 | 覆盖状态 |
-|--------|------|---------|---------|------|---------|
-| TC-046 | T-048 原子化工具函数 | AC-018~025 降级路径 | test_tools.py(pipeline) | Unit | covered |
-| TC-047 | T-051 PromptBuilder | AC-T051 | test_prompt_builder.py | Unit | covered |
-| TC-048 | T-052 LLM调用缓存 | AC-T052 | test_cache.py | Unit | covered |
-| TC-049 | T-053 模型参数配置 | AC-T053 | test_model_config.py | Unit | covered |
-| TC-050 | T-054 Agent处理编排引擎 | AC-066~067 | test_orchestration.py, test_pipeline.py | Unit | covered |
-| TC-051 | T-055 管道配置更新 | AC-T055 | test_tools.py(pipeline) | Unit | covered |
-
-### Sprint 7: LLM韧性增强与配置治理 (`T-057`~T-075)
+### Sprint 4: 任务编排与分发
 
 | 用例ID | 任务 | 关联 AC | 测试文件 | 类型 | 覆盖状态 |
 |--------|------|---------|---------|------|---------|
-| TC-052 | `T-057` 指数退避重试 | AC-T057-1~7 | test_gateway_retry.py | Unit | covered |
-| TC-053 | `T-057` retry 端到端 | AC-T063-1 | test_sprint7_integration.py::TestLLMRetryFallback | Integration | covered |
-| TC-054 | T-058 上下文压缩增强 | AC-T058-1~7 | test_compaction.py | Unit | covered |
-| TC-055 | T-058 压缩 AgentRunner 触发 | AC-T063-4 | test_sprint7_integration.py::TestAgentRunnerCompaction | Integration | covered |
-| TC-056 | T-059 配置分层合并 | AC-T059-1~8 | test_resolver.py | Unit | covered |
-| TC-057 | T-059 三层合并集成 | AC-T063-2 | test_sprint7_integration.py::TestConfigResolverMerge | Integration | covered |
-| TC-058 | T-061 LLM Pydantic验证 | AC-T061-1~6 | test_model_config_validation.py | Unit | covered |
-| TC-059 | T-060 LLM统计API | AC-T060-1~8 | test_llm_routes.py | Unit | covered |
-| TC-060 | T-060 LLM统计API集成 | AC-T063-5 | test_sprint7_integration.py::TestLLMStatsEndpoint | Integration | covered |
-| TC-061 | T-062 Prompt变体加载 | AC-T062-1~6 | test_prompt_builder.py(变体部分) | Unit | covered |
-| TC-062 | T-062 变体+ModelProfile集成 | AC-T063-3 | test_sprint7_integration.py::TestPromptBuilderModelProfile | Integration | covered |
-| TC-063 | T-072 DB会话DI接驳 | AC-T072-1~6 | test_deps.py, test_deps_integration.py, test_lifespan.py | Unit/Integration | covered |
-| TC-064 | T-073 clusters端点 | AC-T073-1~6 | test_clusters_routes.py(26 tests, 1 skipped) | Unit | partial（AC-T073-1 401鉴权 skipped）|
-| TC-065 | T-073 clusters E2E | AC-T063-6 | test_sprint7_integration.py::TestClustersEndpoint | Integration | covered（4 真E2E + 1 router-mock）|
-| TC-066 | T-074 TaskChainRepository | AC-T074-1~6 | test_task_chain_repository.py | Unit | covered |
-| TC-067 | T-074 CRUD集成 | AC-T063-7 | test_sprint7_integration.py::TestTaskChainRepositoryCRUD | Integration | covered |
-| TC-068 | T-075 Celery wiring | AC-T075-1~5 | test_celery_worker_wiring.py | Integration | covered |
-| TC-069 | T-075 runner._persist参数化 | AC-T075-3 | test_runner_persist.py | Unit | covered |
-| TC-070 | T-063 全量pytest通过 | AC-T063-8 | 全套运行 | — | covered（1862 PASSED）|
-| TC-071 | T-063 mypy strict | AC-T063-9 | test_project_structure.py::TestMypyStrict | Unit | covered |
+| TC-028 | dev-plan#§4.T-027 Celery任务定义 | `AC-034`~035 | test_tasks.py | Unit | covered |
+| TC-029 | dev-plan#§4.T-028 任务状态机 | AC-038~039 | test_state_machine.py | Unit | covered |
+| TC-030 | dev-plan#§4.T-029 幂等保护 | AC-036~037 | test_idempotency.py | Unit | covered |
+| TC-031 | dev-plan#§4.T-030 AgentRunner双模式 | AC-066~067 | test_runner.py | Unit | covered |
+| TC-032 | dev-plan#§4.T-031 分发器/订阅规则 | AC-043, AC-043a, AC-T031-4~6 | test_matcher.py, test_scorer.py | Unit | covered |
+| TC-033 | dev-plan#§4.T-032 微信公众号分发 | AC-040, AC-044~045 | test_wechat.py | Unit | covered |
+| TC-034 | dev-plan#§4.T-033 企业微信分发 | AC-041, AC-044~045 | test_wework.py | Unit | covered |
+| TC-035 | dev-plan#§4.T-034 邮件分发 | AC-042, AC-044~045 | test_email.py | Unit | covered |
+| TC-036 | dev-plan#§4.T-035 推送频率控制 | AC-046 | test_frequency.py | Unit | covered |
+| TC-037 | dev-plan#§4.T-036 Agent工具注册 | AC-066 | test_tools.py(agent) | Unit | covered |
+
+### Sprint 5: 检索/API/CLI与集成
+
+| 用例ID | 任务 | 关联 AC | 测试文件 | 类型 | 覆盖状态 |
+|--------|------|---------|---------|------|---------|
+| TC-038 | dev-plan#§5.T-037 混合检索引擎 | `AC-051`, `AC-056` | test_hybrid.py | Unit | partial（SQLite mock；真实 pgvector 向量融合路径 75% 行覆盖，lines 47-71 PG专有路径未执行）|
+| TC-039 | dev-plan#§5.T-038 即时检索/对话压缩 | AC-050, AC-052~053 | test_chat_session.py | Unit | covered |
+| TC-040 | dev-plan#§5.T-039 Webhook回调 | AC-T039 | test_webhooks.py | Unit | covered |
+| TC-041 | dev-plan#§5.T-040~T-042 API路由层 | AC-061~065 | test_sources.py, test_content_routes.py, test_tasks.py, test_llm_routes.py | Unit | covered |
+| TC-042 | dev-plan#§5.T-043 认证中间件 | AC-061 | test_middleware.py | Unit | covered |
+| TC-043 | dev-plan#§5.T-044 CLI工具 | AC-064 | test_main.py(cli) | Unit | covered |
+| TC-044 | dev-plan#§5.T-045 FastAPI入口 | AC-065 | test_app_entry.py, test_lifespan.py | Unit | covered |
+| TC-045 | dev-plan#§5.T-046 Alembic迁移 | AC-054 | test_migration.py | Unit | covered |
+
+### Sprint 6: 处理器/智能体架构重构
+
+| 用例ID | 任务 | 关联 AC | 测试文件 | 类型 | 覆盖状态 |
+|--------|------|---------|---------|------|---------|
+| TC-046 | dev-plan#§6.T-048 原子化工具函数 | AC-018~025 降级路径 | test_tools.py(pipeline) | Unit | covered |
+| TC-047 | dev-plan#§6.T-051 PromptBuilder | AC-T051 | test_prompt_builder.py | Unit | covered |
+| TC-048 | dev-plan#§6.T-052 LLM调用缓存 | AC-T052 | test_cache.py | Unit | covered |
+| TC-049 | dev-plan#§6.T-053 模型参数配置 | AC-T053 | test_model_config.py | Unit | covered |
+| TC-050 | dev-plan#§6.T-054 Agent处理编排引擎 | AC-066~067 | test_orchestration.py, test_pipeline.py | Unit | covered |
+| TC-051 | dev-plan#§6.T-055 管道配置更新 | AC-T055 | test_tools.py(pipeline) | Unit | covered |
+
+### Sprint 7: LLM韧性增强与配置治理
+
+| 用例ID | 任务 | 关联 AC | 测试文件 | 类型 | 覆盖状态 |
+|--------|------|---------|---------|------|---------|
+| TC-052 | dev-plan#§7.T-057 指数退避重试 | AC-T057-1~7 | test_gateway_retry.py | Unit | covered |
+| TC-053 | dev-plan#§7.T-057 retry 端到端 | AC-T063-1 | test_sprint7_integration.py::TestLLMRetryFallback | Integration | covered |
+| TC-054 | dev-plan#§7.T-058 上下文压缩增强 | AC-T058-1~7 | test_compaction.py | Unit | covered |
+| TC-055 | dev-plan#§7.T-058 压缩 AgentRunner 触发 | AC-T063-4 | test_sprint7_integration.py::TestAgentRunnerCompaction | Integration | covered |
+| TC-056 | dev-plan#§7.T-059 配置分层合并 | AC-T059-1~8 | test_resolver.py | Unit | covered |
+| TC-057 | dev-plan#§7.T-059 三层合并集成 | AC-T063-2 | test_sprint7_integration.py::TestConfigResolverMerge | Integration | covered |
+| TC-058 | dev-plan#§7.T-061 LLM Pydantic验证 | AC-T061-1~6 | test_model_config_validation.py | Unit | covered |
+| TC-059 | dev-plan#§7.T-060 LLM统计API | AC-T060-1~8 | test_llm_routes.py | Unit | covered |
+| TC-060 | dev-plan#§7.T-060 LLM统计API集成 | AC-T063-5 | test_sprint7_integration.py::TestLLMStatsEndpoint | Integration | covered |
+| TC-061 | dev-plan#§7.T-062 Prompt变体加载 | AC-T062-1~6 | test_prompt_builder.py(变体部分) | Unit | covered |
+| TC-062 | dev-plan#§7.T-062 变体+ModelProfile集成 | AC-T063-3 | test_sprint7_integration.py::TestPromptBuilderModelProfile | Integration | covered |
+| TC-063 | dev-plan#§7.T-072 DB会话DI接驳 | AC-T072-1~6 | test_deps.py, test_deps_integration.py, test_lifespan.py | Unit/Integration | covered |
+| TC-064 | dev-plan#§7.T-073 clusters端点 | AC-T073-1~6 | test_clusters_routes.py(26 tests, 1 skipped) | Unit | partial（AC-T073-1 401鉴权 skipped）|
+| TC-065 | dev-plan#§7.T-073 clusters E2E | AC-T063-6 | test_sprint7_integration.py::TestClustersEndpoint | Integration | covered（4 真E2E + 1 router-mock）|
+| TC-066 | dev-plan#§7.T-074 TaskChainRepository | AC-T074-1~6 | test_task_chain_repository.py | Unit | covered |
+| TC-067 | dev-plan#§7.T-074 CRUD集成 | AC-T063-7 | test_sprint7_integration.py::TestTaskChainRepositoryCRUD | Integration | covered |
+| TC-068 | dev-plan#§7.T-075 Celery wiring | AC-T075-1~5 | test_celery_worker_wiring.py | Integration | covered |
+| TC-069 | dev-plan#§7.T-075 runner._persist参数化 | AC-T075-3 | test_runner_persist.py | Unit | covered |
+| TC-070 | dev-plan#§7.T-063 全量pytest通过 | AC-T063-8 | 全套运行 | — | covered（1862 PASSED）|
+| TC-071 | dev-plan#§7.T-063 mypy strict | AC-T063-9 | test_project_structure.py::TestMypyStrict | Unit | covered |
 
 ### 覆盖盲区汇总
 
@@ -252,7 +252,7 @@ uv run pytest --cov=src/intellisource --cov-report=term-missing --cov-report=htm
 | 覆盖率工具 | pytest-cov（行覆盖，未配置分支覆盖）|
 | mypy | strict 模式，106 source files，zero issues |
 | ruff | check + format，clean |
-| 已知测试基础设施债务 | tests/ 累计约 166 处 pre-existing ruff 风格警告（不影响运行，已 backlog）；SQLite-vs-Postgres 集成测试基础设施差距（SR-002，Sprint-8 backlog）|
+| 已知测试基础设施债务 | tests/ 累计约 166 处 pre-existing ruff 风格警告（不影响运行，已 backlog）；SQLite-vs-Postgres 集成测试基础设施差距（`SR-002`，Sprint-8 backlog）|
 
 ---
 
