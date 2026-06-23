@@ -13,7 +13,7 @@ split_from: dev-plan-intellisource-v1
 > **Sprint 主题**: 收敛 API 与 Worker 至单一组合根 (composition root)；端到端「采集→处理→存储→分发→消息检索」生产路径打通；PRD AC-063「灵活组合」由 `AgentRunner.run_flexible` + YAML tool palette 落地（不引入 workflow CRUD API，合 arch 移除 `API-010/011` 决策）。
 > **前置依赖**: sprint-8r 批次 1-3 全部 approved（T-083 ~ T-093 = approved；T-094 集成测试可与 sprint-9 并行）；外部 code-review scan 识别 8 个 HIGH + 6 个 MEDIUM 装配缺口（详见 `docs/reviews/code/CODE-SCAN-20260522-r1.md` —— 本 sprint 立项依据）
 > **后置**: 全部 T-095~T-100 完成后，重新进入 pre_deploy_checkpoint GO/NO-GO 评估
-> **Sprint 目标**: 关闭 audit 全部 8 HIGH（CR-001/002/003/004/005/007/008 + CR-012）+ 4 MEDIUM（CR-006/009/010/011/013/014）；6 个 agent 工具在生产配置下不再返回 `status: degraded`；`/api/v1/search/chat` 通过 flexible mode 实现 PRD AC-063「灵活组合」
+> **Sprint 目标**: 关闭 audit 全部 8 HIGH（`CR-001/002/003/004/005/007/008 + CR-012`）+ 4 MEDIUM（`CR-006/009/010/011/013/014`）；6 个 agent 工具在生产配置下不再返回 `status: degraded`；`/api/v1/search/chat` 通过 flexible mode 实现 PRD AC-063「灵活组合」
 
 [NAV]
 - §2 依赖图
@@ -61,7 +61,7 @@ graph LR
 - **模块**: M-006（scheduler + agent/factory）、M-005（LLMGateway 装配）、M-011（API tasks router）
 - **接口**: API-006（`POST /tasks/collect` 触发契约变更）
 - **复杂度**: L（composition.py ~150 + boot.py 重构 ~30 + tasks.py 重构 ~30 + tasks router ~20 + main.py 删 init_celery ~20 + factory.py kwargs 强制 ~20 + 测试 ~100）
-- **status**: approved（RED+GREEN+REFACTOR commit 1b1fbf4 / PR #47 → r1 approved_with_notes (2 MEDIUM + 4 LOW) → 用户裁决 r2 全修 + R-004 取 Holder 抽象重构分支 → r2 修复并新增 14 测试 → r2 = approved。final: 1b1fbf4 + r2 fix commit。全量回归 2356 passed / 31 skipped / 0 failed；ruff + ruff-format + mypy --strict 全 clean。报告: CODE-REVIEW-T-095-r1.md + CODE-REVIEW-T-095-r2.md。EXP-005 ToolDeps 装配半成品根治：CR-002 + CR-012 + ToolDeps 5 字段 silent None 全部闭环）
+- **status**: approved（RED+GREEN+REFACTOR commit 1b1fbf4 / PR #47 → r1 approved_with_notes (2 MEDIUM + 4 LOW) → 用户裁决 r2 全修 + R-004 取 Holder 抽象重构分支 → r2 修复并新增 14 测试 → r2 = approved。final: 1b1fbf4 + r2 fix commit。全量回归 2356 passed / 31 skipped / 0 failed；ruff + ruff-format + mypy --strict 全 clean。报告: CODE-REVIEW-T-095-r1.md + CODE-REVIEW-T-095-r2.md。EXP-005 ToolDeps 装配半成品根治：`CR-002 + CR-012` + ToolDeps 5 字段 silent None 全部闭环）
 - **依赖**: 无（最高优先级，所有下游硬阻断）
 - **expected_tool_budget**: ~120
 

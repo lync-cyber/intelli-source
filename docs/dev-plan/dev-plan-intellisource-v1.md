@@ -35,7 +35,7 @@ volume: main
 | T-005 | pgvector向量存储与检索 | M-009 | M | T-003 | AC-055, AC-056 | done |
 | T-006 | 结构化日志与可观测性基础 | M-010 | M | T-001 | AC-057, AC-058, AC-059 | done |
 | T-007 | 健康检查与指标端点 | M-010 | S | T-006 | AC-060 | done |
-| T-007a | 错误分类框架 | M-010 | S | T-006 | AC-T007a-1~3 | done |
+| T-101 | 错误分类框架 | M-010 | S | T-006 | AC-T101-1~3 | done |
 | T-008 | 配置模型与校验器 | M-001 | M | T-001 | AC-001, AC-003 | done |
 | T-009 | 配置加载与热加载 | M-001 | M | T-008, T-004 | AC-002, AC-004 | done |
 
@@ -169,7 +169,7 @@ graph LR
     T-005 --> T-023
     T-005 --> T-037
     T-006 --> T-007
-    T-006 --> T-007a
+    T-006 --> T-101
     T-006 --> T-019
     T-006 --> T-043
     T-007 --> T-042
@@ -297,7 +297,7 @@ graph LR
 
 > 任务卡详细见Sprint分卷:
 >
-> - Sprint 1: [dev-plan-intellisource-v1-s1](dev-plan-intellisource-v1-s1.md) (T-001 ~ T-009, T-007a)
+> - Sprint 1: [dev-plan-intellisource-v1-s1](dev-plan-intellisource-v1-s1.md) (T-001 ~ T-009, T-101)
 > - Sprint 2: [dev-plan-intellisource-v1-s2](dev-plan-intellisource-v1-s2.md) (T-010 ~ T-018)
 > - Sprint 3: [dev-plan-intellisource-v1-s3](dev-plan-intellisource-v1-s3.md) (T-019 ~ T-026)
 > - Sprint 4: [dev-plan-intellisource-v1-s4](dev-plan-intellisource-v1-s4.md) (T-027 ~ T-036)
@@ -319,7 +319,7 @@ graph LR
 - T-001 -> T-002 -> T-003 -> T-004 -> T-016 -> T-022 -> T-023 -> T-024 (处理管道到聚类链路，权重 20)
 - T-001 -> T-002 -> T-003 -> T-005 -> T-037 -> T-038 (向量检索到即时检索链路，权重 15)
 
-**新增任务关键路径影响**: T-007a（S=1，依赖 T-006）为侧链任务，不在主关键路径上，总权重 24 不变。
+**新增任务关键路径影响**: T-101（S=1，依赖 T-006）为侧链任务，不在主关键路径上，总权重 24 不变。
 
 **Sprint 6 关键路径**: T-048(M) → T-050(M) → T-054(L) → T-055(S) → T-056(L) = 权重 11
 

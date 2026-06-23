@@ -4,7 +4,7 @@
 
 - 技术栈: Python 3.11+ / FastAPI / Celery + Redis / PostgreSQL + pgvector / SQLAlchemy 2.0 / litellm
 - 运行时: claude-code
-- 框架版本: 0.13.0
+- 框架版本: 0.14.0
   <!-- 由 cataforge deploy 自动盖入已安装包版本。SemVer: MAJOR=不兼容变更, MINOR=新功能, PATCH=修复 -->
 - 语言定位: 中文框架（提示词/文档/交互用中文；代码/变量/CLI参数用英文）
 - 执行模式: standard
@@ -27,12 +27,11 @@
 - 迁移: `uv run alembic upgrade head`
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-- 当前阶段: backlog-burndown；release gate = approved（B-031 走查 GO，pre-deploy 15-20 全 GO）。框架 **0.13.0**（升级曾损坏 gitignored KG store，已从备份恢复 + escalate [CataForge#339](https://github.com/lync-cyber/CataForge/issues/339)；历史升级链详见 [HISTORY](docs/HISTORY-intellisource-v1.md)），doctor all-pass
-- 当前回归基线: main HEAD **9a70ec3**（[#106](https://github.com/lync-cyber/intelli-source/pull/106) ~ [#132](https://github.com/lync-cyber/intelli-source/pull/132) 已合并，闭环详情见 [HISTORY](docs/HISTORY-intellisource-v1.md) / [BACKLOG](docs/BACKLOG-intellisource-v1.md)）；最近合并 [#130](https://github.com/lync-cyber/intelli-source/pull/130)/[#131](https://github.com/lync-cyber/intelli-source/pull/131)（镜像 CVE 加固 + trivy 门禁 `ignore-unfixed: true` + DB gosu `skip-files`）+ [#132](https://github.com/lync-cyber/intelli-source/pull/132)（状态收口）。**B-074 全闭环**：①②⑤ 经真实 CI、③④ 经 Vultr Debian13 真机（provision 脚本端到端 + GHCR PAT 拉私有镜像）。无在途特性 PR，工作树干净且与 origin/main 同步。本机 Docker registry-mirror 仅留 `docker.m.daocloud.io`（403 源已删并重启复验；备份 `daemon.json.bak.20260618`）
-- 文档状态: prd / arch（含 API-030）/ dev-plan(主卷+s1~s9+s10) / test-report / deploy-spec（PRE-DEPLOY-WALKTHROUGH 步骤 15-20 已签字）/ backlog = approved；ui-spec = N/A；dev-plan-s8 = draft。doctor all-pass；KG store 已 gitignore（派生数据，`cataforge kg rollback` / `kg init` 可重建）
-- 剩余项目级真债（非阻塞）: **项目级真债清零** —— 末个开放项 B-074（远端 infra）经 Vultr Debian13 真机 + CI 全闭环（5 条真实环境验证全过），详见 [BACKLOG](docs/BACKLOG-intellisource-v1.md)。延后跟踪（非债）：P3 session-splitting（NO-GO）｜P3 KG dangling WARN 76（框架口径噪声，详见上游反馈）。后续实际起栈（systemd start + /health）属部署执行，1GB Vultr embedding 会 OOM，需 ≥2-4GB 或 swap
+- 当前阶段: backlog-burndown；release gate = approved；框架 **0.14.0**；doctor all-pass，KG drift-check=0
+- 当前回归基线: main HEAD **9a70ec3**（PR [#106](https://github.com/lync-cyber/intelli-source/pull/106) ~ [#132](https://github.com/lync-cyber/intelli-source/pull/132) 已合并；详情见 [HISTORY](docs/HISTORY-intellisource-v1.md)）。无在途特性 PR，工作树干净且与 origin/main 同步
+- 文档状态: prd / arch / dev-plan(主卷+s1~s10) / test-report / deploy-spec / backlog = approved；ui-spec = N/A；dev-plan-s8 = draft。KG store 已 gitignore（派生数据，`cataforge kg repair` / `kg rollback` 可重建）
+- 剩余项目级真债: **清零**（末项 B-074 远端 infra 全闭环；KG WARN 76 已清零，详见 [HISTORY](docs/HISTORY-intellisource-v1.md) / [BACKLOG](docs/BACKLOG-intellisource-v1.md)）。延后跟踪（非债）：P3 session-splitting（NO-GO）｜起栈 1GB Vultr embedding 会 OOM，需 ≥2-4GB 或 swap
 - 详情索引: 闭环历史 → [HISTORY](docs/HISTORY-intellisource-v1.md)｜走查/订正记录 → [CORRECTIONS-LOG](docs/reviews/CORRECTIONS-LOG.md)｜剩余 backlog → [BACKLOG](docs/BACKLOG-intellisource-v1.md)｜学习沉淀 → [docs/reviews/retro/](docs/reviews/retro/)
-- 上游反馈: [docs/feedback/](docs/feedback/) — 框架级条目已移交 CataForge 上游：[#252](https://github.com/lync-cyber/CataForge/issues/252)（KG 摄取门禁，COMPLETED）｜[#292](https://github.com/lync-cyber/CataForge/issues/292)（dangling relation-only 噪声，COMPLETED 关闭但 0.13.0 doctor 仍复现 WARN 76 → 修复未在该包生效，待框架升级复验）｜[#339](https://github.com/lync-cyber/CataForge/issues/339)（升级损坏 gitignored KG store，OPEN）
 
 ## 文档导航
 
@@ -49,6 +48,9 @@
 - Commit: Conventional Commits（feat/fix/docs/chore/refactor/test）
 - 分支: GitHub Flow（main + feature branches）
 - 设计工具: none
+  <!-- 由 cataforge deploy 从 framework.json#project.design_tool 盖入。切换用 `cataforge setup --with-penpot`，勿手改本行 -->
+  <!-- 可选值: none | penpot。penpot 时启用 Penpot MCP 集成 -->
+
 - 人工审查检查点: [pre_dev, pre_deploy]
 - 文档类型命名: 小写 kebab-case
 - 效率原则: 最小传递 (doc_id#section)、不确定调研、选择题优先、长文按 `DOC_SPLIT_THRESHOLD_LINES` 拆分

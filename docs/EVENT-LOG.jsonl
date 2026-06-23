@@ -430,3 +430,5 @@
 {"ts": "2026-06-15T02:27:21+00:00", "event": "session_start", "phase": "session", "detail": "IDE session started"}
 {"ts": "2026-06-18T06:40:48+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD LIGHT-DISPATCH: B-078 init key idempotency"}
 {"ts": "2026-06-18T06:40:49+00:00", "event": "tdd_phase", "phase": "development", "detail": "TDD LIGHT-DISPATCH: B-079 doctor auth probe"}
+{"ts": "2026-06-23T15:07:44+00:00", "event": "state_change", "phase": "backlog-burndown；release gate = approved；框架 **0.14.0**；doctor all-pass，KG drift-check=0", "detail": "skill-run: framework-feedback Layer 1 passed", "agent": "reviewer", "status": "completed", "ref": "skill:framework-feedback/framework_feedback"}
+{"ts": "2026-06-23T15:18:56+00:00", "event": "state_change", "phase": "backlog-burndown；release gate = approved；框架 **0.14.0**；doctor all-pass，KG drift-check=0", "detail": "skill-run: framework-feedback Layer 1 passed", "agent": "reviewer", "status": "completed", "ref": "skill:framework-feedback/framework_feedback"}

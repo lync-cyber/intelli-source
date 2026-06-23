@@ -199,6 +199,15 @@
             "command": "python -m cataforge.runtime.hook.scripts.deploy_drift"
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -m cataforge.runtime.hook.scripts.git_sync"
+          }
+        ]
       }
     ]
   },

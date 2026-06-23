@@ -1,9 +1,9 @@
-"""Tests for the error classification framework (T-007a).
+"""Tests for the error classification framework (T-101).
 
 Covers:
-- AC-T007a-1: IntelliSourceError base class with category and recovery_hint
-- AC-T007a-2: ErrorCategory enum values and recovery strategy descriptions
-- AC-T007a-3: Module-specific exception classes with correct defaults
+- AC-T101-1: IntelliSourceError base class with category and recovery_hint
+- AC-T101-2: ErrorCategory enum values and recovery strategy descriptions
+- AC-T101-3: Module-specific exception classes with correct defaults
 """
 
 import pytest
@@ -19,7 +19,7 @@ from intellisource.core.errors import (
 )
 
 # ---------------------------------------------------------------------------
-# AC-T007a-1: IntelliSourceError base class
+# AC-T101-1: IntelliSourceError base class
 # ---------------------------------------------------------------------------
 
 
@@ -51,7 +51,7 @@ class TestIntelliSourceErrorBase:
 
 
 # ---------------------------------------------------------------------------
-# AC-T007a-2: ErrorCategory enum completeness and recovery strategies
+# AC-T101-2: ErrorCategory enum completeness and recovery strategies
 # ---------------------------------------------------------------------------
 
 
@@ -80,7 +80,7 @@ class TestErrorCategory:
 
 
 # ---------------------------------------------------------------------------
-# AC-T007a-3: Module-specific exception classes
+# AC-T101-3: Module-specific exception classes
 # ---------------------------------------------------------------------------
 
 

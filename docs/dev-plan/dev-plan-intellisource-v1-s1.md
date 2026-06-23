@@ -15,7 +15,7 @@ consumers: [developer, qa-engineer]
 
 [NAV]
 
-- §3 任务卡详细 → T-001..T-009, T-007a (Sprint 1: 基础设施与数据层)
+- §3 任务卡详细 → T-001..T-009, T-101 (Sprint 1: 基础设施与数据层)
 [/NAV]
 
 ## 3. 任务卡详细
@@ -223,16 +223,16 @@ consumers: [developer, qa-engineer]
   - arch-intellisource-v1-api#API-005
   - arch#§5.2（输入校验策略 -- API-005 白名单）
 
-### T-007a: 错误分类框架
+### T-101: 错误分类框架
 
 - **目标**: 建立统一的错误分类体系和恢复路径映射，为所有模块提供结构化错误处理基础
 - **模块**: M-010
 - **接口**: 无
 - **复杂度**: S
 - **tdd_acceptance**:
-  - [ ] AC-T007a-1: IntelliSourceError 基类包含 category（ErrorCategory 枚举：RECOVERABLE_TRANSIENT / RECOVERABLE_DEGRADED / UNRECOVERABLE / EXTERNAL）和 recovery_hint（str）字段
-  - [ ] AC-T007a-2: 四类错误分类均有预定义恢复策略描述，ErrorCategory 枚举值与 arch#§5.3 错误分类框架表一致
-  - [ ] AC-T007a-3: 各模块异常类（CollectorError / PipelineError / LLMError / DistributorError / StorageError）均继承 IntelliSourceError，并预设对应的 category 默认值
+  - [ ] AC-T101-1: IntelliSourceError 基类包含 category（ErrorCategory 枚举：RECOVERABLE_TRANSIENT / RECOVERABLE_DEGRADED / UNRECOVERABLE / EXTERNAL）和 recovery_hint（str）字段
+  - [ ] AC-T101-2: 四类错误分类均有预定义恢复策略描述，ErrorCategory 枚举值与 arch#§5.3 错误分类框架表一致
+  - [ ] AC-T101-3: 各模块异常类（CollectorError / PipelineError / LLMError / DistributorError / StorageError）均继承 IntelliSourceError，并预设对应的 category 默认值
 - **deliverables** (交付物):
   - [ ] `src/intellisource/core/__init__.py` -- 核心包入口
   - [ ] `src/intellisource/core/errors.py` -- 错误分类框架（IntelliSourceError 基类、ErrorCategory 枚举、各模块异常子类）
